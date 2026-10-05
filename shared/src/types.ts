@@ -41,9 +41,9 @@ export type Message = {
 /** GET /api/rooms/:id/messages 쿼리. 생략 시 최신부터 30건 */
 export type MessagesQuery = {
   /** 이 id 보다 작은(더 오래된) 메시지만. 1 이상 정수 */
-  before?: number
+  before?: number | undefined
   /** 1~100 정수 */
-  limit?: number
+  limit?: number | undefined
 }
 
 /** 히스토리 한 페이지. messages 는 오래된→새 순. 다음 페이지 before = messages[0].id */

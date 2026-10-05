@@ -372,9 +372,9 @@ export type Message = {
 /** GET /api/rooms/:id/messages 쿼리. 생략 시 최신부터 30건 */
 export type MessagesQuery = {
   /** 이 id 보다 작은(더 오래된) 메시지만. 1 이상 정수 */
-  before?: number
+  before?: number | undefined
   /** 1~100 정수 */
-  limit?: number
+  limit?: number | undefined
 }
 
 /** 히스토리 한 페이지. messages 는 오래된→새 순. 다음 페이지 before = messages[0].id */
@@ -621,6 +621,7 @@ export const CHARACTERS: { readonly [K in CharacterId]: CharacterMeta & { readon
 |---|---|---|---|---|
 | v0.1 | 2026-10-05 | 최초 작성(S1). 전체 엔드포인트 표, 에러 코드 13종, S1 엔드포인트 4종 상세, shared 4파일·routes·ui/api 설계 | 추가(신규) | 아니오 |
 | v0.2 | 2026-10-05 | §15.4 결정 반영. `CharacterMeta.shortName` 추가(R-LLM-002 개정). S1 화면은 항상 읽기 전용이고 R-CHAT-009는 S2로 이동. 토큰 보관은 `ui/src/state/token.ts`, `client.ts`는 getter 주입(S2 상세 예정). 방 목록 배열 응답과 §10 위치는 유지 | 추가(구현 전이라 영향 없음) | 아니오 |
+| v0.2.1 | 2026-10-05 | 구현 완료(S1 routes·ui/api). `MessagesQuery`의 `before?`·`limit?`에 `undefined` 유니온 추가(exactOptionalPropertyTypes 대응). routes 는 서비스 `MessagePageQuery`가 undefined 값을 못 받아 `toPageQuery`로 키를 뺀다 | 비파괴(타입 완화) | 아니오 |
 
 ---
 
