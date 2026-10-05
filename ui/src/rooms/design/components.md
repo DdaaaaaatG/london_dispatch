@@ -40,6 +40,7 @@ export type ButtonProps = {
   buttonRef?: Ref<HTMLButtonElement>                      // S2 추가: 포커스 복귀 대상(「+ 새 방」·ConfirmDialog 취소)
 }
 ```
+- 클래스 키(v1.5, 확정): 루트에 `cx(styles.root, styles[variant], styles[size])` → 변형 클래스명은 `primary`·`secondary`·**`danger`**·`ghost`, 크기는 `sm`·`md`·`lg` 그대로다. CSS Modules가 non-scoped라 테스트는 `toHaveClass('danger')`로 단언한다.
 - 렌더: `<button type="button">`. `isDisabled`면 `disabled`(모양은 `--color-fg-disabled` 글자). 높이 sm 28 / md 36 / lg 44. 터치 영역 44 미만이면 padding으로 확보. `buttonRef`는 `<button ref>`에 그대로 건다.
 - S1 사용처: StateView 「다시 시도」(md secondary), chat B0 「다시 시도」(sm secondary), chat 새 메시지 배지(sm primary).
 - S2 사용처: rooms 「+ 새 방」(md primary)·B 행 취소(sm secondary)·만들기(sm primary), chat 전송(md primary)·인라인 수정 취소/저장(sm), PromptSheet·ConfirmDialog 버튼(lg).
@@ -237,7 +238,7 @@ export type SheetItemProps = {
 - 포커스 트랩: Tab/Shift+Tab에서 패널 안 포커스 가능 요소(`button:not([disabled])`, `input:not([disabled])`, `textarea:not([disabled])`, `[tabindex="0"]`)의 처음↔끝을 순환한다.
 - Esc: `isDismissDisabled`가 아니면 `onClose()`. 이벤트 전파를 멈춘다.
 - 모션: 열림 160ms ease-out translateY, 덮개 fade 120ms. `prefers-reduced-motion: reduce`면 0ms.
-- SheetItem: `<button type="button">` 폭 100%, 높이 44, md `--font-ui`, 왼쪽 정렬. `danger`면 `--color-danger`. `isDisabled`면 `disabled`.
+- SheetItem: `<button type="button">` 폭 100%, 높이 44, md `--font-ui`, 왼쪽 정렬. `danger`면 `--color-danger`. `isDisabled`면 `disabled`. 클래스 키(v1.5, 확정): 루트 `cx(styles.item, tone === 'danger' && styles.danger)` → danger 항목의 클래스명은 **`danger`**(테스트 `toHaveClass('danger')`).
 
 ### 1.16 ConfirmDialog (`ui/src/components/ui/ConfirmDialog/`) — S2
 
@@ -254,6 +255,7 @@ export type ConfirmDialogProps = {
 ```
 - 렌더: `BottomSheet role="alertdialog" ariaLabel={title} onClose={onCancel} isDismissDisabled={isBusy} initialFocusRef={cancelRef}` 안에 `<h2>`(md serif) · `<p>`(sm) · 버튼 줄(취소 `Button lg secondary buttonRef={cancelRef}` 왼쪽, 확인 `Button lg danger` 오른쪽). 약 148px.
 - 첫 포커스는 **취소**. `window.confirm` 금지(ui-design-strategy §11).
+- 클래스 키(v1.5, 확정): 확인 버튼은 `Button variant='danger'`이므로 클래스명 **`danger`**(§1.2). ConfirmDialog가 따로 danger 클래스를 만들지 않는다.
 
 ### 1.17 PromptSheet (`ui/src/components/ui/PromptSheet/`) — S2
 
