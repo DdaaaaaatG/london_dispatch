@@ -42,7 +42,7 @@
       "app",
       "index"
     ],
-    "contract": "shared done (routes·ui/api 2단계 대기)",
+    "contract": "done (shared·routes·ui/api, api.md v0.2.1)",
     "ui": [],
     "design_s1": {
       "layout": "done",
@@ -78,7 +78,7 @@
     "prettier",
     "concurrently"
   ],
-  "next": "contract-implementer 2단계(routes·ui/api) ∥ ui-test-designer → ui-test-checker·conflict-checker → ui-implementer → ui-tester",
+  "next": "ui-test-designer 보고 대기 → ui-test-checker ∥ ui-test-conflict-checker → ui-implementer → ui-tester",
   "blockers": [],
   "estimate_min": null,
   "actual_min": null,
@@ -119,5 +119,10 @@
     "eslint": "10.12.0",
     "typescript-eslint": "8.71.0",
     "note": "npm 11.5 arborist 버그로 .npmrc legacy-peer-deps=true. zod 4 API 주의"
-  }
+  },
+  "todo_docsync": [
+    "api.md §11.2 validate 초안을 실물(AppError(code), zod ZodType)로 갱신 — contract-designer",
+    "server messages/page.ts MessagePageQuery에 | undefined 허용 검토 — server-designer/implementer",
+    "server 설계 5종 머리말 초안→확정 — server-designer"
+  ]
 }
