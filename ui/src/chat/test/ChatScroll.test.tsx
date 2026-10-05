@@ -52,9 +52,19 @@ afterAll(() => {
   for (const key of ['scrollHeight', 'clientHeight', 'scrollTop']) Reflect.deleteProperty(HTMLElement.prototype, key)
 })
 
+// 주의: 이 mock 은 scrollTop 대입값을 자르지 않는다(브라우저는 0 ~ scrollHeight − clientHeight 로 클램프).
 const userScrollTo = (log: HTMLElement, top: number) => {
   log.scrollTop = top
   fireEvent.scroll(log)
+}
+
+/**
+ * 판정 대기 규칙(통일):
+ * - 호출이 "생기는" 판정 → await waitFor(() => expect(...).toHaveBeenCalledTimes(n))
+ * - 호출이 "없다/횟수 유지" 판정 → 먼저 flushPending() 으로 대기 중 마이크로태스크·effect 를 비운 뒤 expect
+ */
+const flushPending = async () => {
+  await act(async () => {})
 }
 
 // ── 픽스처 ─────────────────────────────────────────────
@@ -148,19 +158,23 @@ describe('이전 페이지 로드 (R-CHAT-003 · R-MSG-001)', () => {
     const log = await screen.findByRole('log')
 
     userScrollTo(log, 81)
+    await flushPending()
     expect(mockedListMessages).toHaveBeenCalledTimes(1)
     expect(within(log).queryByRole('status')).toBeNull()
   })
 
   it('TC-CH-011: 첫 배치가 맨 위 근처(내용이 상자보다 짧음)이고 hasMore 면 자동으로 1회 요청', async () => {
+    // 첫 페이지는 계약상 limit 없이 최대 30건 → 31~60(30건)·hasMore=true. "짧은 내용"은 상자 높이 400 으로만 표현한다
     box.scrollHeight = 400
-    mockedListMessages.mockResolvedValueOnce(ok(makePage(51, 60, true)))
+    mockedListMessages.mockResolvedValueOnce(ok(LATEST))
     mockedListMessages.mockReturnValueOnce(deferred<Result<MessagesPage>>().promise)
     renderChat()
 
     await screen.findByRole('log')
     await waitFor(() => expect(mockedListMessages).toHaveBeenCalledTimes(2))
-    expect(mockedListMessages.mock.calls[1]).toEqual(['r1', { before: 51 }])
+    expect(mockedListMessages.mock.calls[1]).toEqual(['r1', { before: 31 }])
+    await flushPending()
+    expect(mockedListMessages).toHaveBeenCalledTimes(2) // 자동 요청은 1회뿐
   })
 
   it('TC-CH-012: 앞붙임 후 scrollTop = 이전 scrollTop + Δ scrollHeight (읽던 자리 유지)', async () => {
@@ -190,8 +204,10 @@ describe('이전 페이지 로드 (R-CHAT-003 · R-MSG-001)', () => {
     const log = await screen.findByRole('log')
 
     userScrollTo(log, 40)
+    await waitFor(() => expect(mockedListMessages).toHaveBeenCalledTimes(2))
     userScrollTo(log, 20)
     userScrollTo(log, 0)
+    await flushPending()
     expect(mockedListMessages).toHaveBeenCalledTimes(2)
     expect(within(log).getAllByRole('status')).toHaveLength(1)
   })
@@ -207,6 +223,7 @@ describe('이전 페이지 로드 (R-CHAT-003 · R-MSG-001)', () => {
       log.dispatchEvent(new Event('scroll'))
       log.dispatchEvent(new Event('scroll'))
     })
+    await flushPending()
     expect(mockedListMessages).toHaveBeenCalledTimes(2)
   })
 
@@ -216,6 +233,7 @@ describe('이전 페이지 로드 (R-CHAT-003 · R-MSG-001)', () => {
     const log = await screen.findByRole('log')
 
     userScrollTo(log, 0)
+    await flushPending()
     expect(mockedListMessages).toHaveBeenCalledTimes(1)
     expect(within(log).queryByRole('status')).toBeNull()
     expect(within(log).queryByRole('alert')).toBeNull()
@@ -237,6 +255,7 @@ describe('이전 페이지 로드 (R-CHAT-003 · R-MSG-001)', () => {
 
     userScrollTo(log, 10)
     userScrollTo(log, 0)
+    await flushPending()
     expect(mockedListMessages).toHaveBeenCalledTimes(2)
 
     await user.click(within(log).getByRole('button', { name: '다시 시도' }))

@@ -224,8 +224,10 @@ describe('RoomsScreen 자동 진입 (R-ROOMS-004 · R-CHAT-010)', () => {
     const { onOpenRoom, onAutoOpenSettled } = renderRooms('r1')
 
     await waitFor(() => expect(onOpenRoom).toHaveBeenCalledTimes(1))
-    // ⓐ 목록이 한 번 그려진 뒤 전환된다(전환 자체는 App 몫)
-    expect(screen.getByRole('button', { name: ROW_TEA })).not.toBeNull()
+    // ⓐ 판정은 목록 응답이 성공(ready)한 뒤에만 일어난다 → 판정 후 로딩·빈(status)·오류(alert) 표시가 없다.
+    //   "목록이 한 번 그려진 뒤 전환"은 단언하지 않는다(React 19 배칭으로 보장 안 됨 — CF-01, 설계 §6.2 갱신 예정)
+    expect(screen.queryByRole('status')).toBeNull()
+    expect(screen.queryByRole('alert')).toBeNull()
     // ⓑ 순서: settle → open. 기록은 그대로
     expect(onOpenRoom.mock.calls[0][0]).toEqual(ROOM_TEA)
     expect(onAutoOpenSettled).toHaveBeenCalledTimes(1)

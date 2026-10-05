@@ -1,15 +1,20 @@
 # chat(대화) 테스트 시나리오
 
 - 기준: `ui/src/chat/design.md` v1.1(+ `design/components.md` · `design/functions.md` · `design/a11y.md`) / `ui/src/chat/requirements.md` v1.1 / `doc/200_설계/contract/api.md` v0.2 / 공용 요소 단일 정의 `ui/src/rooms/design/components.md` §1
-- 작성일: 2026-10-05 · 작성: ui-test-designer · 모드: 신규 · 상태: **초안(체커 검증 대기)**
+- 작성일: 2026-10-05 · 작성: ui-test-designer · 모드: 신규 · 상태: **초안 v0.3(검증·모순 검사 지적 반영, 재검증 대기)**
 - 묶음: **S1(읽기 전용 판)**. S1 화면은 토큰을 읽지 않으므로 모든 TC의 토큰 분기는 "없음"(READ_ONLY_VIEWER)이다. 쓰기 UI 렌더 쌍은 S2·S3에서 추가한다(아래 「후속 이월」).
 - 공통 전제
   - api 래퍼는 `vi.mock('@/api/messages')`로 대체하고 `Result<T>`를 돌려준다. `fetch` 모킹 금지. `CHARACTERS`는 실제 `@shared/characters`를 쓴다.
   - 응답 순서는 deferred promise + `await findBy*`·`waitFor`로 고정한다. 타이머가 필요한 TC-CH-022만 `vi.useFakeTimers()` 구간을 둔다. 실제 sleep 없음.
   - vitest globals 미설정 → 각 스펙이 `afterEach(cleanup)`를 직접 부른다. 매 TC 전 `localStorage.clear()`.
   - 스크롤 수치 고정(ChatScroll·useAutoScroll 스펙): `role="log"` 요소의 `scrollHeight=3000`·`clientHeight=493`을 `HTMLElement.prototype` 접근자로 고정하고 `scrollTop`은 요소별로 기억한다. 맨 아래 `scrollTop=2507`. 사용자 스크롤 = `scrollTop` 대입 + `fireEvent.scroll`.
+  - **스크롤 mock은 `scrollTop` 대입값을 자르지 않는다**(브라우저는 0 ~ `scrollHeight − clientHeight`로 클램프). 그래서 `scrollToBottom()` 뒤 값이 3000이다(브라우저라면 2507). 기대값은 이 mock 기준이다.
+  - 판정 대기 규칙(ChatScroll 스펙): 호출이 **생기는** 판정은 `await waitFor(() => expect(…).toHaveBeenCalledTimes(n))`. 호출이 **없다·횟수 유지** 판정은 먼저 `await act(async () => {})`(스펙의 `flushPending()`)로 대기 중 마이크로태스크·effect를 비운 뒤 단언한다.
   - 방 픽스처: `티타임`(id r1, createdAt 10.05, updatedAt 10.07 — 상단 날짜가 createdAt인지 가르기 위해 다르게 둔다).
   - 말풍선 픽스처: 101 시엘 line 16:40 · 102 세바스찬 line 16:41 · 103 유저(미샤) line 16:42 · 104 유저(미샤) ooc 16:43, `hasMore=false`.
+  - **구현 이름 계약(설계 문서에 아직 없음 — 이 문서가 고정, 설계 반영은 메인 세션이 ui-designer에게 요청)**
+    1. 컴포넌트·훅은 **named export**다: `App`(`@/App`) · `RoomsScreen`(`@/rooms`) · `ChatScreen`(`@/chat`) · `Bubble`·`bubbleVariantOf`(`@/chat/components/Bubble`) · `MessageList`·`MessageListProps`(`@/chat/components/MessageList`) · `useAutoScroll`·`UseAutoScrollOptions`·`UseAutoScrollResult`(`@/components/hooks/useAutoScroll`).
+    2. Bubble 클래스 키: 변형 `styles.character`·`styles.user`·`styles.ooc`(BubbleVariant 값과 같은 이름) + 캐릭터 색 `styles.ciel`·`styles.sebastian`(설계 명시). 테스트는 `ui/vite.config.ts`의 `classNameStrategy: 'non-scoped'`라 클래스명 = 키다.
 
 ## TC 목록
 
@@ -38,9 +43,9 @@
 - 스펙: `ChatScreen.test.tsx`
 
 ### TC-CH-005 · 첫 로드 오류·재시도 · 종류: 자동 · 요구: R-CHAT-003 · 설계: F-CH-04·11 · §6.4 1행 · §8.1 `loadError`·`retry` · 토큰: 없음
-- Given 1회째 `NETWORK` 실패, 2회째 성공
-- When 「다시 시도」를 누른다
-- Then ⓐ 실패 시 `role=alert`에 `대화를 불러오지 못했습니다` + `서버에 연결할 수 없습니다.`, `log` 없음, ‹ 뒤로 버튼 존재 → 재시도 후 말풍선 4개, `alert` 없음 ⓑ phase error → loading → ready ⓒ `listMessages` 2회, 2회째 인자 `['r1']`
+- Given 1회째 `NETWORK` 실패, 2회째 대기(deferred) 후 성공
+- When 「다시 시도」를 누르고, 2회째 응답이 도착한다
+- Then ⓐ 실패 시 `role=alert`에 `대화를 불러오지 못했습니다` + `서버에 연결할 수 없습니다.`, `log` 없음, ‹ 뒤로 버튼 존재 → 클릭 직후(응답 전) `role=status` "대화를 불러오는 중", `alert`·「다시 시도」 없음 → 응답 후 말풍선 4개, `alert` 없음 ⓑ phase error → loading → ready(위 세 화면으로 관찰) ⓒ `listMessages` 2회, 2회째 인자 `['r1']`
 - 스펙: `ChatScreen.test.tsx`
 
 ### TC-CH-006 · 빈 방 · 종류: 자동 · 요구: R-CHAT-002 · R-CHAT-010 · 설계: F-CH-09·11 · §8.1 `empty` · 토큰: 없음
@@ -75,9 +80,9 @@
 
 ### TC-CH-011 · 이전 페이지 요청 · 종류: 자동 · 요구: R-CHAT-003 · R-MSG-001 · 설계: §6.2 · F-CH-05 · F `nextBefore` · C §2.1·§2.3 · C §3 첫 배치 행 · §8.1 `olderLoading`·`historyAriaLabel` · 토큰: 없음
 - Given 첫 페이지 31~60(`hasMore=true`), 스크롤 박스 3000/493, 2회째 `listMessages` 대기
-- When (a) `scrollTop=80` + scroll (b) `scrollTop=81` + scroll (c) 내용 높이 400(상자보다 짧음)으로 첫 배치
-- Then ⓐ 첫 배치 `scrollTop=2507`. (a) 박스 안 `role=status` "이전 대화 불러오는 중", 박스 `aria-busy="true"` → 응답 후 B0 사라짐·`li` 60개·`aria-busy`≠`true` (b) B0 없음 ⓑ (a) isLoadingOlder true → false. 훅 단위: 첫 배치가 맨 위 근처이고 canAutoLoadOlder면 `onReachTop` 1회, 아니면 0회 ⓒ (a) 2회째 인자 `['r1', { before: 31 }]` (b) 1회 유지 (c) 자동 1회 `['r1', { before: 51 }]`
-- 스펙: `ui/src/chat/test/ChatScroll.test.tsx` · `useAutoScroll.test.tsx` · `MessageList.test.tsx`(B0 렌더 부품)
+- When (a) `scrollTop=80` + scroll (b) `scrollTop=81` + scroll (c) 같은 첫 페이지 31~60(30건 — 계약상 limit 없이 최대 30건)·`hasMore=true`를, 상자보다 짧은 내용 높이 400으로 첫 배치(짧은 내용은 높이 mock으로만 표현)
+- Then ⓐ 첫 배치 `scrollTop=2507`. (a) 박스 안 `role=status` "이전 대화 불러오는 중", 박스 `aria-busy="true"` → 응답 후 B0 사라짐·`li` 60개·`aria-busy`≠`true` (b) 대기를 비운 뒤에도 B0 없음. 부품 단위: B0 status가 박스 안 `ol`보다 앞(맨 위), 로딩·오류가 둘 다 아니면 B0 없음 ⓑ (a) isLoadingOlder true → false. 훅 단위: 첫 배치가 맨 위 근처이고 canAutoLoadOlder면 `onReachTop` 1회, 아니면 0회 ⓒ (a) 2회째 인자 `['r1', { before: 31 }]` (b) 대기를 비운 뒤에도 1회 유지 (c) 자동 1회 `['r1', { before: 31 }]`, 대기를 비운 뒤에도 총 2회(자동 요청은 1회뿐)
+- 스펙: `ui/src/chat/test/ChatScroll.test.tsx` · `useAutoScroll.test.tsx` · `MessageList.test.tsx`(B0 렌더·순서)
 
 ### TC-CH-012 · 앵커 보존 · 종류: 자동 · 요구: R-CHAT-003 · 설계: §6.2 · C §3 앞붙임 행 · F `anchorScrollTop` · 토큰: 없음
 - Given 첫 페이지 31~60, 사용자가 `scrollTop=40`에서 이전 페이지를 요청했다. 응답 전 내용 높이를 6000으로 바꾼다
@@ -94,7 +99,7 @@
 ### TC-CH-014 · 이전 페이지 오류 · 종류: 자동 · 요구: R-CHAT-003 · 설계: F-CH-06 · F `canAutoLoadOlder` · §6.4 3행 · C §2.3 · §8.1 `olderError`·`retry` · 토큰: 없음
 - Given 첫 페이지 31~60, 2회째 `INTERNAL` 실패, 3회째 1~30 성공
 - When 맨 위 scroll → 실패 → 다시 맨 위 scroll 2회 → 박스 안 「다시 시도」 클릭
-- Then ⓐ 박스 안 `role=alert` "이전 대화를 불러오지 못했습니다" + 「다시 시도」, 기존 `li` 30개 유지, `aria-busy`≠`true` → 재시도 후 `li` 60개·`alert` 없음 ⓑ olderError 기록 → 스크롤 자동 재시도 금지 → 버튼 재시도 허용 ⓒ 실패 뒤 스크롤로는 2회 유지, 버튼으로 3회째 `['r1', { before: 31 }]`. 부품 단위: 버튼 → `onRetryOlder` 1회
+- Then ⓐ 박스 안 `role=alert` "이전 대화를 불러오지 못했습니다" + 「다시 시도」, 기존 `li` 30개 유지, `aria-busy`≠`true` → 재시도 후 `li` 60개·`alert` 없음. 부품 단위: B0 alert가 `ol`보다 앞 ⓑ olderError 기록 → 스크롤 자동 재시도 금지 → 버튼 재시도 허용 ⓒ 실패 뒤 스크롤로는 2회 유지, 버튼으로 3회째 `['r1', { before: 31 }]`. 부품 단위: 버튼 → `onRetryOlder` 1회, `listMessages` 미호출
 - 스펙: `ChatScroll.test.tsx` · `MessageList.test.tsx`
 
 ### TC-CH-015 · 리듀서 T1~T8 · 종류: 자동 · 요구: R-CHAT-003 · 설계: F §1 · §1.1 T1~T8 · F-CH-12 · 토큰: 무관
@@ -152,7 +157,7 @@
 - Then ⓐ 세 상태 모두 `role=note` 텍스트가 정확히 `열람 전용 - 대화 참여는 등급 회원만` ⓑ `canWrite === false` ⓒ `listMessages` 총 2회(두 번 마운트)
 - 스펙: `ChatScreen.test.tsx`
 
-### TC-CH-024 · 마지막 본 방 기록·삭제 · 종류: 자동 · 요구: R-CHAT-010 · R-ROOMS-004 · R-NFR-004 · 설계: F-CH-02·10 · §6.4 마지막 본 방 줄 · 토큰: 없음
+### TC-CH-024 · 마지막 본 방 기록·삭제 · 종류: 자동 · 요구: R-CHAT-010 · R-ROOMS-004 · 설계: F-CH-02·10 · §6.4 마지막 본 방 줄 · 토큰: 없음
 - Given (a) `ld:lastRoomId='r0'`, 첫 로드 대기 중 (b) `setItem`·`removeItem` throw
 - When (a) 마운트 → `pagehide` → ‹ 뒤로 (b) 마운트 → ‹ 뒤로
 - Then ⓐ (b) 말풍선 정상 표시 ⓑ (a) 마운트 직후(응답 전) `'r1'`, `pagehide` 뒤에도 `'r1'`, 뒤로 후 `null` (b) throw가 밖으로 나오지 않음 ⓒ (a)(b) `onBack` 1회, `listMessages` 1회
@@ -160,8 +165,8 @@
 
 ### TC-CH-025 · 스크롤 저장·복원 · 종류: 자동 · 요구: R-CHAT-010 · R-NFR-004 · 설계: F-CH-09 · F §3 `initialDistance` · C §3 첫 배치 행 · rooms C §1.7 · §6.1 · 토큰: 없음
 - Given 스크롤 박스 3000/493, `hasMore=false`
-- When (a) `ld:scroll:r1='300'`으로 마운트 (b) `scrollTop=1000` 후 언마운트 (c) `scrollTop=1200` 후 `pagehide` (d) 첫 로드 대기 중 언마운트(`'300'` 저장돼 있음) (e) 마운트 → 언마운트 후 키 목록
-- Then ⓐ (a) 첫 배치 `scrollTop=2207` ⓑ (b) `'1507'` (c) `'1307'`, `ld:lastRoomId='r1'` 유지 (d) `'300'` 유지 (e) 키는 `ld:lastRoomId`·`ld:scroll:r1`뿐. 훅 단위: 복원 null 2507·300 2207·99999 0, `firstId=null`이면 배치 안 함·거리 null, 언마운트 뒤 마지막 거리 1507. storage 단위: 반올림·음수 0, 파싱(`abc`·`-5`·`Infinity` → null), 방별 키 분리 ⓒ `listMessages` 1회(각 경우)
+- When (a) `ld:scroll:r1='300'`으로 마운트 (b) `scrollTop=1000` 후 언마운트 (c) `scrollTop=1200` 후 `pagehide` (d) 첫 로드 대기 중 언마운트(`'300'` 저장돼 있음) (e) 마운트 → 언마운트 후 키 목록 (f) `scrollTop=1000` 후 언마운트 → 저장소 비움 → `pagehide`
+- Then ⓐ (a) 첫 배치 `scrollTop=2207` ⓑ (b) `'1507'` (c) `'1307'`, `ld:lastRoomId='r1'` 유지 (d) `'300'` 유지 (e) 키는 `ld:lastRoomId`·`ld:scroll:r1`뿐 (f) 언마운트 시 `'1507'` 저장 → 비운 뒤 `pagehide`가 와도 `ld:scroll:r1` 없음(cleanup이 `pagehide` 리스너를 해제). 훅 단위: 복원 null 2507·300 2207·99999 0, `firstId=null`이면 배치 안 함·거리 null, 언마운트 뒤 마지막 거리 1507. storage 단위: 반올림·음수 0, 파싱(`abc`·`-5`·`Infinity` → null), 방별 키 분리 ⓒ `listMessages` 1회(각 경우)
 - 스펙: `ChatScroll.test.tsx` · `useAutoScroll.test.tsx` · `ui/src/state/storage.test.ts`
 
 ### TC-CH-026 · 저장소 throw · 종류: 자동 · 요구: R-CHAT-010 · 설계: §6.4 저장소 행 · rooms C §1.7 · 토큰: 없음
@@ -187,9 +192,9 @@
 - When 응답 전에 언마운트하고, 그 뒤 응답이 도착한다
 - Then ⓐ `log` 없음 ⓑ (a) `ld:scroll:r1` 없음 (b) 언마운트 시 저장된 `'2467'`(3000−40−493)이 응답 뒤에도 그대로. 둘 다 `console.error` 0회 ⓒ (a) `listMessages` 1회 (b) 2회
 - 스펙: `ChatScreen.test.tsx` · `ChatScroll.test.tsx`
-- 참고: React 19는 언마운트 뒤 dispatch 경고를 내지 않는다. 관찰 지점은 저장소·DOM·`console.error`다.
+- 참고: **회귀 방지용 TC다.** React 19는 언마운트 뒤 dispatch를 경고 없이 무시하므로, `isActiveRef`가 없어도 이 단언은 통과할 수 있다(판별력 없음, 검증 TK-02). 관찰 지점은 저장소·DOM·`console.error`다.
 
-### TC-CH-030 · 오류 상세 · 종류: 자동 · 요구: R-CHAT-003 · 설계: §8.2 `errorDetail` · §7 코드 목록 · §6.4 NOT_FOUND 행 · 토큰: 없음
+### TC-CH-030 · 오류 상세 · 종류: 자동 · 요구: R-CHAT-002 · 설계: §8.2 `errorDetail` · §7 코드 목록 · §6.4 NOT_FOUND 행 · 토큰: 없음
 - Given 첫 로드 실패 `{ code, message: 'SERVER-RAW-MESSAGE' }`, code ∈ `NETWORK`·`NOT_FOUND`·`INTERNAL`·`VALIDATION_ERROR`
 - When 마운트한다
 - Then ⓐ 상세 = `서버에 연결할 수 없습니다.` / `방을 찾을 수 없습니다. 목록으로 돌아가 주세요.` / `ERROR_MESSAGES.INTERNAL` / `ERROR_MESSAGES.VALIDATION_ERROR`, `SERVER-RAW-MESSAGE` 없음 ⓑ `ld:lastRoomId='r1'`(오류여도 기록) ⓒ `listMessages` 1회
@@ -197,28 +202,28 @@
 
 ## TC-FLOW
 
-S1 행만 만든다. 앞 Step의 결과가 뒤 Step의 Given이다.
+S1 행만 만든다. 표기: `A → B`는 **순차 인계**(A의 결과 상태가 B의 Given). `분기:`는 같은 지점에서 갈라지는 **대안·독립 확인**(서로 상태를 넘기지 않는다).
 
-### TC-FLOW-CH-01 · U-CH-01 어느 방인지 확인 · Steps: TC-RM-012(b) → TC-CH-001 → TC-CH-003 → TC-CH-002 → TC-CH-027
-- 목록에서 방 선택(→ ChatScreen 마운트, 방 = RoomSummary) → 제목·생성일 → ⋯ 없음 → ‹ 뒤로(→ 목록·기록 삭제) → 레이블·포커스 순서
+### TC-FLOW-CH-01 · U-CH-01 어느 방인지 확인 · Steps: TC-RM-012(b) → TC-CH-001 → TC-CH-003 → TC-CH-027 → TC-CH-002
+- 목록에서 방 선택(→ ChatScreen 마운트, 방 = RoomSummary) → 제목·생성일(→ 말풍선 표시) → ⋯ 없음(→ 같은 화면) → 레이블·포커스 순서(→ 같은 화면) → ‹ 뒤로(→ 목록·기록 삭제)
 
-### TC-FLOW-CH-02 · U-CH-02 대화 읽기 · Steps: TC-CH-004 → TC-CH-007 → TC-CH-008 → TC-CH-009 → TC-CH-010 → TC-CH-028
-- 첫 로드(→ 말풍선 4건) → 캐릭터 · 유저 · OOC 렌더 → 변형 판정 → 390×565 시각 확인
+### TC-FLOW-CH-02 · U-CH-02 대화 읽기 · Steps: TC-CH-004 → 분기: TC-CH-007 | TC-CH-008 | TC-CH-009 | TC-CH-010 → TC-CH-028
+- 첫 로드(→ 말풍선 4건). 분기: 4건을 변형별로 나눠 본다(캐릭터 · 유저 · OOC · 변형 판정 함수, 서로 인계 없음). 이어서 같은 화면을 390×565로 시각 확인
 
-### TC-FLOW-CH-03 · U-CH-03 오래된 대화 거슬러 읽기 · Steps: TC-CH-011 → TC-CH-012 → TC-CH-013 → TC-CH-014
-- 맨 위 도달(→ before 요청) → 앞붙임 후 읽던 자리 유지(→ 60건) → 중복·종료 → 실패 시 버튼 재시도
+### TC-FLOW-CH-03 · U-CH-03 오래된 대화 거슬러 읽기 · Steps: TC-CH-011 → 분기: ① TC-CH-012 ② TC-CH-014 · 대기 중 확인: TC-CH-013
+- 맨 위 도달(→ before 요청, B0 로딩). 분기 ① 응답 성공 → 앞붙임·읽던 자리 유지 ② 응답 실패 → B0 오류·버튼 재시도. 대기 중 확인: 요청이 끝나기 전 scroll이 이어져도 중복 없음, `hasMore=false`면 요청 종료
 
-### TC-FLOW-CH-04 · U-CH-04 닫았다 다시 열기 · Steps: TC-CH-024 → TC-CH-025 → TC-RM-008 → TC-RM-012(a) → TC-CH-026
-- 진입 시 기록(→ `ld:lastRoomId`) → 거리 저장(→ `ld:scroll:r1`) → 다시 열면 자동 진입·거리 복원 → ‹ 뒤로면 기록 삭제·다음엔 목록 → 저장 불가여도 동작
+### TC-FLOW-CH-04 · U-CH-04 닫았다 다시 열기 · Steps: TC-CH-024 → TC-CH-025 → TC-RM-008 → TC-RM-012(a) · 분기: TC-CH-026
+- 진입 시 기록(→ `ld:lastRoomId='r1'`) → 언마운트·pagehide 시 거리 저장(→ `ld:scroll:r1`) → 다시 열면 자동 진입(→ chat r1, 거리 복원) → ‹ 뒤로면 기록 삭제·재마운트 시 목록. 분기(독립 Given): 저장소 접근이 모두 throw하는 브라우저에서도 같은 화면이 동작
 
-### TC-FLOW-CH-05 · U-CH-05 쓰기 UI 부재·안내 · Steps: TC-CH-003 → TC-CH-021 → TC-CH-022 → TC-CH-023 → TC-CH-025(e)
-- ⋯ 없음 → 하단 바 없음 → 말풍선 메뉴 없음 → 열람 안내 → 저장 키에 토큰 없음
+### TC-FLOW-CH-05 · U-CH-05 쓰기 UI 부재·안내 · Steps: TC-CH-003 → TC-CH-021 → TC-CH-022 → TC-CH-023 · 분기: TC-CH-025(e)
+- 말풍선이 보이는 같은 화면을 이어서 확인: ⋯ 없음 → 하단 바 없음 → 말풍선 우클릭·길게 누름 뒤에도 메뉴 없음(→ 화면 변화 없음) → 열람 안내. 분기(독립 Given): 언마운트 뒤 저장 키에 토큰 없음
 
-### TC-FLOW-CH-06 · U-CH-06 위를 읽는 중 새 메시지(상태 모델) · Steps: TC-CH-016 → TC-CH-018 → TC-CH-019 → TC-CH-020
-- 새 메시지 액션 → unseen 가산 / 맨 아래면 0(→ unseenCount) → 뒤붙임 시 위쪽이면 스크롤 유지 → 배지 표시·클릭 → 맨 아래 도달 시 해제. 실제 발생 경로는 S2·S3
+### TC-FLOW-CH-06 · U-CH-06 위를 읽는 중 새 메시지(상태 모델) · Steps: 분기: TC-CH-016 | TC-CH-018 | TC-CH-019 | TC-CH-020
+- S1에는 새 메시지 발생 경로가 없어 층별로 독립 확인한다: 리듀서(unseen 가산·초기화) | 훅 뒤붙임(위쪽이면 스크롤 유지) | 배지 표시·클릭 | 맨 아래 도달 해제. 순차 체인은 S2·S3에서 발생 경로와 함께 만든다
 
-### TC-FLOW-CH-07 · U-CH-07 등급 통과 회원(토큰 있음) S1 기간 · Steps: TC-RM-012(c) → TC-CH-021 → TC-CH-023 → TC-CH-004
-- `?t=` 주소로 열어도 읽기 전용 판(→ READ_ONLY_VIEWER) → 하단 바 없음 → 열람 안내 → 같은 히스토리
+### TC-FLOW-CH-07 · U-CH-07 등급 통과 회원(토큰 있음) S1 기간 · Steps: TC-RM-012(c) → TC-CH-004 → TC-CH-021 → TC-CH-023
+- `?t=` 주소로 열어 방 진입(→ READ_ONLY_VIEWER chat) → 같은 히스토리(→ 말풍선 표시) → 하단 바 없음 → 열람 안내
 
 ## 추적표
 
@@ -227,8 +232,8 @@ S1 행만 만든다. 앞 Step의 결과가 뒤 Step의 Given이다.
 | 요구ID | TC | 비고 |
 |---|---|---|
 | R-CHAT-001 🔒 | TC-CH-001 · 002 · 003 | ⋯ 메뉴 렌더는 S2 |
-| R-CHAT-002 🔒 | TC-CH-004 · 006 · 007 · 008 · 009 · 010 · 028 | 수용 기준 "스크린샷" = 028 |
-| R-CHAT-003 🔒 | TC-CH-004 · 005 · 011 ~ 020 · 029 · 030 | 새 메시지 실제 발생은 S2·S3 |
+| R-CHAT-002 🔒 | TC-CH-004 · 006 · 007 · 008 · 009 · 010 · 028 · 030 | 수용 기준 "스크린샷" = 028 |
+| R-CHAT-003 🔒 | TC-CH-004 · 005 · 011 ~ 020 · 029 | 새 메시지 실제 발생은 S2·S3. 029는 회귀 방지용 |
 | R-CHAT-004 🔒 | TC-CH-021(부재 쪽) | 렌더 쪽 S2 |
 | R-CHAT-005 🔒 | — 후속(S3) | |
 | R-CHAT-006 🔒 | — 후속(S2) | |
@@ -241,7 +246,7 @@ S1 행만 만든다. 앞 Step의 결과가 뒤 Step의 Given이다.
 | R-CHAT-013 🔒 | TC-CH-001 · 023 · 027 · 028(수동) | 쓰기 판 스크린샷 S2 |
 | R-LLM-002 🔒 | TC-CH-007 | `shortName`·아바타 경로 |
 | R-MSG-001 🔒 | TC-CH-004 · 011 · 016 | before·hasMore·nextBefore |
-| R-NFR-004 🔒 | TC-CH-024 · 025 · TC-RM-012(c) | 리뷰 grep은 수동 `MC-CH-09` |
+| R-NFR-004 🔒 | TC-CH-025(e) · TC-RM-010 · TC-RM-012(c) | 리뷰 grep은 verify 단계 자동 grep으로 이관(메인 세션 기록), 수동 `MC-CH-09`는 보조 |
 | R-ROOMS-004 | TC-CH-002 · 024 | 기록·삭제 시점 |
 
 ### 설계 항목 ↔ TC
@@ -276,7 +281,7 @@ S1 행만 만든다. 앞 Step의 결과가 뒤 Step의 Given이다.
 | F §2 scroll.ts 임계·함수 5종 | TC-CH-017 |
 | F §3 initialDistance | TC-CH-025 |
 | F §3 olderInFlightRef | TC-CH-013 |
-| F §3 isActiveRef | TC-CH-029 |
+| F §3 isActiveRef | TC-CH-029 — 회귀 방지용, React 19에서 판별력 없음(TK-02) |
 | F §3 stateRef(최신 상태 읽기) | TC-CH-011(c) · 013 · 014 |
 | F §3 backButtonRef | TC-CH-002 · 027 |
 | F §3 autoScroll 배선 | TC-CH-011 · 012 · 025 |
@@ -288,14 +293,14 @@ S1 행만 만든다. 앞 Step의 결과가 뒤 Step의 Given이다.
 | F-CH-06 retryOlder | TC-CH-014 |
 | F-CH-07 clearUnseen | TC-CH-016(T11·T12) · 020 |
 | F-CH-08 showNewest | TC-CH-019(부품 분해, 조립 TC는 S2) |
-| F-CH-09 스크롤 저장 effect | TC-CH-006 · 025 · 029 |
+| F-CH-09 스크롤 저장 effect(pagehide 등록·cleanup 해제·save 1회) | TC-CH-006 · 025(b)(c)(d)(f) · 029 |
 | F-CH-10 back | TC-CH-002 · 024 |
 | F-CH-11 renderHistory | TC-CH-004 · 005 · 006 · 030 |
 | F-CH-12 chatReducer 외 | TC-CH-015 · 016 |
 | F-CH-13 scroll.ts | TC-CH-017 |
 | F-CH-14 useAutoScroll | TC-CH-011 · 012 · 018 · 019 · 020 · 025 |
 | F-CH-15 bubbleVariantOf | TC-CH-010 |
-| C §2.1 MessageList 렌더 규칙(role log · aria-busy · B0 위치 · 배지 박스 밖) | TC-CH-011 · 019 · 027 |
+| C §2.1 MessageList 렌더 규칙(role log · aria-busy · B0가 ol보다 앞 · 배지 박스 밖) | TC-CH-011 · 014 · 019 · 027 |
 | C §2.2 Bubble 3변형·DOM 순서·캐릭터 색 클래스 | TC-CH-007 · 008 · 009 |
 | C §2.2 롱프레스·onContextMenu 미연결 | TC-CH-022 |
 | C §2.3 InlineStatus | TC-CH-011 · 014 |
@@ -338,6 +343,7 @@ S1 행만 만든다. 앞 Step의 결과가 뒤 Step의 Given이다.
 | 생성 중 "…" 임시 말풍선·잠금·실패 재시도 | S3 | R-CHAT-005 후속 | 가짜 시계·잠금 해제·오류 말풍선 |
 | 401·403·429 코드별 안내·읽기 전용 전환 | S2·S3 | R-CHAT-011 후속 | `errorDetail` 확장 TC |
 | F-CH-08 조립(배지 클릭 → 맨 아래 + unseenCleared) | S2 | S1에 새 메시지 발생 경로 없음 | 화면 단위 조립 TC |
+| TC-FLOW-CH-06 순차 체인 | S2·S3 | 같음 | 발생 → 배지 → 클릭 → 해제 체인 |
 
 ## 변경 대기열(미검증)
 
@@ -349,3 +355,5 @@ S1 행만 만든다. 앞 Step의 결과가 뒤 Step의 Given이다.
 | 버전 | 일자 | 변경 | 근거 |
 |---|---|---|---|
 | v0.1 | 2026-10-05 | 최초 작성(신규 모드). TC-CH-001~030, TC-FLOW-CH-01~07, 추적표 3종, 스펙 초안 7개 | 구축 S1, design.md v1.1 RTM |
+| v0.2 | 2026-10-05 | TC-CH-025 (f) pagehide 리스너 해제 단언 추가. TC-CH-005 재시도 중간 loading 단언. TC-CH-011·014 B0가 `ol`보다 앞(부품 단위). TC-CH-024 요구에서 R-NFR-004 제거, TC-CH-030 요구를 R-CHAT-002로 정정, 요구↔TC 표 맞춤. TC-CH-029 회귀 방지 비고. TC-FLOW 표기 규약(순차 `→` / `분기:`) 도입, FLOW-CH-01~07 재작성. 공통 전제에 named export·Bubble 클래스 키 명시 | ui-test-checker TK-01 ~ TK-07 |
+| v0.3 | 2026-10-05 | TC-CH-011 (c) 픽스처를 계약 가능한 첫 페이지(31~60, 30건, hasMore=true)로 바꾸고 기대를 `before: 31`로 정정. 공통 전제에 스크롤 mock 비클램프·판정 대기 규칙 명시, ChatScroll 스펙의 "호출 없음·횟수 유지" 판정 앞에 `flushPending()` 추가(TC-CH-011 (b)(c)·013·014) | ui-test-conflict-checker CF-02 · CF-03 · CF-05 |

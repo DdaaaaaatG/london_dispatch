@@ -1,7 +1,7 @@
 # rooms(방 목록) 테스트 시나리오
 
 - 기준: `ui/src/rooms/design.md` v1.2(+ `design/components.md` · `design/functions.md` · `design/a11y.md`) / `ui/src/rooms/requirements.md` v1.1 / `doc/200_설계/contract/api.md` v0.2
-- 작성일: 2026-10-05 · 작성: ui-test-designer · 모드: 신규 · 상태: **초안(체커 검증 대기)**
+- 작성일: 2026-10-05 · 작성: ui-test-designer · 모드: 신규 · 상태: **초안 v0.3(검증·모순 검사 지적 반영, 재검증 대기)**
 - 묶음: **S1(저장 + 읽기 전용 화면)**. S1 화면은 토큰을 읽지 않으므로 모든 TC의 토큰 분기는 "없음"(READ_ONLY_VIEWER)이다. 토큰 있음 렌더 쌍은 S2에서 추가한다(아래 「S2 이월」).
 - 공통 전제
   - api 래퍼는 `vi.mock('@/api/rooms')`(App 흐름은 `@/api/messages`도)로 대체하고 `Result<T>`(`{ ok: true, value }` / `{ ok: false, error: { code, message } }`)를 돌려준다. `fetch` 모킹 금지.
@@ -9,6 +9,9 @@
   - vitest globals 미설정 → 각 스펙이 `afterEach(cleanup)`를 직접 부른다. 매 TC 전 `localStorage.clear()`.
   - 날짜 픽스처는 로컬 생성자(`new Date(2026, 9, 5, 16, 40)`)로 만든다(시간대 무관).
   - 픽스처 방: `체스 대결`(id r2, updatedAt 10.03) · `티타임`(id r1, updatedAt 10.05). 행 이름 = `{제목}, 마지막 갱신 {MM.DD}`.
+  - **구현 이름 계약(설계 문서에 아직 없음 — 이 문서가 고정, 설계 반영은 메인 세션이 ui-designer에게 요청)**
+    1. 컴포넌트·훅은 **named export**다: `App`(`@/App`) · `RoomsScreen`(`@/rooms`) · `ChatScreen`(`@/chat`) · `Bubble`·`bubbleVariantOf`(`@/chat/components/Bubble`) · `MessageList`·`MessageListProps`(`@/chat/components/MessageList`) · `useAutoScroll`·`UseAutoScrollOptions`·`UseAutoScrollResult`(`@/components/hooks/useAutoScroll`).
+    2. Bubble 클래스 키(chat 스펙이 쓴다): 변형 `styles.character`·`styles.user`·`styles.ooc` + 캐릭터 색 `styles.ciel`·`styles.sebastian`. 테스트는 `ui/vite.config.ts`의 `classNameStrategy: 'non-scoped'`라 클래스명 = 키다.
 
 ## TC 목록
 
@@ -57,7 +60,7 @@
 ### TC-RM-008 · 자동 진입 성공 · 종류: 자동 · 요구: R-ROOMS-004 · R-CHAT-010 · 설계: F-RM-08 · §6.2 · 토큰: 없음
 - Given `ld:lastRoomId='r1'`, `autoOpenRoomId='r1'`, `listRooms` → 목록에 r1 포함
 - When 마운트한다
-- Then ⓐ 목록이 한 번 그려진다(전환은 App 몫) ⓑ `onAutoOpenSettled` 1회가 `onOpenRoom(티타임)` 1회보다 먼저(`invocationCallOrder`). `ld:lastRoomId`는 `r1` 그대로 ⓒ `listRooms` 1회(단건 조회 없음)
+- Then ⓐ 판정 시점에 목록 응답은 성공 상태(ready)다: 판정 후 `role=status`(로딩·빈)·`alert`가 없다. 목록이 화면에 한 번 커밋되는지는 단언하지 않는다(React 19 배칭으로 보장되지 않음 — 메인 세션 결정 CF-01, 설계 §6.2·F-RM-06/08 문장 갱신은 ui-designer 몫). 전환은 App 몫 ⓑ `onAutoOpenSettled` 1회가 `onOpenRoom(티타임)` 1회보다 먼저(`invocationCallOrder`). `ld:lastRoomId`는 `r1` 그대로 ⓒ `listRooms` 1회(단건 조회 없음)
 - 스펙: `RoomsScreen.test.tsx`
 
 ### TC-RM-009 · 자동 진입 대상 없음 · 종류: 자동 · 요구: R-ROOMS-004 · 설계: F-RM-08 · §6.3 · 토큰: 없음
@@ -69,7 +72,7 @@
 ### TC-RM-010 · 저장소 throw · 종류: 자동 · 요구: R-ROOMS-004 · R-CHAT-010 · R-NFR-004 · 설계: C §1.7 · F-RM-10 · §6.4 저장소 행 · 토큰: 없음
 - Given (a) storage 단위: `Storage.prototype.getItem/setItem/removeItem` throw, 또는 `window.localStorage` 접근 자체가 throw (b) RoomsScreen: `removeItem`만 throw + 대상 없는 저장 id (c) App: 세 메서드 모두 throw
 - When (a) storage 함수 5종 호출 (b) 마운트 (c) App 마운트 → 행 클릭 → ‹ 뒤로
-- Then ⓐ (b)(c) 일반 목록·진입·뒤로가 정상, `alert` 없음, 자동 진입 없음 ⓑ (a) 읽기 `null`, 쓰기·삭제 throw 없음, `console.error`·`console.warn` 0회. 정상 환경 왕복(저장→읽기→삭제), 빈 문자열은 `null`. 키 상수는 `ld:lastRoomId`·`ld:scroll:{id}`뿐이고 저장 후 남는 키도 그 둘뿐(토큰 키 없음) ⓒ (b) `listRooms` 1회 (c) `listRooms` 2회, `listMessages('r1')`
+- Then ⓐ (b)(c) 일반 목록·진입·뒤로가 정상, `alert` 없음, 자동 진입 없음 ⓑ (a) 차단 전에 값을 넣고 차단 상태(`getItem` throw / `window.localStorage` 접근 throw)를 먼저 확인한 뒤, 값이 있어도 읽기 `null`, 쓰기·삭제 throw 없음, 차단을 풀면 원래 값 그대로(막힌 쓰기·삭제 미반영). 메서드 throw·접근 throw 두 경우에 함수 5종을 모두 불러도 `console.error`·`console.warn`·`console.log` 0회. 정상 환경 왕복(저장→읽기→삭제), 빈 문자열은 `null`. 키 상수는 `ld:lastRoomId`·`ld:scroll:{id}`뿐이고 저장 후 남는 키도 그 둘뿐(토큰 키 없음) ⓒ (b) `listRooms` 1회 (c) `listRooms` 2회, `listMessages('r1')`
 - 스펙: `ui/src/state/storage.test.ts` · `RoomsScreen.test.tsx` · `App.test.tsx`
 
 ### TC-RM-011 · 읽기 전용 부재 · 종류: 자동 · 요구: R-CHAT-008 · R-ROOMS-002(부재 쪽) · 설계: §2.2 · §10 · C §1.8 · 토큰: 없음
@@ -87,7 +90,7 @@
 ### TC-RM-013 · formatDate · 종류: 자동 · 요구: R-ROOMS-001 · 설계: C §1.6 · F-RM-11 · 토큰: 무관
 - Given 로컬 생성자로 만든 epoch ms
 - When `formatMonthDay`·`formatTime`·`toIsoDate`·`toIsoDateTime`을 부른다
-- Then ⓐ `10.05`·`01.05`·`12.31` / `16:40`·`09:07`·`00:00`·`23:59` / `2026-01-05` / `2026-01-05T09:07`. 자정 직후 `10.06` ⓑ 순수 함수 — 같은 입력 같은 출력, 저장 없음 ⓒ api 호출 없음(유틸은 api를 import하지 않는다)
+- Then ⓐ `10.05`·`01.05`·`12.31` / `16:40`·`09:07`·`00:00`·`23:59` / `2026-01-05` / `2026-01-05T09:07`. 자정 직후 `10.06` ⓑ 같은 입력 같은 출력. 네 함수를 부른 뒤 저장소 키 0개 ⓒ 모킹한 `listRooms`·`listMessages` 0회 호출
 - 스펙: `ui/src/rooms/test/formatDate.test.ts`
 
 ### TC-RM-014 · 자동 진입 보류 · 종류: 자동 · 요구: R-ROOMS-004 · 설계: F-RM-06·08 · §6.4 2행 · §11.2 A-2 · 토큰: 없음
@@ -117,25 +120,25 @@
 
 ## TC-FLOW
 
-S1 행만 만든다. 앞 Step의 결과(→ 뒤에 적은 상태)가 뒤 Step의 Given이다.
+S1 행만 만든다. 표기: `A → B`는 **순차 인계**(A의 결과 상태가 B의 Given). `분기:`는 같은 지점에서 갈라지는 **대안·독립 확인**(서로 상태를 넘기지 않는다).
 
 ### TC-FLOW-RM-01 · U-RM-01 처음 열어 방 목록 보기(읽기 전용) · Steps: TC-RM-004 → TC-RM-001 → TC-RM-017 → TC-RM-015
-- 로딩 표시(→ 목록 응답) → 최신순 제목·날짜 렌더(→ 목록 표시, 포커스 h1) → 접근성 이름·Tab 순서 → 390×565 시각 확인
+- 로딩 표시(→ 목록 응답) → 서버가 준 순서 그대로 제목·날짜 렌더, 재정렬 없음(→ 목록 표시, 포커스 h1) → 같은 목록의 접근성 이름·Tab 순서 → 같은 화면을 390×565로 시각 확인
 
-### TC-FLOW-RM-02 · U-RM-02 방을 골라 대화 읽기 · Steps: TC-RM-001 → TC-RM-002 → TC-RM-003 → TC-RM-012(b)
-- 목록 표시(→ 행 존재) → 클릭 진입 콜백(→ 고른 RoomSummary) → 키보드 진입 → App이 그 방 chat을 열고 기록 = 그 방 id
+### TC-FLOW-RM-02 · U-RM-02 방을 골라 대화 읽기 · Steps: TC-RM-001 → 분기: TC-RM-002 | TC-RM-003 → TC-RM-012(b)
+- 목록 표시(→ 행 존재). 분기: 클릭 진입 | 키보드 진입(둘 다 `onOpenRoom(고른 RoomSummary)`, 서로 인계 없음). 이어서 App 단위로 그 방 chat이 열리고 기록 = 그 방 id
 
-### TC-FLOW-RM-03 · U-RM-03 로딩·빈 목록·서버 불통 · Steps: TC-RM-004 → TC-RM-005 → TC-RM-006 → TC-RM-007
-- 로딩(→ 응답) → 빈 목록 / 실패(→ 오류 화면) → 다시 시도 성공 → 코드별 상세
+### TC-FLOW-RM-03 · U-RM-03 로딩·빈 목록·서버 불통 · Steps: TC-RM-004 → 분기: ① TC-RM-005 ② TC-RM-006(코드별 세부 문구 TC-RM-007)
+- 로딩(→ 응답 대기). 분기 ① 빈 응답 → 빈 목록 ② 실패 응답 → 오류 화면 → 다시 시도 성공(→ 목록). ②의 상세 문구는 코드마다 독립 Given인 TC-RM-007이 맡는다
 
-### TC-FLOW-RM-04 · U-RM-04 닫았다 다시 열기 · Steps: TC-RM-008 → TC-RM-012(a) → TC-RM-009 → TC-RM-014 → TC-RM-010
-- 저장 id로 자동 진입(→ chat) → ‹ 뒤로로 기록 삭제·재마운트 시 목록(→ 저장 없음) → 사라진 방이면 기록 삭제 → 첫 로드 실패 시 보류 후 재시도 진입 → 저장 불가 브라우저에서도 목록 정상
+### TC-FLOW-RM-04 · U-RM-04 닫았다 다시 열기 · Steps: TC-RM-008 → TC-RM-012(a) · 분기: TC-RM-009 | TC-RM-014 | TC-RM-010
+- 저장 id로 자동 진입(→ chat r1) → ‹ 뒤로로 기록 삭제·재마운트 시 목록(→ 저장 없음). 분기(독립 Given): 저장된 방이 사라졌으면 기록 삭제·목록 유지 | 첫 로드 실패면 진입 보류 후 재시도 성공 때 진입 | 저장 불가 브라우저에서도 목록·진입·뒤로 정상
 
-### TC-FLOW-RM-05 · U-RM-05 쓰기 UI 부재·토큰 비저장 · Steps: TC-RM-011 → TC-RM-010(키 단언) → TC-RM-012(c)
-- 새 방 버튼·입력 부재(→ 버튼은 행뿐) → 저장 키가 허용 2종뿐 → `?t=`가 있어도 저장소에 토큰 없음
+### TC-FLOW-RM-05 · U-RM-05 쓰기 UI 부재·토큰 비저장 · Steps: 분기: TC-RM-011 | TC-RM-010(키 단언) | TC-RM-012(c)
+- 독립 확인 3건: 새 방 버튼·입력 부재(버튼은 행뿐) | 저장 키가 허용 2종뿐 | `?t=`가 있어도 저장소에 토큰 없음
 
-### TC-FLOW-RM-06 · U-RM-06 등급 통과 회원(토큰 있음) S1 기간 · Steps: TC-RM-012(c) → TC-RM-011 → TC-RM-001 → TC-RM-008
-- `?t=`가 붙은 주소로 열어도 읽기 전용 판(→ READ_ONLY_VIEWER) → 새 방 부재 → 목록·진입 → 자동 진입이 비회원과 같다
+### TC-FLOW-RM-06 · U-RM-06 등급 통과 회원(토큰 있음) S1 기간 · Steps: TC-RM-012(c) → TC-RM-011 → TC-RM-001 · 분기: TC-RM-008
+- `?t=` 주소로 열어 방 진입 후 뒤로(→ 목록, READ_ONLY_VIEWER) → 새 방 부재(→ 같은 목록) → 목록 렌더 확인. 분기(독립 Given): 저장 id가 있으면 자동 진입이 비회원과 같다
 
 ## 추적표
 
@@ -235,3 +238,5 @@ S1 행만 만든다. 앞 Step의 결과(→ 뒤에 적은 상태)가 뒤 Step의
 | 버전 | 일자 | 변경 | 근거 |
 |---|---|---|---|
 | v0.1 | 2026-10-05 | 최초 작성(신규 모드). TC-RM-001~017, TC-FLOW-RM-01~06, 추적표 3종, 스펙 초안 4개 | 구축 S1, design.md v1.2 RTM |
+| v0.2 | 2026-10-05 | TC-RM-013 ⓑⓒ를 스펙 단언(저장소 0개·api 모킹 0회)과 맞춤. TC-RM-010 콘솔 0회 단언을 함수 5종·차단 2방식으로 확장. TC-FLOW 표기 규약(순차 `→` / `분기:`) 도입, FLOW-RM-02~06 재작성. 공통 전제에 named export·Bubble 클래스 키 명시 | ui-test-checker TK-03 ~ TK-06 |
+| v0.3 | 2026-10-05 | TC-RM-008 ⓐ를 "판정 시점 ready(판정 후 status·alert 없음)"로 재정의하고 "목록이 한 번 그려진다" 단언 제거. TC-RM-010 차단 케이스에 사전 값 주입·차단 상태 단언·해제 후 원값 확인 추가. FLOW-RM-01 문구를 "서버가 준 순서 그대로, 재정렬 없음"으로 | ui-test-conflict-checker CF-01(메인 세션 결정) · CF-04 · CF-06 |

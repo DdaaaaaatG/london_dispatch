@@ -28,11 +28,15 @@ const storageKeys = (): string[] => {
 
 /** window.localStorage 접근 자체가 throw 하는 환경(iframe 저장 차단)을 흉내 낸다 */
 const blockStorageAccess = (): (() => void) => {
-  const original = Object.getOwnPropertyDescriptor(globalThis, 'localStorage')
-  Object.defineProperty(globalThis, 'localStorage', { configurable: true, get: blocked })
+  // vitest jsdom 에서 window 와 globalThis 가 같은 객체일 수도, 다를 수도 있다 → 둘 다 막는다
+  const targets = Array.from(new Set<object>([globalThis, window]))
+  const originals = targets.map((target) => [target, Object.getOwnPropertyDescriptor(target, 'localStorage')] as const)
+  for (const target of targets) Object.defineProperty(target, 'localStorage', { configurable: true, get: blocked })
   return () => {
-    if (original) Object.defineProperty(globalThis, 'localStorage', original)
-    else Reflect.deleteProperty(globalThis, 'localStorage')
+    for (const [target, original] of originals) {
+      if (original) Object.defineProperty(target, 'localStorage', original)
+      else Reflect.deleteProperty(target, 'localStorage')
+    }
   }
 }
 
@@ -71,41 +75,70 @@ describe('storage 키·왕복 (R-ROOMS-004 · R-CHAT-010 · R-NFR-004)', () => {
 })
 
 describe('storage 예외 삼킴 (R-ROOMS-004 "저장 불가 환경에서도 동작")', () => {
-  it('TC-RM-010: getItem/setItem/removeItem 이 throw → 읽기는 null, 쓰기·삭제는 무시(throw 없음)', () => {
+  it('TC-RM-010: getItem/setItem/removeItem 이 throw → 값이 있어도 읽기는 null, 쓰기·삭제는 무시(throw 없음)', () => {
+    // 차단 전에 값을 넣어 둔다 → "값이 없어서 null" 과 구분된다
+    localStorage.setItem('ld:lastRoomId', 'r1')
+    localStorage.setItem('ld:scroll:r1', '300')
     vi.spyOn(Storage.prototype, 'getItem').mockImplementation(blocked)
     vi.spyOn(Storage.prototype, 'setItem').mockImplementation(blocked)
     vi.spyOn(Storage.prototype, 'removeItem').mockImplementation(blocked)
+    expect(() => localStorage.getItem('ld:lastRoomId')).toThrow() // 차단 상태 확인
 
     expect(loadLastRoomId()).toBeNull()
     expect(loadScrollOffset('r1')).toBeNull()
-    expect(() => saveLastRoomId('r1')).not.toThrow()
+    expect(() => saveLastRoomId('r2')).not.toThrow()
     expect(() => clearLastRoomId()).not.toThrow()
     expect(() => saveScrollOffset('r1', 100)).not.toThrow()
+
+    vi.restoreAllMocks()
+    expect(localStorage.getItem('ld:lastRoomId')).toBe('r1') // 막힌 쓰기·삭제는 반영되지 않았다
+    expect(localStorage.getItem('ld:scroll:r1')).toBe('300')
   })
 
-  it('TC-RM-010: window.localStorage 접근 자체가 throw → 모든 함수가 throw 없이 null/무시', () => {
+  it('TC-RM-010: window.localStorage 접근 자체가 throw → 값이 있어도 모든 함수가 throw 없이 null/무시', () => {
+    localStorage.setItem('ld:lastRoomId', 'r1')
+    localStorage.setItem('ld:scroll:r1', '300')
     const restore = blockStorageAccess()
     try {
+      expect(() => window.localStorage).toThrow() // 차단 상태 확인
       expect(loadLastRoomId()).toBeNull()
       expect(loadScrollOffset('r1')).toBeNull()
-      expect(() => saveLastRoomId('r1')).not.toThrow()
+      expect(() => saveLastRoomId('r2')).not.toThrow()
       expect(() => clearLastRoomId()).not.toThrow()
       expect(() => saveScrollOffset('r1', 100)).not.toThrow()
     } finally {
       restore()
     }
+    expect(localStorage.getItem('ld:lastRoomId')).toBe('r1')
+    expect(localStorage.getItem('ld:scroll:r1')).toBe('300')
   })
 
-  it('TC-RM-010: 실패해도 콘솔에 남기지 않는다(로그 없음)', () => {
+  it('TC-RM-010: 실패해도 콘솔에 남기지 않는다 — 메서드 throw·접근 throw 두 경우, 함수 5종 전부', () => {
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
+    const callAll = () => {
+      loadLastRoomId()
+      saveLastRoomId('r1')
+      clearLastRoomId()
+      loadScrollOffset('r1')
+      saveScrollOffset('r1', 100)
+    }
+
     vi.spyOn(Storage.prototype, 'getItem').mockImplementation(blocked)
     vi.spyOn(Storage.prototype, 'setItem').mockImplementation(blocked)
+    vi.spyOn(Storage.prototype, 'removeItem').mockImplementation(blocked)
+    callAll()
+    const restore = blockStorageAccess()
+    try {
+      callAll()
+    } finally {
+      restore()
+    }
 
-    loadLastRoomId()
-    saveLastRoomId('r1')
     expect(errorSpy).not.toHaveBeenCalled()
     expect(warnSpy).not.toHaveBeenCalled()
+    expect(logSpy).not.toHaveBeenCalled()
   })
 })
 

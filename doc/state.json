@@ -51,7 +51,12 @@
       "ui": "done",
       "ui-check": "PASS (M2 L5, 반영 중)"
     },
-    "scaffold": "done"
+    "scaffold": "done",
+    "tests_s1": {
+      "scenarios": "done",
+      "checker": "FAIL(M1 L7) → 수정 중",
+      "conflict": "PASS(M2 L4) → 수정 중"
+    }
   },
   "dependencies_approved": [
     "hono",
@@ -78,7 +83,7 @@
     "prettier",
     "concurrently"
   ],
-  "next": "ui-test-designer 보고 대기 → ui-test-checker ∥ ui-test-conflict-checker → ui-implementer → ui-tester",
+  "next": "test-designer(TK·CF 수정)·ui-designer(v1.3) 보고 → ui-implementer → ui-tester",
   "blockers": [],
   "estimate_min": null,
   "actual_min": null,
@@ -100,7 +105,8 @@
     "R-ROOMS-004: 뒤로로 목록 복귀 시 마지막 본 방 기록 삭제(재진입 가둠 방지)",
     "승인 ② 의존성 후보에 @types/react·@types/react-dom·@testing-library/user-event 추가",
     "MessagesQuery 등 선택 쿼리 필드는 `?: number | undefined`로 허용(exactOptionalPropertyTypes 대응) — 2단계 contract-implementer가 types.ts·api.md §5.2 반영",
-    "server 구현 조정(승인): AppError(code, message?, options?) · compatibility_date 2026-08-15(workerd 1.20260815.1) · page.test → server/test/messages-page.test.ts · Message/RoomSummary는 @shared 재노출"
+    "server 구현 조정(승인): AppError(code, message?, options?) · compatibility_date 2026-08-15(workerd 1.20260815.1) · page.test → server/test/messages-page.test.ts · Message/RoomSummary는 @shared 재노출",
+    "CF-01: 자동 진입 시 목록이 화면에 커밋되지 않을 수 있음(React 19 배칭) — 동작 유지, 설계 문장·TC-RM-008 ⓐ 재정의"
   ],
   "installed": {
     "typescript": "5.9.3",
@@ -123,6 +129,7 @@
   "todo_docsync": [
     "api.md §11.2 validate 초안을 실물(AppError(code), zod ZodType)로 갱신 — contract-designer",
     "server messages/page.ts MessagePageQuery에 | undefined 허용 검토 — server-designer/implementer",
-    "server 설계 5종 머리말 초안→확정 — server-designer"
+    "server 설계 5종 머리말 초안→확정 — server-designer",
+    "R-NFR-004 번들 grep은 verify 단계 자동 검사로(verify-strategy에 항목 추가) — MC-RM-06 수동 항목 대체"
   ]
 }
