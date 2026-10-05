@@ -58,10 +58,33 @@ export type HealthResponse = {
   version: string
 }
 
+/** POST /api/rooms 본문 (R-ROOM-002). trim·1~60자 판정은 서버 (S2) */
+export type CreateRoomBody = {
+  title: string
+}
+
+/** PATCH /api/rooms/:id 본문 (R-ROOM-003). 규칙은 CreateRoomBody 와 같다 (S2) */
+export type RenameRoomBody = {
+  title: string
+}
+
+/** POST /api/rooms/:id/user 본문 (R-MSG-002). ooc = true 이면 지시(kind 'ooc'). 둘 다 필수 (S2) */
+export type UserMessageBody = {
+  text: string
+  ooc: boolean
+}
+
+/** PATCH /api/messages/:id 본문 (R-MSG-004). trim·1~2000자 판정은 서버 (S2) */
+export type EditMessageBody = {
+  text: string
+}
+
 /** 모든 실패 응답 본문 (R-API-002) */
 export type ApiErrorBody = {
   error: {
     code: ErrorCode
     message: string
+    /** RATE_LIMITED 에만 붙는다. 다음 분 창까지 남은 초(정수 ≥ 1). 같은 값이 Retry-After 헤더에도 실린다 (R-AUTH-005, S2) */
+    retryAfterSec?: number
   }
 }

@@ -12,6 +12,12 @@ export const PATHS = {
   health: `${API}/health`,
   rooms: `${API}/rooms`,
   roomMessages: `${API}/rooms/:id/messages`,
+  /** PATCH·DELETE 방 (S2) */
+  room: `${API}/rooms/:id`,
+  /** POST 유저 발화·지시 (S2) */
+  roomUser: `${API}/rooms/:id/user`,
+  /** PATCH·DELETE 메시지 (S2). :id 는 메시지 id(정수) */
+  message: `${API}/messages/:id`,
 } as const
 
 /** :id 자리에 인코딩한 값을 넣는다 */
@@ -31,4 +37,10 @@ export const endpoints = {
   rooms: (): string => PATHS.rooms,
   roomMessages: (roomId: string, query: MessagesQuery = {}): string =>
     withId(PATHS.roomMessages, roomId) + toQueryString(query),
+  /** (S2) */
+  room: (roomId: string): string => withId(PATHS.room, roomId),
+  /** (S2) */
+  roomUser: (roomId: string): string => withId(PATHS.roomUser, roomId),
+  /** (S2) 메시지 id 는 정수라 String() 으로 넣는다 */
+  message: (messageId: number): string => withId(PATHS.message, String(messageId)),
 } as const
