@@ -1,9 +1,9 @@
 # index(Workers 진입점·공통 기반) 설계
 
-- 상태: 초안 · 최종 갱신: 2026-10-05
-- 묶음: S1. `fetch` 진입·Hono 앱 조립·부트스트랩·보안 헤더·공통 에러 핸들러·로거·`/embed` 서빙·health 서비스·`wrangler.toml`을 정한다. `scheduled` 진입은 S2(레이트리밋 정리)·S4(요약) 설계에서 필요할 때 추가한다.
+- 상태: S1 확정(구현 동기화) · S2 초안 · 최종 갱신: 2026-10-05
+- 묶음: S1 = `fetch` 진입·Hono 앱 조립·부트스트랩·보안 헤더·공통 에러 핸들러·로거·`/embed` 서빙·health 서비스·`wrangler.toml`. S2 = 서비스 컨테이너에 `auth`·`config` 주입, `AppEnv.Variables.principal`, 인증 미들웨어의 **라우트 단위** 적용 원칙, `RATE_LIMITED`의 `retryAfterSec` 응답 변환. `scheduled` 진입은 S2에서 **추가하지 않는다**(레이트리밋 정리는 요청 경로에서 — [auth.md](auth.md) D-AUTH-7). S4(요약)에서 필요하면 추가한다.
 - 라우트(`server/src/routes/`)는 contract 소유다. 이 문서는 **라우트를 정의하지 않고**, 라우트가 쓸 타입·서비스·규약만 정한다.
-- 관련 문서: [env.md](env.md), [db.md](db.md), [rooms.md](rooms.md), [messages.md](messages.md).
+- 관련 문서: [env.md](env.md), [db.md](db.md), [auth.md](auth.md), [rooms.md](rooms.md), [messages.md](messages.md).
 
 ## 1. 목적
 
@@ -19,7 +19,9 @@
 | R-API-006 🔒 | `/embed` = Workers Static Assets(`ui/dist`, SPA). 모든 응답에 `Content-Security-Policy: frame-ancestors <ALLOWED_FRAME_ANCESTORS>`, `X-Frame-Options` 미전송 |
 | R-API-007 | 라우트가 얇게 유지되도록 서비스·에러 처리를 이쪽에서 제공 |
 | R-API-008 🔒 | 경로 문자열은 `shared/src/endpoints.ts` 상수 사용 |
-| R-AUTH-006 🔒 · R-NFR-004 🔒 | 로그·응답에 토큰 원문·비밀값 없음(쿼리 `?t=` 미기록, 로거 금지 필드) |
+| R-AUTH-006 🔒 · R-NFR-004 🔒 | 로그·응답에 토큰 원문·비밀값 없음(쿼리 `?t=`·`Authorization` 헤더 미기록, 로거 금지 필드) |
+| R-AUTH-003 🔒 (S2) | 인증 미들웨어는 쓰기 라우트에만 — 전역 미들웨어에 넣지 않는다(§3.1) |
+| R-AUTH-005 (S2) | `RATE_LIMITED` 응답에 `retryAfterSec`(본문 + `Retry-After` 헤더, §5.1) |
 | R-NFR-005 | 요청당 CPU 10ms 안(동기 무거운 연산 없음) |
 
 ## 2. 공개 API
@@ -34,7 +36,7 @@ import type { Env } from './env'
 const app = createApp({ routes: apiRoutes })
 
 export default { fetch: app.fetch } satisfies ExportedHandler<Env>
-// S2·S4에서 필요하면 scheduled 를 추가한다: export default { fetch, scheduled }
+// S2: 변경 없음(scheduled 불필요). S4에서 필요하면 scheduled 를 추가한다: export default { fetch, scheduled }
 ```
 
 - `export default`는 이 파일에만 허용된다(server-rules). 이 파일은 조립만 하고 로직을 갖지 않는다(10줄 안팎).
@@ -65,22 +67,28 @@ export const buildCsp = (frameAncestors?: readonly string[]): string
 ### 2.3 서비스 컨테이너·Hono 타입 (`server/src/services.ts`)
 
 ```ts
+import type { HealthResponse } from '@shared/types'
+import type { AuthService, Principal } from './auth'
 import type { Config, Env } from './env'
 import type { Db } from './db'
 import type { Logger } from './logger'
 import type { RoomsService } from './rooms'
 import type { MessagesService } from './messages'
 
-export type HealthStatus = { ok: true; version: string }
+/** 계약 타입 HealthResponse 와 같다 (S1 구현) */
+export type HealthStatus = HealthResponse
 
 export type ServiceDeps = {
   db: Db
   logger: Logger
   now: () => number
-  // S2부터: config: Config — 각 팩토리에 필요한 필드만 골라 넘긴다
+  /** S2. parseEnv 결과. 각 팩토리에 필요한 필드만 골라 넘긴다(통째로 넘기지 않는다) */
+  config: Config
 }
 
 export type Services = {
+  /** S2. 라우트는 직접 호출하지 않는다 — auth 미들웨어만 쓴다 */
+  auth: AuthService
   rooms: RoomsService
   messages: MessagesService
   /** DB·외부 호출 없이 상태를 돌려준다 (R-API-005) */
@@ -93,6 +101,8 @@ export type AppEnv = {
   Variables: {
     services: Services
     cspFrameAncestors: string
+    /** S2. requireToken 이 넣는다. 읽기는 getPrincipal(c) 로만 ([auth.md](auth.md) §9.1) */
+    principal?: Principal
   }
 }
 
@@ -100,25 +110,49 @@ export const APP_VERSION: string      // server/package.json 의 version (JSON i
 export const createServices = (deps: ServiceDeps): Services
 ```
 
+`createServices` 배선(S2):
+
+```ts
+auth:     createAuthService({ db, logger, now, config: { tokenSecret, tokenMinLevel, rateLimitPerMin } })
+rooms:    createRoomsService({ db, now })
+messages: createMessagesService({ db, now })
+getHealth: () => ({ ok: true, version: APP_VERSION })   // config·db 를 쓰지 않는다
+```
+
 ### 2.4 에러 기반 (`server/src/app-error.ts`)
 
 ```ts
-import type { ErrorCode } from '@shared/errors'     // contract 소유, R-API-002 코드 13종
+import { ERROR_MESSAGES, ERROR_STATUS, type ErrorCode, type ErrorStatus } from '@shared/errors'  // contract 소유
 
-export type AppErrorStatus = 400 | 401 | 403 | 404 | 409 | 429 | 500 | 502
+export type AppErrorStatus = ErrorStatus   // 400 | 401 | 403 | 404 | 409 | 429 | 500 | 502
 
-/** 서비스·모듈이 throw 하는 유일한 에러. message 는 사용자에게 그대로 보여도 되는 한국어 한 문장 */
+export type AppErrorOptions = {
+  cause?: unknown
+  /** S2. RATE_LIMITED 전용. 정수 ≥ 1. onError 가 본문·Retry-After 헤더로 옮긴다 */
+  retryAfterSec?: number
+}
+
+/** 서비스·모듈이 throw 하는 유일한 에러. status 는 ERROR_STATUS[code], message 기본값은 ERROR_MESSAGES[code] (S1 구현) */
 export class AppError extends Error {
   readonly code: ErrorCode
   readonly status: AppErrorStatus
-  constructor(code: ErrorCode, status: AppErrorStatus, message: string, options?: { cause?: unknown })
+  /** S2 */
+  readonly retryAfterSec?: number
+  constructor(code: ErrorCode, message?: string, options?: AppErrorOptions)
 }
 
 export const isAppError = (e: unknown): e is AppError
 
-/** onError·notFound 가 쓰는 응답 본문 생성기 */
-export const toErrorBody = (code: ErrorCode, message: string): { error: { code: ErrorCode; message: string } }
+/** onError·notFound 가 쓰는 응답 본문. extra.retryAfterSec 가 있으면 error 안에 싣는다(S2) */
+export const toErrorBody = (
+  code: ErrorCode,
+  message: string,
+  extra?: { retryAfterSec?: number },
+): { error: { code: ErrorCode; message: string; retryAfterSec?: number } }
 ```
+
+- S1 문서의 `AppError(code, status, message)`는 구현에서 `AppError(code, message?, options?)`로 바뀌었다(status는 코드 1:1 표 `ERROR_STATUS`에서). 이 문서가 구현을 따른다.
+- `retryAfterSec`은 추가 필드라 기존 호출자(전부 `new AppError(code)` 또는 `(code, message)`)에 영향이 없다.
 
 ### 2.5 로거 (`server/src/logger.ts`)
 
@@ -143,11 +177,11 @@ export const createLogger = (sink?: LogSink): Logger
 |---|---|---|---|---|
 | `createApp` | `options?: CreateAppOptions` | `Hono<AppEnv>` | — | R-ENV-001 · R-API-002·006 |
 | `buildCsp` | `frameAncestors?: readonly string[]` | `string` | — | R-API-006 |
-| `createServices` | `deps: ServiceDeps` | `Services` | — | R-ENV-001(값 주입) |
+| `createServices` | `deps: ServiceDeps`(S2: `config` 추가) | `Services`(S2: `auth` 추가) | — | R-ENV-001(값 주입) · R-AUTH-002·005 |
 | `Services.getHealth` | — | `HealthStatus` | 없음(부트스트랩 이후라 설정 오류면 그 전에 `CONFIG_INVALID`) | R-API-005 |
-| `AppError` | `code, status, message, options?` | — | — | R-API-002 |
+| `AppError` | `code, message?, options?`(S2: `options.retryAfterSec`) | — | — | R-API-002 · R-AUTH-005 |
 | `isAppError` | `e: unknown` | `boolean` | — | R-API-002 |
-| `toErrorBody` | `code, message` | 에러 본문 | — | R-API-002 |
+| `toErrorBody` | `code, message, extra?` | 에러 본문 | — | R-API-002 · R-AUTH-005 |
 | `createLogger` | `sink?: LogSink` | `Logger` | — | R-AUTH-006 · R-NFR-004 |
 
 ## 3. 내부 구조
@@ -162,7 +196,7 @@ export const createLogger = (sink?: LogSink): Logger
 | `server/test/app.test.ts` | SRV-T-080~089 | — |
 | `server/test/fixtures/` | 시험용 라우트·가짜 `ASSETS`·로그 수집 sink | — |
 
-- 의존 방향: `index.ts → app.ts → services.ts → {rooms, messages} → db`, 모든 파일 → `app-error.ts`·`logger.ts`. `app-error.ts`·`logger.ts`는 서버 내부 모듈을 import하지 않는다(맨 아래 층).
+- 의존 방향: `index.ts → app.ts → services.ts → {auth, rooms, messages} → db`, 모든 파일 → `app-error.ts`·`logger.ts`. `auth/middleware.ts`는 `services.ts`의 `AppEnv`를 `import type`으로만 쓴다(값 순환 없음). `messages`는 `auth`의 `Principal` 타입만 import한다. `app-error.ts`·`logger.ts`는 서버 내부 모듈을 import하지 않는다(맨 아래 층).
 - `app.ts`와 `services.ts`는 routes를 import하지 않는다. routes는 `index.ts`가 주입한다. 그래서 server 테스트는 contract 코드 없이 돈다.
 - 쓰지 않는 Hono 미들웨어: `hono/logger`(console 직접 출력, 형식 불일치), `hono/secure-headers`(기본값이 `X-Frame-Options: SAMEORIGIN`을 붙이고 CSP 값이 생성 시점에 고정됨), `hono/cors`(iframe 동일 출처라 불필요). contract도 이 셋을 추가하지 않는다.
 
@@ -181,9 +215,22 @@ export const createLogger = (sink?: LogSink): Logger
 |---|---|---|---|
 | ① | `requestLog` | 시작 시각 기록 → `await next()` → `logger.info('request', { method, path: url.pathname, status, ms })`. **쿼리 문자열·헤더는 기록하지 않는다**(`/embed?t=<토큰>`) | — |
 | ② | `securityHeaders` | `await next()` 뒤 `c.res.headers.set('Content-Security-Policy', 'frame-ancestors ' + (c.get('cspFrameAncestors') ?? "'none'"))`, `c.res.headers.delete('X-Frame-Options')` | — |
-| ③ | `bootstrap` | `config = parseEnv(c.env)` → `c.set('cspFrameAncestors', config.allowedFrameAncestors.join(' '))` → `db = createDb(c.env.DB)` → `c.set('services', createServices({ db, logger, now }))` → `next()` | `ConfigError` throw → onError → 500 `CONFIG_INVALID`. 이때 `cspFrameAncestors`가 없으므로 ②가 `frame-ancestors 'none'`을 붙인다 |
-| ④ | `serveEmbed` | §3.2 | 파일 없음 → `AppError('NOT_FOUND', 404, …)` |
-| ⑤ | `routes` | contract의 `apiRoutes`를 `app.route('/', routes)`로 마운트 | 라우트·서비스의 `AppError` → onError |
+| ③ | `bootstrap` | `config = parseEnv(c.env)` → `c.set('cspFrameAncestors', config.allowedFrameAncestors.join(' '))` → `db = createDb(c.env.DB)` → `c.set('services', createServices({ db, logger, now, config }))`(S2: `config` 추가) → `next()` | `ConfigError` throw → onError → 500 `CONFIG_INVALID`. 이때 `cspFrameAncestors`가 없으므로 ②가 `frame-ancestors 'none'`을 붙인다 |
+| ④ | `serveEmbed` | §3.2 | 파일 없음 → `AppError('NOT_FOUND')` |
+| ⑤ | `routes` | contract의 `apiRoutes`를 `app.route('/', routes)`로 마운트. 쓰기 라우트는 안에서 `requireToken → rateLimitWrites → validate → 핸들러`(S2, §3.1.1) | 라우트·미들웨어·서비스의 `AppError` → onError |
+
+#### 3.1.1 인증 미들웨어 위치 (S2, R-AUTH-003)
+
+```
+전역(app.use '*'):   ① requestLog → ② securityHeaders → ③ bootstrap          ← 인증 없음
+라우트 단위(⑤ 안):   POST/PATCH/DELETE 쓰기 라우트마다
+                     requireToken → rateLimitWrites → validate(param/json) → 핸들러
+읽기 라우트:          validate → 핸들러                                         ← Authorization 헤더가 있어도 무시
+```
+
+- `requireToken`·`rateLimitWrites`는 `server/src/auth/middleware.ts`(server 소유)가 export하고 routes(contract)가 라우트마다 붙인다. 전역·`apiRoutes.use()`로 붙이지 않는다 — 읽기 경로가 토큰 없이 열려야 한다.
+- 둘 다 ③ 뒤에 실행되어야 한다(`c.get('services')`가 필요). 라우트 단위라 자동으로 그렇다.
+- 인증 실패·레이트리밋 초과도 onError 한 곳에서 응답이 되고 ①·②가 적용된다(CSP 포함).
 
 - Hono는 하위 단계에서 throw된 에러를 `onError`로 응답으로 바꾼 뒤 바깥 미들웨어의 `await next()` 다음 줄을 계속 실행한다. 그래서 ①·②는 에러 응답에도 적용된다(SRV-T-080으로 확인).
 - `logger`는 설정과 무관하므로 `createApp`에서 한 번 만들어 클로저로 쓴다(요청 상태가 아니라 출력 함수뿐이라 전역 가변 상태가 아니다).
@@ -199,7 +246,7 @@ export const createLogger = (sink?: LogSink): Logger
 | `GET /embed/<경로>` | `/<경로>` | 빌드 산출물(JS·CSS·폰트·이미지). 쿼리 제거 |
 | 그 외(`/`, `/index.html`, `/assets/x.js` 등) | — | `/embed` 밖이므로 routes 또는 404 |
 
-- `ASSETS` 응답이 404면 `AppError('NOT_FOUND', 404, '요청한 주소를 찾을 수 없습니다.')`로 바꿔 에러 형식을 통일한다(R-API-002).
+- `ASSETS` 응답이 404면 `AppError('NOT_FOUND', '요청한 주소를 찾을 수 없습니다.')`로 바꿔 에러 형식을 통일한다(R-API-002).
 - 정상 응답은 `new Response(res.body, res)`로 **다시 감싸 반환**한다. `fetch`·바인딩이 돌려준 Response의 헤더는 변경 불가라 ②에서 헤더를 못 붙이기 때문이다.
 - `/embed` 아래 클라이언트 라우팅은 없다(SPA 단일 화면, "하위 경로 없음"). `/embed/<경로>`는 같은 화면의 정적 파일만 뜻하며 API 엔드포인트가 아니다.
 - **ui 쪽 전제**: Vite `base: '/embed/'`로 빌드해야 `index.html`이 `/embed/assets/…`를 참조한다(§9 ui·contract 요구).
@@ -211,7 +258,9 @@ export const createLogger = (sink?: LogSink): Logger
 - 레벨 필터 없음(요구된 `LOG_LEVEL` 키가 없다 — [env.md](env.md) §11 제안).
 - 금지 키(대소문자 무시, 정확히 일치하면 값을 `'[redacted]'`로 교체): `token`, `authorization`, `secret`, `tokenSecret`, `apiKey`, `llmApiKey`, `payload`, `prompt`, `text`, `summary`, `query`.
 - `LogFields`는 원시값만 받으므로 `Config`·`env`·`Error`·요청 본문 객체를 넘기면 컴파일 에러다.
-- 허용 식별자: `mbId`(S2), `roomId`, `messageId`, 길이·건수·ms, 에러 `code`·`errName`.
+- 허용 식별자: `mbId`(S2), `roomId`, `messageId`, 길이·건수·ms, 에러 `code`·`errName`, 인증 실패 분류 `reason`(S2).
+- `requestLog`는 S2에서도 `Authorization` 헤더를 기록하지 않는다(헤더 전체를 기록하지 않는 S1 규칙 그대로 — SRV-T-162로 고정).
+- S2 서비스 로그 이벤트: `auth_rejected { code, reason }`, `rate_limited { mbId }`, `rate_limit_purge_failed { errName }`([auth.md](auth.md) §5). nick·ch_name·본문은 남기지 않는다.
 - 예상 못 한 에러는 `errName`과 `errMessage`(앞 300자)만 남긴다. 유저 입력·토큰이 에러 메시지에 실리지 않도록 서비스가 `AppError` 메시지를 고정 문구로 쓴다.
 
 ## 4. 비동기·동시성
@@ -242,6 +291,7 @@ Cloudflare 엣지 ─▶ fetch(request, env, ctx)
 |---|---|---|---|---|
 | `ConfigError` | 500 | `CONFIG_INVALID` | `서버 설정이 올바르지 않습니다. 관리자에게 알려 주세요.` | `error` `config_invalid` `{ keys }`(키 이름만) |
 | 기타 `AppError` | `err.status` | `err.code` | `err.message` | status ≥ 500이면 `error` `app_error` `{ code }`, 4xx는 요청 로그로 충분 |
+| `AppError` + `retryAfterSec`(S2, `RATE_LIMITED`) | 429 | `RATE_LIMITED` | `err.message`. 본문 `error.retryAfterSec = err.retryAfterSec`, 응답 헤더 `Retry-After: <같은 값>` | 위와 같음(로그는 auth 서비스가 `rate_limited`로 남김) |
 | Hono `HTTPException` status 400(본문 JSON 파싱 실패 등) | 400 | `VALIDATION_ERROR` | `요청 형식이 올바르지 않습니다.` | — |
 | 그 밖의 모든 에러(`HTTPException` 기타 포함) | 500 | `INTERNAL` | `서버 내부 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.` | `error` `unhandled_error` `{ errName, errMessage(300자) }` |
 | 매칭 없는 경로(`notFound`) | 404 | `NOT_FOUND` | `요청한 주소를 찾을 수 없습니다.` | — |
@@ -277,7 +327,9 @@ Cloudflare 엣지 ─▶ fetch(request, env, ctx)
 | `Env.DB` | 리소스 바인딩 | ③ `createDb` |
 | `Env.ASSETS` | 리소스 바인딩 | ④ `/embed` |
 
-- 그 밖의 설정 키는 S1에서 쓰지 않는다. 바인딩 설정 키 직접 접근 없음(R-ENV-001).
+| `Config.tokenSecret`·`tokenMinLevel`·`rateLimitPerMin` (S2) | `parseEnv` 결과 | ③ `createServices` → `createAuthService`의 `config` 인자([auth.md](auth.md) §6) |
+
+- 그 밖의 설정 키는 S2까지 쓰지 않는다(LLM 키들은 S3, 요약 키들은 S4). 바인딩 설정 키 직접 접근 없음(R-ENV-001). env 모듈은 S2에서 바뀌지 않는다.
 
 ### 6.1 `server/wrangler.toml` 전문 초안 (server-implementer가 이 내용으로 생성)
 
@@ -288,7 +340,7 @@ Cloudflare 엣지 ─▶ fetch(request, env, ctx)
 
 name = "london-dispatch"
 main = "src/index.ts"
-compatibility_date = "2026-10-01"          # 구현 시 설치된 wrangler 가 지원하는 날짜 이하로 맞춘다
+compatibility_date = "2026-08-15"          # 설치된 workerd 1.20260815.1 이 지원하는 날짜 이하 (S1 구현 값)
 compatibility_flags = ["nodejs_compat"]
 
 # 비밀 아닌 설정 — 값은 env.ts 기본값과 같다(문자열로 적고 parseEnv 가 숫자로 변환)
@@ -331,7 +383,7 @@ run_worker_first = true                     # 정적 파일 요청도 Worker 를
 |---|---|---|---|
 | SRV-T-080 | `every_response_has_csp_and_no_x_frame_options` | 200(시험 라우트)·404(notFound)·409(AppError)·200(`/embed`)·500(`CONFIG_INVALID`) 전부 CSP 헤더 존재. 값은 설정이 있으면 `frame-ancestors http://london-gossip.my https://london-gossip.my`, 설정 실패면 `frame-ancestors 'none'`. 가짜 ASSETS가 `X-Frame-Options: DENY`를 붙여도 응답에서 제거됨 | R-API-006 |
 | SRV-T-081 | `config_invalid_returns_500_and_logs_key_names_only` | `TOKEN_SECRET` 제거 → 500, 본문 `{ error: { code: 'CONFIG_INVALID', message } }`. `LLM_MODEL: 'SENTINEL/x'` → 로그에 `LLM_MODEL`은 있고 `SENTINEL`은 없음. 본문에 키 이름 없음 | R-ENV-003 · R-NFR-004 |
-| SRV-T-082 | `onError_maps_AppError_status_and_body` | 시험 라우트가 `AppError('NOT_FOUND', 404, '방을 찾을 수 없습니다.')` → 404 + 같은 code·message | R-API-002 |
+| SRV-T-082 | `onError_maps_AppError_status_and_body` | 시험 라우트가 `AppError('NOT_FOUND', '방을 찾을 수 없습니다.')` → 404 + 같은 code·message | R-API-002 |
 | SRV-T-083 | `onError_hides_unknown_error_details` | `new Error('SENTINEL_DETAIL')` → 500 `INTERNAL`, 본문에 `SENTINEL_DETAIL`·`stack` 없음, 로그 `unhandled_error`에 `errName` 존재 | R-API-002 · R-NFR-004 |
 | SRV-T-084 | `http_exception_400_maps_to_VALIDATION_ERROR` | `HTTPException(400)` → 400 `VALIDATION_ERROR` | R-API-002 |
 | SRV-T-085 | `notFound_returns_NOT_FOUND_json` | `GET /nope`·`GET /index.html` → 404 `NOT_FOUND` JSON | R-API-001·002 |
@@ -339,6 +391,9 @@ run_worker_first = true                     # 정적 파일 요청도 Worker 를
 | SRV-T-087 | `getHealth_returns_ok_and_version_without_db` | `createServices`에 모든 메서드가 throw하는 가짜 `Db`를 넣고 `getHealth()` → `{ ok: true, version: APP_VERSION }`, `APP_VERSION`이 빈 문자열 아님 | R-API-005 |
 | SRV-T-088 | `logs_never_contain_query_token_or_forbidden_fields` | `GET /embed?t=SENTINEL_TOKEN` → 수집 로그 전체에 `SENTINEL_TOKEN` 없음, `request` 로그 `path === '/embed'`. `logger.info('x', { token: 'S1', text: 'S2', apiKey: 'S3', roomId: 'r' })` → 세 값 `[redacted]`, `roomId` 유지 | R-AUTH-006 · R-NFR-004 |
 | SRV-T-089 | `bootstrap_parses_env_on_every_request` | 같은 앱에 `ALLOWED_FRAME_ANCESTORS`가 다른 두 env로 연속 요청 → 각 CSP가 자기 env를 반영(요청 간 캐시 없음) | R-ENV-001 · D-ENV-2 |
+| SRV-T-160 | `onError_adds_retryAfterSec_body_and_header` (S2) | 시험 라우트가 `AppError('RATE_LIMITED', undefined, { retryAfterSec: 45 })` → 429, 본문 `{ error: { code: 'RATE_LIMITED', message, retryAfterSec: 45 } }`, 헤더 `Retry-After: 45`, CSP 있음. `retryAfterSec` 없는 `AppError`의 본문에는 키가 없다 | R-AUTH-005 · R-API-002 |
+| SRV-T-161 | `createServices_wires_auth_with_config_without_exposing_secret` (S2) | `createServices({ db: trap, logger, now, config })` → `services.auth` 존재, `getHealth()`는 DB 호출 0회. `JSON.stringify(services)`·`Object.keys(services.auth)`에 `tokenSecret` 값 없음 | R-ENV-001 · R-AUTH-006 |
+| SRV-T-162 | `request_log_never_contains_authorization_header` (S2) | `Authorization: Bearer SENTINEL_BEARER`로 읽기·쓰기 시험 라우트 요청 → 수집 로그 전체에 `SENTINEL_BEARER` 없음 | R-AUTH-006 · R-NFR-004 |
 
 - 에러 경로(081·082·083·084·085·086 일부) 수가 정상 경로(080 일부·087·089)보다 많다.
 - 라우트별 통합 테스트(`GET /api/rooms` 등)는 contract 몫(`server/test/routes/`).
@@ -358,11 +413,12 @@ run_worker_first = true                     # 정적 파일 요청도 Worker 를
 | 항목 | 내용 | 이유 |
 |---|---|---|
 | 마운트 | `server/src/routes/index.ts`가 `export const apiRoutes = new Hono<AppEnv>()`를 내보내고, 경로는 `shared/src/endpoints.ts` 상수로 **전체 경로**를 등록한다. `index.ts`가 `app.route('/', apiRoutes)`로 붙인다 | 진입점이 미들웨어 순서를 보장 |
-| 서비스 접근 | `const { rooms, messages, getHealth } = c.get('services')` | 서비스는 부트스트랩이 요청마다 주입 |
+| 서비스 접근 | `const { rooms, messages, getHealth } = c.get('services')`. `services.auth`는 라우트가 직접 부르지 않는다(S2) | 서비스는 부트스트랩이 요청마다 주입 |
 | 타입 import | `import type { AppEnv } from '../services'` | 라우트↔진입점 순환 import 방지 |
-| 에러 | 라우트는 응답 JSON을 직접 만들지 않고 throw만 한다. 검증 실패는 `AppError('VALIDATION_ERROR', 400, <한국어>)` throw(`@hono/zod-validator`의 기본 실패 응답은 이 형식이 아니므로 hook에서 throw) | R-API-002 단일 핸들러 |
-| 금지 | `/embed` 라우트 정의, `hono/logger`·`hono/secure-headers`·`hono/cors` 추가, `c.env`의 설정 키 읽기 | §3.1·§3.2, R-ENV-001 |
-| 헤더 | 라우트는 CSP·`X-Frame-Options`를 다루지 않는다(②가 일괄 처리) | R-API-006 |
+| 에러 | 라우트는 응답 JSON을 직접 만들지 않고 throw만 한다. 검증 실패는 `AppError('VALIDATION_ERROR')` throw(`@hono/zod-validator`의 기본 실패 응답은 이 형식이 아니므로 hook에서 throw — S1 `routes/validate.ts` 구현) | R-API-002 단일 핸들러 |
+| 인증(S2) | 쓰기 라우트마다 `requireToken, rateLimitWrites`를 `validate`보다 앞에 붙인다. principal은 `getPrincipal(c)`로만 읽는다. 전역·`apiRoutes.use()` 적용 금지(§3.1.1, [auth.md](auth.md) §9.1) | R-AUTH-003·005 |
+| 금지 | `/embed` 라우트 정의, `hono/logger`·`hono/secure-headers`·`hono/cors` 추가, `c.env`의 설정 키 읽기, `Authorization` 헤더 직접 파싱(S2) | §3.1·§3.2, R-ENV-001, R-AUTH-003 |
+| 헤더 | 라우트는 CSP·`X-Frame-Options`·`Retry-After`를 다루지 않는다(②·onError가 일괄 처리) | R-API-006 · R-AUTH-005 |
 
 ### 9.2 노출 서비스 / 엔드포인트 후보
 
@@ -372,13 +428,17 @@ run_worker_first = true                     # 정적 파일 요청도 Worker 를
 | (진입점 직접) | `GET /embed`, `GET /embed?t=` | — | `ui/dist/index.html`(+ `/embed/<파일>` 정적 파일) | `NOT_FOUND`, `CONFIG_INVALID` | ✕ | ✕ | R-API-006 |
 | `rooms.listRooms()` | `GET /api/rooms` | — | [rooms.md](rooms.md) §9 | | ✕ | ✕ | R-ROOM-001 |
 | `messages.listMessages()` | `GET /api/rooms/:id/messages` | — | [messages.md](messages.md) §9 | | ✕ | ✕ | R-MSG-001 |
+| `rooms.createRoom()` · `renameRoom()` · `deleteRoom()` (S2) | `POST /api/rooms` · `PATCH`·`DELETE /api/rooms/:id` | — | [rooms.md](rooms.md) §9 | | ○ | ○ | R-ROOM-002~004 |
+| `messages.addUserMessage()` · `editMessage()` · `deleteMessage()` (S2) | `POST /api/rooms/:id/user` · `PATCH`·`DELETE /api/messages/:id` | — | [messages.md](messages.md) §9 | | ○ | ○ | R-MSG-002·004·005 |
+| `requireToken` · `rateLimitWrites` · `getPrincipal` (S2) | 위 쓰기 6개 | — | [auth.md](auth.md) §9 | | — | — | R-AUTH-003·005 |
 
 ### 9.3 shared에 필요한 것 (contract 소유, server가 import)
 
 | 파일 | 필요한 export | server 사용처 |
 |---|---|---|
-| `shared/src/errors.ts` | `ErrorCode` 타입(R-API-002 13종 유니온)과 코드 상수 | `app-error.ts`, 모든 `AppError` 생성 |
-| `shared/src/endpoints.ts` | `/embed` 경로 상수(이름은 contract가 정함) | `app.ts` `/embed` 매칭 |
+| `shared/src/errors.ts` | `ErrorCode`·`ERROR_STATUS`·`ERROR_MESSAGES`(S1 구현됨) | `app-error.ts`, 모든 `AppError` 생성 |
+| `shared/src/endpoints.ts` | `PATHS.embed`(S1). S2: 쓰기 경로 패턴(`/api/rooms/:id`, `/api/rooms/:id/user`, `/api/messages/:id` — 키 이름은 contract) | `app.ts`(embed), routes(쓰기) |
+| `shared/src/types.ts` (S2) | `ApiErrorBody.error`에 `retryAfterSec?: number` 추가(비파괴). 위치·이름을 contract가 다르게 정하면 server `toErrorBody`를 맞춘다 | `app-error.ts` `toErrorBody` 반환 타입과 대조 |
 
 ### 9.4 ui 쪽 전제 (ui 설계·`vite.config.ts`)
 
@@ -397,8 +457,10 @@ run_worker_first = true                     # 정적 파일 요청도 Worker 를
 | R-API-006 🔒 | §3.1 ②, §3.2, §6.1 `[assets]` | SRV-T-080·086, 수동 curl·iframe | ✅ |
 | R-API-007 | §9.1(라우트는 throw·서비스 호출만) | contract 리뷰 | 부분(contract) |
 | R-API-008 🔒 | §3.2, §9.3 | 리뷰 grep | 부분(shared 생성 후) |
-| R-AUTH-006 🔒 | §3.1 ①, §3.3 | SRV-T-088 | 부분(토큰 처리 자체는 S2 auth) |
-| R-NFR-004 🔒 | §3.3, §5.1, §8 번들 검사 | SRV-T-081·083·088, 수동 grep | ✅ |
+| R-AUTH-006 🔒 | §3.1 ①, §3.3 | SRV-T-088·161·162, [auth.md](auth.md) SRV-T-120 | ✅ |
+| R-AUTH-003 🔒 (S2) | §3.1.1, §9.1 인증 | [auth.md](auth.md) SRV-T-116·119, contract 전건 대조 | ✅(전건 적용은 contract 테스트) |
+| R-AUTH-005 (S2) | §2.4 `retryAfterSec`, §5.1 | SRV-T-160, [auth.md](auth.md) SRV-T-118 | ✅ |
+| R-NFR-004 🔒 | §3.3, §5.1, §8 번들 검사 | SRV-T-081·083·088·162, 수동 grep | ✅ |
 | R-NFR-005 | §4 CPU 예산 | 수동(`wrangler dev` CPU 시간) | ✅ |
 
 ## 11. 설계 결정 노트
@@ -413,12 +475,24 @@ run_worker_first = true                     # 정적 파일 요청도 Worker 를
 | D-IDX-6 | `onError`·`notFound` 등록은 진입점(server)에서 | `routes/index.ts`(contract)에서 | 부트스트랩 실패·`/embed`·notFound까지 한 핸들러로 덮으려면 최상위 앱에 있어야 한다. server-rules.md "변환은 routes/index.ts의 app.onError" 문구와 다르다 — 스킬 문구 갱신 필요(메인 세션) |
 | D-IDX-7 | `AppEnv.Variables`에 `Config`를 넣지 않고 `cspFrameAncestors` 문자열만 | `config` 통째 | 라우트가 `tokenSecret` 등에 닿지 못하게(최소 권한) |
 | D-IDX-8 | `APP_VERSION` = `server/package.json`의 `version`(JSON import) | 환경변수·상수 | 요구된 env 키가 없다. 번들에 들어가는 것은 package.json 필드 중 실제 참조한 값뿐(esbuild 트리 셰이킹) |
+| D-IDX-9 (S2) | 인증 미들웨어는 라우트 단위, 전역 아님 | 전역 미들웨어에서 메서드로 분기 | 읽기 경로는 토큰 없이 열려야 하고(R-AUTH-003), 경로·메서드 분기를 진입점에 두면 라우트 표와 이중 관리가 된다. 누락은 `getPrincipal` 닫힌 실패 + contract 전건 대조 테스트로 잡는다 |
+| D-IDX-10 (S2) | `ServiceDeps.config`로 `Config`를 받고 팩토리마다 필요한 필드만 전달 | 각 값을 `ServiceDeps`에 펼침 | `bootstrap`이 한 줄로 유지된다. `Config`는 컨테이너 생성 함수 안에서만 보이고 `Services`·`Variables`에는 실리지 않는다(D-IDX-7 유지, SRV-T-161) |
+| D-IDX-11 (S2) | `retryAfterSec`을 `AppError` 선택 필드로, onError가 본문·`Retry-After` 헤더로 변환 | 레이트리밋 전용 에러 클래스 + 미들웨어가 직접 응답 | 응답 생성은 onError 한 곳(D-IDX-6)이라는 원칙을 지킨다. 필드 하나 추가라 기존 호출자 영향 없음 |
 
 확인 필요:
 
-- **구현 순서 의존**: `app-error.ts`가 `shared/src/errors.ts`를, `app.ts`가 `shared/src/endpoints.ts`를, `index.ts`가 `server/src/routes/index.ts`를 import한다. server-implementer는 shared·routes를 쓸 수 없다(가드). 권고 순서: ① contract-implementer가 `shared/src/errors.ts`·`endpoints.ts` 생성 → ② server-implementer가 env·db·rooms·messages·app·services·logger·app-error·`index.ts` → ③ contract-implementer가 routes. ②의 vitest는 `app.ts` 기준이라 통과하지만 `tsc --noEmit -p server`는 ③ 뒤에 초록이 된다.
-- **`ui/dist` 부재**: `[assets] directory`가 없으면 `wrangler dev`와 vitest pool 기동이 실패할 수 있다. `/dev-start`는 ui 빌드를 먼저 하거나, vitest 설정에서 assets 디렉터리를 테스트용으로 덮어쓰는 방법을 구현 시 확인한다.
-- `compatibility_date`는 설치된 wrangler 버전에 맞춰 구현 시 확정한다.
+- **S2 구현 순서 의존**: contract의 쓰기 라우트가 `server/src/auth`(미들웨어)·서비스 S2 함수를 import한다. 권고 순서: ① server-implementer가 db·auth·rooms·messages·services·app-error·app(onError) S2 → ② contract-implementer가 `shared`(경로·`retryAfterSec`)·routes. ①의 vitest는 시험 라우트 기준이라 contract 없이 돈다. 단, `app-error.ts` `toErrorBody`의 반환 타입을 `shared` `ApiErrorBody`에 맞추는 대조는 ② 뒤에 한다.
+- **`ui/dist` 부재**: `[assets] directory`가 없으면 `wrangler dev`와 vitest pool 기동이 실패할 수 있다(S1에서 확인된 상태 유지).
+- (해결) `compatibility_date`는 S1 구현에서 `2026-08-15`(workerd 1.20260815.1 지원 범위)로 정해졌다. §6.1 초안의 `2026-10-01`보다 실물이 기준이다.
+
+## 변경 이력
+
+| 날짜 | 내용 |
+|---|---|
+| 2026-10-05 | S1 초안 작성 |
+| 2026-10-05 | S1 구현 동기화(상태 확정): `AppError(code, message?, options?)`(status는 `ERROR_STATUS`), `HealthStatus = HealthResponse`, `compatibility_date = 2026-08-15`. S2 설계: `ServiceDeps.config`·`Services.auth`·`Variables.principal?`, §3.1.1 인증 미들웨어 라우트 단위 원칙, `retryAfterSec` 변환(§2.4·§5.1), 로그 이벤트, SRV-T-160~162, D-IDX-9~11. `scheduled`는 S2에서 추가하지 않음 |
+
+파급(공개 API 변경): `ServiceDeps`에 `config` 필수 추가 → 호출자 `server/src/app.ts` `bootstrap`(1줄), `server/test/app.test.ts` 188행의 `createServices({ db: trap, logger, now })`에 `config`(예: `parseEnv(env)` 결과)를 넣는다. `Services`·`AppEnv.Variables`·`AppError`·`toErrorBody`는 필드 추가뿐이라 기존 routes(`health.ts`·`rooms.ts`·`messages.ts`)·`validate.ts` 영향 없음.
 
 제안(설계 미반영, 사용자 판단):
 

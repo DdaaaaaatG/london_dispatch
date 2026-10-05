@@ -1,8 +1,8 @@
 # env 모듈 설계
 
-- 상태: 초안 · 최종 갱신: 2026-10-05
-- 묶음: S1(저장 + 읽기 전용). 이 문서의 공개 API는 전부 S1에서 구현한다(`requireLlmApiKey`는 S1에서 만들고 S3 speak가 호출).
-- 관련 문서: [index.md](index.md)(호출 지점·부트스트랩), [db.md](db.md)(`DB` 바인딩 소비), [rooms.md](rooms.md), [messages.md](messages.md).
+- 상태: 확정(S1 구현 동기화) · 최종 갱신: 2026-10-05
+- 묶음: S1(저장 + 읽기 전용). 이 문서의 공개 API는 전부 S1에서 구현되었다(`requireLlmApiKey`는 S1에서 만들고 S3 speak가 호출). **S2 변경 없음**: S2가 쓰는 `TOKEN_SECRET`·`TOKEN_MIN_LEVEL`·`RATE_LIMIT_PER_MIN`은 이미 `Config`(`tokenSecret`·`tokenMinLevel`·`rateLimitPerMin`)에 있고, [auth.md](auth.md) §6이 값으로 받는다.
+- 관련 문서: [index.md](index.md)(호출 지점·부트스트랩), [db.md](db.md)(`DB` 바인딩 소비), [auth.md](auth.md)(토큰·레이트리밋 설정 소비), [rooms.md](rooms.md), [messages.md](messages.md).
 
 ## 1. 목적
 
@@ -279,9 +279,16 @@ env 모듈은 엔드포인트를 노출하지 않는다. contract가 알아야 �
 
 확인 필요:
 
-- `.dev.vars.example` 현재 문구가 확정사항과 어긋난다(§6.2). server-implementer가 S1에서 §6.2 전문으로 교체한다.
+- (해결) `.dev.vars.example`은 S1 구현에서 교체되었다. 현재 키는 `TOKEN_SECRET`·`LLM_API_KEY` 둘(비밀값만)이다(2026-10-05 확인).
 
 제안(설계 미반영, 사용자 판단):
 
 - `TOKEN_SECRET` 최소 길이 32자 검사. R-HANDOFF-003이 "32자 이상 랜덤"을 요구하므로 운영 실수를 막는다. 다만 로컬 "아무 문자열" 사용과 충돌하므로 도입 시 로컬도 32자 이상을 써야 한다.
 - `LOG_LEVEL` 키. server-design-strategy §2 최소 키 목록에 있으나 R-ENV-002에 없어 넣지 않았다. 현재 로거는 레벨 필터 없이 info 이상을 모두 쓴다([index.md](index.md) §3.3).
+
+## 변경 이력
+
+| 날짜 | 내용 |
+|---|---|
+| 2026-10-05 | S1 초안 작성 |
+| 2026-10-05 | S1 구현 동기화(상태 확정). 공개 API·키 표는 `server/src/env.ts`와 일치해 본문 변경 없음. S2는 env 변경 없음(머리말에 명시), `.dev.vars.example` 확인 필요 항목 해결 처리 |
