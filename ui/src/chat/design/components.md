@@ -1,6 +1,7 @@
 # chat 상세 설계 — 컴포넌트·훅·스타일 (분할 문서)
 
 > 주 문서: `ui/src/chat/design.md`(RTM 포함). 이 파일은 주 문서 §3·§11의 상세다.
+> **export 규칙(공통, v1.3):** 모든 컴포넌트·훅·순수 함수는 **named export**만 쓴다. `export default` 금지. 대상: `ChatScreen`, `MessageList`, `Bubble`·`bubbleVariantOf`, `InlineStatus`, `NewMessageBadge`, `ReadOnlyNotice`, `useAutoScroll`, `useChatLoader`, `chatReducer`·`initialChatState` 외 `ui/src/state/chat.ts`·`scroll.ts`의 함수와 상수, `labels`. Props 타입은 `export type {Name}Props`. 규칙 원문은 `ui/src/rooms/design/components.md` 머리말.
 
 ---
 
@@ -64,7 +65,17 @@ export const bubbleVariantOf = (m: Message): BubbleVariant =>
 | `user` | 오른쪽 | 작성자명 → 시각 → 본문 | 작성자명 `authorName ?? labels.unknownAuthor`(sm) · 시각(xs). 머리 줄은 CSS `flex-direction: row-reverse`라 화면에는 "시각 작성자명" 순서(구성안) · 본문(serif base, `--bubble-user-bg` 말풍선, 오른쪽 정렬) |
 | `ooc` | 중앙 | 장식 → 접두 → 본문 → 장식 → 시각 | `<span aria-hidden="true">{labels.oocDecor}</span> {labels.oocPrefix} {text} <span aria-hidden="true">{labels.oocDecor}</span>` sm `--bubble-ooc-fg`(줄바꿈 허용) + 시각 xs. 배경 없음. 작성자명 표시 안 함(구성안) |
 
-- 캐릭터 색 분기: `speaker === 'ciel'` → 클래스 `styles.ciel`(`--bubble-ciel-*`), `'sebastian'` → `styles.sebastian`(`--bubble-sebastian-*`).
+- **클래스명(확정, v1.3).** Bubble 루트 요소에 아래 클래스를 붙인다. Vite 설정에서 CSS Modules가 non-scoped라 테스트는 클래스명을 그대로 단언한다(`toHaveClass('character')` 등).
+
+| 클래스 | 붙는 조건 | 역할 |
+|---|---|---|
+| `character` | `bubbleVariantOf(m) === 'character'` | 왼쪽 정렬·아바타 행 형태 |
+| `user` | `=== 'user'` | 오른쪽 정렬·말풍선 형태 |
+| `ooc` | `=== 'ooc'` | 중앙 한 줄·배경 없음 |
+| `ciel` | 변형이 `character`이고 `speaker === 'ciel'` | 색(`--bubble-ciel-*`) |
+| `sebastian` | 변형이 `character`이고 `speaker === 'sebastian'` | 색(`--bubble-sebastian-*`) |
+
+  - 조합: 캐릭터 말풍선은 `character` + `ciel`(또는 `sebastian`) 두 개. 유저는 `user` 하나. OOC는 `ooc` 하나(speaker가 캐릭터여도 색 클래스 없음). CSS 파일 `Bubble.module.css`의 선택자 이름도 이 다섯 개와 같다. 조합은 `cx(styles.character, styles.ciel)`.
 - 본문은 **일반 텍스트**(React 이스케이프). `dangerouslySetInnerHTML`·마크다운 해석 금지. `white-space: pre-wrap; overflow-wrap: anywhere`.
 - S1에서는 `onContextMenu`·포인터 롱프레스 핸들러를 **붙이지 않는다**(주 문서 §10).
 

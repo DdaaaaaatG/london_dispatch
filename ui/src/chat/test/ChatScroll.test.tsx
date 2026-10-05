@@ -260,6 +260,7 @@ describe('이전 페이지 로드 (R-CHAT-003 · R-MSG-001)', () => {
     expect(document.activeElement).toBe(log)
     await user.tab()
     expect(document.activeElement).toBe(within(log).getByRole('button', { name: '다시 시도' }))
+    expect(mockedListMessages).toHaveBeenCalledTimes(2)
   })
 
   it('TC-CH-029: 이전 페이지 응답 전 언마운트 → 늦은 응답 무시, 저장된 거리는 언마운트 시점 값', async () => {
@@ -315,6 +316,20 @@ describe('스크롤 위치 저장·복원 (R-CHAT-010)', () => {
     window.dispatchEvent(new Event('pagehide'))
     expect(localStorage.getItem('ld:scroll:r1')).toBe('1307') // 3000 - 1200 - 493
     expect(localStorage.getItem('ld:lastRoomId')).toBe('r1')
+  })
+
+  it('TC-CH-025: 언마운트 cleanup 이 pagehide 리스너를 해제한다 — 언마운트 뒤 pagehide 는 저장하지 않는다', async () => {
+    mockedListMessages.mockResolvedValueOnce(ok(makePage(31, 60, false)))
+    const { unmount } = renderChat()
+    const log = await screen.findByRole('log')
+
+    userScrollTo(log, 1000)
+    unmount()
+    expect(localStorage.getItem('ld:scroll:r1')).toBe('1507') // cleanup 의 save() 1회
+    localStorage.clear()
+    window.dispatchEvent(new Event('pagehide'))
+    expect(localStorage.getItem('ld:scroll:r1')).toBeNull() // 리스너가 남아 있으면 다시 저장된다
+    expect(mockedListMessages).toHaveBeenCalledTimes(1)
   })
 
   it('TC-CH-025: 로딩 중 언마운트는 저장하지 않는다(이전 값 유지)', () => {

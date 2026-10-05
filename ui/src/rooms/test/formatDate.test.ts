@@ -3,8 +3,19 @@
  * 대상: ui/src/components/utils/formatDate.ts (rooms design/components.md §1.6, F-RM-11)
  * 입력은 로컬 생성자로 만든다 → 시간대에 의존하지 않는다.
  */
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { listMessages } from '@/api/messages'
+import { listRooms } from '@/api/rooms'
 import { formatMonthDay, formatTime, toIsoDate, toIsoDateTime } from '@/components/utils/formatDate'
+
+vi.mock('@/api/rooms', () => ({ listRooms: vi.fn() }))
+vi.mock('@/api/messages', () => ({ listMessages: vi.fn() }))
+
+beforeEach(() => {
+  localStorage.clear()
+  vi.mocked(listRooms).mockReset()
+  vi.mocked(listMessages).mockReset()
+})
 
 const local = (y: number, m0: number, d: number, h = 0, min = 0): number => new Date(y, m0, d, h, min).getTime()
 
@@ -34,5 +45,16 @@ describe('formatDate (R-ROOMS-001 · R-CHAT-001 · R-CHAT-002)', () => {
     expect(formatMonthDay(t)).toBe(formatMonthDay(t))
     expect(formatMonthDay(local(2026, 9, 6, 0, 0))).toBe('10.06')
     expect(toIsoDate(local(2026, 9, 6, 0, 0))).toBe('2026-10-06')
+  })
+
+  it('TC-RM-013: 부수 효과 없음 — 저장소에 쓰지 않고 api 래퍼를 부르지 않는다', () => {
+    const t = local(2026, 9, 5, 16, 40)
+    formatMonthDay(t)
+    formatTime(t)
+    toIsoDate(t)
+    toIsoDateTime(t)
+    expect(localStorage.length).toBe(0)
+    expect(vi.mocked(listRooms)).not.toHaveBeenCalled()
+    expect(vi.mocked(listMessages)).not.toHaveBeenCalled()
   })
 })

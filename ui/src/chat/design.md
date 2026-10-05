@@ -22,6 +22,8 @@
 |---|---|---|---|
 | v1.0 | 2026-10-05 | 최초 작성(S1 읽기 전용). 40KB 한계로 `design/*.md` 3개 분할 | 구축 S1 |
 | v1.1 | 2026-10-05 | ① `shortName` 확정(api.md v0.2 §5.5) → §1·§7·§13·§15 R-LLM-002 ✅. ② ‹ 뒤로 시 마지막 본 방 기록 삭제(F-CH-10, §6.4, TC-CH-002·024) | 메인 세션 결정 2건 |
+| v1.2 | 2026-10-05 | 계약 인용 v0.2 · §15 R-NFR-004 행 · functions.md §3·F-CH-02(활성·중복 방지 ref를 useChatLoader 소유로) | 검증 DC-01·03·06 |
+| v1.3 | 2026-10-05 | named export 규칙 · Bubble 클래스명 확정(`character`·`user`·`ooc`·`ciel`·`sebastian`, components.md §2.2) | 시나리오 검증 지적 |
 
 ---
 

@@ -14,6 +14,7 @@
 |---|---|---|---|
 | v1.0 | 2026-10-05 | 최초 작성. `doc/100_요구조건/requirements.md` §11 전사, 묶음 표시. R-CHAT-009는 S2로 이동한 결정을 묶음 열에 반영 | 구축 S1, `doc/state.json` decisions |
 | v1.1 | 2026-10-05 | 계약 인용 v0.2(`shortName` 반영 완료, 미반영 문구 삭제). U-CH-06 상황 수정. R-NFR-004 참조 행 추가. R-ROOMS-004 발췌를 갱신본으로 | 검증 DC-03·05·06, 메인 세션 결정 |
+| v1.3 | 2026-10-05 | §4 React 18 → 19(설치 기준), 언마운트 뒤 setState 경고 없음 TC 판별 비고 | 확정사항 §2 개정 · 시나리오 검증 지적 |
 
 ---
 
@@ -92,7 +93,7 @@
 
 | 기능 | 라이브러리 | `ui/package.json` | 승인 상태 | 비고 |
 |---|---|---|---|---|
-| 화면 렌더 | `react` · `react-dom` (18) | 없음 | 미승인(승인 ② 대상) | |
+| 화면 렌더 | `react` · `react-dom` (**19**, 설치 기준) | 없음 | 미승인(승인 ② 대상) | 확정사항 §2 개정(React 19). TC 판별 비고: React 18부터 언마운트 뒤 setState 경고가 나오지 않는다. 그래서 늦은 응답 TC(TC-CH-029)는 경고 부재가 아니라 "화면 표시·저장소·콜백 호출이 바뀌지 않음"으로 판별한다 |
 | 번들 | `vite`(6) · `@vitejs/plugin-react` | 없음 | 미승인 | `base: '/embed/'` |
 | 타입 | `typescript` · `@types/react` · `@types/react-dom` | 없음 | 미승인 | |
 | 테스트 | `vitest` · `jsdom` · `@testing-library/react` | 없음 | 미승인 | 스크롤 값은 `Object.defineProperty`로 고정 |

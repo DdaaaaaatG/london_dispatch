@@ -2,6 +2,7 @@
 
 > 주 문서: `ui/src/rooms/design.md`(RTM 포함). 이 파일은 주 문서 §3의 상세다.
 > 이 파일 §1은 두 화면이 함께 쓰는 공용 요소의 **단일 정의**다. chat 설계(`ui/src/chat/design/components.md` §1)는 이 값을 그대로 인용한다.
+> **export 규칙(공통, v1.3):** 모든 컴포넌트·훅·유틸·상태 모듈은 **named export**만 쓴다. `export default` 금지. 대상: `App`, `RoomsScreen`, `ChatScreen`, `TopBar`·`Button`·`IconButton`·`StateView`, `RoomList`·`ListRow`, `useAutoScroll`·`useChatLoader`, `cx`·`formatDate`·`storage` 함수, `viewer`·`chat`·`scroll` 상태 모듈, 화면 `labels`. 테스트는 `import { App } from '@/App'`처럼 이름으로 가져온다. 공용 컴포넌트 폴더의 `index.ts`도 named 재노출만 한다. Props 타입도 `export type {Name}Props`로 이름 export한다.
 
 ---
 

@@ -23,6 +23,7 @@
 | v1.0 | 2026-10-05 | 최초 작성(S1 읽기 전용). 40KB 한계로 `design/*.md` 3개 분할 | 구축 S1 |
 | v1.1 | 2026-10-05 | ‹ 뒤로 시 마지막 본 방 기록 삭제로 변경: §6.2 · §11.2 D-1 · functions.md F-RM-03 · TC-RM-012 | 메인 세션 결정 |
 | v1.2 | 2026-10-05 | 계약 인용 v0.2 · §8.1 `listAriaLabel` 삭제(ul aria-label 없음, components.md §2.2) · §11.2 D-2(main.tsx/App.tsx 분리) · §14 R-NFR-004 행 | 검증 DC-03·04·06·07 |
+| v1.3 | 2026-10-05 | named export 규칙(components.md 머리말) · TC-RM-016 판별 기준(React 19) · CF-01: §6.2 자동 진입 시 목록 미커밋 가능 명시, functions.md F-RM-06·08과 TC-RM-008을 "판정 시점에 목록 응답이 성공 상태"로 재정의(동작 변경 없음) | 시나리오 검증 지적 · conflict-checker CF-01 메인 세션 결정 |
 
 ---
 
@@ -155,7 +156,7 @@ App 마운트 → autoOpenRoomId = 'r1'
  → ‹ 뒤로 → clearLastRoomId()(chat F-CH-10) → backToRooms → RoomsScreen 새 마운트(autoOpenRoomId=null) → 목록 다시 로드 → 목록에 머문다
  → 이 상태로 패널을 닫았다 다시 열면 저장된 방이 없으므로 목록에서 시작(§6.1)
 ```
-- 자동 진입 중에는 목록이 한 번 그려진 뒤 곧바로 chat으로 바뀐다(목록이 와야 방 정보를 안다 — 단건 조회 없음).
+- 목록 응답 직후 자동 진입 판정이 통과하면 chat으로 바뀐다. 목록 상태 설정과 화면 전환이 같은 비동기 이어짐 안에서 연속으로 일어나므로, React 19 자동 배칭 때문에 목록은 화면에 **커밋되지 않을 수 있다**. 목록이 보였는지는 보장하지도 검증하지도 않는다. 보장하는 것은 "판정 시점에 목록 응답이 성공 상태였다"는 것뿐이다(목록이 와야 방 정보를 안다, 단건 조회 없음).
 
 ### 6.3 저장된 방이 사라짐
 
@@ -298,7 +299,7 @@ api.md v0.2을 **인용**한다(재정의 아님).
 | TC-RM-005 | 빈 목록 | `[]` → "아직 방이 없습니다", 목록 `ul` 없음 |
 | TC-RM-006 | 오류 + 다시 시도 | 실패 → `role=alert` 제목·상세·「다시 시도」, 클릭 → `listRooms` 2회째 호출, 성공 시 목록 |
 | TC-RM-007 | 오류 상세 코드별 | `NETWORK` → `서버에 연결할 수 없습니다.`, `INTERNAL` → `ERROR_MESSAGES.INTERNAL`, 서버 `message` 미표시 |
-| TC-RM-008 | 자동 진입 성공 | 저장 id가 목록에 있음 → `onAutoOpenSettled` 후 `onOpenRoom(그 방)` |
+| TC-RM-008 | 자동 진입 성공 | 판정 시점에 목록 응답이 성공 상태이고 저장 id가 그 목록에 있음 → `onAutoOpenSettled` 후 `onOpenRoom(그 방)`. 목록이 화면에 렌더됐는지는 단언하지 않는다(배칭으로 커밋되지 않을 수 있음) |
 | TC-RM-009 | 자동 진입 대상 없음 | 목록에 없음 → `ld:lastRoomId` 삭제, `onOpenRoom` 미호출 |
 | TC-RM-010 | 저장소 throw | `localStorage.getItem/setItem/removeItem` throw → storage 함수 전부 throw 없이 `null`/무시, 화면은 일반 목록 |
 | TC-RM-011 | 읽기 전용 부재 | 「+ 새 방」 버튼·텍스트 입력이 DOM에 없음 |
@@ -306,5 +307,5 @@ api.md v0.2을 **인용**한다(재정의 아님).
 | TC-RM-013 | formatDate | `MM.DD`·`HH:mm` 0 채움, `toIsoDate`·`toIsoDateTime` 형식 |
 | TC-RM-014 | 자동 진입 보류 | 첫 로드 실패 → 자동 진입 없음 → 재시도 성공 → 그때 진입 |
 | TC-RM-015 | 화면 크기·토큰(수동) | 390×565 스크린샷에서 가로 스크롤 없음, 상단 44·행 56, Rosebell 색 |
-| TC-RM-016 | 언마운트 후 응답 | 응답 전 언마운트 → 상태 갱신 없음(경고 없음) |
+| TC-RM-016 | 언마운트 후 응답 | 응답 전 언마운트 → `onOpenRoom`·`onAutoOpenSettled` 미호출, 저장소 변화 없음(React 19는 경고를 내지 않으므로 경고 부재로 판별하지 않는다) |
 | TC-RM-017 | 포커스·역할 | 마운트 시 h1 포커스, 행 `button` 이름 = `{제목}, 마지막 갱신 {MM.DD}` |

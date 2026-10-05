@@ -26,6 +26,8 @@ const msg = (id: number): Message => ({
 })
 const ERR: ApiError = { code: 'INTERNAL', message: 'x' }
 const BADGE = '새 메시지 보기, 맨 아래로 이동'
+/** a 가 문서 순서상 b 보다 앞이면 true */
+const precedes = (a: Node, b: Node): boolean => (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0
 
 const renderList = (over: Partial<MessageListProps> = {}) => {
   const props: MessageListProps = {
@@ -77,7 +79,9 @@ describe('MessageList B0 · 스크롤 박스 (R-CHAT-003)', () => {
     const { props } = renderList({ isLoadingOlder: true })
     const log = screen.getByRole('log', { name: '대화 기록' })
 
-    expect(within(log).getByRole('status').textContent).toContain('이전 대화 불러오는 중')
+    const b0 = within(log).getByRole('status')
+    expect(b0.textContent).toContain('이전 대화 불러오는 중')
+    expect(precedes(b0, within(log).getByRole('list'))).toBe(true) // B0 는 박스 맨 위, ol 보다 앞
     expect(log.getAttribute('aria-busy')).toBe('true')
     expect(log.getAttribute('aria-live')).toBe('polite')
     expect(props.containerRef.current).toBe(log)
@@ -90,7 +94,9 @@ describe('MessageList B0 · 스크롤 박스 (R-CHAT-003)', () => {
     const user = userEvent.setup()
     const log = screen.getByRole('log')
 
-    expect(within(log).getByRole('alert').textContent).toContain('이전 대화를 불러오지 못했습니다')
+    const b0 = within(log).getByRole('alert')
+    expect(b0.textContent).toContain('이전 대화를 불러오지 못했습니다')
+    expect(precedes(b0, within(log).getByRole('list'))).toBe(true) // B0 오류도 ol 보다 앞
     await user.click(within(log).getByRole('button', { name: '다시 시도' }))
     expect(props.onRetryOlder).toHaveBeenCalledTimes(1)
     expect(vi.mocked(listMessages)).not.toHaveBeenCalled()

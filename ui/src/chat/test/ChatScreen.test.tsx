@@ -157,7 +157,8 @@ describe('ChatScreen 첫 로드 (R-CHAT-002 · R-CHAT-003 · R-MSG-001)', () => 
 
   it('TC-CH-005: 첫 로드 오류 → role=alert 제목·상세·「다시 시도」 → 재호출 → 성공 시 말풍선', async () => {
     mockedListMessages.mockResolvedValueOnce(fail('NETWORK'))
-    mockedListMessages.mockResolvedValueOnce(ok(PAGE))
+    const second = deferred<Result<MessagesPage>>()
+    mockedListMessages.mockReturnValueOnce(second.promise)
     renderChat()
     const user = userEvent.setup()
 
@@ -168,6 +169,14 @@ describe('ChatScreen 첫 로드 (R-CHAT-002 · R-CHAT-003 · R-MSG-001)', () => 
     expect(screen.getByRole('button', { name: BACK })).not.toBeNull() // 뒤로는 언제나 동작
 
     await user.click(screen.getByRole('button', { name: '다시 시도' }))
+    // 재시도 직후(응답 전) 중간 상태: error → loading
+    expect(screen.getByRole('status').textContent).toContain('대화를 불러오는 중')
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(screen.queryByRole('button', { name: '다시 시도' })).toBeNull()
+
+    await act(async () => {
+      second.resolve(ok(PAGE))
+    })
     const log = await screen.findByRole('log')
     expect(within(log).getAllByRole('listitem')).toHaveLength(4)
     expect(screen.queryByRole('alert')).toBeNull()
