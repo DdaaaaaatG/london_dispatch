@@ -86,7 +86,7 @@
 | ID | 🔒 | 요구 | 수용 기준 |
 |---|---|---|---|
 | R-LLM-001 | 🔒 | 어댑터 인터페이스 `generate({ system, turns, timeoutMs }) → { text }`. 구현 2종: `GeminiProvider`(REST `generateContent`, `fetch`, 키는 헤더) · `FakeProvider`(테스트·키 없는 로컬). `LLM_PROVIDER`로 선택. 다른 제공사 추가가 어댑터 1파일 추가로 끝나는 구조. | FakeProvider 전 테스트 통과. Gemini는 요청 본문 스냅샷 테스트. |
-| R-LLM-002 | 🔒 | 캐릭터 설정은 JSON 파일 `server/characters/ciel.json`·`sebastian.json`(필드 `id, name, avatar, persona, speech, rules[]`)과 공통 `server/characters/common.json`(`world`, `outputRules[]`). `characters.ts`가 import해 zod로 검증하고 상수로 노출. 파일만 고치면 코드 변경 없이 다음 배포에 반영. 사용자·지인이 내용을 주기 전까지 임시 문구. | 잘못된 JSON은 타입체크·테스트에서 실패. 두 캐릭터 id 고정(`ciel`,`sebastian`). |
+| R-LLM-002 | 🔒 | 캐릭터 설정은 JSON 파일 `server/characters/ciel.json`·`sebastian.json`(필드 `id, name, persona, speech, rules[]`)과 공통 `server/characters/common.json`(`world`, `outputRules[]`). `characters.ts`가 import해 zod로 검증하고 상수로 노출. 파일만 고치면 코드 변경 없이 다음 배포에 반영. 사용자·지인이 내용을 주기 전까지 임시 문구. **표시용 메타(id·표시명·아바타 경로)는 `shared/src/characters.ts` 상수**가 단일 소스이며 화면은 이것으로 speaker→이름·아바타를 그린다(별도 조회 엔드포인트 없음, R-API-001 준수). JSON의 `name`은 shared 표시명과 같아야 한다(검증). 아바타 이미지는 `ui/public/img/{id}.png`. | 잘못된 JSON·불일치 name은 타입체크·테스트에서 실패. 두 캐릭터 id 고정(`ciel`,`sebastian`). |
 | R-LLM-003 | 🔒 | 프롬프트 조립: 시스템 = `common.world` + 눌린 캐릭터의 `persona`·`speech`·`rules` + `common.outputRules`("네 차례. 네 행동·대사만 1~3문장. 상대 대사·이름표·마크다운 금지"). 컨텍스트 = `memory.summary`(있으면) + 최근 `CONTEXT_MESSAGES`개를 `시엘: …` / `세바스찬: …` / `[지시] …` / `[유저 {author_name}] …` 형식으로. | 조립 결과 스냅샷 테스트. |
 | R-LLM-004 | 🔒 | 후처리: 앞머리 이름표(`시엘:`, `세바스찬:` 등) 제거, 양끝 공백·연속 빈 줄 정리, 결과가 비면 `502 LLM_EMPTY`. | 테스트 벡터 5종. |
 | R-LLM-005 | 🔒 | 타임아웃 `LLM_TIMEOUT_MS`(`AbortSignal.timeout`), 네트워크 오류·5xx·타임아웃은 1회 재시도. 최종 실패 `502 LLM_FAILED`(제공사 메시지는 로그에만, 응답에는 일반 문구). | 실패 주입 테스트. |
@@ -128,13 +128,13 @@
 
 | ID | 🔒 | 요구 | 수용 기준 |
 |---|---|---|---|
-| R-CHAT-001 | 🔒 | 상단 바: ‹ 뒤로 · 방 제목 · 날짜 · ⋯ 메뉴. ⋯ 메뉴는 토큰 있을 때만 렌더하며 항목은 이름 변경 · 장기기억 · 방 삭제(confirm). | TC. |
+| R-CHAT-001 | 🔒 | 상단 바: ‹ 뒤로 · 방 제목 · 날짜(**방 생성일**, MM.DD) · ⋯ 메뉴. ⋯ 메뉴는 토큰 있을 때만 렌더하며 항목은 이름 변경 · 장기기억 · 방 삭제(confirm). | TC. |
 | R-CHAT-002 | 🔒 | 히스토리 말풍선: 캐릭터는 왼쪽(아바타·이름), 유저는 오른쪽(작성자 이름), OOC 지시는 구분 스타일(`[지시]`). 시각 표시. | 스냅샷·스크린샷. |
 | R-CHAT-003 | 🔒 | 위로 스크롤이 맨 위에 닿으면 이전 페이지(`before`) 로드 후 스크롤 위치 유지. 새 메시지 추가 시 맨 아래로 자동 스크롤(사용자가 위쪽을 보고 있으면 "새 메시지" 표시만). | TC. |
 | R-CHAT-004 | 🔒 | 하단 바(토큰 있을 때만 렌더): 「세바스찬」「시엘」 버튼 · OOC 토글 · 입력창(1~2000자) · 전송. | 토큰 없음 시 DOM에 없음. |
 | R-CHAT-005 | 🔒 | 캐릭터 버튼 → speak 호출. 생성 중 "…" 임시 말풍선 + 두 버튼·전송 잠금. 성공 시 임시 말풍선을 결과로 교체. 실패 시 임시 자리에 오류 문구 + 「재시도」. | TC(성공·실패·재시도). |
 | R-CHAT-006 | 🔒 | 전송 → user 저장(OOC 토글 반영). **AI 호출 없음.** 빈 입력은 전송 비활성. 전송 후 입력창 비움. | api 모킹으로 speak 미호출 검증. |
-| R-CHAT-007 | 🔒 | 말풍선 롱프레스(500ms)/우클릭 → 바텀시트 메뉴: 수정 · 재작성(캐릭터 메시지이고 마지막일 때만 표시) · 삭제(confirm). 토큰 있을 때만. | TC 4종. |
+| R-CHAT-007 | 🔒 | 말풍선 롱프레스(500ms)/우클릭 → 바텀시트 메뉴: 수정(인라인 편집) · 재작성(캐릭터 메시지이고 마지막일 때만 표시, confirm 없음) · 삭제(confirm). 토큰 있을 때만. | TC 4종. |
 | R-CHAT-008 | 🔒 | 토큰 없으면 하단 바·⋯ 메뉴·롱프레스 메뉴·새 방 버튼을 **렌더하지 않는다**(숨김 아님). | DOM 부재 TC. |
 | R-CHAT-009 | 🔒 | 토큰은 `?t=`에서 읽어 메모리(모듈 상태)에만 둔다. URL에서 제거하지 않아도 되나 저장은 금지. 모든 쓰기 api 호출에 헤더로 부착. | grep: localStorage에 토큰 저장 코드 0건. |
 | R-CHAT-010 | | 스크롤 위치·마지막 본 방은 `localStorage`(try/catch). | TC. |

@@ -1,20 +1,57 @@
 {
   "slug": "london-dispatch-build",
-  "phase": "1-requirements",
+  "phase": "2-design",
   "orchestrator": "main-session-as-task-manager (사용자 지시 2026-10-05)",
-  "slices": ["S1 저장+읽기전용", "S2 토큰+쓰기", "S3 AI 발화", "S4 장기기억", "S5 전달·배포"],
-  "current_slice": null,
+  "slices": [
+    "S1 저장+읽기전용",
+    "S2 토큰+쓰기",
+    "S3 AI 발화",
+    "S4 장기기억",
+    "S5 전달·배포"
+  ],
+  "current_slice": "S1",
   "scope": {
     "requirements_doc": "doc/100_요구조건/requirements.md",
     "rtm": "doc/100_요구조건/rtm.md",
-    "screens": ["rooms", "chat"],
-    "modules": ["env", "db", "auth", "rooms", "messages", "memory", "llm"]
+    "screens": [
+      "rooms",
+      "chat"
+    ],
+    "modules": [
+      "env",
+      "db",
+      "auth",
+      "rooms",
+      "messages",
+      "memory",
+      "llm"
+    ]
   },
-  "approvals": { "requirements": null, "design": {} },
-  "completed": { "server": [], "contract": "pending", "ui": [] },
+  "approvals": {
+    "requirements": "2026-10-05T19:06",
+    "design": {}
+  },
+  "completed": {
+    "server": [],
+    "contract": "pending",
+    "ui": [],
+    "design_s1": {
+      "layout": "done",
+      "server": "running",
+      "contract": "pending",
+      "ui": "pending",
+      "ui-check": "pending"
+    }
+  },
   "dependencies_approved": [],
-  "next": "사용자 승인 ①(요구 명세·RTM) 대기",
+  "next": "S1 설계: server-designer(env·db·rooms·messages 읽기·진입점) + ui-layout-designer(rooms·chat 구성안) → contract-designer → ui-designer → ui-design-checker → 승인 ②",
   "blockers": [],
   "estimate_min": null,
-  "actual_min": null
+  "actual_min": null,
+  "decisions": [
+    "2026-10-05 레이아웃: rooms=L1, chat=C1+S1+M1. 화자 정렬은 R-CHAT-002(캐릭터 좌/유저 우) 우선 — ui_design_concept.md §2·§7 문구 정정 필요(메인 세션 TODO)",
+    "캐릭터 표시 메타(id·name·avatar)는 shared/src/characters.ts 상수, persona 등은 server/characters/*.json (R-LLM-002 개정)",
+    "chat 상단 날짜 = 방 생성일(R-CHAT-001 개정). TOKEN_EXPIRED 없음 → TOKEN_INVALID. 재작성 confirm 없음(R-CHAT-007 개정)",
+    "레이아웃 풀 저장 보류(PromptSheet 후보)"
+  ]
 }
