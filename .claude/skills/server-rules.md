@@ -40,7 +40,7 @@ throw new AppError('ROOM_NOT_FOUND', 404, '방을 찾을 수 없습니다.')
 catch (cause) { throw new AppError('LLM_PROVIDER_ERROR', 502, 'AI 응답 생성에 실패했습니다.', { cause }) }
 ```
 - 서비스는 `AppError`만 throw. 코드는 `@shared/errors`의 상수. 메시지는 한국어 한 문장(사용자 노출 가능).
-- 변환은 `routes/index.ts`의 Hono `app.onError` 한 곳. 핸들러 안 try/catch로 응답을 직접 만들지 않는다.
+- 변환은 진입점 `server/src/app.ts`의 Hono `app.onError`·`notFound` 한 곳(server 소유). routes는 throw만. 핸들러 안 try/catch로 응답을 직접 만들지 않는다.
 - 예상 못 한 에러는 `INTERNAL`(500)로 닫고 `logger.error({ err })`. 응답에 스택 없음.
 
 ## 비동기

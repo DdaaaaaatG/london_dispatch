@@ -43,7 +43,7 @@ description: 런던_디스패치 server 계층(Cloudflare Workers + Hono 4 + D1,
 
 - 서비스는 `AppError { code, status, message, cause? }`를 throw한다. `code`는 `shared/src/errors.ts`의 상수만(문자열 리터럴 산재 금지). `message`는 **사용자에게 그대로 보여도 되는 한국어 한 문장**.
 - `throw 'string'`·`throw new Error('...')`(코드 없는 에러)는 서비스에서 금지. 외부 라이브러리 에러는 잡아서 `AppError`로 감싸고 `cause`에 원본을 보존한다.
-- 라우트(contract 소유)는 `AppError`를 `{ error: { code, message } }` + `status`로 변환하는 **단일 에러 핸들러**(Hono `app.onError`) 한 곳에서만 처리한다. 핸들러마다 try/catch로 문자열을 만들지 않는다.
+- `AppError`를 `{ error: { code, message } }` + `status`로 변환하는 **단일 에러 핸들러**(Hono `app.onError`·`notFound`)는 **진입점 `server/src/app.ts`(server 소유)** 한 곳에만 둔다. 라우트(contract 소유)는 throw만 한다. 이유: 부트스트랩(CONFIG_INVALID)·`/embed`·notFound까지 한 핸들러로 덮고, `?t=` 토큰을 로그에서 빼기 위해서다(index.md 설계 결정). 핸들러마다 try/catch로 문자열을 만들지 않는다.
 - 예상 못 한 에러는 `500 INTERNAL`로 닫고 원본은 로그에만. 스택·경로·SQL을 응답에 넣지 않는다.
 - LLM 제공사 에러는 `llm/`에서 `LLM_TIMEOUT`·`LLM_PROVIDER_ERROR`·`LLM_AUTH_ERROR`·`LLM_RATE_LIMITED`로 분류해 올린다. 제공사 원문 메시지는 로그에만.
 
@@ -108,7 +108,7 @@ export const CHARACTERS: Record<CharacterId, Character>
 
 ## 9. 로그
 
-- 요청 로그는 Hono `logger()` 미들웨어(routes, contract 소유). 서비스 로그는 주입받은 `Logger { info, warn, error }`를 쓴다 — 구현은 `index.ts`에서 만든 얇은 함수 하나(JSON 한 줄, 레벨은 `env.LOG_LEVEL`)이며 Workers `console`에 쓰는 것은 그 안에서만. 서비스·모듈에서 `console.*` 직접 호출·모듈 전역 logger import 금지(테스트에서 끄기 위해). 수집은 `wrangler tail`.
+- 요청 로그는 `server/src/app.ts`의 자체 미들웨어(server 소유. `hono/logger`는 쓰지 않는다 — 쿼리의 `?t=` 토큰을 로그에서 제외해야 하므로). 서비스 로그는 주입받은 `Logger { info, warn, error }`를 쓴다 — 구현은 `index.ts`에서 만든 얇은 함수 하나(JSON 한 줄, 레벨은 `env.LOG_LEVEL`)이며 Workers `console`에 쓰는 것은 그 안에서만. 서비스·모듈에서 `console.*` 직접 호출·모듈 전역 logger import 금지(테스트에서 끄기 위해). 수집은 `wrangler tail`.
 - **금지 필드**: 토큰 원문·payload 전체, `TOKEN_SECRET`, `LLM_API_KEY`, 프롬프트 전문·LLM 응답 전문(길이·소요 ms만). 식별은 `mbId`·`roomId`·`messageId`.
 - 유저가 입력한 텍스트는 로그에 남기지 않는다(개인 커뮤니티 대화).
 

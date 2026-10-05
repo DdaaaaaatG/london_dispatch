@@ -23,7 +23,7 @@
 | 화면 | 원칙 |
 |---|---|
 | **rooms(방 목록)** | 상단 바 + 리스트. 장식 최소. 행 구분은 1px 라인. 새 방은 상단 바 오른쪽 작은 버튼 |
-| **chat(대화)** | 메신저형. 캐릭터 둘은 좌/우로 갈라 색으로 구분, 유저/OOC는 중앙 회색 한 줄. 하단 바는 패널과 같은 남색에 위쪽 1px 라인. 토큰 없으면 하단 바 자체가 없다 |
+| **chat(대화)** | 메신저형. 캐릭터 둘은 모두 왼쪽(아바타·이름, 캐릭터별 accent 색으로 구분), 유저는 오른쪽(작성자명), OOC 지시는 중앙 회색 한 줄(R-CHAT-002 🔒). 하단 바는 패널과 같은 남색에 위쪽 1px 라인. 토큰 없으면 하단 바 자체가 없다 |
 | **시트·메모리 편집** | 화면을 덮는 레이어는 조금 더 어두운 남색 + 위쪽 둥근 모서리. 저쪽 패널 모서리(`16px 0 16px 0`)와 충돌하지 않게 시트만 둥글게 |
 
 ## 3. 색상 시스템 (CSS 변수)
@@ -44,7 +44,7 @@
   /* 화자별 말풍선 */
   --bubble-ciel-bg: #16304d;      --bubble-ciel-fg: #e6edf6;       --bubble-ciel-accent: #6f9ad1;
   --bubble-sebastian-bg: #2a1f33; --bubble-sebastian-fg: #efe6f2;  --bubble-sebastian-accent: #a98bc4;
-  --bubble-user-fg: #9fb2c9;      --bubble-ooc-fg: #7f93ab;        /* 배경 없음, 중앙 한 줄 */
+  --bubble-user-fg: #9fb2c9;      --bubble-ooc-fg: #7f93ab;        /* OOC만 배경 없음·중앙 한 줄. 유저는 오른쪽 말풍선 */
   --bubble-pending-fg: #7f93ab;   --bubble-error-border: #d97b73;
 }
 ```
@@ -123,7 +123,7 @@ font-family: 'Noto Serif KR', 'Nanum Myeongjo', serif;          /* 제목·말�
 | 컴포넌트 | 톤 |
 |---|---|
 | Button | primary(전송·저장·새 방) / secondary(취소·뒤로) / danger(삭제·재작성 확인) / ghost(아이콘·⋯). 텍스트 1~2어절. 잠금 중 `opacity: var(--btn-busy-opacity)` + 커서 기본 |
-| Bubble | 캐릭터: 아바타 28px 원형 + 이름(sm, accent) + 시각(xs, muted) + 본문(base, serif). 최대 폭 78%. 좌(시엘)/우(세바스찬). 유저/OOC: 중앙 정렬 sm 한 줄, 앞뒤 `—`. 임시: 본문 자리에 "…" 점 애니메이션. 오류: danger 테두리 + 재시도 sm 버튼 |
+| Bubble | 캐릭터: 아바타 28px 원형 + 이름(sm, accent) + 시각(xs, muted) + 본문(base, serif). 최대 폭 78%. 캐릭터는 모두 왼쪽(시엘·세바스찬은 accent 색·아바타로 구분). 유저: 오른쪽 정렬, 작성자명(sm)·시각(xs) 위, 본문 말풍선. OOC: 중앙 정렬 sm 한 줄, 앞뒤 `—`. 임시: 본문 자리에 "…" 점 애니메이션. 오류: danger 테두리 + 재시도 sm 버튼 |
 | TextArea | 입력 bg `--input-bg`(`--color-bg-sunken`), 자동 높이 1~3줄, placeholder muted |
 | Toggle(OOC) | 작은 캡슐 `OOC` 텍스트 토글, 켜짐 primary 배경 |
 | ListRow | 56px, 제목 md serif + 부제 sm muted + 날짜 xs 우상단. hover/active `--row-hover-bg` |
