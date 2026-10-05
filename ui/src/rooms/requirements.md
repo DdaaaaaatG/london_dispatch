@@ -37,6 +37,7 @@
 |---|---|---|---|---|
 | R-CHAT-008 | 🔒 | "토큰 없으면 … 새 방 버튼을 **렌더하지 않는다**(숨김 아님)." | `ui/src/chat/requirements.md` | S1(부재) · S2(렌더 쌍) |
 | R-CHAT-009 | 🔒 | "토큰은 `?t=`에서 읽어 메모리(모듈 상태)에만 둔다. … 저장은 금지. 모든 쓰기 api 호출에 헤더로 부착." — 토큰 보관·viewer 계산의 공용 정의가 rooms 설계에 있고, 「+ 새 방」 생성이 첫 쓰기 호출이다 | `ui/src/chat/requirements.md` | S2 |
+| R-API-003 | 🔒 | "토큰은 `Authorization: Bearer` 헤더. 화면은 `?t=`를 읽어 메모리에만 둔다(localStorage·쿠키 금지)." — R-CHAT-009와 같은 내용이라 **R-CHAT-009로 닫힘**(v1.5, 메인 세션 결정 DC-10) | `doc/100_요구조건/requirements.md` (API) | S2 |
 | R-CHAT-011 | | "오류 코드별 한국어 안내: `RATE_LIMITED`(잠시 후), … `LEVEL_TOO_LOW`·`TOKEN_INVALID`(쓰기 UI를 읽기 전용으로 전환하고 안내) …" — 방 생성 실패 | `ui/src/chat/requirements.md` | S2 |
 | R-CHAT-010 | | "스크롤 위치·마지막 본 방은 `localStorage`(try/catch)." — 마지막 본 방 부분 | `ui/src/chat/requirements.md` | S1 |
 | R-ROOM-001 | 🔒 | "방 목록 조회: `id, title, createdAt, updatedAt, messageCount`를 `updatedAt` 내림차순. 누구나." — 화면이 쓰는 데이터 | `doc/100_요구조건/requirements.md` §4 (server) | S1 |

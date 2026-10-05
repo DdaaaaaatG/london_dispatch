@@ -51,6 +51,7 @@
 | R-AUTH-004 | 확인 필요 | "작성자 표시 이름 = `ch_name`이 비어 있지 않으면 `ch_name`, 아니면 `nick`. 메시지 저장 시 `author_name`에 기록." — 유저 말풍선 작성자명은 응답 `authorName` 그대로 | 같은 문서 §3 | S2 |
 | R-ROOMS-004 | 확인 필요 | "방에 들어갈 때 마지막 본 방 id를 `localStorage`(try/catch)에 저장. … **‹ 뒤로로 목록에 돌아오면 기록을 지운다**." | `ui/src/rooms/requirements.md` | S1 |
 | R-NFR-004 | 🔒 | "비밀값·토큰 원문이 로그·응답·번들(`ui/dist`)에 없다." — 화면은 토큰을 메모리에만 두고 출력하지 않는다 | 같은 문서 §12 | S1 · S2 |
+| R-API-003 | 🔒 | "토큰은 `Authorization: Bearer` 헤더. 화면은 `?t=`를 읽어 메모리에만 둔다(localStorage·쿠키 금지)." — R-CHAT-009와 같은 내용이라 **R-CHAT-009로 닫힘**(v1.5, 메인 세션 결정 DC-10. RTM design.md §15 참조 행) | 같은 문서 (API) | S2 |
 
 ---
 
