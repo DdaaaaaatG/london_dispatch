@@ -1,0 +1,196 @@
+// SRV-T-080~089 — doc/200_설계/server/index.md §8
+import { createExecutionContext, env } from 'cloudflare:test'
+import { Hono } from 'hono'
+import { HTTPException } from 'hono/http-exception'
+import { describe, expect, it } from 'vitest'
+import { AppError } from '../src/app-error'
+import { createApp, buildCsp } from '../src/app'
+import type { Db } from '../src/db'
+import type { Env } from '../src/env'
+import { createLogger, type LogLevel } from '../src/logger'
+import { APP_VERSION, createServices, type AppEnv } from '../src/services'
+
+const ANCESTORS = 'http://london-gossip.my https://london-gossip.my'
+const NOW = 1_700_000_000_000
+
+type LogLine = { level: LogLevel; line: string }
+
+const collector = () => {
+  const lines: LogLine[] = []
+  return { lines, sink: (level: LogLevel, line: string) => void lines.push({ level, line }) }
+}
+
+const fakeAssets = (respond: (path: string) => Response = () => new Response('<html></html>')) => {
+  const requested: string[] = []
+  const fetcher = {
+    fetch: async (input: string | Request | URL) => {
+      const url = new URL(typeof input === 'string' || input instanceof URL ? input : input.url)
+      requested.push(url.pathname + url.search)
+      return respond(url.pathname)
+    },
+  }
+  return { requested, fetcher: fetcher as unknown as Fetcher }
+}
+
+const testRoutes = new Hono<AppEnv>()
+testRoutes.get('/t/ok', (c) => c.json({ ok: true }))
+testRoutes.get('/t/conflict', () => {
+  throw new AppError('SPEAK_IN_PROGRESS')
+})
+testRoutes.get('/t/room-missing', () => {
+  throw new AppError('NOT_FOUND', '방을 찾을 수 없습니다.')
+})
+testRoutes.get('/t/boom', () => {
+  throw new Error('SENTINEL_DETAIL')
+})
+testRoutes.get('/t/http400', () => {
+  throw new HTTPException(400, { message: 'bad json' })
+})
+testRoutes.get('/t/health', (c) => c.json(c.get('services').getHealth()))
+
+const baseEnv = (overrides: Record<string, unknown> = {}): Env =>
+  ({ DB: env.DB, ASSETS: fakeAssets().fetcher, TOKEN_SECRET: 'test-secret', ...overrides }) as unknown as Env
+
+const call = (
+  app: ReturnType<typeof createApp>,
+  path: string,
+  e: Env = baseEnv(),
+): Promise<Response> => Promise.resolve(app.fetch(new Request(`http://test${path}`), e, createExecutionContext()))
+
+const makeApp = () => {
+  const log = collector()
+  return { log, app: createApp({ routes: testRoutes, logSink: log.sink, now: () => NOW }) }
+}
+
+describe('보안 헤더', () => {
+  it('SRV-T-080 every_response_has_csp_and_no_x_frame_options', async () => {
+    const { app } = makeApp()
+    const assets = fakeAssets(() => new Response('x', { headers: { 'X-Frame-Options': 'DENY' } }))
+    const e = baseEnv({ ASSETS: assets.fetcher })
+    const expected = `frame-ancestors ${ANCESTORS}`
+    const cases: [string, number][] = [
+      ['/t/ok', 200],
+      ['/nope', 404],
+      ['/t/conflict', 409],
+      ['/embed', 200],
+    ]
+    for (const [path, status] of cases) {
+      const res = await call(app, path, e)
+      expect(res.status, path).toBe(status)
+      expect(res.headers.get('Content-Security-Policy'), path).toBe(expected)
+      expect(res.headers.get('X-Frame-Options'), path).toBeNull()
+    }
+    const broken = await call(app, '/t/ok', baseEnv({ TOKEN_SECRET: undefined }))
+    expect(broken.status).toBe(500)
+    expect(broken.headers.get('Content-Security-Policy')).toBe("frame-ancestors 'none'")
+  })
+
+  it('buildCsp 는 설정이 없으면 none', () => {
+    expect(buildCsp()).toBe("frame-ancestors 'none'")
+    expect(buildCsp(['https://a.my'])).toBe('frame-ancestors https://a.my')
+  })
+})
+
+describe('에러 응답', () => {
+  it('SRV-T-081 config_invalid_returns_500_and_logs_key_names_only', async () => {
+    const { app, log } = makeApp()
+    const res = await call(app, '/t/ok', baseEnv({ TOKEN_SECRET: undefined }))
+    expect(res.status).toBe(500)
+    const body = await res.text()
+    expect(JSON.parse(body).error.code).toBe('CONFIG_INVALID')
+    expect(body).not.toContain('TOKEN_SECRET')
+
+    const second = makeApp()
+    const res2 = await call(second.app, '/t/ok', baseEnv({ LLM_MODEL: 'SENTINEL/x' }))
+    expect(res2.status).toBe(500)
+    const logs = second.log.lines.map((l) => l.line).join('\n')
+    expect(logs).toContain('LLM_MODEL')
+    expect(logs).not.toContain('SENTINEL')
+    expect(await res2.text()).not.toContain('LLM_MODEL')
+    expect(log.lines.some((l) => l.level === 'error')).toBe(true)
+  })
+
+  it('SRV-T-082 onError_maps_AppError_status_and_body', async () => {
+    const { app } = makeApp()
+    const res = await call(app, '/t/room-missing')
+    expect(res.status).toBe(404)
+    expect(await res.json()).toEqual({ error: { code: 'NOT_FOUND', message: '방을 찾을 수 없습니다.' } })
+  })
+
+  it('SRV-T-083 onError_hides_unknown_error_details', async () => {
+    const { app, log } = makeApp()
+    const res = await call(app, '/t/boom')
+    expect(res.status).toBe(500)
+    const body = await res.text()
+    expect(JSON.parse(body).error.code).toBe('INTERNAL')
+    expect(body).not.toContain('SENTINEL_DETAIL')
+    expect(body).not.toContain('stack')
+    const entry = log.lines.map((l) => JSON.parse(l.line) as Record<string, unknown>).find((l) => l.event === 'unhandled_error')
+    expect(entry?.errName).toBe('Error')
+  })
+
+  it('SRV-T-084 http_exception_400_maps_to_VALIDATION_ERROR', async () => {
+    const { app } = makeApp()
+    const res = await call(app, '/t/http400')
+    expect(res.status).toBe(400)
+    expect((await res.json<{ error: { code: string } }>()).error.code).toBe('VALIDATION_ERROR')
+  })
+
+  it('SRV-T-085 notFound_returns_NOT_FOUND_json', async () => {
+    const { app } = makeApp()
+    for (const path of ['/nope', '/index.html']) {
+      const res = await call(app, path)
+      expect(res.status, path).toBe(404)
+      expect((await res.json<{ error: { code: string } }>()).error.code).toBe('NOT_FOUND')
+    }
+  })
+})
+
+describe('/embed', () => {
+  it('SRV-T-086 embed_maps_paths_to_assets_and_drops_query', async () => {
+    const { app } = makeApp()
+    const assets = fakeAssets((p) => (p === '/missing.js' ? new Response('nf', { status: 404 }) : new Response('ok')))
+    const e = baseEnv({ ASSETS: assets.fetcher })
+    for (const path of ['/embed', '/embed/', '/embed?t=abc']) {
+      expect((await call(app, path, e)).status, path).toBe(200)
+    }
+    expect(assets.requested).toEqual(['/', '/', '/'])
+    await call(app, '/embed/assets/a.js', e)
+    expect(assets.requested.at(-1)).toBe('/assets/a.js')
+    const missing = await call(app, '/embed/missing.js', e)
+    expect(missing.status).toBe(404)
+    expect((await missing.json<{ error: { code: string } }>()).error.code).toBe('NOT_FOUND')
+  })
+})
+
+describe('서비스·로그', () => {
+  it('SRV-T-087 getHealth_returns_ok_and_version_without_db', () => {
+    const trap = new Proxy({}, { get: () => () => { throw new Error('db touched') } }) as unknown as Db
+    const services = createServices({ db: trap, logger: createLogger(() => {}), now: () => NOW })
+    expect(services.getHealth()).toEqual({ ok: true, version: APP_VERSION })
+    expect(APP_VERSION).not.toBe('')
+  })
+
+  it('SRV-T-088 logs_never_contain_query_token_or_forbidden_fields', async () => {
+    const { app, log } = makeApp()
+    await call(app, '/embed?t=SENTINEL_TOKEN')
+    const all = log.lines.map((l) => l.line).join('\n')
+    expect(all).not.toContain('SENTINEL_TOKEN')
+    const req = log.lines.map((l) => JSON.parse(l.line) as Record<string, unknown>).find((l) => l.event === 'request')
+    expect(req?.path).toBe('/embed')
+
+    const direct = collector()
+    createLogger(direct.sink).info('x', { token: 'S1', text: 'S2', apiKey: 'S3', roomId: 'r' })
+    const out = JSON.parse(direct.lines[0]!.line) as Record<string, unknown>
+    expect([out.token, out.text, out.apiKey]).toEqual(['[redacted]', '[redacted]', '[redacted]'])
+    expect(out.roomId).toBe('r')
+  })
+
+  it('SRV-T-089 bootstrap_parses_env_on_every_request', async () => {
+    const { app } = makeApp()
+    const a = await call(app, '/t/ok', baseEnv({ ALLOWED_FRAME_ANCESTORS: 'https://a.my' }))
+    const b = await call(app, '/t/ok', baseEnv({ ALLOWED_FRAME_ANCESTORS: 'https://b.my' }))
+    expect(a.headers.get('Content-Security-Policy')).toBe('frame-ancestors https://a.my')
+    expect(b.headers.get('Content-Security-Policy')).toBe('frame-ancestors https://b.my')
+  })
+})

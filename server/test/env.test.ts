@@ -1,0 +1,162 @@
+// SRV-T-001~011 — doc/200_설계/server/env.md §8
+import { describe, expect, it } from 'vitest'
+import devVarsExample from '../.dev.vars.example?raw'
+import wranglerToml from '../wrangler.toml?raw'
+import { ConfigError, ENV_KEYS, parseEnv, requireLlmApiKey, type Config } from '../src/env'
+
+const SENTINEL = 'SENTINEL_SECRET_9f2c'
+const fakeDb = { prepare: () => ({}) }
+const fakeAssets = { fetch: async () => new Response() }
+const base = { TOKEN_SECRET: 'secret', DB: fakeDb, ASSETS: fakeAssets }
+
+const keysOf = (raw: Record<string, unknown>): readonly string[] => {
+  try {
+    parseEnv(raw)
+  } catch (e) {
+    if (e instanceof ConfigError) return e.keys
+    throw e
+  }
+  return []
+}
+
+describe('parseEnv', () => {
+  it('SRV-T-001 parseEnv_applies_defaults_when_only_required_present', () => {
+    const c = parseEnv(base)
+    expect(c).toEqual({
+      tokenSecret: 'secret',
+      tokenMinLevel: 5,
+      llmProvider: 'google',
+      llmModel: 'gemini-2.5-flash',
+      llmTimeoutMs: 60000,
+      allowedFrameAncestors: ['http://london-gossip.my', 'https://london-gossip.my'],
+      rateLimitPerMin: 20,
+      contextMessages: 40,
+      memorySummaryThreshold: 60,
+    })
+    expect(c.llmApiKey).toBeUndefined()
+  })
+
+  it('SRV-T-002 parseEnv_converts_numeric_strings_and_numbers', () => {
+    for (const v of ['7', 7, ' 7 ']) {
+      expect(parseEnv({ ...base, TOKEN_MIN_LEVEL: v }).tokenMinLevel).toBe(7)
+    }
+  })
+
+  it.each([
+    ['TOKEN_SECRET', { TOKEN_SECRET: undefined }],
+    ['TOKEN_SECRET', { TOKEN_SECRET: '' }],
+    ['DB', { DB: undefined }],
+    ['ASSETS', { ASSETS: undefined }],
+  ])('SRV-T-003 parseEnv_throws_CONFIG_INVALID_when_required_missing %s', (key, patch) => {
+    let caught: unknown
+    try {
+      parseEnv({ ...base, ...patch })
+    } catch (e) {
+      caught = e
+    }
+    expect(caught).toBeInstanceOf(ConfigError)
+    const err = caught as ConfigError
+    expect(err.code).toBe('CONFIG_INVALID')
+    expect(err.status).toBe(500)
+    expect(err.keys).toEqual([key])
+  })
+
+  it.each([
+    ['TOKEN_MIN_LEVEL', 0],
+    ['TOKEN_MIN_LEVEL', 11],
+    ['LLM_TIMEOUT_MS', 999],
+    ['LLM_TIMEOUT_MS', 60001],
+    ['RATE_LIMIT_PER_MIN', 0],
+    ['RATE_LIMIT_PER_MIN', 601],
+    ['CONTEXT_MESSAGES', 0],
+    ['CONTEXT_MESSAGES', 101],
+    ['MEMORY_SUMMARY_THRESHOLD', 1],
+    ['MEMORY_SUMMARY_THRESHOLD', 1001],
+    ['TOKEN_MIN_LEVEL', '5.0'],
+    ['TOKEN_MIN_LEVEL', '1e3'],
+    ['TOKEN_MIN_LEVEL', '-1'],
+  ])('SRV-T-004 parseEnv_throws_when_number_out_of_range %s=%s', (key, value) => {
+    expect(keysOf({ ...base, [key]: value })).toContain(key)
+  })
+
+  it('SRV-T-005 parseEnv_throws_when_threshold_not_greater_than_context', () => {
+    expect(keysOf({ ...base, CONTEXT_MESSAGES: 60, MEMORY_SUMMARY_THRESHOLD: 60 })).toEqual([
+      'CONTEXT_MESSAGES',
+      'MEMORY_SUMMARY_THRESHOLD',
+    ])
+  })
+
+  it.each([
+    ['LLM_PROVIDER', 'openai'],
+    ['LLM_MODEL', 'a/b'],
+    ['LLM_MODEL', 'x:y'],
+  ])('SRV-T-006 parseEnv_throws_when_provider_or_model_invalid %s=%s', (key, value) => {
+    expect(keysOf({ ...base, [key]: value })).toEqual([key])
+  })
+
+  it('SRV-T-007 parseEnv_validates_frame_ancestors', () => {
+    const ok = parseEnv({
+      ...base,
+      ALLOWED_FRAME_ANCESTORS: 'http://london-gossip.my https://london-gossip.my http://london-gossip.my',
+    })
+    expect(ok.allowedFrameAncestors).toEqual(['http://london-gossip.my', 'https://london-gossip.my'])
+    for (const bad of ['london-gossip.my', 'https://a.my; script-src *', "'self'", 'https://a.my/path']) {
+      expect(keysOf({ ...base, ALLOWED_FRAME_ANCESTORS: bad })).toEqual(['ALLOWED_FRAME_ANCESTORS'])
+    }
+    expect(parseEnv({ ...base, ALLOWED_FRAME_ANCESTORS: '   ' }).allowedFrameAncestors).toHaveLength(2)
+  })
+
+  it('SRV-T-008 parseEnv_allows_missing_llm_api_key', () => {
+    expect(parseEnv({ ...base }).llmApiKey).toBeUndefined()
+    expect(parseEnv({ ...base, LLM_API_KEY: '' }).llmApiKey).toBeUndefined()
+    expect(parseEnv({ ...base, LLM_API_KEY: 'k' }).llmApiKey).toBe('k')
+  })
+
+  it('SRV-T-009 ConfigError_never_contains_values', () => {
+    let caught: unknown
+    try {
+      parseEnv({ ...base, TOKEN_SECRET: SENTINEL, LLM_PROVIDER: 'SENTINEL_PROVIDER' })
+    } catch (e) {
+      caught = e
+    }
+    const err = caught as ConfigError
+    expect(err).toBeInstanceOf(ConfigError)
+    const dump = [JSON.stringify(err), err.message, String(err.keys)].join('|')
+    expect(dump).not.toContain('SENTINEL')
+    expect(err.cause).toBeUndefined()
+  })
+})
+
+describe('requireLlmApiKey', () => {
+  const cfg = (patch: Partial<Config>): Config => ({ ...parseEnv(base), ...patch })
+
+  it('SRV-T-010 requireLlmApiKey_throws_when_google_without_key', () => {
+    expect(() => requireLlmApiKey(cfg({ llmProvider: 'google' }))).toThrow(ConfigError)
+    try {
+      requireLlmApiKey(cfg({ llmProvider: 'google' }))
+    } catch (e) {
+      expect((e as ConfigError).keys).toEqual(['LLM_API_KEY'])
+    }
+    expect(requireLlmApiKey(cfg({ llmProvider: 'google', llmApiKey: 'k' }))).toBe('k')
+    expect(requireLlmApiKey(cfg({ llmProvider: 'fake' }))).toBe('')
+  })
+})
+
+describe('키 대조', () => {
+  const activeKeys = (text: string): string[] =>
+    text.split('\n').flatMap((l) => (/^[A-Z][A-Z0-9_]*\s*=/.test(l) ? [l.split('=')[0]!.trim()] : []))
+  const commentKeys = (text: string): string[] =>
+    text.split('\n').flatMap((l) => (/^#\s+[A-Z][A-Z0-9_]*=/.test(l) ? [l.replace(/^#\s+/, '').split('=')[0]!] : []))
+
+  it('SRV-T-011 env_keys_match_wrangler_vars_and_dev_vars_example', () => {
+    const secrets = ['TOKEN_SECRET', 'LLM_API_KEY']
+    const settingKeys = ENV_KEYS.filter((k) => k !== 'DB' && k !== 'ASSETS')
+    const varsSection = wranglerToml.split('[vars]')[1]!.split(/\n\[/)[0]!
+    const varsKeys = activeKeys(varsSection)
+    const nonSecret = settingKeys.filter((k) => !secrets.includes(k)).sort()
+    expect([...varsKeys].sort()).toEqual(nonSecret)
+    expect(activeKeys(devVarsExample).sort()).toEqual([...secrets].sort())
+    const commented = [...new Set(commentKeys(devVarsExample))].sort()
+    expect(commented).toEqual(nonSecret)
+  })
+})

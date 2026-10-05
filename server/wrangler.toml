@@ -1,0 +1,32 @@
+# 런던_디스패치 Cloudflare Worker 설정
+# 설계: doc/200_설계/server/index.md §6.1 · 키 목록 단일 소스: src/env.ts (doc/200_설계/server/env.md §3.1)
+# 비밀값(TOKEN_SECRET, LLM_API_KEY)은 여기 적지 않는다. 운영은 `npx wrangler secret put <KEY>`, 로컬은 server/.dev.vars
+
+name = "london-dispatch"
+main = "src/index.ts"
+compatibility_date = "2026-08-15"          # 설치된 workerd 1.20260815.1 이 지원하는 날짜 이하
+compatibility_flags = ["nodejs_compat"]
+
+# 비밀 아닌 설정 — 값은 env.ts 기본값과 같다(문자열로 적고 parseEnv 가 숫자로 변환)
+[vars]
+TOKEN_MIN_LEVEL = "5"
+LLM_PROVIDER = "google"
+LLM_MODEL = "gemini-2.5-flash"
+LLM_TIMEOUT_MS = "60000"
+ALLOWED_FRAME_ANCESTORS = "http://london-gossip.my https://london-gossip.my"
+RATE_LIMIT_PER_MIN = "20"
+CONTEXT_MESSAGES = "40"
+MEMORY_SUMMARY_THRESHOLD = "60"
+
+# D1 — 스키마는 migrations/*.sql (doc/200_설계/server/db.md §7)
+[[d1_databases]]
+binding = "DB"
+database_name = "london-dispatch"
+database_id = "00000000-0000-0000-0000-000000000000"   # 자리표시. S5에서 `wrangler d1 create london-dispatch` 결과로 교체
+migrations_dir = "migrations"
+
+# 정적 화면 — ui 빌드 산출물을 /embed 로 서빙 (R-API-006)
+[assets]
+directory = "../ui/dist"
+binding = "ASSETS"
+run_worker_first = true                     # 정적 파일 요청도 Worker 를 거쳐 CSP 헤더를 붙인다
