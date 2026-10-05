@@ -23,18 +23,27 @@
       "Bash(npx vitest run:*)",
       "Bash(npx tsc --noEmit:*)",
       "Bash(curl -s http://localhost:*)",
-      "Bash(railway status:*)",
-      "Bash(railway logs:*)",
-      "Bash(railway variables:*)"
+      "Bash(npx wrangler dev:*)",
+      "Bash(npx wrangler whoami)",
+      "Bash(npx wrangler tail:*)",
+      "Bash(npx wrangler deployments list:*)",
+      "Bash(npx wrangler d1 migrations list:*)",
+      "Bash(npx wrangler d1 migrations apply * --local)",
+      "Bash(npx wrangler deploy --dry-run:*)"
     ],
     "deny": [
       "Bash(git push --force:*)",
       "Bash(git push -f:*)",
       "Bash(rm -rf /:*)",
       "Bash(rm -rf ~:*)",
-      "Bash(railway down:*)",
       "Read(.env)",
-      "Read(./.env)"
+      "Read(./.env)",
+      "Bash(npx wrangler delete:*)",
+      "Bash(wrangler delete:*)",
+      "Bash(npx wrangler d1 delete:*)",
+      "Bash(npx wrangler secret delete:*)",
+      "Read(server/.dev.vars)",
+      "Read(./server/.dev.vars)"
     ]
   },
   "hooks": {

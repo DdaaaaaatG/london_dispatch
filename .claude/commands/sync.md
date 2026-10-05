@@ -25,7 +25,7 @@ git branch --show-current
 
 `git status`와 `git diff --stat`를 그대로 보여주고 **커밋 여부와 메시지를 사용자에게 확인**받는다. 확인 없이 다음 단계로 가지 않는다.
 
-- **다음이 staged 대상에 있으면 중단**하고 `.gitignore`·`git rm --cached`를 먼저 처리한다: `.env`(`.env.example` 제외), `data/`·`*.sqlite`, `doc/300_검증/screenshots/`, `.dev.log`, `node_modules/`, `dist/`, `.railway/`.
+- **다음이 staged 대상에 있으면 중단**하고 `.gitignore`·`git rm --cached`를 먼저 처리한다: `server/.dev.vars`(`.dev.vars.example` 제외), `server/.wrangler/`(로컬 D1 상태)·`*.sqlite`, `doc/300_검증/screenshots/`, `.dev.log`, `node_modules/`, `dist/`, `worker-configuration.d.ts`(`wrangler types` 산출물이면).
 - API 키·`TOKEN_SECRET`·토큰 문자열이 diff에 보이면 커밋하지 않는다. 문서·테스트 픽스처도 같다.
 - 갠홈 저쪽에 줄 전달물(`doc/handoff/`)에 SECRET 실값이 적혀 있으면 자리표시자로 바꾸게 한다.
 

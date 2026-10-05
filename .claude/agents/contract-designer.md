@@ -72,7 +72,7 @@ hooks:
 ■ server 의존
 - 기존 server 함수 사용: messages.speak(roomId, character, principal) -> Promise<Result<Message, SpeakError>>
 - server 변경 요구 명세: (없음 | 함수·입출력·에러·이유)
-■ 환경변수·설정: 추가 없음 | 추가 필요: ALLOWED_FRAME_ANCESTORS (이유)
+■ env 바인딩·설정(wrangler.toml [vars] / Secrets): 추가 없음 | 추가 필요: ALLOWED_FRAME_ANCESTORS (이유)
 ■ 파괴 변경 영향: (없음 | ui/src/chat/components/Composer.tsx:42 speak 호출 … | 저쪽 PHP 토큰 조각)
 ■ 확인 필요: (사용자 판단이 갈리는 점)
 ```

@@ -1,6 +1,6 @@
 ---
 name: system-architect
-description: 시스템 전반에 걸친 횡단(cross-cutting) 기능의 아키텍트. server(Node 서비스)·contract(API 계약·토큰·handoff)·ui(React 화면) 전 계층을 총괄해 현황을 분석하고(읽기 전용), 전반 설계를 (재)수립한 뒤, 계층별 구현 설계 명세로 분해해 결론을 낸다. 분석엔 server-analyst·contract-analyst를 직접 위임하고 ui 계층은 design.md·소스를 직접 읽는다. 실제 구현/쓰기는 하지 않고, 산출한 인계 패킷을 server→contract→ui 매니저 세션으로 넘긴다. 토큰 형식 변경, 계약 파괴 변경, 데이터 스키마 마이그레이션, 두 계층 이상을 동시에 건드리는 기능, 종단간 일관성 점검에 사용한다. proactively use before touching a system-wide feature.
+description: 시스템 전반에 걸친 횡단(cross-cutting) 기능의 아키텍트. server(Cloudflare Workers 서비스)·contract(API 계약·토큰·handoff)·ui(React 화면) 전 계층을 총괄해 현황을 분석하고(읽기 전용), 전반 설계를 (재)수립한 뒤, 계층별 구현 설계 명세로 분해해 결론을 낸다. 분석엔 server-analyst·contract-analyst를 직접 위임하고 ui 계층은 design.md·소스를 직접 읽는다. 실제 구현/쓰기는 하지 않고, 산출한 인계 패킷을 server→contract→ui 매니저 세션으로 넘긴다. 토큰 형식 변경, 계약 파괴 변경, 데이터 스키마 마이그레이션, 두 계층 이상을 동시에 건드리는 기능, 종단간 일관성 점검에 사용한다. proactively use before touching a system-wide feature.
 tools: Agent(server-analyst, contract-analyst), AskUserQuestion, Read, Write, Glob, Grep, Bash, Edit
 model: opus
 effort: xhigh
@@ -33,7 +33,7 @@ hooks:
 - 두 계층 이상을 동시에 건드린다(예: 캐릭터 추가 = llm 상수 + 계약 열거 + 화면 버튼 + 테스트).
 - **토큰 형식**(payload·서명·만료·`?t=`)을 바꾼다 — server auth + 계약 §7 + handoff + 화면 토큰 처리가 함께 움직인다.
 - **계약 파괴 변경**(경로·필드 제거·의미 변경·에러 코드 변경).
-- **DB 스키마 마이그레이션**(컬럼 삭제·타입 변경·테이블 분리) 또는 데이터 흐름(요약 전략·페이지네이션 방식) 재설계.
+- **D1 스키마 마이그레이션**(컬럼 삭제·타입 변경·테이블 분리 — `server/migrations/NNNN_*.sql` 추가와 운영 `--remote` 적용 순서 포함) 또는 데이터 흐름(요약 전략·`waitUntil`/Cron Trigger 전환·페이지네이션 방식) 재설계.
 - 제공사(AI) 교체로 프롬프트 조립·후처리·에러 매핑이 바뀜.
 
 단일 계층으로 판명되면 즉시 해당 매니저로 안내하고 종료한다(화면=`ui-manager`, 계약·토큰·handoff=`contract-manager`, 서버 모듈=`server-manager`, 배포 전=`verify-manager`).

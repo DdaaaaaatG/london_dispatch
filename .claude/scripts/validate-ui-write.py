@@ -5,7 +5,7 @@
 목적: 화면 생성자는 **ui/src/ 안(화면·컴포넌트·상태·스타일·main.tsx)과 화면 문서·테스트만** 쓴다.
       - ui/src/api/ 는 contract 소관(화면 fetch 래퍼) → 차단. 계약이 모자라면 「contract 변경 요구 명세」로 보고.
       - server/ · shared/ · doc/200_설계/ 는 소관 밖 → 차단.
-      - package.json / vite.config.ts / tsconfig / railway.json / .env* 와 .claude/ 는 메인 세션 → 차단.
+      - package.json / vite.config.ts / tsconfig / server/wrangler.toml / .dev.vars* 와 .claude/ 는 메인 세션(또는 server-implementer) → 차단.
 허용 경로(프로젝트 루트 기준):
       ui/src/**(api/ 제외) · ui/index.html · ui/src/{rooms|chat}/**.md · ui/src/{rooms|chat}/test/** ·
       .claude/skills/component-catalog/SKILL.md · .claude/skills/component-usage-lessons/SKILL.md (카탈로그 갱신)
@@ -88,7 +88,7 @@ def main() -> None:
         _block(f"'{rel}' 은 계약 타입(contract 계층)입니다. contract-implementer 소관입니다.")
     if low.startswith("doc/200_설계/"):
         _block(f"'{rel}' 은 설계 문서입니다. server-designer/contract-designer 소관이며 화면 문서는 ui/src/{{화면}}/design.md 에 씁니다.")
-    if re.search(r"(^|/)(package\.json|railway\.json|vite\.config\.ts|tsconfig[^/]*\.json|\.env[^/]*)$", low):
+    if re.search(r"(^|/)(package\.json|wrangler\.toml|vite\.config\.ts|tsconfig[^/]*\.json|\.env[^/]*|\.dev\.vars[^/]*)$", low):
         _block(f"'{rel}' 변경(의존성·빌드·환경 설정)은 메인 세션 승인 사항입니다. 필요한 설정·의존성을 보고하세요.")
     if low.startswith(".claude/") or low == "claude.md":
         _block(f"'{rel}' 은 Claude 자산입니다. 생성자는 고치지 않습니다(카탈로그 스킬 2종만 예외).")

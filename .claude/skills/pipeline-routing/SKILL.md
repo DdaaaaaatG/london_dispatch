@@ -6,7 +6,7 @@ description: 런던_디스패치 에이전트·스킬 구성과 라우팅의 단
 # 파이프라인 라우팅 (단일 소스)
 
 - 제품 규격·폴더·계층은 `doc/000_프로젝트_확정사항.md`가 단일 기준이다. 이 스킬은 **누가·어떤 순서로·어떤 모델로** 일하는지만 정한다.
-- 3계층 `server(Node 서비스) · contract(API 계약) · ui(iframe 화면)` + 횡단 2종 + 배포 전 `verify` 게이트를 **매니저(오케스트레이터) + 리프 에이전트** 패키지로 처리한다.
+- 3계층 `server(Cloudflare Workers 서비스) · contract(API 계약) · ui(iframe 화면)` + 횡단 2종 + 배포 전 `verify` 게이트를 **매니저(오케스트레이터) + 리프 에이전트** 패키지로 처리한다.
 
 ## 1. 작업 모드 — 구축(build) vs 보강(maintain) ★모든 작업의 첫 판별
 
@@ -74,7 +74,7 @@ server (server/src/{env,db,auth,rooms,messages,memory,llm})   ← ui를 모른�
 |---|---|---|---|---|
 | server | server-manager | server 총괄 오케스트레이터 | opus / medium | 인터뷰 |
 | server | server-designer | server 모듈 설계 (`doc/200_설계/server/*.md`) | opus / xhigh | 기준 설정 |
-| server | server-implementer | Node/TS 구현 + vitest | sonnet / medium | 생성 |
+| server | server-implementer | Workers(Hono)/TS 구현 + vitest(workers pool) | sonnet / medium | 생성 |
 | server | server-analyst | server 현황 감사 (읽기 전용, `.claude/reports`) | opus / high | 판정 |
 | contract | contract-manager | contract 총괄 오케스트레이터 | opus / medium | 인터뷰 |
 | contract | contract-designer | API 계약·토큰 형식·handoff 설계 (`api.md`) | opus / xhigh | 기준 설정 |
@@ -107,7 +107,7 @@ server (server/src/{env,db,auth,rooms,messages,memory,llm})   ← ui를 모른�
 
 | 스킬 | preload 주체 | 내용 |
 |---|---|---|
-| server-design-strategy | server 4종 | 모듈 경계 6종·env 단일 진입·에러·비동기·SQLite·LLM 어댑터·프롬프트·테스트 |
+| server-design-strategy | server 4종 | 모듈 경계 6종·env 바인딩 단일 진입·에러·비동기(waitUntil·D1 잠금)·D1·LLM 어댑터·프롬프트·테스트(workers pool) |
 | contract-design-strategy | contract 4종 | 엔드포인트·JSON·에러코드·토큰·호환성·4자 동기화·handoff |
 | ui-design-strategy | ui 16종 | 화면 폴더·문서 4종·RTM·컴포넌트 재사용·api 경계·대화 화면 규칙·TDD |
 | verify-strategy | verify 4종 | verify-loop·3대 리뷰·게이트 |
@@ -143,12 +143,12 @@ server (server/src/{env,db,auth,rooms,messages,memory,llm})   ← ui를 모른�
 
 | 자원 | 내용 | 규칙 |
 |---|---|---|
-| R1 | `package.json`(루트·각 워크스페이스), `railway.json`, `tsconfig*.json`, `vite.config.ts` | 쓰기는 한 번에 하나. 의존성 추가는 메인 세션만 |
+| R1 | `package.json`(루트·각 워크스페이스), `server/wrangler.toml`, `tsconfig*.json`, `vite.config.ts` | 쓰기는 한 번에 하나. 의존성 추가는 메인 세션만. `wrangler.toml`은 server-implementer만 |
 | R2 | 계약 4종 + handoff: `doc/200_설계/contract/api.md`, `shared/src/*`, `server/src/routes/*`, `ui/src/api/*`, `doc/handoff/*` | contract-designer(문서·handoff)·contract-implementer(코드)만 쓴다. ui·server는 읽기만 |
 | R3 | 화면 폴더 `ui/src/rooms/`, `ui/src/chat/` | 한 화면 = 한 시점에 한 에이전트. 두 화면은 병렬 가능 |
 | R4 | `ui/src/state/` (대화 상태·토큰 상태) | ui-implementer(chat)와 ui-component-implementer가 동시에 쓰지 않는다 |
 | R5 | `server/src/db/` (스키마·마이그레이션·접근 함수) | server-implementer 모듈별 위임은 **순차**(마이그레이션 번호 충돌 방지) |
-| R6 | 테스트 실행(`vitest run`) | **직렬** — 동시 실행 금지(임시 SQLite 파일·포트 충돌). `/test`도 워크스페이스를 순차로 돈다 |
+| R6 | 테스트 실행(`vitest run`) | **직렬** — 동시 실행 금지(workers pool 로컬 D1 상태·포트 충돌). `/test`도 워크스페이스를 순차로 돈다 |
 | R7 | dev 서버(`npm run dev`, 포트 3000·5173) | 한 번에 하나 |
 
 ### 실행 절차표 양식
@@ -216,13 +216,13 @@ server (server/src/{env,db,auth,rooms,messages,memory,llm})   ← ui를 모른�
 
 | 명령 | 내용 | 실행 위치 |
 |---|---|---|
-| `/dev-start` | `npm run dev`(server+ui) 백그라운드 시작·상태 보고 | 메인 세션 |
-| `/dev-build` | `npm run typecheck` + `npm run build` 검증 빌드 | 메인 세션 |
+| `/dev-start` | 로컬 D1 마이그레이션(`wrangler d1 migrations apply --local`) → `npm run dev`(`wrangler dev` :3000 + vite :5173) 백그라운드 시작·상태 보고 | 메인 세션 |
+| `/dev-build` | `npm run typecheck` + `npm run build`(vite build + `wrangler deploy --dry-run`) 검증 빌드 | 메인 세션 |
 | `/test` | `npx vitest run` (인자 `server`/`contract`/`ui`/`<파일>`) | 메인 세션 |
 | `/run-app` | dev 기동 후 `/embed`·`/embed?t=` 스크린샷 | 메인 세션 |
 | `/sync` | commit + push (verify PASS 후) | 메인 세션 |
 | `/doc-sync` | 문서 동기화 배치 | 메인 세션 |
-| `/deploy` | `railway up` → 헬스체크 → `doc/300_검증/deploy-*.md` | 메인 세션 |
+| `/deploy` | verify PASS → `npm run build` → `wrangler d1 migrations apply --remote`(사용자 확인) → `wrangler deploy`(사용자 확인) → 헬스체크 → `doc/300_검증/deploy-*.md`. 배포 주체가 지인이면 절차서만 | 메인 세션 |
 
 ## 15. 적용 소요시간 통보
 

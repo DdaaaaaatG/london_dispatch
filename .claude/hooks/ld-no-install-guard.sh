@@ -2,8 +2,8 @@
 # ld-no-install-guard.sh - PreToolUse Hook (Bash)
 # 새 의존성 설치 명령을 감지하면 "사용자 승인 확인" 안내를 낸다. 차단하지 않는다.
 #   - 메인 세션용 안내 훅이다. 서브에이전트는 validate-no-install.py 가드가 차단한다.
-#   - 감지: npm install/i/add <pkg>, npm -g(@railway/cli 포함), yarn add, pnpm add, bun add,
-#           pip install, winget, choco, scoop, npx <pkg>(vitest/tsc/eslint/prettier/vite/railway 제외)
+#   - 감지: npm install/i/add <pkg>, npm -g(전역 설치 전부 — wrangler 도 devDependency 로 쓴다), yarn add, pnpm add, bun add,
+#           pip install, winget, choco, scoop, npx <pkg>(vitest/tsc/eslint/prettier/vite/wrangler 제외)
 #   - 인자 없는 npm install / npm ci / yarn / pnpm install 은 기존 의존성 복원이라 대상이 아니다.
 # Exit codes: 0 = 항상 허용 (안내만)
 
@@ -33,13 +33,13 @@ if re.search(r'\byarn\s+(global\s+)?add\b', low): hits.append('yarn add')
 if re.search(r'\b(pnpm|bun)\s+(add|i|install)\s+[^-\s]', low): hits.append('pnpm/bun add')
 if re.search(r'\bnpm\s+(install|i|add)\s+(?!--?[a-z])\S', low): hits.append('npm install <pkg>')
 if re.search(r'\bnpm\s+(install|i)\b.*\s(-g|--global)\b', low):
-    hits.append('npm -g (@railway/cli 포함)' if 'railway' in low else 'npm -g')
+    hits.append('npm -g (wrangler 는 전역 설치 대신 devDependency)' if 'wrangler' in low else 'npm -g')
 if re.search(r'\bpip3?\s+install\b', low): hits.append('pip install')
 if re.search(r'\b(winget|choco|scoop)\s+install\b', low): hits.append('시스템 패키지 설치')
 m = re.search(r'\bnpx\s+(?:--yes\s+|-y\s+)?([a-z@][\w@/.-]*)', low)
 if m:
     pkg = m.group(1)
-    allow = ('vitest', 'tsc', 'eslint', 'prettier', 'vite', 'railway', '@railway/cli')
+    allow = ('vitest', 'tsc', 'eslint', 'prettier', 'vite', 'wrangler')
     if not any(pkg == a or pkg.startswith(a + '@') for a in allow):
         hits.append('npx ' + pkg)
 

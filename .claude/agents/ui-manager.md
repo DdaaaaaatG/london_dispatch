@@ -37,7 +37,7 @@ hooks:
 |---|---|---|
 | 같은 화면 폴더에 두 작업자 쓰기 (designer ∥ implementer, implementer ∥ fixer) | **금지** | R3 화면 폴더 |
 | ui-tester 실행 ∥ 소스 수정 | **금지** | R6 실행 중 소스 변경은 판정 오염 |
-| ui-tester 두 화면 동시 실행 | **순차** | R7 dev 서버·SQLite 파일 1개 |
+| ui-tester 두 화면 동시 실행 | **순차** | R7 dev 서버(`wrangler dev` 3000 + vite 5173)·로컬 D1 상태(`server/.wrangler/`) 1개 |
 | ui-design-checker ∥ ui-test-checker ∥ ui-test-conflict-checker | 병렬 | 읽기 전용 |
 | rooms 설계 ∥ chat 설계 | 병렬 가능 | 폴더 분리 — 단 공용 컴포넌트·`ui/src/state`(R4)는 한쪽만 |
 | 계약 4종(`api.md`·`shared/`·`server/src/routes/`·`ui/src/api/`) | ui는 **읽기만** | R2 contract 소유 |

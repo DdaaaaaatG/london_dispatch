@@ -1,6 +1,6 @@
 ---
 name: project-build-strategy
-description: 초기 요구조건을 받아 server(Node 서비스)→contract(API 계약)→ui(iframe 화면)를 한 흐름으로 구축하는 구축(build) 파이프라인의 단일 소스. 구축/보강 판별과 정지·라우팅, 요구 정규화(요구ID·🔒 사용자 지정), 화면 2개·모듈 6개 분해와 범위 상한, 종단간 RTM 양식, 계층 실행 순서, 승인 게이트 2회(요구확정·설계묶음), 진행 상태 파일(doc/state.json)과 재개 절차, 완료 정의를 정의한다. 계층 세부 규칙은 server/contract/ui-design-strategy를 참조하며 재정의하지 않는다. task-manager가 preload한다. "처음부터 만들어줘", "요구조건으로 기능 구축" 시 참조한다.
+description: 초기 요구조건을 받아 server(Cloudflare Workers 서비스)→contract(API 계약)→ui(iframe 화면)를 한 흐름으로 구축하는 구축(build) 파이프라인의 단일 소스. 구축/보강 판별과 정지·라우팅, 요구 정규화(요구ID·🔒 사용자 지정), 화면 2개·모듈 6개 분해와 범위 상한, 종단간 RTM 양식, 계층 실행 순서, 승인 게이트 2회(요구확정·설계묶음), 진행 상태 파일(doc/state.json)과 재개 절차, 완료 정의를 정의한다. 계층 세부 규칙은 server/contract/ui-design-strategy를 참조하며 재정의하지 않는다. task-manager가 preload한다. "처음부터 만들어줘", "요구조건으로 기능 구축" 시 참조한다.
 ---
 
 # 구축(build) 파이프라인 전략
@@ -80,7 +80,8 @@ description: 초기 요구조건을 받아 server(Node 서비스)→contract(API
 | `ui/src/{screen}/requirements.md`·`design.md` | `ui-designer` (단일 소유 — 침범 금지) |
 | `ui/src/{screen}/test/scenarios.md` + vitest 스펙 | `ui-test-designer` |
 | `ui/src/{screen}/manual.md` | `ui-manual-writer` |
-| TS 소스, `package.json`·`railway.json`·`.env.example` | 각 implementer / 루트 설정은 메인 세션 (task-manager는 훅이 차단) |
+| TS 소스, `server/wrangler.toml`·`server/migrations/*.sql`·`server/.dev.vars.example` | 각 implementer (server 설정 3종은 server-implementer) |
+| 루트 `package.json`·tsconfig·의존성 설치 | 메인 세션 (task-manager는 훅이 차단) |
 
 ## 7. 진행 상태 파일 (재개용)
 
@@ -93,7 +94,7 @@ description: 초기 요구조건을 받아 server(Node 서비스)→contract(API
   "scope": { "requirements": ["R-DB-001", "R-ROOM-001", "R-CHAT-001"], "screens": ["rooms", "chat"], "modules": ["db", "rooms", "messages"] },
   "approvals": { "requirements": "2026-10-06T10:00:00", "design": "2026-10-06T11:20:00" },
   "completed": { "server": ["db", "rooms"], "contract": "pending", "ui": [] },
-  "dependencies_approved": ["fastify@5", "better-sqlite3@11", "zod@3", "vitest@2"],
+  "dependencies_approved": ["hono@4", "@hono/zod-validator", "zod@3", "wrangler", "@cloudflare/workers-types", "@cloudflare/vitest-pool-workers", "vitest@2"],
   "next": "server-implementer 위임(messages)",
   "blockers": [],
   "estimate_min": 90, "actual_min": null

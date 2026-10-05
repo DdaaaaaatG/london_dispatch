@@ -18,7 +18,7 @@ description: 개발 서버를 띄우고 방 목록·대화 화면(읽기 전용/
 npm run token:test -- --level 10 --nick 테스터 --ch 테스트캐릭터
 ```
 
-- `server/scripts/token-test.ts`가 `.env`의 dev `TOKEN_SECRET`으로 서명한 토큰 한 줄을 출력한다. 값은 보고에 **싣지 않는다**(URL에만 쓴다).
+- `server/scripts/token-test.ts`가 `server/.dev.vars`의 dev `TOKEN_SECRET`으로 서명한 토큰 한 줄을 출력한다(Node 로컬 스크립트, Web Crypto `crypto.subtle` — 서버 `auth` 모듈과 같은 알고리즘). 값은 보고에 **싣지 않는다**(URL에만 쓴다).
 - 스크립트가 아직 없으면 `token:test 스크립트 미구현 — 토큰 없는 화면만 캡처`로 보고하고 읽기 전용 화면만 찍는다. 스크립트 구현은 server-manager 소관.
 - 운영 `TOKEN_SECRET`으로 토큰을 만들지 않는다.
 
@@ -40,7 +40,7 @@ mkdir -p "doc/300_검증/screenshots/$STAMP"
 | 3 | 2에서 방 하나 클릭 | `chat-writer.png` (캐릭터 버튼 2 + OOC + 입력창) |
 
 - `mcp__puppeteer__puppeteer_navigate` → viewport **390×565** 설정(`puppeteer_evaluate`로 `window.resizeTo` 불가하면 launch 옵션의 `defaultViewport`) → `mcp__puppeteer__puppeteer_screenshot`(name은 위 파일명, 저장 경로는 결과를 `doc/300_검증/screenshots/$STAMP/`에 둔다).
-- 방이 하나도 없으면 2번 화면에서 「+ 새 방」으로 `스크린샷용` 방을 만들고 3번을 찍는다. 끝나면 그 방은 그대로 둔다(dev DB).
+- 방이 하나도 없으면 2번 화면에서 「+ 새 방」으로 `스크린샷용` 방을 만들고 3번을 찍는다. 끝나면 그 방은 그대로 둔다(로컬 D1, `server/.wrangler/`).
 
 ### 4-B. 브라우저 MCP가 없을 때 — PowerShell 전체 화면 캡처
 

@@ -4,18 +4,18 @@ dist/
 coverage/
 *.tsbuildinfo
 
-# 데이터·로그·환경
-data/
-*.sqlite
-*.sqlite-journal
+# 로그·환경·비밀값
 *.log
 .dev.log
 .env
 .env.*
-!.env.example
+.dev.vars
+.dev.vars.*
+!.dev.vars.example
 
-# Railway
-.railway/
+# Cloudflare wrangler 로컬 상태(로컬 D1 포함)·빌드 캐시
+.wrangler/
+**/.wrangler/
 
 # Claude 에이전트 개인 메모리 (세션별, 공유 안 함)
 .claude/agent-memory/

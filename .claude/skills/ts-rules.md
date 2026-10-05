@@ -89,7 +89,7 @@ import { reduceChat } from '@/state/chat'
 import { helper } from './helper'                       // 같은 폴더 → 상대 경로
 ```
 - `fetch`는 **`ui/src/api/` 안에서만** 호출한다. 화면·컴포넌트·state에서 직접 사용 금지.
-- `process.env`는 **`server/src/env.ts`에서만**. 다른 서버 모듈은 `import { env } from '../env'`.
+- Workers `env` 바인딩의 설정 키·`process.env`·`import.meta.env` 읽기는 **`server/src/env.ts`의 `parseEnv`에서만**. 다른 서버 모듈은 `parseEnv` 결과(`Env` 값)를 팩토리 인자로 받는다. 바인딩 객체를 직접 import·접근하지 않는다.
 - 제공사 SDK(`@anthropic-ai/sdk`·`openai`·`@google/genai`)는 **`server/src/llm/` 안에서만** import.
 - `import type`으로 타입만 가져온다(런타임 번들 제외).
 

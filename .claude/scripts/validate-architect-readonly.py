@@ -10,9 +10,10 @@
 - `task-manager`: 요구·RTM·상태 문서만 쓰고 구현은 리프 에이전트(server/contract/ui implementer)에 위임한다.
 
 - Write|Edit: **설계/분석 산출물 경로에만** 허용 — `doc/` 아래 `.md`/`.json`, `.claude/reports/` 아래 `.md`/`.json`.
-    소스(.ts/.tsx/.js/.css…), 설정(package.json/railway.json/vite.config.ts/tsconfig*.json/.env*), 그 외 확장자는 차단.
+    소스(.ts/.tsx/.js/.css/.sql/.toml…), 설정(package.json/wrangler.toml/vite.config.ts/tsconfig*.json/.env*/.dev.vars*), 그 외 확장자는 차단.
 - Bash: 조회/분석(git log·diff·status·show, grep·rg·find·ls·cat·head·tail·wc, npm --version, node --version,
-    npx tsc --noEmit, python scripts/docs/*.py) 허용. 변경·파괴·설치·git 쓰기·npm run build/dev/start·railway 는 차단.
+    npx tsc --noEmit, python scripts/docs/*.py, wrangler 조회(whoami·deployments list·d1 migrations list·deploy --dry-run)) 허용.
+    변경·파괴·설치·git 쓰기·npm run build/dev/start·wrangler deploy(실배포)/delete/secret/login/`--remote` 는 차단.
 
 설계 원칙: fail-closed — 파싱 실패/판단 불가 시 막는다. 종료코드 2 = 차단(사유 stderr), 0 = 허용.
 """
@@ -60,6 +61,8 @@ _ALLOWED_PREFIX = [
     r"npm\s+(ls|view|info)\b",
     r"npx\s+tsc\b.*--noemit",
     r"python\s+\S*scripts/docs/\S*\.py\b",
+    r"(npx\s+)?wrangler\s+(whoami|--version|-v|deployments\s+list|d1\s+migrations\s+list)\b",
+    r"(npx\s+)?wrangler\s+deploy\b(?=.*--dry-run)",
 ]
 _ALLOWED_RE = [re.compile(p) for p in _ALLOWED_PREFIX]
 
@@ -72,10 +75,12 @@ _DESTRUCTIVE = [
     r"\bgit\s+(commit|push|pull|reset|checkout|switch|merge|rebase|stash|add|rm|restore|clean|tag\s+[^-]|branch\s+-[dDmM])\b",
     r"\bnpm\s+(run\s+(build|dev|start|deploy)|install\s+\S|i\s+\S|add|uninstall|update|publish|link)\b",
     r"\byarn\b", r"\bpnpm\b", r"\bbun\b",
-    r"\bnpx\s+(?!tsc\b)",
+    r"\bnpx\s+(?!tsc\b|wrangler\b)",
     r"\bnode\s+(?!--version|-v\b)",
     r"\bpip3?\s+install\b", r"\b(winget|choco|scoop)\s+install\b",
-    r"\brailway\b",
+    r"\bwrangler\s+deploy\b(?![^&|;]*--dry-run\b)",
+    r"\bwrangler\s+(delete|d1\s+delete|secret|login|logout|kv\b.*\bdelete)\b",
+    r"\bwrangler\b[^&|;]*\s--remote\b",
     r"--write\b", r"--fix\b",
 ]
 _DESTRUCTIVE_RE = [re.compile(p) for p in _DESTRUCTIVE]
@@ -88,7 +93,7 @@ def _check_bash(command: str) -> None:
     low = cmd.lower()
     for rx in _DESTRUCTIVE_RE:
         if rx.search(low):
-            _block(AGENT + "는 변경/파괴/실행 명령을 쓰지 않습니다(소스·설정 수정, 빌드·실행, 커밋, 설치, 배포 금지). "
+            _block(AGENT + "는 변경/파괴/실행 명령을 쓰지 않습니다(소스·설정 수정, 빌드·실행, 커밋, 설치, wrangler 배포·원격 금지). "
                    + HANDOFF + ": " + cmd[:160])
     segments = re.split(r"\s*(?:&&|\|\||;|\|)\s*", low)
     for seg in segments:
@@ -99,7 +104,7 @@ def _check_bash(command: str) -> None:
             _block(AGENT + "의 Bash는 cd 를 쓰지 않습니다(프로젝트 루트 기준 상대 경로).")
         if not any(rx.match(seg) for rx in _ALLOWED_RE):
             _block(AGENT + "의 Bash는 조회·분석 명령만 허용합니다(git log/diff/status, grep, rg, find, ls, cat, "
-                   "head, tail, wc, npm ls, npx tsc --noEmit). 허용 밖: " + seg[:120])
+                   "head, tail, wc, npm ls, npx tsc --noEmit, wrangler whoami/deployments list/d1 migrations list/deploy --dry-run). 허용 밖: " + seg[:120])
     sys.exit(0)
 
 
@@ -107,7 +112,7 @@ def _check_bash(command: str) -> None:
 _ALLOWED_WRITE = ("doc/", ".claude/reports/")
 _ALLOWED_EXT_RE = re.compile(r"\.(md|json)$")
 _SOURCE_EXT_RE = re.compile(r"\.(ts|tsx|js|jsx|mjs|cjs|css|html|toml|yaml|yml|sh|ps1|py|sql)$")
-_CONFIG_BASE_RE = re.compile(r"^(package\.json|package-lock\.json|railway\.json|vite\.config\.ts|tsconfig[^/]*\.json|\.env[^/]*)$")
+_CONFIG_BASE_RE = re.compile(r"^(package\.json|package-lock\.json|wrangler\.toml|vite\.config\.ts|tsconfig[^/]*\.json|\.env[^/]*|\.dev\.vars[^/]*)$")
 
 
 def _normalize(path: str) -> str:

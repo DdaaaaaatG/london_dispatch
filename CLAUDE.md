@@ -1,6 +1,6 @@
 # 런던_디스패치 (london_dispatch)
 
-흑집사 자캐 커뮤니티 갠홈 `http://london-gossip.my/`(그누보드5 + 아보카도 에디션)에 **iframe으로 끼워 넣는 AI 캐릭터 대화창**. 세바스찬·시엘 버튼을 누르면 해당 캐릭터가 방 대화를 보고 한 턴 말한다. 서버(Node)는 Railway에, 화면은 서버가 `/embed`로 내려준다.
+흑집사 자캐 커뮤니티 갠홈 `http://london-gossip.my/`(그누보드5 + 아보카도 에디션)에 **iframe으로 끼워 넣는 AI 캐릭터 대화창**. 세바스찬·시엘 버튼을 누르면 해당 캐릭터가 방 대화를 보고 한 턴 말한다. 서버는 **Cloudflare Workers**(서버리스, 별도 서버 컴퓨터 없음)에서 돌고, 화면은 서버가 `/embed`로 내려준다.
 
 > **단일 소스: `doc/000_프로젝트_확정사항.md`.** 제품 동작·스택·계층·폴더·API·토큰·에이전트 목록이 거기 있다. 이 파일은 요약과 정책만 담는다. 두 문서가 어긋나면 확정사항 문서가 맞다.
 
@@ -10,13 +10,14 @@
 
 | 항목 | 값 |
 |---|---|
-| 런타임 | Node 22 + TypeScript 5, npm workspaces(`server/` `ui/` `shared/`) |
-| 서버 | Fastify 5 + SQLite(`better-sqlite3`, `data/london_dispatch.sqlite`) |
-| 화면 | Vite 6 + React 18, CSS Modules + 변수 토큰 |
-| AI | 제공사 미정. `server/src/llm/` 어댑터 뒤에 격리. 키는 환경변수만 |
-| 테스트 | vitest + @testing-library/react + supertest |
+| 서버 실행 환경 | **Cloudflare Workers**(workerd, `nodejs_compat`) 🔒. 로컬 도구는 Node 22+ + TypeScript 5, npm workspaces(`server/` `ui/` `shared/`) |
+| 서버 | Hono 4 + zod. DB는 **Cloudflare D1**(SQLite 호환, 바인딩 `DB`, `server/migrations/*.sql`) |
+| 설정·비밀값 | Secrets(`wrangler secret put`) · 로컬 `server/.dev.vars` · 비밀 아닌 설정은 `wrangler.toml [vars]`. 코드는 `server/src/env.ts`에서만 바인딩 파싱 |
+| 화면 | Vite 6 + React 18, CSS Modules + 변수 토큰. `/embed`는 Workers Static Assets(`ui/dist`) |
+| AI | 제공사 미정. `server/src/llm/` 어댑터 뒤에 격리. `fetch` 기반. 키는 Secrets만 |
+| 테스트 | vitest. 서버 `@cloudflare/vitest-pool-workers`(D1 바인딩 포함), 화면 jsdom + @testing-library/react |
 | 린트 | eslint · prettier |
-| 배포 | Railway(https). 갠홈 PHP가 https 주소만 받는다 |
+| 배포 | `wrangler deploy`(지인 Cloudflare 계정). `*.workers.dev` https. 갠홈 PHP가 https 주소만 받는다 |
 | Git | GitHub 단일 저장소, `main`, 1인 개발 |
 | 화면 확인 | 브라우저 MCP(puppeteer) 있으면 사용, 없으면 PowerShell 캡처 |
 
@@ -24,14 +25,15 @@
 
 ```
 shared/src/     types.ts · errors.ts · endpoints.ts   (contract 타입 단일 소스의 코드판)
-server/src/     index.ts · env.ts · db/ auth/ rooms/ messages/ memory/ llm/ · routes/(contract 소유)
+server/         wrangler.toml · .dev.vars.example · migrations/*.sql
+server/src/     index.ts(Hono 앱, fetch/scheduled) · env.ts · db/ auth/ rooms/ messages/ memory/ llm/ · routes/(contract 소유)
 ui/src/         main.tsx · api/(contract 소유) · rooms/ · chat/ · components/ · state/ · styles/
 doc/            000_프로젝트_확정사항.md · 100_요구조건/ · 200_설계/{server,contract,architecture}/ · 300_검증/ · handoff/
 .claude/        agents/ skills/ commands/ hooks/ scripts/ rules/ reports/ agent-memory/
 ```
 
 - 화면은 둘뿐이다: `ui/src/rooms/`(방 목록), `ui/src/chat/`(대화). 각 화면 폴더에 `requirements.md`, `design.md`, `manual.md`, `test/scenarios.md`, `test/change-requests.md`(CR 대장), 소스.
-- `process.env`는 `server/src/env.ts`에서만. 훅이 강제한다.
+- 설정·비밀값 읽기는 `server/src/env.ts`에서만(Workers `env` 바인딩을 `parseEnv`로 파싱해 값으로 전달). 다른 파일의 `process.env`·`import.meta.env`는 훅이 차단한다.
 
 ## 3. 계층 위상과 경계
 
@@ -63,7 +65,7 @@ ui (React, iframe)  →  contract (api.md · shared/ · routes/ · ui/src/api/ �
 ## 5. 필수 정책 (모든 작업에 걸린다)
 
 0. **위임 원칙 (🔒 사용자 지정).** 메인 세션은 소스(`server/`·`shared/`·`ui/`)와 산출 문서(화면 문서 4종·CR 대장·`doc/200_설계/**`·`doc/handoff/**`)를 **직접 수정하지 않는다.** 담당 리프 에이전트에 위임한다. 어느 에이전트인지는 §4 진입점 표와 `pipeline-routing` 스킬로 정한다.
-   - 메인 세션이 직접 하는 일: 요구 인터뷰, 위임문 작성, 결과 대조·종합, 사용자 보고, `doc/000_프로젝트_확정사항.md`·`doc/next-session.md` 갱신, 사용자가 승인한 의존성 설치, 앱 실행·스크린샷 확인, Railway 배포(사용자 확인 후).
+   - 메인 세션이 직접 하는 일: 요구 인터뷰, 위임문 작성, 결과 대조·종합, 사용자 보고, `doc/000_프로젝트_확정사항.md`·`doc/next-session.md` 갱신, 사용자가 승인한 의존성 설치, 앱 실행·스크린샷 확인, Cloudflare 배포(`wrangler deploy`, 사용자 확인 후·배포 주체가 우리일 때만).
    - 에이전트가 가드에 막히면 **메인 세션이 대신 쓰지 않는다.** 막힌 이유를 사용자에게 알리고 결정을 받는다(가드 우회 금지).
    - 사용자가 "직접 고쳐"라고 명시한 건만 예외로 메인 세션이 직접 수정하고, 그 사실을 완료 보고에 적는다.
 1. **작업 모드 판별.** 작업 수신 시 구축/보강을 먼저 정하고 개시 보고에 근거를 적는다. 애매하면 사용자에게 묻는다.
@@ -71,11 +73,11 @@ ui (React, iframe)  →  contract (api.md · shared/ · routes/ · ui/src/api/ �
 3. **도구 선확인.** 위임 전 대상 에이전트의 `tools:` 줄을 본다. 설명이 아니라 `tools:`가 사실이다.
 4. **증거 기반 완료.** "될 것이다" 금지. vitest 결과, `tsc --noEmit` exit code, 빌드 exit code, `curl` 응답, 스크린샷 경로로 증명한다.
 5. **요구 범위 준수.** 요구ID(`R-xx`)로 역추적되지 않는 기능·필드·버튼·엔드포인트를 만들지 않는다. 필요해 보이면 보고만 하고, 승인되면 요구로 승격한 뒤 만든다.
-6. **비밀값 격리.** `process.env`는 `server/src/env.ts`에서만. API 키·SECRET 실값은 `.env`에만(git 제외). 로그·응답·화면·문서·커밋에 실값 금지. 훅이 차단한다.
+6. **비밀값 격리.** 설정·비밀값 읽기는 `server/src/env.ts`에서만. API 키·SECRET 실값은 `server/.dev.vars`(로컬, git 제외)와 Cloudflare Secrets(운영)에만. 로그·응답·화면·문서·커밋에 실값 금지. 훅이 차단한다.
 7. **검증자 독립성.** checker·tester·reviewer·analyst에는 「적용 메모리」나 설계 의도를 전달하지 않는다.
 8. **보고 채널은 하나.** 서브에이전트는 최종 응답 1회로 보고한다. SendMessage 중간 보고 금지.
 9. **실행 예산.** 위임문에 `예산: 도구 호출 N회 · 벽시계 M분`. 기본값 구현 80/30, 설계 50/20, 검증·분석 30/10.
-10. **파괴적 명령 금지.** `git reset --hard`·`push --force`·`clean -fd`·`data/*.sqlite` 삭제·`railway down`은 훅이 차단한다. 되돌리기는 `git revert`·파일 단위 복원으로.
+10. **파괴적 명령 금지.** `git reset --hard`·`push --force`·`clean -fd`·`wrangler delete`·`wrangler d1 delete`·`wrangler secret delete`·`wrangler d1 execute --remote`(DROP/DELETE)는 훅이 차단한다. `wrangler deploy`·`d1 migrations apply --remote`는 `/deploy` 안에서만. 되돌리기는 `git revert`·파일 단위 복원으로.
 11. **절대 경로 금지.** `CLAUDE.md`·`.claude/**/*.md`의 명령은 프로젝트 루트 기준 상대 경로. `.claude/rules/claude-doc-paths.md`.
 12. **외부 전달물은 handoff로.** 갠홈 저쪽에 줄 것(임베드 주소, 토큰 PHP 조각, SECRET 전달 방법)은 `doc/handoff/`에만 쓰고, contract-designer가 소유한다. 채팅으로만 전달하고 문서에 없는 상태를 만들지 않는다.
 
@@ -83,16 +85,16 @@ ui (React, iframe)  →  contract (api.md · shared/ · routes/ · ui/src/api/ �
 
 | 명령 | 실제 셸 | 설명 |
 |---|---|---|
-| `/dev-start` | `npm run dev`(백그라운드, 로그 `.dev.log`) | server(기본 3000) + ui(Vite 5173, `/api` 프록시) |
-| `/dev-build` | `npm run typecheck` · `npm run build` | 컴파일·번들 확인. 배포 아님 |
+| `/dev-start` | `npm run dev`(백그라운드, 로그 `.dev.log`) | server(`wrangler dev --port 3000`, 로컬 D1) + ui(Vite 5173, `/api` 프록시) |
+| `/dev-build` | `npm run typecheck` · `npm run build` | 컴파일·번들 확인(ui vite build + `wrangler deploy --dry-run`). 배포 아님 |
 | `/test` | `npm test`(= `vitest run`) | 전체 또는 `server`/`contract`/`ui`/`<파일>` |
 | `/run-app` | dev 기동 + 스크린샷 | `doc/300_검증/screenshots/{YYYYMMDD-HHMM}/` |
 | `/sync` | `git add -A` · `git commit` · `git push origin main` | 변경 목록 확인 후 커밋. verify PASS 후 권고 |
 | `/doc-sync` | git history 기준 문서 동기화 위임 | 마커 `doc/doc-sync-state.json` |
-| `/deploy` | `railway up` → 헬스체크 | verify PASS + 사용자 확인 후. 산출 `doc/300_검증/deploy-*.md` |
+| `/deploy` | `npm run build` → `wrangler d1 migrations apply --remote` → `wrangler deploy` → 헬스체크 | verify PASS + 사용자 확인 후. 배포 주체가 지인이면 절차서만 산출. 산출 `doc/300_검증/deploy-*.md` |
 
 - `vitest`를 `run` 없이 실행하면 watch 모드로 세션이 막힌다. 항상 `vitest run`.
-- 서버는 `ui/dist`를 `/embed`로 서빙한다. dev에서는 Vite가 `/api`를 서버로 프록시한다.
+- 서버는 `ui/dist`를 Workers Static Assets로 `/embed`에 서빙한다. dev에서는 Vite가 `/api`를 `wrangler dev`(3000)로 프록시한다. 로컬 D1은 `server/.wrangler/`에 생긴다.
 
 ## 7. 문서 규칙
 
@@ -107,7 +109,7 @@ ui (React, iframe)  →  contract (api.md · shared/ · routes/ · ui/src/api/ �
 
 | 파일 | 대상 |
 |---|---|
-| `.claude/skills/server-rules.md` | Node/Fastify 관례(모듈 경계, 에러 타입, 비동기, SQLite, 로그, env 단일 진입) |
+| `.claude/skills/server-rules.md` | Workers/Hono 관례(모듈 경계, 에러 타입, 비동기·waitUntil, D1, 로그, env 바인딩 단일 진입) |
 | `.claude/skills/ts-rules.md` | TypeScript 규칙(const 기본, 세미콜론 없음, alias import, Result 정규화) |
 | `.claude/skills/tsx-rules.md` | React 규칙(불변성, 단방향 흐름, Hook 규칙, 400줄 한계) |
 | `.claude/skills/ui_design_concept.md` | UI 디자인 시스템(Rosebell 계열 색·타이포·스페이싱, 390px) |

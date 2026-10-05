@@ -6,9 +6,11 @@
 - Bash: 빌드·린트(--check)·테스트·조회 허용 —
     npx tsc --noEmit / npm run typecheck / npm run lint / npx eslint(--fix 없이) / npx prettier --check /
     npx vitest run / npm test / npm run test / npm run build /
-    git log·diff·status·show, grep·rg·find·ls·cat·head·tail·wc, node/npm --version, curl -s http://localhost:…
+    git log·diff·status·show, grep·rg·find·ls·cat·head·tail·wc, node/npm --version, curl -s http://localhost:…,
+    wrangler 조회(whoami·--version·deployments list·d1 migrations list·deploy --dry-run)
   차단: eslint --fix, prettier --write(또는 --check 없는 prettier), rm/mv/cp/tee/리다이렉션, git 쓰기,
-        npm run dev|start|deploy, railway up/down, 설치(npm install <pkg>·npx <미허용>·pip/winget).
+        npm run dev|start|deploy, wrangler deploy(실배포)·delete·d1 delete·secret·login/logout·`--remote`,
+        설치(npm install <pkg>·npx <미허용>·pip/winget).
 
 설계 원칙: fail-closed — 파싱 실패/판단 불가 시 막는다. 종료코드 2 = 차단(사유 stderr), 0 = 허용.
 """
@@ -47,7 +49,9 @@ _DESTRUCTIVE = [
     r"\bnpm\s+(run\s+(dev|start|deploy)|install\s+\S|i\s+\S|add|uninstall|update|publish|link)\b",
     r"\byarn\b", r"\bpnpm\b", r"\bbun\b",
     r"\bpip3?\s+install\b", r"\b(winget|choco|scoop)\s+install\b",
-    r"\brailway\s+(up|down|delete|remove|volume|service|unlink|link|init)\b",
+    r"\bwrangler\s+deploy\b(?![^&|;]*--dry-run\b)",
+    r"\bwrangler\s+(delete|d1\s+delete|secret|login|logout|kv\b.*\bdelete)\b",
+    r"\bwrangler\b[^&|;]*\s--remote\b",
     r"--write\b", r"--fix\b",
 ]
 _DESTRUCTIVE_RE = [re.compile(p) for p in _DESTRUCTIVE]
@@ -67,7 +71,8 @@ _ALLOWED_PREFIX = [
     r"npm\s+(ls|view|info)\b",
     r"curl\s+(-s\s+|--silent\s+)?(-i\s+|-o\s+\S+\s+|-w\s+\S+\s+|-x\s+\S+\s+)*[\"']?https?://(localhost|127\.0\.0\.1)[:/]",
     r"python\s+\S*scripts/docs/\S*\.py\b",
-    r"railway\s+(status|logs|variables)\b",
+    r"(npx\s+)?wrangler\s+(whoami|--version|-v|deployments\s+list|d1\s+migrations\s+list)\b",
+    r"(npx\s+)?wrangler\s+deploy\b(?=.*--dry-run)",
 ]
 _ALLOWED_RE = [re.compile(p) for p in _ALLOWED_PREFIX]
 
@@ -79,7 +84,7 @@ def _check_bash(command: str) -> None:
     low = cmd.lower()
     for rx in _DESTRUCTIVE_RE:
         if rx.search(low):
-            _block("verify는 읽기 전용입니다. 변경/파괴/배포 명령을 실행하지 않습니다(소스 수정·커밋·설치·포맷 쓰기·railway up 금지). "
+            _block("verify는 읽기 전용입니다. 변경/파괴/배포 명령을 실행하지 않습니다(소스 수정·커밋·설치·포맷 쓰기·wrangler deploy/--remote 금지). "
                    "수정은 생산 에이전트(ui-debug/contract-manager/server-manager)로 라우팅하세요: " + cmd[:160])
     if re.search(r"\bprettier\b", low) and "--check" not in low:
         _block("verify는 파일을 수정하지 않습니다. prettier 는 --check 로만 실행하세요.")

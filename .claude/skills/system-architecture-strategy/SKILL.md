@@ -1,6 +1,6 @@
 ---
 name: system-architecture-strategy
-description: 시스템 전반에 걸친 횡단(cross-cutting) 기능의 아키텍처 전략. server(Node 서비스)·contract(API 계약)·ui(iframe 화면) 여러 계층을 동시에 건드리는 기능을 "① 구조 분석 → ② 전반(재)설계 → ③ 계층별 구현 설계 분해"의 3단계로 다루는 방법론을 정의한다. 횡단 판별 기준, 산출물 3종 양식(구조 분석서·전반 설계서·계층별 인계 패킷), 종단간 RTM(요구→ui→contract→server), 계층 전략 참조 규약, server→contract→ui 단방향 인계 규약, 세션 분리 원칙을 담는다. system-architect가 preload한다.
+description: 시스템 전반에 걸친 횡단(cross-cutting) 기능의 아키텍처 전략. server(Cloudflare Workers 서비스)·contract(API 계약)·ui(iframe 화면) 여러 계층을 동시에 건드리는 기능을 "① 구조 분석 → ② 전반(재)설계 → ③ 계층별 구현 설계 분해"의 3단계로 다루는 방법론을 정의한다. 횡단 판별 기준, 산출물 3종 양식(구조 분석서·전반 설계서·계층별 인계 패킷), 종단간 RTM(요구→ui→contract→server), 계층 전략 참조 규약, server→contract→ui 단방향 인계 규약, 세션 분리 원칙을 담는다. system-architect가 preload한다.
 ---
 
 # 시스템 아키텍처 전략
@@ -84,7 +84,7 @@ chat/SpeakButton ─api.speak()─▶ routes/messages.ts ─▶ messages.speak()
 - 시그니처·타입: (함수·TS 타입 그대로)
 - 동작 명세: (입력→출력, 예외, 잠금·백그라운드)
 - 수용 기준: (테스트 이름·측정값)
-- 하지 말 것: (자원 경계 — 다른 계층 파일 수정 금지, process.env 직접 접근 금지 등)
+- 하지 말 것: (자원 경계 — 다른 계층 파일 수정 금지, Workers env 바인딩·process.env 직접 접근 금지(env.ts의 parseEnv만), 프로세스 메모리 잠금·카운터 금지 등)
 - 완료 마커: (파일 경로·테스트 통과)
 ```
 

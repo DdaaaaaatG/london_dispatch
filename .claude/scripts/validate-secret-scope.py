@@ -4,7 +4,9 @@
 호출자: server-implementer, contract-implementer, ui-implementer, ui-fixer (전역 훅 ld-secret-scope-guard.sh 와 이중 장치)
 목적: `process.env` / `import.meta.env` 읽기는 `server/src/env.ts`(서버)·`ui/src/config.ts`(화면)에서만 허용한다
       (확정사항 §3·§8 비밀값 격리). 다른 모듈은 검증된 env 객체를 import 한다.
-      `.env` 실파일(.env, .env.local …) 쓰기는 항상 차단한다. `.env.example` 만 허용.
+      비밀값 실파일 쓰기는 항상 차단한다 — Workers 로컬 비밀값 파일 `.dev.vars`·`.dev.vars.*`, 그리고 이 프로젝트가
+      쓰지 않는 `.env*` 전부. 예제 파일 `.dev.vars.example`(키 이름만, 실값 없음)만 허용.
+      운영 비밀값은 Cloudflare Secrets(`wrangler secret put`)로 사용자가 직접 넣는다.
 
 판정
 ----
@@ -77,8 +79,10 @@ def main() -> None:
     norm = path.replace("\\", "/").lower()
     base = norm.rsplit("/", 1)[-1]
 
-    if base == ".env" or (re.match(r"^\.env\.[^/]+$", base) and base != ".env.example"):
-        _block(".env 실파일은 쓰지 않습니다(비밀값은 사용자가 직접 넣는다). 키 이름·설명만 .env.example 에 적으세요: " + path)
+    if base == ".env" or re.match(r"^\.env\.[^/]+$", base):
+        _block("이 프로젝트는 .env 파일을 쓰지 않습니다(로컬 비밀값은 server/.dev.vars 에 사용자가 직접, 운영은 Cloudflare Secrets). 키 이름·설명은 server/.dev.vars.example 에 적으세요: " + path)
+    if base == ".dev.vars" or (re.match(r"^\.dev\.vars\.[^/]+$", base) and base != ".dev.vars.example"):
+        _block(".dev.vars 실파일은 쓰지 않습니다(로컬 비밀값은 사용자가 직접 넣고, 운영은 wrangler secret put). 키 이름·설명만 server/.dev.vars.example 에 적으세요: " + path)
 
     if norm.endswith(_DOC_EXT):
         sys.exit(0)

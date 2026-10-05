@@ -4,7 +4,8 @@
 #   - 쓰려는 내용에 `process.env` 또는 `import.meta.env` 가 있고(주석 제외)
 #   - 파일이 문서(.md/.txt/.html/.json/.example)가 아니며
 #   - 경로가 server/src/env.ts(서버) / ui/src/config.ts(화면) 가 아니면 차단
-#   - `.env` 실파일(.env, .env.local, .env.production …) 쓰기는 항상 차단. `.env.example` 만 허용.
+#   - 비밀값 실파일 쓰기는 항상 차단: Workers 로컬 비밀값 `.dev.vars`·`.dev.vars.*`, 그리고 이 프로젝트가 쓰지 않는 `.env*` 전부.
+#     예제 파일 `.dev.vars.example`(키 이름만, 실값 없음)만 허용. 운영 비밀값은 Cloudflare Secrets(wrangler secret put).
 # MultiEdit 의 edits[].new_string 도 검사한다.
 # 에이전트별 스크립트 가드(validate-secret-scope.py)와 함께 이중 안전 장치다.
 # python을 찾지 못하면 fail-closed(exit 2).
@@ -37,9 +38,11 @@ if not fp:
 low = fp.lower()
 base = low.rsplit('/', 1)[-1]
 
-# .env 실파일 쓰기 금지 (.env.example 제외)
-if base == '.env' or (re.match(r'^\.env\.[^/]+$', base) and base != '.env.example'):
+# .dev.vars 실파일 쓰기 금지 (.dev.vars.example 제외). .env* 는 이 프로젝트가 쓰지 않으므로 전부 금지.
+if base == '.env' or re.match(r'^\.env\.[^/]+$', base):
     print('ENVFILE|' + fp); sys.exit(0)
+if base == '.dev.vars' or (re.match(r'^\.dev\.vars\.[^/]+$', base) and base != '.dev.vars.example'):
+    print('DEVVARS|' + fp); sys.exit(0)
 
 if low.endswith(('.md', '.markdown', '.txt', '.html', '.json', '.example')):
     sys.exit(0)
@@ -78,7 +81,10 @@ case "$VERDICT" in
         echo "BLOCKED: 쓰기 대상 경로를 확인할 수 없어 차단합니다(fail-closed)." >&2
         exit 2 ;;
     ENVFILE\|*)
-        echo "BLOCKED: .env 실파일은 쓰지 않습니다(비밀값은 사용자가 직접 넣는다). 키 이름·설명만 .env.example 에 적으세요. 대상: ${VERDICT#ENVFILE|}" >&2
+        echo "BLOCKED: 이 프로젝트는 .env 파일을 쓰지 않습니다(로컬 비밀값은 server/.dev.vars 에 사용자가 직접, 운영은 Cloudflare Secrets). 키 이름·설명은 server/.dev.vars.example 에 적으세요. 대상: ${VERDICT#ENVFILE|}" >&2
+        exit 2 ;;
+    DEVVARS\|*)
+        echo "BLOCKED: .dev.vars 실파일은 쓰지 않습니다(로컬 비밀값은 사용자가 직접 넣고, 운영은 wrangler secret put). 키 이름·설명만 server/.dev.vars.example 에 적으세요. 대상: ${VERDICT#DEVVARS|}" >&2
         exit 2 ;;
     ENV\|*)
         echo "BLOCKED: 비밀값·환경변수는 server/src/env.ts(서버) / ui/src/config.ts(화면)에서만 읽습니다 — env 객체를 import 하세요. 대상: ${VERDICT#ENV|}" >&2

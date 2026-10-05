@@ -10,8 +10,8 @@ paths:
 `cd D:/some/path/london_dispatch/server && npx vitest run` 같은 표기는 금지다. `npx vitest run server`로 쓴다.
 
 - 모든 명령은 **프로젝트 루트가 작업 디렉터리**라는 전제로 적는다(`server/`·`shared/`·`ui/`·`doc/`).
-- 드라이브 문자와 설치 위치를 박으면 다른 클론·다른 PC·Railway 빌드에서 그대로 깨진다.
-- 실행 시점에 정해지는 경로(SQLite 파일, Railway Volume)는 환경변수(`DATABASE_PATH`, `/app/data`)로 적는다.
+- 드라이브 문자와 설치 위치를 박으면 다른 클론·다른 PC·Cloudflare 빌드(`wrangler deploy`)에서 그대로 깨진다.
+- 실행 시점에 정해지는 값(D1 바인딩 이름, 허용 출처, 레이트리밋 숫자 등)은 경로로 박지 않고 `server/wrangler.toml [vars]`·`[[d1_databases]]`와 Cloudflare Secrets(로컬은 `server/.dev.vars`)로 적는다. Workers에는 디스크 경로가 없다.
 - 외부 사이트 주소(`http://london-gossip.my`)는 **값**이지 경로가 아니므로 써도 된다. 단 허용 출처 목록의 단일 소스는 `server/src/env.ts`(`ALLOWED_FRAME_ANCESTORS`)다.
 - 예외는 **기록물**뿐이다. `.claude/reports/`(분석 시점의 사실)는 그때의 경로를 그대로 둔다.
 

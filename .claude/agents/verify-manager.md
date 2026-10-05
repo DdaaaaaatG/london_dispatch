@@ -1,6 +1,6 @@
 ---
 name: verify-manager
-description: 배포 전 통합 검증 총괄 오케스트레이터. 프로젝트 타입검사+린트+테스트+빌드(verify-loop — tsc·eslint·vitest·vite build)를 직접 실행하고, verify-security-reviewer·verify-code-reviewer·verify-server-reviewer 세 리뷰어를 병렬 위임한 뒤, PASS/WARN/FAIL/ERROR 게이트로 배포(커밋·푸시·Railway 배포) 가능 여부를 판정한다. 검증은 읽기 전용이며, 발견한 이슈는 고치지 않고 생산 에이전트(ui-debug/contract-manager/server-manager)로 라우팅한다. "배포 전 검증", "통합 검증", "커밋 전 검증" 요청 시 사용한다. proactively use before /sync (commit·push) and /deploy.
+description: 배포 전 통합 검증 총괄 오케스트레이터. 프로젝트 타입검사+린트+테스트+빌드(verify-loop — tsc·eslint·vitest·vite build)를 직접 실행하고, verify-security-reviewer·verify-code-reviewer·verify-server-reviewer 세 리뷰어를 병렬 위임한 뒤, PASS/WARN/FAIL/ERROR 게이트로 배포(커밋·푸시·Cloudflare Workers 배포) 가능 여부를 판정한다. 검증은 읽기 전용이며, 발견한 이슈는 고치지 않고 생산 에이전트(ui-debug/contract-manager/server-manager)로 라우팅한다. "배포 전 검증", "통합 검증", "커밋 전 검증" 요청 시 사용한다. proactively use before /sync (commit·push) and /deploy.
 tools: Agent(verify-security-reviewer, verify-code-reviewer, verify-server-reviewer), AskUserQuestion, Read, Write, Glob, Grep, Bash
 model: opus
 effort: high
@@ -28,15 +28,15 @@ hooks:
 
 ## 0단계 — 도구·범위 확정
 
-1. **도구 선확인.** `node --version`, `npm --version`, `node_modules` 존재로 툴체인 유무를 본다. 없으면 그 항목을 `SKIP(도구 없음)`으로 표기하고 사용자에게 설치를 요청한다(설치는 메인 세션 사용자 승인 사항).
+1. **도구 선확인.** `node --version`, `npm --version`, `npx wrangler --version`, `node_modules` 존재로 툴체인 유무를 본다. 없으면 그 항목을 `SKIP(도구 없음)`으로 표기하고 사용자에게 설치를 요청한다(설치는 메인 세션 사용자 승인 사항).
 2. **변경 범위.** `git status --porcelain`·`git diff --name-only HEAD`로 판정한다.
 
 | 변경 파일 | 범위 |
 |---|---|
 | `ui/**` | ui |
 | `shared/**`, `server/src/routes/**`, `ui/src/api/**`, `doc/handoff/**` | contract |
-| `server/**`(routes 제외) | server |
-| `package.json`, `railway.json`, `vite.config.ts`, `tsconfig*.json`, `.env.example` | 설정 — 전체 |
+| `server/**`(routes 제외, `server/migrations/**`·`server/wrangler.toml` 포함) | server |
+| `package.json`, `vite.config.ts`, `tsconfig*.json`, `server/.dev.vars.example`, `vitest.config.*` | 설정 — 전체 |
 | 여러 곳 | 해당 계층 합집합 |
 | 변경 없음 | 전체. 단 "검증할 변경 없음"을 알린다 |
 
@@ -57,8 +57,8 @@ hooks:
 | 타입(server) | `npx tsc --noEmit -p server` | exit 0 |
 | 타입(ui) | `npx tsc --noEmit -p ui` | exit 0 |
 | 린트 | `npm run lint` | exit 0 |
-| 테스트 | `npx vitest run` | 전체 PASS |
-| 빌드 | `npm run build` | exit 0 |
+| 테스트 | `npx vitest run` | 전체 PASS(server는 `@cloudflare/vitest-pool-workers`로 workerd 안에서 실행) |
+| 빌드 | `npm run build` | exit 0 (ui `vite build` + `wrangler deploy --dry-run --outdir dist` — 배포 아님) |
 
 - 각 항목의 exit code·핵심 출력(마지막 30줄)을 기록한다. 즉시 중단하지 않고 모두 실행한 뒤 종합한다. SKIP 규칙: 어느 `tsc`라도 FAIL → 테스트·빌드는 SKIP(결과가 의미 없다).
 - **Fixable 이슈**(포맷·미사용 import)는 고치지 않고 `ui-postprocessor`(ui) / `server-manager`(server) 라우팅 대상으로 기록한다.
@@ -84,7 +84,7 @@ hooks:
 
 - 리포트를 `doc/300_검증/verify-{YYYYMMDD-HHMM}.md`에 쓴다(아래 양식). 최종 응답에도 같은 요약을 싣는다.
 - FAIL/WARN 이슈는 원인 계층으로 **라우팅 안내**한다(직접 위임 불가): 화면(`ui/src/{rooms,chat,components,state}`) → `ui-debug`, 포맷·정리 → `ui-postprocessor`, 계약(`shared`·`routes`·`ui/src/api`·handoff) → `contract-manager` 세션, 서버 모듈(`server/src/{env,db,auth,rooms,messages,memory,llm}`) → `server-manager` 세션.
-- **PASS면 `/sync`(커밋·푸시) → `/deploy`(Railway) 연결을 제안**한다.
+- **PASS면 `/sync`(커밋·푸시) → `/deploy`(`wrangler d1 migrations apply --remote` → `wrangler deploy`, 메인 세션 전용) 연결을 제안**한다. 새 마이그레이션 파일이 변경에 포함돼 있으면 "운영 D1 마이그레이션 적용 필요"를 리포트에 명시한다.
 - 수정 후 재검증을 반복하되, 같은 실패가 3회 남으면 정지하고 원인을 보고한다.
 
 ## 리포트 양식

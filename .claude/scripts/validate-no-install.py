@@ -7,14 +7,14 @@
 
 차단
 ----
-- JS: npm install|i|add <패키지>, npm -g(@railway/cli 포함), yarn add, yarn global add, pnpm add, bun add
-- npx <패키지> — 허용 목록(vitest, tsc, eslint, prettier, vite, railway) 밖
+- JS: npm install|i|add <패키지>, npm -g(전역 설치 전부), yarn add, yarn global add, pnpm add, bun add
+- npx <패키지> — 허용 목록(vitest, tsc, eslint, prettier, vite, wrangler) 밖
 - 기타: pip install, winget, choco, scoop
 
 허용
 ----
 - 인자 없는 의존성 복원: npm install, npm ci, yarn, yarn install, pnpm install
-- 프로젝트 도구 실행: npx vitest, npx tsc, npx eslint, npx prettier, npx vite, npx railway
+- 프로젝트 도구 실행: npx vitest, npx tsc, npx eslint, npx prettier, npx vite, npx wrangler(devDependency — 설치가 아니라 실행)
 
 설계 원칙: fail-closed — 입력 파싱 실패 시 원본 전체를 검사한다.
 종료코드 2 = 차단(사유 stderr). 0 = 허용.
@@ -50,7 +50,7 @@ _ADD_ALWAYS = re.compile(r"\b(yarn|pnpm|bun)\s+(global\s+)?add\b", re.IGNORECASE
 _NPM_GLOBAL = re.compile(r"\bnpm\s+(i|install)\b[^&|;]*(\s-g\b|\s--global\b)", re.IGNORECASE)
 _NPM_INSTALL = re.compile(r"\b(npm|pnpm|bun)\s+(install|i|add)\b(?P<rest>[^&|;]*)", re.IGNORECASE)
 _NPX = re.compile(r"\bnpx\s+(?:--yes\s+|-y\s+)?(?P<pkg>\S+)", re.IGNORECASE)
-_NPX_ALLOWED = {"vitest", "tsc", "eslint", "prettier", "vite", "railway", "@railway/cli"}
+_NPX_ALLOWED = {"vitest", "tsc", "eslint", "prettier", "vite", "wrangler"}
 _OTHER = re.compile(r"\b(pip|pip3)\s+install\b|\bwinget\s+install\b|\bchoco\s+install\b|\bscoop\s+install\b", re.IGNORECASE)
 
 
@@ -62,7 +62,7 @@ def _has_package_arg(rest: str) -> bool:
 
 
 def _npx_pkg_name(pkg: str) -> str:
-    """버전 접미(@x.y)를 뗀 패키지 이름. 스코프 패키지(@railway/cli@1)도 처리."""
+    """버전 접미(@x.y)를 뗀 패키지 이름. 스코프 패키지(@cloudflare/workers-types@4)도 처리."""
     p = pkg.lower()
     if p.startswith("@"):
         parts = p.split("@")
@@ -77,7 +77,7 @@ def main() -> None:
     if _ADD_ALWAYS.search(command):
         _block("패키지 추가(yarn/pnpm/bun add)가 감지되었습니다. " + _MSG)
     if _NPM_GLOBAL.search(command):
-        _block("npm 전역 설치(-g)가 감지되었습니다(@railway/cli 포함). " + _MSG)
+        _block("npm 전역 설치(-g)가 감지되었습니다. wrangler도 전역이 아니라 devDependency로 쓴다. " + _MSG)
     for m in _NPM_INSTALL.finditer(command):
         if _has_package_arg(m.group("rest")):
             _block("npm/pnpm install <패키지> 가 감지되었습니다. 기존 의존성 복원은 인자 없이(npm install / npm ci) 실행하세요. " + _MSG)

@@ -11,7 +11,7 @@ description: 전체 테스트 — npm test(vitest run). 인자로 server / contr
 | 인자 | 실행 |
 |---|---|
 | (없음) | `npm test` (= `npx vitest run`) |
-| `server` | `npx vitest run server` |
+| `server` | `npx vitest run server` (`server/vitest.config.ts`의 `@cloudflare/vitest-pool-workers` — workerd 안에서 D1 바인딩 포함 실행) |
 | `contract` | `npx vitest run server/test/routes ui/src/api shared` |
 | `ui` | `npx vitest run ui` |
 | `<파일경로>` | `npx vitest run <파일경로>` |
@@ -22,9 +22,10 @@ description: 전체 테스트 — npm test(vitest run). 인자로 server / contr
 npx vitest run 2>&1 | tail -40
 ```
 
-- **직렬 실행만.** 범위를 여러 개 돌릴 때도 한 번에 하나씩(공유 자원 R6 — SQLite 임시 파일·포트 충돌).
+- **직렬 실행만.** 범위를 여러 개 돌릴 때도 한 번에 하나씩(공유 자원 R6 — workers pool의 로컬 D1 상태·포트 충돌).
 - `vitest`를 `run` 없이 실행하면 watch 모드로 세션이 막힌다.
-- 서버 테스트는 임시 SQLite(`:memory:` 또는 tmp 파일)를 쓴다. `data/`의 실파일을 건드리면 설정 결함이다.
+- 서버 테스트는 workers pool이 테스트마다 격리해 주는 D1 바인딩(`server/wrangler.toml` 기준, 마이그레이션은 테스트 setup에서 적용)을 쓴다. `server/.wrangler/`의 dev 로컬 DB를 건드리면 설정 결함이다.
+- 서버 테스트가 Node 전용 API(`fs`·네이티브 모듈)를 요구하면 Workers 호환 위반이다. 결함으로 보고한다.
 - LLM 호출은 테스트에서 항상 mock이다. 네트워크가 필요한 테스트가 있으면 결함으로 보고한다.
 
 ## 결과 보고 형식

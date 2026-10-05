@@ -46,14 +46,14 @@ paths:
 
 | 계층 | 증거 |
 |---|---|
-| server | `npx vitest run server` 결과(테스트 수·PASS), `npx tsc --noEmit -p server` exit 0, 필요 시 `curl` 응답 본문 |
+| server | `npx vitest run server` 결과(테스트 수·PASS — `@cloudflare/vitest-pool-workers`, workerd 안에서 D1 바인딩 포함), `npx tsc --noEmit -p server` exit 0, 필요 시 `wrangler dev` 상대로 `curl` 응답 본문 |
 | contract | api.md ↔ `shared/src/types.ts` ↔ `server/src/routes/*` ↔ `ui/src/api/*` 대조표, `npx tsc --noEmit` 세 워크스페이스 exit 0 |
-| ui | `npx vitest run ui` 결과, `npm run build` exit 0, 스크린샷 경로(`doc/300_검증/screenshots/…`) |
+| ui | `npx vitest run ui` 결과, `npm run build`(vite build + `wrangler deploy --dry-run`) exit 0, 스크린샷 경로(`doc/300_검증/screenshots/…`) |
 
 ## 6. 비밀값 격리
 
-- `process.env`는 `server/src/env.ts`에서만 읽는다. 다른 모듈은 `env` 객체(검증된 설정)만 import한다. 훅(`ld-secret-scope-guard.sh`)이 강제한다.
-- API 키·HMAC SECRET·세션 비밀은 `.env`(git 제외)에만. `.env.example`에는 키 이름과 설명만.
+- 설정·비밀값은 `server/src/env.ts`에서만 읽는다. Workers에는 `process.env`가 없고 요청마다 `env` 바인딩 객체가 들어오므로, `index.ts`가 받은 바인딩을 `parseEnv(raw)`로 한 번 검증해 서비스에 **값으로 전달**한다. 다른 모듈은 바인딩 키(`TOKEN_SECRET`, `LLM_API_KEY` 등)를 직접 읽지 않으며, `process.env`·`import.meta.env`가 env.ts 밖에 있으면 훅(`ld-secret-scope-guard.sh`)이 차단한다.
+- API 키·HMAC SECRET 실값은 운영은 Cloudflare Secrets(`wrangler secret put`), 로컬은 `server/.dev.vars`(git 제외)에만. `server/.dev.vars.example`에는 키 이름과 설명만. 비밀 아닌 설정만 `wrangler.toml [vars]`에 둔다.
 - 로그·에러 메시지·HTTP 응답·화면·문서·커밋 메시지에 실값을 넣지 않는다. 토큰 payload도 로그에 통째로 찍지 않는다(mb_id만).
 - 화면은 토큰을 URL(`?t=`)에서 읽어 **메모리에만** 둔다. `localStorage`·쿠키 저장 금지.
 
@@ -67,5 +67,5 @@ paths:
 | 컨텍스트 | "아직 여유 있다" | 대형 작업은 세션 분리 |
 | 증거 기반 | "이미 잘 작동한다" | 실행 결과 없이 완료 = 거짓 |
 | TDD | "너무 단순해서 테스트 불필요" | 토큰 검증·프롬프트 조립·페이지네이션·상태 전이는 테스트 100% |
-| 비밀값 | "여기서 한 줄만 읽으면 편하다" | env.ts 밖 `process.env`는 훅이 차단. env 객체를 받는다 |
+| 비밀값 | "여기서 한 줄만 읽으면 편하다" | env.ts 밖 `process.env`·바인딩 직접 읽기는 훅이 차단. parseEnv 결과를 값으로 받는다 |
 | 불변성 | "성능 때문에 mutation 필요" | 프로파일링 증명 후에만 허용 |

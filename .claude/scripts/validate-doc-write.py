@@ -3,7 +3,7 @@
 
 대상: ui-designer · ui-test-designer · server-designer · contract-designer · ui-component-designer · ui-manual-writer
 목적: 설계·시나리오·매뉴얼 작성자는 **문서와 테스트 스펙만** 쓴다. 제품 소스(.ts/.tsx/.js)와
-      설정 파일(package.json·railway.json·vite.config.ts·tsconfig 등), 그리고 `CLAUDE.md`·`.claude/**`
+      설정 파일(package.json·wrangler.toml·vite.config.ts·tsconfig·.dev.vars* 등), 그리고 `CLAUDE.md`·`.claude/**`
       (에이전트·스킬·훅 정의)는 소관 밖이므로 차단한다.
 
 허용

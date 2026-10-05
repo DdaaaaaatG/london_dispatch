@@ -37,7 +37,7 @@ hooks:
    - **rooms**: 목록 렌더·정렬·빈 목록·새 방 생성 호출 인자·방 선택 시 라우팅·마지막 방 복원(localStorage try/catch, 없어도 렌더).
    - 오류 분기(401 TOKEN_INVALID·403 LEVEL_TOO_LOW·429·네트워크 실패)를 정상 분기와 같은 비중으로. 에러 코드별 문구는 labels.ts 기준.
 3. **TC-FLOW.** 사용자·이용 시나리오 각 행을 시작→완료까지 잇는 체인(Step: TC-ID 순서). 상태 전달(앞 Step 결과가 뒤 Step의 Given) 명시.
-4. **자동화 가능/불가 분류.** 실제 갠홈 패널 안 iframe 표시·등급별 토큰 발급·`frame-ancestors` 차단·모바일 실기기 폭·Railway 배포 주소처럼 외부 환경이 필요한 항목은 `test/manual-checklist.md`로 분리(항목 · 절차 · 기대 · 관련 TC/요구ID · 확인란). scenarios.md에는 `종류: 자동 | 수동`을 표기한다.
+4. **자동화 가능/불가 분류.** 실제 갠홈 패널 안 iframe 표시·등급별 토큰 발급·`frame-ancestors` 차단·모바일 실기기 폭·Cloudflare Workers 배포 주소(`*.workers.dev`)처럼 외부 환경이 필요한 항목은 `test/manual-checklist.md`로 분리(항목 · 절차 · 기대 · 관련 TC/요구ID · 확인란). scenarios.md에는 `종류: 자동 | 수동`을 표기한다.
 5. **vitest 스펙 초안.** `test/{대상}.test.tsx`(컴포넌트) · `test/{대상}.test.ts`(상태·유틸). TC-ID를 `it('TC-012: …')` 이름에 넣는다. api 래퍼는 `vi.mock('@/api/rooms')`·`vi.mock('@/api/messages')` 등으로 대체하고 호출 인자를 단언한다. 실제 `fetch`·네트워크 금지. 구현이 아직 없으므로 import 경로는 design.md의 컴포넌트·function 이름을 따른다(구현자가 맞춘다).
 6. **추적표 3종 + 커버리지 확인.** 요구↔TC · 설계항목↔TC · 사용자행↔TC-FLOW. 빈 칸이 있으면 미완.
 7. **문서 저장.** `test/scenarios.md`(헤더·TC 목록·TC-FLOW·추적표·변경 대기열 절·변경이력) + 스펙 파일 + `manual-checklist.md`.

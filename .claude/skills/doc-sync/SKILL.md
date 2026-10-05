@@ -30,7 +30,7 @@ description: 배치 문서 동기화 전략. 마지막 /doc-sync 이후 git hist
 | `ui/src/components/**` | 공용 컴포넌트 | `component-catalog` 스킬 인벤토리 | ui-component-designer |
 | `server/src/{env.ts,db,auth,rooms,messages,memory,llm}/**` | server 모듈 | `doc/200_설계/server/{module}.md` | server-designer |
 | `shared/**`, `server/src/routes/**`, `ui/src/api/**`, `doc/handoff/**` | contract | `doc/200_설계/contract/api.md` | contract-analyst(불일치는 contract-manager 인계) |
-| `.env.example`, `railway.json`, 루트 `package.json` | 설정 | server `env.md`·api.md §7의 해당 절 | server-designer / contract-analyst |
+| `server/.dev.vars.example`, `server/wrangler.toml`, `server/migrations/**`, 루트 `package.json` | 설정 | server `env.md`·`db.md`·api.md §7의 해당 절 | server-designer / contract-analyst |
 
 4. **변경 의도 수집.** `git log <lastSyncedSha>..HEAD --format='%h %s%n%b'` — 🔒 사용자 지정·변경 이유·CR-ID를 여기서 읽는다.
 

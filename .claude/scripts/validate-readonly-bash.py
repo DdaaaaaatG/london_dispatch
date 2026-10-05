@@ -12,6 +12,7 @@
 - 분석 스크립트: `python scripts/docs/<파일>.py ...`
 - 테스트·타입 확인(관찰용, 소스 불변): npm test, npm run test|typecheck|lint, npx vitest run, npx tsc --noEmit,
         npx prettier --check, npx eslint(--fix 없이), npm --version, npm ls, npm view, node --version
+- wrangler 조회만: (npx) wrangler whoami / --version / deployments list / d1 migrations list(--local) / deploy --dry-run
 - 파이프 뒤: grep/rg/head/tail/wc/sort/uniq/cut/tr/cat 만
 
 차단
@@ -19,7 +20,8 @@
 - 리다이렉션(`>`, `>>`), sed -i, xargs, 쓰기 명령(rm/mv/cp/touch/mkdir/del/rmdir/tee), node -e
 - find -exec / -delete / -ok, git branch -D/-d/-m, git remote add/remove/set-url
 - git commit/push/reset/checkout/add/stash/rebase/merge/clean
-- npm run dev|start|build|deploy, npm install <pkg>, npx <허용 외>, railway 전부
+- npm run dev|start|build|deploy, npm install <pkg>, npx <허용 외>
+- wrangler deploy(실배포)·delete·d1 delete·secret·login/logout·`--remote` 가 붙은 명령 전부(조회 외 wrangler 금지)
 - cd(경로 이동으로 가드 경로가 어긋난다 — 상대 경로로 지정)
 
 설계 원칙: fail-closed — 파싱 실패·판단 불가는 차단.
@@ -68,9 +70,30 @@ _SED_INPLACE = re.compile(r"\bsed\b.*\s-i\b")
 _PY_DOCS = re.compile(r"^(python|python3|py)$")
 
 
+def _check_wrangler(args: list) -> None:
+    """wrangler 조회만 허용. args = ['wrangler', ...] 뒤 토큰(소문자)."""
+    rest = [t.lower() for t in args]
+    joined = " ".join(rest)
+    if "--remote" in rest:
+        _block("읽기 전용 역할에서는 --remote(운영 D1·Workers) 가 붙은 wrangler 명령을 실행하지 않습니다.")
+    if rest[:1] in (["whoami"], ["--version"], ["-v"]):
+        return
+    if rest[:2] == ["deployments", "list"]:
+        return
+    if rest[:3] == ["d1", "migrations", "list"]:
+        return
+    if rest[:1] == ["deploy"] and "--dry-run" in rest:
+        return
+    _block("읽기 전용 역할의 wrangler는 whoami / deployments list / d1 migrations list / deploy --dry-run 만 허용됩니다"
+           "(실배포·delete·secret·login은 메인 세션 /deploy 전용): wrangler " + joined[:80])
+
+
 def _check_npx(toks: list) -> None:
     sub = toks[1].lower() if len(toks) > 1 else ""
     rest = [t.lower() for t in toks[2:]]
+    if sub == "wrangler":
+        _check_wrangler(toks[2:])
+        return
     if sub == "vitest" and "run" in rest and "--watch" not in rest:
         return
     if sub == "tsc" and "--noemit" in rest:
@@ -79,7 +102,7 @@ def _check_npx(toks: list) -> None:
         return
     if sub == "eslint" and "--fix" not in rest:
         return
-    _block(f"읽기 전용 역할의 npx는 vitest run / tsc --noEmit / prettier --check / eslint(--fix 없이)만 허용됩니다: npx {sub}")
+    _block(f"읽기 전용 역할의 npx는 vitest run / tsc --noEmit / prettier --check / eslint(--fix 없이) / wrangler(조회만)만 허용됩니다: npx {sub}")
 
 
 def _check_npm(toks: list) -> None:
@@ -143,8 +166,9 @@ def _check_segment(seg: str, after_pipe: bool) -> None:
         if "scripts/docs/" in script and script.endswith(".py"):
             return
         _block("python 실행은 scripts/docs/ 아래 분석 스크립트만 허용됩니다.")
-    if head == "railway":
-        _block("railway CLI 는 읽기 전용 역할에서 실행하지 않습니다(배포·조회 모두 메인 세션).")
+    if head == "wrangler":
+        _check_wrangler(toks[1:])
+        return
     if head == "cd":
         _block("cd 는 가드 경로를 어긋나게 합니다. 프로젝트 루트 기준 상대 경로로 지정하세요.")
     if head == "xargs":

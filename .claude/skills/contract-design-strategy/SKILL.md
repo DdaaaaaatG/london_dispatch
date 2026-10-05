@@ -1,6 +1,6 @@
 ---
 name: contract-design-strategy
-description: contract(API 계약) 계층의 설계·구현·검토 표준. ui→contract→server 단방향 위상과 4자+handoff 소유 파일(api.md·shared·routes·ui/api·doc/handoff), REST 경로·camelCase·epoch ms·에러코드 명명, `{ error: { code, message } }` 응답 규약, 갠홈 발급 HMAC 토큰 형식과 PHP 조각이 계약의 일부라는 원칙, 유사 기존 엔드포인트 확장 우선, 호환성 분류(추가/비파괴/파괴)와 파괴 변경 시 ui 인계, 레이트리밋·페이지네이션 규약, 계약→shared→routes→ui/api→handoff 동기화 순서와 대조표, 라우트 핸들러 얇게·스키마 검증, 테스트(supertest·api 래퍼 mock), 화면의 fetch 직접 사용 금지, 요구 기반 최소 노출, api.md 절 구성을 정의한다. API 계약을 설계·확장·구현하거나 계약↔코드 일치를 검토할 때 반드시 참조한다.
+description: contract(API 계약) 계층의 설계·구현·검토 표준. ui→contract→server 단방향 위상과 4자+handoff 소유 파일(api.md·shared·routes·ui/api·doc/handoff), REST 경로·camelCase·epoch ms·에러코드 명명, `{ error: { code, message } }` 응답 규약, 갠홈 발급 HMAC 토큰 형식과 PHP 조각이 계약의 일부라는 원칙, 유사 기존 엔드포인트 확장 우선, 호환성 분류(추가/비파괴/파괴)와 파괴 변경 시 ui 인계, 레이트리밋·페이지네이션 규약, 계약→shared→routes→ui/api→handoff 동기화 순서와 대조표, 라우트 핸들러 얇게·zod 검증, 테스트(Hono app.request()·api 래퍼 mock), 화면의 fetch 직접 사용 금지, 요구 기반 최소 노출, api.md 절 구성을 정의한다. API 계약을 설계·확장·구현하거나 계약↔코드 일치를 검토할 때 반드시 참조한다.
 ---
 
 # contract 설계 전략 (표준)
@@ -23,7 +23,7 @@ ui (React, ui/src/)  →  contract (계약)  →  server (서비스, server/src/
 |---|---|---|
 | 문서(정본) | 계약 명세 | `doc/200_설계/contract/api.md` |
 | 공용 타입 | 요청/응답 타입·에러코드·경로 상수 | `shared/src/types.ts` · `shared/src/errors.ts` · `shared/src/endpoints.ts` |
-| 서버 쪽 | Fastify 라우트 + JSON 스키마 + preHandler | `server/src/routes/*.ts` |
+| 서버 쪽 | Hono 라우트 + zod 검증(`@hono/zod-validator`) + 토큰 미들웨어 | `server/src/routes/*.ts` |
 | 화면 쪽 | fetch 래퍼(`Result<T>` 정규화) | `ui/src/api/*.ts` |
 | 갠홈 쪽 | 토큰 발급 PHP 조각·임베드 안내 | `doc/handoff/*.md` |
 
@@ -121,12 +121,12 @@ ui (React, ui/src/)  →  contract (계약)  →  server (서비스, server/src/
 
 | 항목 | 규칙 |
 |---|---|
-| 쓰기 레이트리밋 | `@fastify/rate-limit`, 키 = 토큰 `mbId`(없으면 IP), `env.RATE_LIMIT_PER_MIN`(기본 20). 초과 `429 RATE_LIMITED` + `Retry-After` |
+| 쓰기 레이트리밋 | D1 `rate_limits(mb_id, window_start, count)` 조건부 UPSERT(server §4 — Workers는 인스턴스가 여럿이라 메모리 카운터·외부 플러그인 금지), 키 = 토큰 `mbId`, `env.RATE_LIMIT_PER_MIN`(기본 20). 초과 `429 RATE_LIMITED` + `Retry-After` |
 | speak 동시성 | 방당 1건(server §4). 라우트는 `409 SPEAK_IN_PROGRESS`를 그대로 전달 |
 | 페이지네이션 | `before` 커서(메시지 id) + `limit`(≤100). 첫 요청은 `before` 없음 = 최신부터. 응답 `nextBefore`가 `null`이면 끝 |
 | 임베드 | `/embed` 응답에 `Content-Security-Policy: frame-ancestors {env.ALLOWED_FRAME_ANCESTORS}`. `X-Frame-Options`는 보내지 않는다(CSP가 우선). `/api/*`에는 `frame-ancestors 'none'` |
 | CORS | 동일 출처(iframe이 서버에서 내려옴)라 기본 미허용. 로컬 dev는 Vite 프록시로 해결. 외부 출처 허용은 요구가 있을 때만 |
-| 헬스 | `GET /api/health` → `{ ok: true, version }`. Railway 헬스체크 대상 |
+| 헬스 | `GET /api/health` → `{ ok: true, version }`. `/deploy` 헬스체크 대상 |
 
 ## 8. 4자 + handoff 동기화
 
@@ -137,26 +137,26 @@ ui (React, ui/src/)  →  contract (계약)  →  server (서비스, server/src/
 | 계약 항목 | api.md | shared (`types.ts`/`errors.ts`/`endpoints.ts`) | routes (`server/src/routes/*`) | ui/api (`ui/src/api/*`) | 판정 |
 |---|---|---|---|---|---|
 | `POST /api/rooms/:id/speak` `SpeakRequest.character` | §4.6 | `SpeakRequest` | `speakRoute` 스키마 `character: enum` | `speak(roomId, character)` | ✅ |
-| `TOKEN_EXPIRED` 401 | §3 | `ErrorCode.TOKEN_EXPIRED` | preHandler | `Result.error.code` 분기 | ✅ |
+| `TOKEN_EXPIRED` 401 | §3 | `ErrorCode.TOKEN_EXPIRED` | `requireAuth` 미들웨어 | `Result.error.code` 분기 | ✅ |
 
 - 대조 기준: 경로·메서드·요청/응답 필드·타입·optional 여부·에러 코드 목록·status·토큰 요구 여부.
 - 경로 문자열은 `shared/src/endpoints.ts` **한 곳**에만 둔다. 라우트·래퍼에 리터럴 경로가 나타나면 결함(CON 감사 항목).
 - 토큰 형식은 `shared/src/types.ts`의 `TokenPayload` + `doc/handoff/token-snippet.php.md`의 PHP 조각이 같은 필드를 가진다. 대조표에 한 행으로 포함한다.
-- JSON 스키마는 **수작업 JSON Schema** 또는 zod→JSON Schema 변환 중 하나를 contract-designer가 api.md §5에서 확정한다(둘 다 쓰지 않는다). 변환 도구 도입은 설치 허가제.
+- 요청 검증 스키마는 **zod 하나**로 통일한다(`@hono/zod-validator`). `shared/src/types.ts`의 타입과 라우트의 zod 스키마는 `z.infer`·`satisfies`로 묶어 어긋나면 tsc가 잡게 한다. 스키마 위치(shared vs routes)는 contract-designer가 api.md §5에서 확정한다.
 
 ## 9. 라우트 구현 규칙 (`server/src/routes/`)
 
-- 파일 = 자원 단위(`rooms.ts`, `messages.ts`, `memory.ts`, `health.ts`, `embed.ts`), `index.ts`가 플러그인으로 묶어 등록.
-- 핸들러 형태 고정: 스키마(`schema: { params, querystring, body, response }`) → `preHandler: [requireAuth]`(쓰기) 또는 `[optionalAuth]`(읽기) → 서비스 호출 → `reply.code(n).send(dto)`.
+- 파일 = 자원 단위(`rooms.ts`, `messages.ts`, `memory.ts`, `health.ts`, `embed.ts`), `index.ts`가 `app.route()`로 묶는다. 에러 변환은 `app.onError` 한 곳.
+- 핸들러 형태 고정: `zValidator('param'|'query'|'json', schema)` → `requireAuth`(쓰기) 또는 `optionalAuth`(읽기) 미들웨어 → 서비스 호출 → `c.json(dto, status)`.
 - 핸들러 위 자기문서화 주석: `// [계약] api.md §4.6 · [요구] R-API-xxx · [에러] SPEAK_IN_PROGRESS, LLM_TIMEOUT · [부수효과] 요약 백그라운드 트리거`
-- 서비스는 `AuthContext`를 **인자로** 받는다. 라우트가 `request.user`를 꺼내 넘긴다. 서비스가 request 객체를 알면 결함.
-- 정적 파일(`/embed`, `ui/dist`)은 `embed.ts`에서 `@fastify/static`으로. `?t=`는 서버가 읽지 않는다(화면 JS가 읽음).
+- 서비스는 `AuthContext`를 **인자로** 받는다. 라우트가 `c.get('auth')`를 꺼내 넘긴다. 서비스가 Hono `Context`를 알면 결함. 응답 뒤 작업은 라우트가 `c.executionCtx.waitUntil()`로 넘긴다.
+- 정적 파일(`/embed`, `ui/dist`)은 Workers Static Assets(`server/wrangler.toml [assets]`, 바인딩 `ASSETS`)가 서빙한다. `embed.ts`는 `/embed` 응답에 CSP `frame-ancestors` 헤더를 붙이는 Hono 미들웨어만 둔다. `?t=`는 서버가 읽지 않는다(화면 JS가 읽음).
 
 ## 10. 테스트
 
 | 대상 | 방법 | 위치 |
 |---|---|---|
-| 라우트 | supertest(또는 `app.inject`)로 실제 Fastify 인스턴스에 요청. 서비스는 FakeProvider·임시 DB로 실물 사용. 토큰은 테스트용 SECRET으로 직접 생성 | `server/test/routes/*.test.ts` |
+| 라우트 | Hono `app.request(path, init, env)`로 실제 앱에 요청(`@cloudflare/vitest-pool-workers`, workerd 안에서 D1 바인딩 포함). 서비스는 FakeProvider·격리 D1로 실물 사용. 토큰은 테스트용 SECRET으로 Web Crypto로 직접 생성 | `server/test/routes/*.test.ts` |
 | 스키마 | 잘못된 body·query가 `400 VALIDATION_FAILED`로 닫히는지 | 같은 파일 |
 | 토큰 | 위조·만료·등급 미달·정상 4경로 + 타이밍 안전 비교 | `server/test/routes/auth.test.ts` |
 | ui 래퍼 | `fetch`를 `vi.stubGlobal`로 대체해 경로·헤더·`Result` 변환 검증 | `ui/src/api/__tests__/*.test.ts` |

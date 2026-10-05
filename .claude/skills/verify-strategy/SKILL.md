@@ -1,11 +1,11 @@
 ---
 name: verify-strategy
-description: 배포 전 통합 검증 전략. 프로젝트 타입검사+린트+테스트+빌드(verify-loop — tsc --noEmit 세 워크스페이스·npm run lint·vitest run·npm run build), 보안(외부 공개 웹 서비스 위협 모델 — 토큰·비밀값·CSP·레이트리밋·입력 검증·프롬프트 주입)·코드(ts/tsx/golden·api 경계)·server(모듈 경계·에러·비동기·SQLite·LLM 어댑터) 3대 리뷰를 병렬로 수행하고, PASS/WARN/FAIL/ERROR 게이트로 배포(커밋·푸시·Railway) 가능 여부를 판정한다. 검증은 읽기 전용이며 수정은 생산 에이전트(ui-debug/contract-manager/server-manager)로 라우팅한다. 검증·리뷰·배포 전 게이트를 다룰 때 참조한다.
+description: 배포 전 통합 검증 전략. 프로젝트 타입검사+린트+테스트+빌드(verify-loop — tsc --noEmit 세 워크스페이스·npm run lint·vitest run·npm run build), 보안(외부 공개 웹 서비스 위협 모델 — 토큰·비밀값·CSP·레이트리밋·입력 검증·프롬프트 주입)·코드(ts/tsx/golden·api 경계)·server(모듈 경계·에러·비동기·D1·LLM 어댑터) 3대 리뷰를 병렬로 수행하고, PASS/WARN/FAIL/ERROR 게이트로 배포(커밋·푸시·wrangler deploy) 가능 여부를 판정한다. 검증은 읽기 전용이며 수정은 생산 에이전트(ui-debug/contract-manager/server-manager)로 라우팅한다. 검증·리뷰·배포 전 게이트를 다룰 때 참조한다.
 ---
 
 # 배포 전 통합 검증 전략
 
-- 배포(커밋·푸시·Railway `railway up`) 직전 통합 검증의 **단일 기준**. verify 4종(verify-manager / verify-security-reviewer / verify-code-reviewer / verify-server-reviewer)이 이 규칙으로 판단한다.
+- 배포(커밋·푸시·Cloudflare `wrangler deploy`) 직전 통합 검증의 **단일 기준**. verify 4종(verify-manager / verify-security-reviewer / verify-code-reviewer / verify-server-reviewer)이 이 규칙으로 판단한다.
 - server/contract/ui=생산(설계→구현→테스트), verify=세 계층 산출물을 가로지르는 횡단 게이트. 각 매니저 내부 게이트는 *자기 산출물 완전성*, verify는 *전체 코드베이스의 품질·보안·빌드 건전성*을 본다.
 
 ## 0. 핵심 원칙
@@ -14,7 +14,7 @@ description: 배포 전 통합 검증 전략. 프로젝트 타입검사+린트+�
 2. **증거 기반.** "통과할 것" 금지. 실제 실행 결과(exit code·테스트 PASS 수·리뷰 이슈 목록)로만 판정한다(golden-principles 5).
 3. **게이트.** 결과는 **PASS / WARN / FAIL / ERROR** 4단계로 닫는다. FAIL=배포 차단.
 4. **수정은 생산자에게.** 발견 이슈는 원인 계층 에이전트로 라우팅한다.
-5. **배포 전 단일 관문.** 이 검증 통과 후에만 `/sync`(커밋·푸시) → `/deploy`(Railway).
+5. **배포 전 단일 관문.** 이 검증 통과 후에만 `/sync`(커밋·푸시) → `/deploy`(Cloudflare Workers).
 
 ## 0-A. 도구 선확인
 
@@ -32,7 +32,7 @@ verify-manager가 직접 실행한다. 변경 범위에 따라 워크스페이�
 | `ui/**` | ui |
 | `server/**` | server |
 | `shared/**` | 전체(둘 다 의존) |
-| 루트 `package.json`, `tsconfig*`, `railway.json`, `.env.example` | 전체 |
+| 루트 `package.json`, `tsconfig*`, `server/wrangler.toml`, `server/.dev.vars.example`, `server/migrations/**` | 전체 |
 | 변경 없음 | 전체 |
 
 ### 1.2 항목 (모두 비변경 모드 — 소스 미수정)
@@ -52,20 +52,21 @@ verify-manager가 직접 실행한다. 변경 범위에 따라 워크스페이�
 
 | 항목 | 확인 | 실패 시 |
 |---|---|---|
-| env 키 일치 | `.env.example`의 키 집합 = `server/src/env.ts` zod 스키마 키 집합 | HIGH, server-manager |
-| frame-ancestors | `env.ts` 기본값·`.env.example`·api.md §7이 `http://london-gossip.my https://london-gossip.my`로 일치 | HIGH, contract-manager |
+| env 키 일치 | `server/.dev.vars.example`(비밀값) ∪ `server/wrangler.toml [vars]`(설정) 키 집합 = `server/src/env.ts` `parseEnv` zod 스키마 키 집합. 비밀값 키(`TOKEN_SECRET`·`LLM_API_KEY`)가 `[vars]`에 **없음** | HIGH, server-manager |
+| D1·자산 바인딩 | `wrangler.toml`의 `[[d1_databases]] binding = "DB"`·`[assets] directory = "../ui/dist"`·`nodejs_compat`가 env.ts 바인딩 타입과 일치, 미적용 마이그레이션(`wrangler d1 migrations list <DB> --local`) 없음 | HIGH, server-manager |
+| frame-ancestors | `env.ts` 기본값·`wrangler.toml [vars]`·api.md §7이 `http://london-gossip.my https://london-gossip.my`로 일치 | HIGH, contract-manager |
 | 레이트리밋 기본값 | `env.ts` 기본값 = 확정사항 §5.2(20/min) = api.md §6 | MEDIUM, contract-manager |
 | 토큰 조각 | `doc/handoff/token-snippet.php.md`의 payload 필드 = `shared/src/types.ts` `TokenPayload` | HIGH, contract-manager |
-| 비밀값 커밋 | `git ls-files` 에 `.env`·`*.sqlite` 없음, `git grep -n "sk-\|TOKEN_SECRET=" -- ':!.env.example'` 결과 없음 | CRITICAL, 즉시 사용자 보고 |
+| 비밀값 커밋 | `git ls-files` 에 `server/.dev.vars`·`server/.wrangler/`·`*.sqlite` 없음, `git grep -n "sk-\|TOKEN_SECRET=" -- ':!server/.dev.vars.example'` 결과 없음, `wrangler.toml [vars]`에 비밀값 없음 | CRITICAL, 즉시 사용자 보고 |
 
 ## 2. 3대 리뷰 (병렬, 읽기 전용)
 
 verify-manager가 세 리뷰어를 **한 번에 병렬 위임**한다. 각 리뷰어는 심각도(CRITICAL/HIGH/MEDIUM/LOW) + 이슈코드로 보고한다. 리뷰어에는 「적용 메모리」를 넣지 않는다.
 
 ### 2.1 보안 리뷰 (verify-security-reviewer) — 외부 공개 웹 서비스 위협 모델
-대상: `server/src/**`, `shared/src/**`, `ui/src/api/**`, `railway.json`, `.env.example`, `.gitignore`, `doc/handoff/**`. 이슈코드 `SEC-NNN`.
+대상: `server/src/**`, `shared/src/**`, `ui/src/api/**`, `server/wrangler.toml`, `server/.dev.vars.example`, `server/migrations/**`, `.gitignore`, `doc/handoff/**`. 이슈코드 `SEC-NNN`.
 - 위협 모델: 토큰 없는/위조한 쓰기 요청(API 요금 남용) / 비밀값 노출(로그·응답·레포) / 유저 텍스트를 통한 프롬프트 주입 / 다른 사이트가 iframe으로 끼움(클릭재킹) / 과도한 요청(레이트리밋 우회) / SQL·입력 검증 우회 / 제공사 에러 원문 노출.
-- 항목: HMAC 비교가 타이밍 안전인가(`crypto.timingSafeEqual`), `exp`·`level` 검사 순서, `process.env`가 `env.ts` 밖에 없는가, 로그 금지 필드(토큰·키·프롬프트·유저 텍스트), 파라미터 바인딩, 요청 스키마 `maxLength`·enum, 레이트리밋 키가 토큰 기준인가, `frame-ancestors` 값, `/api/*`에 `frame-ancestors 'none'`, helmet 기본 헤더, 유저 입력이 시스템 프롬프트에 섞이지 않는가, 에러 응답에 스택·경로·SQL 없음, `.env`·sqlite git 제외, handoff 문서에 실값 없음, dev 전용 라우트가 production에서 꺼지는가.
+- 항목: HMAC 검증이 타이밍 안전인가(Web Crypto `crypto.subtle.verify` 또는 상수 시간 비교), `exp`·`level` 검사 순서, 바인딩 설정 키·`process.env` 직접 읽기가 `env.ts` 밖에 없는가, 로그 금지 필드(토큰·키·프롬프트·유저 텍스트), 파라미터 바인딩, 요청 zod 스키마 `max`·enum, 레이트리밋이 D1 행 기반이고 키가 토큰 기준인가(메모리 카운터면 우회 가능), speak 잠금이 D1 조건부 UPDATE인가, `frame-ancestors` 값, `/api/*`에 `frame-ancestors 'none'`, Hono `secureHeaders()` 기본 헤더, 유저 입력이 시스템 프롬프트에 섞이지 않는가, 에러 응답에 스택·경로·SQL 없음, `server/.dev.vars`·`server/.wrangler/` git 제외, `wrangler.toml [vars]`에 비밀값 없음, handoff 문서에 실값 없음, dev 전용 라우트가 production에서 꺼지는가.
 
 ### 2.2 코드 리뷰 (verify-code-reviewer) — 2-Stage
 대상: 변경된 `ui/src/**/*.ts`·`*.tsx`, `shared/src/**`, `ui/src/api/**`. 이슈코드 `CR-NNN`. 판정 `APPROVE / REQUEST CHANGES / COMMENT`.
@@ -74,7 +75,7 @@ verify-manager가 세 리뷰어를 **한 번에 병렬 위임**한다. 각 리�
 
 ### 2.3 server 리뷰 (verify-server-reviewer) — 5-Phase
 대상: 변경된 `server/src/**/*.ts`, `server/test/**`, `server/package.json`. 이슈코드 `SRV-NNN`. 기준은 `server-design-strategy` §15 체크리스트.
-- Phase 1 모듈 경계·의존 방향·env 단일 진입 / Phase 2 비동기·동시성(speak 잠금, 백그라운드 요약 에러 포착, 미처리 promise, SIGTERM) / Phase 3 에러 처리(AppError·코드·단일 핸들러·cause 보존) / Phase 4 SQLite(바인딩·prepared·마이그레이션 불변·트랜잭션) / Phase 5 LLM 어댑터·프롬프트(타임아웃·재시도·후처리·순수 함수·FakeProvider 주입).
+- Phase 1 모듈 경계·의존 방향·env 단일 진입(`parseEnv` 값 주입) / Phase 2 비동기·동시성(speak D1 조건부 UPDATE 잠금·만료, `ctx.waitUntil` 요약 에러 포착, 미처리 promise, 메모리 상태 없음) / Phase 3 에러 처리(AppError·코드·단일 `app.onError`·cause 보존) / Phase 4 D1(파라미터 바인딩·`batch` 원자성·조건부 UPDATE·마이그레이션 불변·기동 시 자동 마이그레이션 없음) / Phase 5 LLM 어댑터·프롬프트(`fetch` 기반·타임아웃·재시도·후처리·순수 함수·FakeProvider 주입).
 
 > **False Positive 금지(공통):** 프레임워크가 이미 보호하는 항목, 테스트 코드의 단순화, 정상 코드 나열은 보고 금지. 역할을 넘지 않는다(보안=security, 품질=code, 서버=server).
 
@@ -101,7 +102,7 @@ verify-manager가 세 리뷰어를 **한 번에 병렬 위임**한다. 각 리�
                          ├─ 병렬 리뷰: security · code · server
                          └─ 게이트: PASS / WARN / FAIL / ERROR
    ↓ PASS
-[배포]  /sync (커밋·푸시)  →  /deploy (railway up → 헬스체크)
+[배포]  /sync (커밋·푸시)  →  /deploy (wrangler d1 migrations apply --remote → wrangler deploy → 헬스체크)
 ```
 
 - 단독 실행 가능("배포 전 검증해줘", "보안 검토", "코드 리뷰", "서버 리뷰").
@@ -115,7 +116,8 @@ verify-manager가 세 리뷰어를 **한 번에 병렬 위임**한다. 각 리�
 | 포맷·미사용 코드 정리(ui) | `ui-postprocessor`(옵트인) |
 | 계약(api.md·shared·routes·ui/src/api·handoff) 불일치, 토큰·CSP·레이트리밋 | `contract-manager` 세션 |
 | 서비스(env·db·auth·rooms·messages·memory·llm)·서버 포맷 | `server-manager` 세션 |
-| `railway.json`·`.env.example`·루트 설정 | 메인 세션(사용자 승인) |
+| `server/wrangler.toml`·`server/.dev.vars.example`·`server/migrations/**` | `server-manager` 세션 |
+| 루트 `package.json`·tsconfig·의존성 | 메인 세션(사용자 승인) |
 
 - 수정 후 **재검증**으로 닫는다(수정→재검증 반복, 같은 실패 3회면 멈추고 보고).
 - 완료(PASS) 보고에 **단계 체크리스트 + 실행 증거** 포함 필수.

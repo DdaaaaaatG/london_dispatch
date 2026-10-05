@@ -4,7 +4,7 @@
 목적: contract 구현자는 **계약 코드(shared 타입 · 서버 라우트 · 화면 api 래퍼)와 그 테스트만** 만든다.
       - server 서비스 모듈(server/src/{env,db,auth,rooms,messages,memory,llm}) 내부 수정은 server 소관 → 차단.
       - 화면 코드(ui/src/{rooms,chat,components,state})는 ui 소관 → 차단.
-      - package.json / railway.json / .env* 변경은 메인 세션 승인 사항 → 차단(보고로 대체).
+      - package.json / server/wrangler.toml / .dev.vars* 변경은 메인 세션·server-implementer 사항 → 차단(보고로 대체).
 허용 경로(프로젝트 루트 기준, 아래 접두어 중 하나):
       shared/ · server/src/routes/ · server/test/routes/ · ui/src/api/ · ui/src/api/__tests__/ · doc/200_설계/contract/
 설계 원칙: fail-closed — 경로를 못 찾거나 허용 목록 밖이면 막는다.
@@ -89,7 +89,7 @@ def main() -> None:
                "필요한 변경을 「server 변경 요구 명세」로 보고하세요(server-manager).")
     if re.match(r"ui/src/(rooms|chat|components|state)/", low) or low == "ui/src/main.tsx":
         _block(f"'{rel}' 은 화면 코드입니다. ui-implementer 소관입니다 — 계약 변경이면 api.md 호환성 분류로 ui-manager에 인계하세요.")
-    if re.search(r"(^|/)(package\.json|railway\.json|vite\.config\.ts|tsconfig[^/]*\.json|\.env[^/]*)$", low):
+    if re.search(r"(^|/)(package\.json|wrangler\.toml|vite\.config\.ts|tsconfig[^/]*\.json|\.env[^/]*|\.dev\.vars[^/]*)$", low):
         _block(f"'{rel}' 변경(의존성·배포·환경 설정)은 메인 세션 승인 사항입니다. 필요한 설정·의존성을 보고하세요.")
     _block(f"'{rel}' 은 contract-implementer 허용 경로가 아닙니다. 허용: " + ", ".join(ALLOWED_PREFIXES))
 
