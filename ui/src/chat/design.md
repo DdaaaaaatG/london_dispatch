@@ -25,6 +25,7 @@
 | v1.2 | 2026-10-05 | 계약 인용 v0.2 · §15 R-NFR-004 행 · functions.md §3·F-CH-02(활성·중복 방지 ref를 useChatLoader 소유로) | 검증 DC-01·03·06 |
 | v1.3 | 2026-10-05 | named export 규칙 · Bubble 클래스명 확정(`character`·`user`·`ooc`·`ciel`·`sebastian`) | 시나리오 검증 지적 |
 | v1.4 | 2026-10-05 | **S1 실물 소급**(§11.2 델타 C-1~C-8: ChatTopBar·useScrollMemory 분리, 마운트·활성 플래그 layout effect, renderHistory props 객체, React 19 ref 타입, `isNearBottom` 측정 전 true 등). **S2 상세**: ⋯ 방 메뉴·Composer·말풍선 메뉴·인라인 수정·삭제 확인·이름 변경·E 토스트·읽기 전용 전환. 리듀서 액션 7종(T13~T26)·F-CH-16~30·TC-CH-031~063. TC 목록을 `design/tc.md`로 분리. 계약 인용 v0.3 | 구축 S2 |
+| v1.5 | 2026-10-05 | 검증 MINOR 반영: DC-01 전환 직후 E 토스트 허용(§11.2 D-9) · DC-02 편집기 렌더에 canWrite 조건(F-CH-11·29) · DC-03 삭제 결과 규칙·빈 목록 판정 근거·T1 비고(F-CH-23, functions.md §1.1) · DC-04 재로드 시 맨 아래 배치(components.md §3, TC-CH-046) · DC-05 쓰기 대기 중 메뉴 진입 막음·전환 안내 1회(F-CH-16·18·24, §11.2 D-10) · DC-08 TC-CH-033 · DC-09 미사용 표면 삭제 · DC-11 TC-CH-064·065 | ui-design-checker MINOR 11 · 메인 세션 결정 DC-01·DC-10 |
 
 ---
 
@@ -369,14 +370,14 @@ api.md **v0.3**을 **인용**한다. 쓰기 래퍼는 전부 `Authorization: Bea
 
 | 요소 | 토큰 없음 · 전환 후 | 토큰 있음 | 구현 방식 | 요구ID |
 |---|---|---|---|---|
-| ⋯ 방 메뉴 버튼 | 미렌더 | 렌더 | `ChatTopBar onOpenMenu={canWrite ? openRoomMenu : undefined}` | R-CHAT-001 · 008 |
+| ⋯ 방 메뉴 버튼 | 미렌더 | 렌더(쓰기 대기 중 `disabled`, D-10) | `ChatTopBar onOpenMenu={canWrite ? openRoomMenu : undefined} isMenuDisabled={state.writing !== null \|\| roomBusy !== null}` | R-CHAT-001 · 008 |
 | C 하단 바(OOC·입력·전송) | 미렌더 | 렌더 | `canWrite ? <Composer/> : <ReadOnlyNotice/>` | R-CHAT-004 · 008 |
 | 세바스찬·시엘 버튼 | 미렌더 | **미렌더(S3)** | Composer 1행 왼쪽에 요소 없음 | R-CHAT-004 · 005 |
 | 말풍선 메뉴(롱프레스·우클릭·Shift+F10) | 미렌더(핸들러·tabIndex 없음, 우클릭은 브라우저 기본) | 연결 | `MessageList onOpenMenu={canWrite ? openMessageMenu : undefined}` | R-CHAT-007 · 008 |
 | 시트(메뉴·확인·이름 변경) | 미렌더 | `sheet`가 있을 때 | `canWrite && sheet && <ChatSheets/>` + 전환 effect `sheet=null` | R-CHAT-001 · 007 |
 | 재작성 항목 | 미렌더 | **미렌더(S3)** | MessageMenuSheet에 항목 없음 | R-CHAT-007 |
 | 장기기억 항목 | 미렌더 | **미렌더(S4)** | RoomMenuSheet에 항목 없음 | R-CHAT-001 · 012 |
-| 인라인 수정 | 미렌더 | `editingId`일 때 | 진입 경로가 말풍선 메뉴뿐 + 전환 시 T25 | R-CHAT-007 |
+| 인라인 수정 | 미렌더 | `editingId`일 때 | `renderHistory`가 `editingId={viewer.canWrite ? state.editingId : null}`로 넘긴다(전환 커밋에서 바로 사라짐) + 전환 effect T25 | R-CHAT-007 |
 | "…" 임시·실패 말풍선 | 미렌더 | **미렌더(S3)** | 상태 없음 | R-CHAT-005 |
 | E 알림 줄 | 토스트 있을 때만(읽기 전용 시작이면 발생 경로 없음, 전환 직후 안내 1회) | 토스트 있을 때만 | `toast && <Toast/>` | R-CHAT-011 |
 | D 열람 안내 | **렌더** | 미렌더 | `!canWrite && <ReadOnlyNotice/>` | R-CHAT-008 · 011 · 013 |
@@ -410,6 +411,8 @@ api.md **v0.3**을 **인용**한다. 쓰기 래퍼는 전부 `Authorization: Bea
 | D-7(결정, S2) | 시트가 열린 채로 토스트를 띄우지 않는다. 이름 변경의 비인증 실패는 시트 안 문구, 확인 시트 실패는 시트를 닫은 뒤 토스트 |
 | D-8(결정, S2) | 인증 실패 전환 안내 = E 토스트 1회(2초, `role=alert`) + D 상시. 되돌리기는 새로 고침뿐 |
 | A-4(가정, S2) | E 줄은 in-flow라 토스트가 있는 2초 동안 히스토리가 28px 줄어든다(구성안 "하단 바 바로 위 28px" 그대로). 맨 아래 내용이 그만큼 가려졌다가 돌아온다 |
+| D-9(결정, v1.5) | 읽기 전용 **전환 직후** E 토스트 1회는 허용한다. 구성안 §2 "읽기 전용 DOM 부재: E"는 **토큰 없이 시작한 경우**로 한정한다(그 경우 E 발생 경로가 없다). 구성안 파일 주석은 메인 세션 몫 | 메인 세션 결정 DC-01 |
+| D-10(결정, v1.5) | 메시지 쓰기(`writing`)나 방 쓰기(`roomBusy`)가 대기 중이면 말풍선 메뉴·⋯ 메뉴를 열지 않는다(⋯는 `isDisabled`, 말풍선 메뉴는 F-CH-18이 무시). 그래서 쓰기는 화면 전체에서 한 번에 하나다. 인증 실패 처리(F-CH-16)는 멱등이라 늦게 온 두 번째 인증 실패도 전환·안내를 다시 하지 않는다 | 검증 DC-05 |
 | A-5(가정, S2) | 방 삭제 뒤 언마운트 저장으로 `ld:scroll:{지운 방 id}`가 남을 수 있다. UUID라 재사용되지 않아 무해하다. 정리 함수는 요구가 없어 만들지 않는다 |
 
 ---
@@ -452,7 +455,7 @@ api.md **v0.3**을 **인용**한다. 쓰기 래퍼는 전부 `Authorization: Bea
 
 | 요구ID | 설계 절 | api 계약 | 예정 TC | 상태 |
 |---|---|---|---|---|
-| R-CHAT-001 🔒 | §2.1·§2.2 A · §3.1 · C §2.0·§2.9·§2.10 · F F-CH-01·10·24~28 · §6.5 · §8 · §10 · A | api.md §4.7 · §4.8 | TC-CH-001 · 002 · 003 · 031 · 047 · 048 · 049 · 050 · 055 · 056 · 057 | ✅(‹·제목·생성일·⋯·이름 변경·방 삭제) / 후속(S4: 장기기억 항목) |
+| R-CHAT-001 🔒 | §2.1·§2.2 A · §3.1 · C §2.0·§2.9·§2.10 · F F-CH-01·10·24~28 · §6.5 · §8 · §10 · A | api.md §4.7 · §4.8 | TC-CH-001 · 002 · 003 · 031 · 047 · 048 · 049 · 050 · 055 · 056 · 057 · 064 · 065 | ✅(‹·제목·생성일·⋯·이름 변경·방 삭제) / 후속(S4: 장기기억 항목) |
 | R-CHAT-002 🔒 | §2.1 B · C §2.1·§2.2 · F F-CH-03·11·15 · §8 · C §4 | api.md §4.3 · §5.5 | TC-CH-004~010 · 030 | ✅ |
 | R-CHAT-003 🔒 | C §2.1·§2.3·§2.4·§3 · F §1·§2 · F F-CH-03~09·11~14·17 · §6.2·§6.3 | api.md §4.3 | TC-CH-004 · 005 · 006 · 011~020 · 029 · 038 | ✅(새 메시지 실제 경로 = S2 전송) |
 | R-CHAT-004 🔒 | §2.2 C · C §2.6 · F F-CH-01·17 · §8.1.1 · §10 · A | api.md §4.9 | TC-CH-021 · 031 · 032 · 034 · 035 · 058 · 059 | ✅(OOC 토글·입력 1~2000·전송) / 후속(S3: 캐릭터 버튼) |
@@ -461,6 +464,7 @@ api.md **v0.3**을 **인용**한다. 쓰기 래퍼는 전부 `Authorization: Bea
 | R-CHAT-007 🔒 | §2.2 · §6.4 · C §2.1·§2.2·§2.7·§2.8·§2.10 · F §1.1 T17~T24 · F F-CH-18~23 · §8.1.1 · §10 · A | api.md §4.10 · §4.11 | TC-CH-022 · 039~046 · 053 · 054 · 055 · 056 · 060 · 063 | ✅(수정·삭제) / 후속(S3: 재작성) |
 | R-CHAT-008 🔒 | §10 · F F-CH-01·29 · C §2.5 | — | TC-CH-003 · 021 · 022 · 023 · 031 · 051 | ✅ |
 | R-CHAT-009 🔒 | §10 · rooms C §1.10 · rooms F F-RM-12·20 · §7 | api.md §2.4 · §11.6 | TC-CH-051 · 062 · TC-RM-028 · 030 | ✅ |
+| R-API-003 🔒 (참조) | R-CHAT-009 행으로 닫힘(헤더 부착은 래퍼, 화면은 메모리 보관만) | api.md §2.2 · §2.4 | R-CHAT-009와 같음 | ✅ |
 | R-CHAT-010 | rooms C §1.7 · F §3 · F F-CH-02·09 · §6.1 | — (localStorage) | TC-CH-024 · 025 · 026 | ✅ |
 | R-CHAT-011 | §6.6 · §8.3 · F F-CH-16·23·26·27·29 · §10 · rooms F F-RM-12·22 | api.md §2.4 · §3.2 · §3.4 | TC-CH-037 · 044 · 046 · 049 · 050 · 051 · 052 | ✅(S2 코드: 인증 3종·RATE_LIMITED) / 후속(S3: SPEAK_IN_PROGRESS·LLM_FAILED) |
 | R-CHAT-012 🔒 | §14 | E13·E14(S4) | (S4) | 후속(S4) |

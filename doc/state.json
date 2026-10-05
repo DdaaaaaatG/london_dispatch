@@ -1,6 +1,6 @@
 {
   "slug": "london-dispatch-build",
-  "phase": "2-design",
+  "phase": "3-implement",
   "orchestrator": "main-session-as-task-manager (사용자 지시 2026-10-05)",
   "slices": [
     "S1 저장+읽기전용",
@@ -30,7 +30,8 @@
   "approvals": {
     "requirements": "2026-10-05T19:06",
     "design": {
-      "S1": "2026-10-05T20:43"
+      "S1": "2026-10-05T20:43",
+      "S2": "2026-10-05T23:24"
     }
   },
   "completed": {
@@ -97,7 +98,7 @@
     "prettier",
     "concurrently"
   ],
-  "next": "승인 ②(S2) 대기 → shared(limits·types·endpoints) → server S2(auth·rooms·messages) → routes·ui/api → 시나리오 → ui 구현 → 테스트",
+  "next": "contract-implementer(shared S2) ∥ ui-test-designer(S2) → server-implementer(S2) → contract-implementer(routes·ui/api) → ui-test-checker·conflict → ui-implementer → ui-tester",
   "blockers": [],
   "estimate_min": null,
   "actual_min": null,

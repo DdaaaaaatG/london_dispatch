@@ -13,20 +13,20 @@ TopBarProps     = { title: string; subtitle?: { text: string; dateTime: string; 
                     variant?: 'screen' | 'room' }
 ButtonProps     = { children: ReactNode; onClick: () => void; variant?: 'primary'|'secondary'|'danger'|'ghost';
                     size?: 'sm'|'md'|'lg'; isDisabled?: boolean; ariaLabel?: string; buttonRef?: Ref<HTMLButtonElement> }
-IconButtonProps = { icon: 'back' | 'more'; ariaLabel: string; onClick: () => void; buttonRef?: Ref<HTMLButtonElement> }
+IconButtonProps = { icon: 'back' | 'more'; ariaLabel: string; onClick: () => void; buttonRef?: Ref<HTMLButtonElement>; isDisabled?: boolean }
 StateViewProps  = { kind: 'loading'|'empty'|'error'; message: string; detail?: string;
                     actionLabel?: string; onAction?: () => void }
 TextAreaProps   = { value; onChange(v); ariaLabel; placeholder?; maxRows? = 3; maxChars?; counterMode?: 'always'|'overflow';
-                    textareaRef?; onEnter?(); onEscape?(); isReadOnly?; isDisabled? }          // §1.13
+                    textareaRef?; onEnter?(); onEscape?(); isReadOnly? }                       // §1.13
 TextInputProps  = { value; onChange(v); ariaLabel; placeholder?; maxChars?; inputRef?; onEnter?(); onEscape?();
-                    isReadOnly?; isDisabled? }                                                 // §1.12
-ToggleProps     = { isOn; onChange(next); onLabel; offLabel; ariaLabel; isDisabled? }         // §1.14
+                    isReadOnly? }                                                              // §1.12
+ToggleProps     = { isOn; onChange(next); onLabel; offLabel; ariaLabel }                      // §1.14
 BottomSheetProps = { ariaLabel; role?: 'dialog'|'alertdialog'; header?: ReactNode; children; onClose();
                      isDismissDisabled?; initialFocusRef? }  ·  SheetItemProps = { label; onSelect(); tone?: 'default'|'danger'; isDisabled? }  // §1.15
 ConfirmDialogProps = { title; message; confirmLabel; cancelLabel; onConfirm(); onCancel(); isBusy? }   // §1.16
 PromptSheetProps = { title; inputAriaLabel; initialValue; maxChars; canSave(v); saveLabel; cancelLabel;
                      onSave(v); onCancel(); isBusy?; errorText? }                              // §1.17
-ToastProps = { message; tone: 'warning'|'danger' } · useToast() => { toast, showToast(m, tone), dismissToast }  // §1.18
+ToastProps = { message; tone: 'warning'|'danger' } · useToast() => { toast, showToast(m, tone) }  // §1.18
 useLongPress({ onLongPress, delayMs? = 500 }) => { onPointerDown, onPointerMove, onPointerUp, onPointerLeave,
                                                     onPointerCancel, onContextMenu }           // §1.19
 formatMonthDay(ms): 'MM.DD' · formatTime(ms): 'HH:mm' · toIsoDate(ms) · toIsoDateTime(ms)   // 로컬 시간대
@@ -52,9 +52,10 @@ export type ChatTopBarProps = {
   backButtonRef: Ref<HTMLButtonElement>      // 마운트 시 포커스 대상
   onOpenMenu?: () => void                    // S2: 있으면 right = ⋯ 버튼, 없으면 right 미렌더
   menuButtonRef?: Ref<HTMLButtonElement>     // S2: 방 메뉴 시트를 닫은 뒤 포커스 복귀 대상
+  isMenuDisabled?: boolean                   // v1.5: 쓰기 대기 중 ⋯ 비활성(design.md §11.2 D-10)
 }
 ```
-- 렌더: `TopBar variant='room' title={room.title} subtitle={{ text: formatMonthDay(room.createdAt), dateTime: toIsoDate(room.createdAt), ariaLabel: labels.createdAtAriaLabel(text) }} left={<IconButton icon='back' ariaLabel={labels.backAriaLabel} onClick={onBack} buttonRef={backButtonRef} />} right={onOpenMenu ? <IconButton icon='more' ariaLabel={labels.moreAriaLabel} onClick={onOpenMenu} buttonRef={menuButtonRef} /> : undefined}`.
+- 렌더: `TopBar variant='room' title={room.title} subtitle={{ text: formatMonthDay(room.createdAt), dateTime: toIsoDate(room.createdAt), ariaLabel: labels.createdAtAriaLabel(text) }} left={<IconButton icon='back' ariaLabel={labels.backAriaLabel} onClick={onBack} buttonRef={backButtonRef} />} right={onOpenMenu ? <IconButton icon='more' ariaLabel={labels.moreAriaLabel} onClick={onOpenMenu} buttonRef={menuButtonRef} isDisabled={isMenuDisabled} /> : undefined}`.
 - ChatScreen은 `viewer.canWrite`일 때만 `onOpenMenu`를 넘긴다(주 문서 §10).
 
 ### 2.1 MessageList
@@ -71,7 +72,7 @@ export type MessageListProps = {
   onShowNewest: () => void
   // ── S2 ──
   onOpenMenu?: (message: Message) => void    // 쓰기 가능일 때만. 없으면 말풍선 메뉴 핸들러 없음
-  editingId: number | null                   // 인라인 수정 중인 메시지
+  editingId: number | null                   // 인라인 수정 중인 메시지. 읽기 전용이면 호출 쪽이 항상 null 을 넘긴다(v1.5, F-CH-11)
   isEditSaving: boolean                      // state.writing?.kind === 'edit'
   onSaveEdit: (messageId: number, text: string) => void
   onCancelEdit: () => void
@@ -260,8 +261,9 @@ export type UseAutoScrollResult = {
 
 | 시점 | 동작 |
 |---|---|
-| `useLayoutEffect([firstId, lastId])`, 요소 없음 또는 `firstId === null` | 아무것도 안 함 |
-| 같은 effect, `positionedRef === false` | `el.scrollTop = restoreScrollTop(el, initialDistanceFromBottom)` → `positionedRef = true` → 측정 기록 → `isNearTop` && `canAutoLoadOlder`면 `onReachTop()` 1회 |
+| `useLayoutEffect([firstId, lastId])`, `firstId === null`이고 `positionedRef === true` (v1.5) | 목록이 비었다(마지막 메시지 삭제 → 재로드). `positionedRef = false`, `repositionToBottomRef = true`, `prevIdsRef = { null, null }`. 그 밖은 하지 않는다 |
+| 같은 effect, 요소 없음 또는 `firstId === null` | 아무것도 안 함 |
+| 같은 effect, `positionedRef === false` | `el.scrollTop = restoreScrollTop(el, repositionToBottomRef ? null : initialDistanceFromBottom)`(재배치면 **맨 아래**, 마운트 첫 배치면 저장 거리) → `positionedRef = true`, `repositionToBottomRef = false` → 측정 기록 → `isNearTop` && `canAutoLoadOlder`면 `onReachTop()` 1회 |
 | 같은 effect, `firstId < prev.firstId`(앞에 붙음) | `el.scrollTop = anchorScrollTop(metricsRef, el.scrollHeight)` |
 | 같은 effect, `lastId > prev.lastId`(뒤에 붙음 — S2 전송 성공) | 붙기 **전** 측정(`metricsRef`)이 `isNearBottom`이면 `el.scrollTop = el.scrollHeight`. 아니면 그대로 |
 | effect 끝 | `metricsRef`·`lastDistanceRef`·`prevIdsRef` 갱신 |
