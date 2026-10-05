@@ -55,7 +55,7 @@ catch (cause) { throw new AppError('LLM_PROVIDER_ERROR', 502, 'AI 응답 생성�
 
 ## 의존성 주입
 - 서비스 팩토리는 의존을 인자로 받는다: `createMessagesService({ db, llm, memory, logger })`. 모듈 전역 싱글턴 import 금지(테스트에서 FakeProvider·임시 DB를 넣기 위해).
-- Hono `Context`(`c`, `c.req`, `c.env`, `c.executionCtx`)는 라우트 밖으로 나가지 않는다. 서비스는 `AuthContext`·평범한 인자·(필요하면) `waitUntil` 콜백만 받는다.
+- Hono `Context`(`c`, `c.req`, `c.env`, `c.executionCtx`)는 라우트 밖으로 나가지 않는다. 서비스는 `Principal`(auth.md §2: mbId·nick·chName·level·displayName)·평범한 인자·(필요하면) `waitUntil` 콜백만 받는다.
 
 ## D1
 ```typescript

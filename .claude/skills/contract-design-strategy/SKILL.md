@@ -155,7 +155,7 @@ ui (React, ui/src/)  →  contract (계약)  →  server (서비스, server/src/
 - **routes가 갖지 않는 것:** `/embed` 서빙, `onError`, `notFound`, 요청 로그, CSP 헤더. 모두 server 진입점 `server/src/app.ts` 소유다(server index.md §9.1). routes는 `AppError`를 throw만 하고 응답 본문을 직접 만들지 않는다. routes에 `embed` 파일·에러 핸들러가 있으면 결함.
 - 핸들러 형태 고정: `validate('param'|'query'|'json', schema)`(실패 시 `AppError('VALIDATION_ERROR', 400)` throw — zod-validator 기본 응답은 계약 형식이 아니라 쓰지 않는다) → `requireAuth`(쓰기) 또는 `optionalAuth`(읽기) 미들웨어 → 서비스 호출 → `c.json(dto, status)`.
 - 핸들러 위 자기문서화 주석: `// [계약] api.md §4.6 · [요구] R-API-xxx · [에러] SPEAK_IN_PROGRESS, LLM_FAILED · [부수효과] 요약 백그라운드 트리거`
-- 서비스는 `AuthContext`를 **인자로** 받는다. 라우트가 `c.get('auth')`를 꺼내 넘긴다. 서비스가 Hono `Context`를 알면 결함. 응답 뒤 작업은 라우트가 `c.executionCtx.waitUntil()`로 넘긴다.
+- 서비스는 `Principal`(auth.md §2: mbId·nick·chName·level·displayName)를 **인자로** 받는다. 라우트가 `getPrincipal(c)`를 꺼내 넘긴다. 서비스가 Hono `Context`를 알면 결함. 응답 뒤 작업은 라우트가 `c.executionCtx.waitUntil()`로 넘긴다.
 - 정적 파일(`/embed`, `ui/dist`)은 Workers Static Assets(`server/wrangler.toml [assets]`, 바인딩 `ASSETS`)가 서빙하고, `/embed` → `ASSETS.fetch` 매핑은 server `app.ts`가 한다(routes 밖). contract 몫은 경로 상수 `PATHS.embed`(shared)와 api.md §4의 `/embed` 명세(헤더·에러·`?t=` 전달)뿐이다. `?t=`는 서버가 읽지 않는다(화면 JS가 읽음).
 
 ## 10. 테스트

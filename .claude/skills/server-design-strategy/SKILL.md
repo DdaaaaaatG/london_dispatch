@@ -18,14 +18,14 @@ description: 런던_디스패치 server 계층(Cloudflare Workers + Hono 4 + D1,
 |---|---|---|
 | `env.ts` | Workers `env` 바인딩 객체를 **유일하게** 읽어 zod로 검증한 `Env` 값을 돌려주는 `parseEnv(raw)`. 기본값·필수 여부·타입 | 비즈니스 로직. 다른 모듈에서 바인딩 설정 키(`TOKEN_SECRET` 등) 직접 접근, `process.env` |
 | `db/` | D1 바인딩(`env.DB`) 래핑, 쿼리 문자열 상수, 행↔도메인 변환, `batch` 헬퍼 | 비즈니스 판단(어떤 메시지를 요약할지 등은 서비스), 마이그레이션 실행(wrangler 몫) |
-| `auth/` | 토큰 파싱·HMAC 검증(Web Crypto `crypto.subtle`)·만료·등급 검사, `AuthContext{mbId,nick,chName,level}` 생성, Hono 미들웨어 제공 | 토큰 **발급**(갠홈 PHP 몫), 회원 DB 조회(없음) |
+| `auth/` | 토큰 파싱·HMAC 검증(Web Crypto `crypto.subtle`)·만료·등급 검사, `Principal{mbId,nick,chName,level}` 생성, Hono 미들웨어 제공 | 토큰 **발급**(갠홈 PHP 몫), 회원 DB 조회(없음) |
 | `rooms/` | 방 생성·목록·이름 변경·삭제(메시지·memory 연쇄 삭제) | LLM 호출 |
 | `messages/` | 메시지 목록(페이지네이션)·user 저장·speak(생성 파이프라인)·수정·삭제·regenerate·방당 speak 잠금 | 프롬프트 문자열 조립(llm 몫), 요약 판단 로직(memory 몫) |
 | `memory/` | 방 단위 장기기억: 요약 기준 판정, 오래된 구간 요약 요청(llm 경유), summary 저장·조회·편집 | 메시지 삭제 |
 | `llm/` | 제공사 어댑터(`provider.ts` 인터페이스 + 제공사별 파일), 캐릭터 상수(`characters.ts`), 프롬프트 조립(`prompt.ts`), 출력 후처리 | DB 접근, HTTP 라우트 |
 
 - 모듈 = 폴더 + `index.ts`. 공개 API는 `index.ts`에서 named export로 재노출한다. 다른 모듈은 `index.ts` export만 쓴다.
-- **의존 방향**: `routes → services(rooms·messages·memory) → db`. `llm`은 `messages`·`memory`만 호출한다. `auth`는 `routes`의 Hono 미들웨어로만 쓰이고 서비스는 `AuthContext`를 인자로 받는다. `env`는 `index.ts`가 `parseEnv`로 한 번 만들어 서비스 팩토리에 **값으로 주입**한다(모듈이 바인딩을 직접 import·접근하지 않는다). 역방향 import 금지.
+- **의존 방향**: `routes → services(rooms·messages·memory) → db`. `llm`은 `messages`·`memory`만 호출한다. `auth`는 `routes`의 Hono 미들웨어로만 쓰이고 서비스는 `Principal`(auth.md §2: mbId·nick·chName·level·displayName)를 인자로 받는다. `env`는 `index.ts`가 `parseEnv`로 한 번 만들어 서비스 팩토리에 **값으로 주입**한다(모듈이 바인딩을 직접 import·접근하지 않는다). 역방향 import 금지.
 - 진입점 `index.ts`: Hono 앱 조립(미들웨어 → routes), `export default { fetch, scheduled }`. `fetch(request, env, ctx)`에서 `parseEnv(env)` → `createDb(env.DB)` → 서비스 팩토리 → 라우트에 주입. 정적 화면은 `env.ASSETS`(Workers Static Assets)가 `/embed`로 서빙한다.
 - 새 모듈 추가는 요구ID로 역추적될 때만. "나중에 쓸 것 같아서"는 금지(§10).
 

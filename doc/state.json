@@ -64,7 +64,13 @@
       "tester": "PASS (자동 44, 수동 부분)"
     },
     "S1": "done 2026-10-05",
-    "manual_s1": "done"
+    "manual_s1": "done",
+    "design_s2": {
+      "server": "done",
+      "contract": "running",
+      "ui": "pending",
+      "ui-check": "pending"
+    }
   },
   "dependencies_approved": [
     "hono",
@@ -114,7 +120,10 @@
     "승인 ② 의존성 후보에 @types/react·@types/react-dom·@testing-library/user-event 추가",
     "MessagesQuery 등 선택 쿼리 필드는 `?: number | undefined`로 허용(exactOptionalPropertyTypes 대응) — 2단계 contract-implementer가 types.ts·api.md §5.2 반영",
     "server 구현 조정(승인): AppError(code, message?, options?) · compatibility_date 2026-08-15(workerd 1.20260815.1) · page.test → server/test/messages-page.test.ts · Message/RoomSummary는 @shared 재노출",
-    "CF-01: 자동 진입 시 목록이 화면에 커밋되지 않을 수 있음(React 19 배칭) — 동작 유지, 설계 문장·TC-RM-008 ⓐ 재정의"
+    "CF-01: 자동 진입 시 목록이 화면에 커밋되지 않을 수 있음(React 19 배칭) — 동작 유지, 설계 문장·TC-RM-008 ⓐ 재정의",
+    "S2 server: 메시지 본문 trim + 공백만 거부(승인). 429는 본문 retryAfterSec + Retry-After 헤더(ApiErrorBody에 retryAfterSec? 추가). 이름: nowMs·rateLimitWrites/hitRateLimit·deleteById·purgeBefore. getById는 S3",
+    "S2 토큰 교차 벡터 V1~V8(auth.md §2.6)을 contract·S5 handoff가 공유. PHP는 level·exp (int) 캐스트",
+    "스킬 문구 TODO: server-design-strategy의 AuthContext → Principal"
   ],
   "installed": {
     "typescript": "5.9.3",
