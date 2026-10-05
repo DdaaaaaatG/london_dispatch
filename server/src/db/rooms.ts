@@ -1,13 +1,23 @@
 /**
  * [목적] rooms 테이블 접근 함수(비즈니스 규칙 없음). 행→도메인 변환은 여기서 한 번만 (R-DB-005). 설계 db.md §2.1
- * [공개 API] createRoomsRepo(binding) -> RoomsRepo { listSummaries, exists, touchStmt }
- * [비동기] D1 prepare().bind().all()/first() await. touchStmt 는 실행하지 않고 문장만 돌려준다
+ * [공개 API] createRoomsRepo(binding) -> RoomsRepo { listSummaries, exists, touchStmt, insert(S2), updateTitle(S2), deleteCascade(S2) }
+ * [비동기] D1 prepare().bind().all()/first() await. touchStmt 는 실행하지 않고 문장만 돌려준다. updateTitle·deleteCascade 는 batch(원자적)
  * [에러] D1 오류는 감싸지 않고 전파(onError 가 INTERNAL 로 닫는다)
  * [설정] 없음
- * [테스트] server/test/db.test.ts (SRV-T-024~027)
+ * [테스트] server/test/db.test.ts (SRV-T-024~027, 121~123)
  */
 import type { D1Database, D1PreparedStatement } from '@cloudflare/workers-types'
-import { SQL_ROOMS_EXISTS, SQL_ROOMS_LIST_SUMMARIES, SQL_ROOMS_TOUCH } from './sql'
+import {
+  SQL_MEMORY_DELETE_BY_ROOM,
+  SQL_MESSAGES_DELETE_BY_ROOM,
+  SQL_ROOMS_DELETE,
+  SQL_ROOMS_EXISTS,
+  SQL_ROOMS_INSERT,
+  SQL_ROOMS_LIST_SUMMARIES,
+  SQL_ROOMS_SUMMARY_BY_ID,
+  SQL_ROOMS_TOUCH,
+  SQL_ROOMS_UPDATE_TITLE,
+} from './sql'
 import type { RoomSummary, RoomSummaryRow } from './types'
 
 export type RoomsRepo = {
@@ -17,6 +27,12 @@ export type RoomsRepo = {
   exists: (id: string) => Promise<boolean>
   /** updated_at 갱신 문장(실행하지 않음). 메시지 쓰기와 같은 batch 에 넣기 위함 */
   touchStmt: (id: string, nowMs: number) => D1PreparedStatement
+  /** S2. created_at = updated_at = nowMs, speaking_until NULL */
+  insert: (room: { id: string; title: string; nowMs: number }) => Promise<void>
+  /** S2. 제목만 변경(updated_at 유지) + 요약 재조회를 한 batch 로. 방이 없으면 null */
+  updateTitle: (id: string, title: string) => Promise<RoomSummary | null>
+  /** S2. memory → messages → rooms 순서 DELETE 를 한 batch 로. 방이 없었으면 false */
+  deleteCascade: (id: string) => Promise<boolean>
 }
 
 const toRoomSummary = (row: RoomSummaryRow): RoomSummary => ({
@@ -38,4 +54,23 @@ export const createRoomsRepo = (binding: D1Database): RoomsRepo => ({
     return row !== null
   },
   touchStmt: (id, nowMs) => binding.prepare(SQL_ROOMS_TOUCH).bind(nowMs, id),
+  insert: async ({ id, title, nowMs }) => {
+    await binding.prepare(SQL_ROOMS_INSERT).bind(id, title, nowMs).run()
+  },
+  updateTitle: async (id, title) => {
+    const results = await binding.batch<RoomSummaryRow>([
+      binding.prepare(SQL_ROOMS_UPDATE_TITLE).bind(title, id),
+      binding.prepare(SQL_ROOMS_SUMMARY_BY_ID).bind(id),
+    ])
+    const row = results[1]?.results[0]
+    return row === undefined ? null : toRoomSummary(row)
+  },
+  deleteCascade: async id => {
+    const results = await binding.batch([
+      binding.prepare(SQL_MEMORY_DELETE_BY_ROOM).bind(id),
+      binding.prepare(SQL_MESSAGES_DELETE_BY_ROOM).bind(id),
+      binding.prepare(SQL_ROOMS_DELETE).bind(id),
+    ])
+    return (results[2]?.meta.changes ?? 0) > 0
+  },
 })

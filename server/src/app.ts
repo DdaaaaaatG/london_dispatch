@@ -2,8 +2,8 @@
  * [목적] Hono 앱 조립: 요청 로그 → 보안 헤더(CSP) → 부트스트랩(parseEnv) → /embed → routes, notFound·onError (R-ENV-001·003, R-API-002·006). 설계 index.md §2.2·§3
  * [공개 API] createApp(options?) -> Hono<AppEnv>, buildCsp(frameAncestors?), 타입 CreateAppOptions
  * [비동기] 모든 미들웨어 async. /embed 는 await env.ASSETS.fetch. 요청 간 공유 상태 없음
- * [에러] ConfigError→500 CONFIG_INVALID, AppError→자기 status, HTTPException 400→VALIDATION_ERROR, 그 외→500 INTERNAL, 매칭 없음→404 NOT_FOUND
- * [설정] parseEnv 결과의 allowedFrameAncestors 만 CSP 에 쓴다. 다른 설정 키는 읽지 않는다
+ * [에러] ConfigError→500 CONFIG_INVALID, AppError→자기 status(RATE_LIMITED 는 본문 retryAfterSec + Retry-After 헤더), HTTPException 400→VALIDATION_ERROR, 그 외→500 INTERNAL, 매칭 없음→404 NOT_FOUND
+ * [설정] parseEnv 결과의 allowedFrameAncestors 만 CSP 에 쓴다. 나머지 Config 는 createServices 에 값으로 전달만 한다(S2)
  * [테스트] server/test/app.test.ts (SRV-T-080~089)
  */
 import { PATHS } from '@shared/endpoints'
@@ -65,7 +65,7 @@ const bootstrap =
   async (c, next) => {
     const config = parseEnv(c.env)
     c.set('cspFrameAncestors', config.allowedFrameAncestors.join(' '))
-    c.set('services', createServices({ db: createDb(c.env.DB), logger, now }))
+    c.set('services', createServices({ db: createDb(c.env.DB), logger, now, config }))
     await next()
   }
 
@@ -87,7 +87,14 @@ const errorResponse = (
   code: ErrorCode,
   status: AppError['status'],
   message: string,
-) => c.json(toErrorBody(code, message), status)
+  retryAfterSec?: number,
+) => {
+  if (retryAfterSec !== undefined) c.header('Retry-After', String(retryAfterSec))
+  return c.json(
+    toErrorBody(code, message, retryAfterSec === undefined ? undefined : { retryAfterSec }),
+    status,
+  )
+}
 
 const handleError =
   (logger: Logger) =>
@@ -98,7 +105,7 @@ const handleError =
     }
     if (isAppError(err)) {
       if (err.status >= 500) logger.error('app_error', { code: err.code })
-      return errorResponse(c, err.code, err.status, err.message)
+      return errorResponse(c, err.code, err.status, err.message, err.retryAfterSec)
     }
     if (err instanceof HTTPException && err.status === 400) {
       return errorResponse(c, 'VALIDATION_ERROR', 400, MSG_VALIDATION)

@@ -228,3 +228,160 @@ describe('batch·좁히기', () => {
     }
   })
 })
+
+// ---- S2 (SRV-T-121~128) — doc/200_설계/server/db.md §8 ----
+const NOW2 = 1_800_000_000_000
+
+const roomRow = async (id: string) =>
+  env.DB.prepare('SELECT title, created_at, updated_at, speaking_until FROM rooms WHERE id = ?1')
+    .bind(id)
+    .first<{
+      title: string
+      created_at: number
+      updated_at: number
+      speaking_until: number | null
+    }>()
+
+const countWhere = async (table: string, where: string, ...binds: unknown[]): Promise<number> =>
+  (
+    await env.DB.prepare(`SELECT COUNT(*) AS n FROM ${table} WHERE ${where}`)
+      .bind(...binds)
+      .first<{ n: number }>()
+  )?.n ?? -1
+
+const newUserMessage = (roomId: string, text = 'hi') => ({
+  roomId,
+  speaker: 'user' as const,
+  kind: 'line' as const,
+  text,
+  authorMbId: 'mb_a',
+  authorName: '닉',
+})
+
+describe('rooms repo S2', () => {
+  it('SRV-T-121 rooms_insert_sets_created_and_updated_at_equal', async () => {
+    const db = createDb(env.DB)
+    await db.rooms.insert({ id: 'r1', title: '방', nowMs: NOW2 })
+    expect(await roomRow('r1')).toEqual({
+      title: '방',
+      created_at: NOW2,
+      updated_at: NOW2,
+      speaking_until: null,
+    })
+    await expect(db.rooms.insert({ id: 'r1', title: '방', nowMs: NOW2 })).rejects.toThrow()
+  })
+
+  it('SRV-T-122 rooms_updateTitle_returns_summary_or_null_and_keeps_updated_at', async () => {
+    const db = createDb(env.DB)
+    await insertRoom('r1', '옛 제목', 5, 100)
+    await insertRoom('r2', '다른 방', 5, 200)
+    await insertLines('r1', 2)
+    expect(await db.rooms.updateTitle('r1', '새 제목')).toEqual({
+      id: 'r1',
+      title: '새 제목',
+      createdAt: 5,
+      updatedAt: 100,
+      messageCount: 2,
+    })
+    expect(await db.rooms.updateTitle('nope', 'x')).toBeNull()
+    expect((await roomRow('r2'))?.title).toBe('다른 방')
+  })
+
+  it('SRV-T-123 rooms_deleteCascade_removes_children_then_room', async () => {
+    const db = createDb(env.DB)
+    await insertRoom('a', 'A', 1, 1)
+    await insertRoom('b', 'B', 1, 1)
+    await insertLines('a', 3)
+    await insertLines('b', 2)
+    await env.DB.prepare(
+      "INSERT INTO memory (room_id, summary, source_until_id, updated_at) VALUES ('a', 's', 1, 1)",
+    ).run()
+    expect(await db.rooms.deleteCascade('a')).toBe(true)
+    expect(await countWhere('rooms', 'id = ?1', 'a')).toBe(0)
+    expect(await countWhere('messages', 'room_id = ?1', 'a')).toBe(0)
+    expect(await countWhere('memory', 'room_id = ?1', 'a')).toBe(0)
+    expect(await countWhere('messages', 'room_id = ?1', 'b')).toBe(2)
+    expect(await countWhere('messages', 'room_id NOT IN (SELECT id FROM rooms)')).toBe(0)
+    expect(await db.rooms.deleteCascade('nope')).toBe(false)
+  })
+})
+
+describe('messages repo S2', () => {
+  it('SRV-T-124 messages_insert_returns_row_and_touches_room_or_null', async () => {
+    const db = createDb(env.DB)
+    await insertRoom('r1', 'R', 1, 100)
+    const saved = await db.messages.insert(newUserMessage('r1'), NOW2)
+    expect(Object.keys(saved ?? {}).sort()).toEqual(
+      ['authorName', 'createdAt', 'id', 'kind', 'roomId', 'speaker', 'text'].sort(),
+    )
+    expect(saved).toMatchObject({ roomId: 'r1', speaker: 'user', kind: 'line', createdAt: NOW2 })
+    expect(
+      (
+        await env.DB.prepare('SELECT author_mb_id FROM messages WHERE id = ?1')
+          .bind(saved?.id ?? 0)
+          .first<{ author_mb_id: string }>()
+      )?.author_mb_id,
+    ).toBe('mb_a')
+    expect((await roomRow('r1'))?.updated_at).toBe(NOW2)
+
+    expect(await db.messages.insert(newUserMessage('nope'), NOW2)).toBeNull()
+    expect(await countWhere('messages', "room_id = 'nope'")).toBe(0)
+
+    await insertRoom('r2', 'R2', 1, 100)
+    await expect(
+      db.messages.insert({ ...newUserMessage('r2'), authorMbId: null, authorName: null }, NOW2),
+    ).rejects.toThrow()
+    expect((await roomRow('r2'))?.updated_at).toBe(100)
+  })
+
+  it('SRV-T-125 messages_updateText_returns_row_and_touches_owning_room', async () => {
+    const db = createDb(env.DB)
+    await insertRoom('r1', 'R', 1, 100)
+    await insertRoom('r2', 'R2', 1, 100)
+    const [id] = await insertLines('r1', 1)
+    const updated = await db.messages.updateText(id ?? 0, '고침', NOW2)
+    expect(updated).toMatchObject({ id, text: '고침', speaker: 'sebastian', roomId: 'r1' })
+    expect((await roomRow('r1'))?.updated_at).toBe(NOW2)
+    expect((await roomRow('r2'))?.updated_at).toBe(100)
+    expect(await db.messages.updateText(999_999, 'x', NOW2 + 1)).toBeNull()
+    expect((await roomRow('r1'))?.updated_at).toBe(NOW2)
+  })
+
+  it('SRV-T-128 messages_deleteById_touches_room_before_delete', async () => {
+    const db = createDb(env.DB)
+    await insertRoom('r1', 'R', 1, 100)
+    await insertRoom('r2', 'R2', 1, 100)
+    const [id] = await insertLines('r1', 1)
+    expect(await db.messages.deleteById(id ?? 0, NOW2)).toBe(true)
+    expect(await countWhere('messages', 'id = ?1', id ?? 0)).toBe(0)
+    expect((await roomRow('r1'))?.updated_at).toBe(NOW2)
+    expect(await db.messages.deleteById(999_999, NOW2 + 1)).toBe(false)
+    expect((await roomRow('r1'))?.updated_at).toBe(NOW2)
+    expect((await roomRow('r2'))?.updated_at).toBe(100)
+  })
+})
+
+describe('rateLimits repo', () => {
+  it('SRV-T-126 rateLimits_hit_counts_up_to_limit_then_returns_null', async () => {
+    const db = createDb(env.DB)
+    const W = 120_000
+    expect([
+      await db.rateLimits.hit('a', W, 3),
+      await db.rateLimits.hit('a', W, 3),
+      await db.rateLimits.hit('a', W, 3),
+      await db.rateLimits.hit('a', W, 3),
+    ]).toEqual([1, 2, 3, null])
+    expect(await countWhere('rate_limits', "mb_id = 'a' AND count = 3")).toBe(1)
+    expect(await db.rateLimits.hit('a', W + 60_000, 3)).toBe(1)
+    expect(await db.rateLimits.hit('b', W, 3)).toBe(1)
+  })
+
+  it('SRV-T-127 rateLimits_purgeBefore_deletes_only_older_windows', async () => {
+    const db = createDb(env.DB)
+    const W = 600_000
+    for (const w of [W - 120_000, W - 60_000, W]) await db.rateLimits.hit('a', w, 5)
+    expect(await db.rateLimits.purgeBefore(W)).toBe(2)
+    expect(await countWhere('rate_limits', 'window_start = ?1', W)).toBe(1)
+    expect(await countWhere('rate_limits', '1 = 1')).toBe(1)
+  })
+})

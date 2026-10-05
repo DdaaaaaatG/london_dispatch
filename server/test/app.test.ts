@@ -1,4 +1,4 @@
-// SRV-T-080~089 — doc/200_설계/server/index.md §8
+// SRV-T-080~089·160~162 — doc/200_설계/server/index.md §8
 import { createExecutionContext, env } from 'cloudflare:test'
 import { Hono } from 'hono'
 import { HTTPException } from 'hono/http-exception'
@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest'
 import { AppError } from '../src/app-error'
 import { createApp, buildCsp } from '../src/app'
 import type { Db } from '../src/db'
-import type { Env } from '../src/env'
+import { parseEnv, type Env } from '../src/env'
 import { createLogger, type LogLevel } from '../src/logger'
 import { APP_VERSION, createServices, type AppEnv } from '../src/services'
 
@@ -185,7 +185,12 @@ describe('서비스·로그', () => {
         },
       },
     ) as unknown as Db
-    const services = createServices({ db: trap, logger: createLogger(() => {}), now: () => NOW })
+    const services = createServices({
+      db: trap,
+      logger: createLogger(() => {}),
+      now: () => NOW,
+      config: parseEnv(baseEnv()),
+    })
     expect(services.getHealth()).toEqual({ ok: true, version: APP_VERSION })
     expect(APP_VERSION).not.toBe('')
   })
@@ -213,5 +218,82 @@ describe('서비스·로그', () => {
     const b = await call(app, '/t/ok', baseEnv({ ALLOWED_FRAME_ANCESTORS: 'https://b.my' }))
     expect(a.headers.get('Content-Security-Policy')).toBe('frame-ancestors https://a.my')
     expect(b.headers.get('Content-Security-Policy')).toBe('frame-ancestors https://b.my')
+  })
+})
+
+// ---- S2 (SRV-T-160~162) — doc/200_설계/server/index.md §8 ----
+describe('S2 앱 계층', () => {
+  it('SRV-T-160 onError_adds_retryAfterSec_body_and_header', async () => {
+    const routes = new Hono<AppEnv>()
+    routes.get('/t/limited', () => {
+      throw new AppError('RATE_LIMITED', undefined, { retryAfterSec: 45 })
+    })
+    routes.get('/t/plain', () => {
+      throw new AppError('NOT_FOUND')
+    })
+    const app = createApp({ routes, logSink: () => {}, now: () => NOW })
+    const limited = await call(app, '/t/limited')
+    expect(limited.status).toBe(429)
+    expect(limited.headers.get('Retry-After')).toBe('45')
+    expect(limited.headers.get('Content-Security-Policy')).toBe(`frame-ancestors ${ANCESTORS}`)
+    expect(await limited.json()).toEqual({
+      error: {
+        code: 'RATE_LIMITED',
+        message: '요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.',
+        retryAfterSec: 45,
+      },
+    })
+    const plain = await call(app, '/t/plain')
+    const body = (await plain.json()) as { error: Record<string, unknown> }
+    expect('retryAfterSec' in body.error).toBe(false)
+    expect(plain.headers.get('Retry-After')).toBeNull()
+  })
+
+  it('SRV-T-161 createServices_wires_auth_with_config_without_exposing_secret', () => {
+    const trap = new Proxy(
+      {},
+      {
+        get: () => () => {
+          throw new Error('db touched')
+        },
+      },
+    ) as unknown as Db
+    const config = parseEnv(baseEnv({ TOKEN_SECRET: 'SENTINEL_SECRET_VALUE' }))
+    const services = createServices({
+      db: trap,
+      logger: createLogger(() => {}),
+      now: () => NOW,
+      config,
+    })
+    expect(services.auth).toBeDefined()
+    expect(services.getHealth()).toEqual({ ok: true, version: APP_VERSION })
+    expect(JSON.stringify(services)).not.toContain('SENTINEL_SECRET_VALUE')
+    expect(Object.keys(services.auth)).toEqual(['authenticate', 'hitRateLimit'])
+    expect(Object.keys(services.auth).join()).not.toContain('tokenSecret')
+  })
+
+  it('SRV-T-162 request_log_never_contains_authorization_header', async () => {
+    const routes = new Hono<AppEnv>()
+    routes.get('/t/read', c => c.json({ ok: true }))
+    routes.post('/t/write', c => c.json({ ok: true }))
+    const log = collector()
+    const app = createApp({ routes, logSink: log.sink, now: () => NOW })
+    const headers = { Authorization: 'Bearer SENTINEL_BEARER' }
+    await Promise.resolve(
+      app.fetch(
+        new Request('http://test/t/read', { headers }),
+        baseEnv(),
+        createExecutionContext(),
+      ),
+    )
+    await Promise.resolve(
+      app.fetch(
+        new Request('http://test/t/write', { method: 'POST', headers }),
+        baseEnv(),
+        createExecutionContext(),
+      ),
+    )
+    expect(log.lines.length).toBeGreaterThan(0)
+    expect(log.lines.map(l => l.line).join('\n')).not.toContain('SENTINEL_BEARER')
   })
 })

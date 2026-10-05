@@ -1,10 +1,10 @@
 /**
- * [목적] S1 SQL 문자열 상수. 문자열 연결·보간 금지, 값은 전부 bind (R-DB-003). 설계 db.md §3.1
- * [공개 API] SQL_ROOMS_LIST_SUMMARIES, SQL_ROOMS_EXISTS, SQL_ROOMS_TOUCH, SQL_MESSAGES_PAGE_LATEST, SQL_MESSAGES_PAGE_BEFORE
+ * [목적] SQL 문자열 상수(S1 조회 + S2 쓰기·레이트리밋). 문자열 연결·보간 금지, 값은 전부 bind (R-DB-003). 설계 db.md §3.1·§3.2
+ * [공개 API] S1 SQL_ROOMS_LIST_SUMMARIES·EXISTS·TOUCH, SQL_MESSAGES_PAGE_LATEST·BEFORE / S2 SQL_ROOMS_INSERT·UPDATE_TITLE·SUMMARY_BY_ID·DELETE·TOUCH_BY_MESSAGE, SQL_MEMORY_DELETE_BY_ROOM, SQL_MESSAGES_DELETE_BY_ROOM·INSERT_IF_ROOM·UPDATE_TEXT·DELETE, SQL_RATE_LIMITS_HIT·PURGE_BEFORE
  * [비동기] 없음
  * [에러] 없음
  * [설정] 없음
- * [테스트] server/test/db.test.ts (SRV-T-024~029)
+ * [테스트] server/test/db.test.ts (SRV-T-024~029, 121~128)
  */
 export const SQL_ROOMS_LIST_SUMMARIES = `SELECT r.id, r.title, r.created_at, r.updated_at,
        (SELECT COUNT(*) FROM messages m WHERE m.room_id = r.id) AS message_count
@@ -26,3 +26,41 @@ FROM messages
 WHERE room_id = ?1 AND id < ?2
 ORDER BY id DESC
 LIMIT ?3`
+
+// ---- S2 ----
+const MESSAGE_COLUMNS = 'id, room_id, speaker, kind, text, author_name, created_at'
+
+export const SQL_ROOMS_INSERT =
+  'INSERT INTO rooms (id, title, created_at, updated_at) VALUES (?1, ?2, ?3, ?3)'
+
+export const SQL_ROOMS_UPDATE_TITLE = 'UPDATE rooms SET title = ?1 WHERE id = ?2'
+
+export const SQL_ROOMS_SUMMARY_BY_ID = `SELECT r.id, r.title, r.created_at, r.updated_at,
+       (SELECT COUNT(*) FROM messages m WHERE m.room_id = r.id) AS message_count
+FROM rooms r
+WHERE r.id = ?1`
+
+export const SQL_MEMORY_DELETE_BY_ROOM = 'DELETE FROM memory WHERE room_id = ?1'
+export const SQL_MESSAGES_DELETE_BY_ROOM = 'DELETE FROM messages WHERE room_id = ?1'
+export const SQL_ROOMS_DELETE = 'DELETE FROM rooms WHERE id = ?1'
+
+/** 방이 있을 때만 INSERT. 없으면 0행 */
+export const SQL_MESSAGES_INSERT_IF_ROOM = `INSERT INTO messages (room_id, speaker, kind, text, author_mb_id, author_name, created_at)
+SELECT ?1, ?2, ?3, ?4, ?5, ?6, ?7
+WHERE EXISTS (SELECT 1 FROM rooms WHERE id = ?1)
+RETURNING ${MESSAGE_COLUMNS}`
+
+export const SQL_MESSAGES_UPDATE_TEXT = `UPDATE messages SET text = ?1 WHERE id = ?2
+RETURNING ${MESSAGE_COLUMNS}`
+
+/** 메시지가 없으면 0행 */
+export const SQL_ROOMS_TOUCH_BY_MESSAGE =
+  'UPDATE rooms SET updated_at = ?1 WHERE id = (SELECT room_id FROM messages WHERE id = ?2)'
+
+export const SQL_MESSAGES_DELETE = 'DELETE FROM messages WHERE id = ?1'
+
+export const SQL_RATE_LIMITS_HIT = `INSERT INTO rate_limits (mb_id, window_start, count) VALUES (?1, ?2, 1)
+ON CONFLICT (mb_id, window_start) DO UPDATE SET count = count + 1 WHERE count < ?3
+RETURNING count`
+
+export const SQL_RATE_LIMITS_PURGE_BEFORE = 'DELETE FROM rate_limits WHERE window_start < ?1'

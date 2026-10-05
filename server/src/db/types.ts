@@ -1,6 +1,6 @@
 /**
  * [목적] db 모듈의 도메인 타입과 행 타입, 유니온 좁히기. 설계 db.md §2.1·§3.2
- * [공개 API] Speaker, MessageKind, RoomSummary, Message (@shared/types 재노출), RoomSummaryRow, MessageRow, toSpeaker, toKind
+ * [공개 API] Speaker, MessageKind, RoomSummary, Message (@shared/types 재노출), NewMessage(S2), RoomSummaryRow, MessageRow, RateLimitRow(S2), toSpeaker, toKind
  * [비동기] 없음
  * [에러] 좁히기 실패 → AppError INTERNAL(500)
  * [설정] 없음
@@ -10,6 +10,19 @@ import type { Message, MessageKind, RoomSummary, Speaker } from '@shared/types'
 import { AppError } from '../app-error'
 
 export type { Message, MessageKind, RoomSummary, Speaker }
+
+/** 메시지 INSERT 입력(S2). 유저 메시지는 author 둘 다 문자열, 캐릭터 메시지는 둘 다 null (CHECK 가 강제) */
+export type NewMessage = {
+  roomId: string
+  speaker: Speaker
+  kind: MessageKind
+  text: string
+  authorMbId: string | null
+  authorName: string | null
+}
+
+/** rate_limits UPSERT RETURNING 행(S2) */
+export type RateLimitRow = { count: number }
 
 /** rooms 목록 쿼리 행(snake_case) */
 export type RoomSummaryRow = {
