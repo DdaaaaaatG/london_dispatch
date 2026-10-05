@@ -115,7 +115,7 @@
 ### TC-CH-015 · 리듀서 T1~T8 · 종류: 자동 · 요구: R-CHAT-003 · 설계: F §1 · §1.1 T1~T8 · F-CH-12 · 토큰: 무관
 - Given 얼린(`Object.freeze`) 입력 상태
 - When 액션 `initialLoadStarted`·`initialLoadSucceeded`·`initialLoadFailed`·`olderLoadStarted`·`olderLoadSucceeded`·`olderLoadFailed`를 넣는다
-- Then ⓐ 해당 없음(순수 함수) ⓑ 초기값 7필드 일치. T1 → 초기값. T2 → ready·정렬·중복 제거·hasMore. T3 → error·나머지 초기값. T4 → isLoadingOlder true·olderError null. T5(4가지 불충족) → 같은 참조. T6 → 앞 합침·hasMore·로딩 해제, 빈 페이지면 hasMore false. T7 → 같은 참조. T8 → 로딩 해제·olderError·말풍선 유지 ⓒ api 호출 없음
+- Then ⓐ 해당 없음(순수 함수) ⓑ 초기값 9필드 일치(S1 7필드 + S2 `writing`·`editingId` = null, v0.4 메인 세션 승인 보정). T1 → 초기값. T2 → ready·정렬·중복 제거·hasMore. T3 → error·나머지 초기값. T4 → isLoadingOlder true·olderError null. T5(4가지 불충족) → 같은 참조. T6 → 앞 합침·hasMore·로딩 해제, 빈 페이지면 hasMore false. T7 → 같은 참조. T8 → 로딩 해제·olderError·말풍선 유지 ⓒ api 호출 없음
 - 스펙: `ui/src/state/chat.test.ts`
 
 ### TC-CH-016 · 리듀서 T9~T12·순수 함수 · 종류: 자동 · 요구: R-CHAT-003 · R-MSG-001 · 설계: F §1.1 T9~T12 · §1.2 · §6.3 · 토큰: 무관

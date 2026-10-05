@@ -171,7 +171,7 @@ describe('chatReducer T21~T26 편집·전환 (R-CHAT-007 · R-CHAT-011)', () => 
 })
 
 describe('chatReducer T1~T8 (R-CHAT-003)', () => {
-  it('TC-CH-015: 초기값은 { loading, null, [], false, false, null, 0 }', () => {
+  it('TC-CH-015: 초기값은 { loading, null, [], false, false, null, 0, null, null }', () => {
     expect(initialChatState).toEqual({
       phase: 'loading',
       error: null,
@@ -180,6 +180,8 @@ describe('chatReducer T1~T8 (R-CHAT-003)', () => {
       isLoadingOlder: false,
       olderError: null,
       unseenCount: 0,
+      writing: null,
+      editingId: null,
     })
   })
 
