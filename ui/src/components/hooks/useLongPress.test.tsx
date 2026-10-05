@@ -83,14 +83,19 @@ describe('useLongPress (R-CHAT-007)', () => {
     expect(fn).not.toHaveBeenCalled()
   })
 
-  it('TC-CH-060: 오른쪽 버튼 pointerdown 은 무시, contextmenu 는 preventDefault + 1회', async () => {
+  // user-event 14.6 의 우클릭은 contextmenu 를 바로 보내므로 pointerdown(button 2)만 직접 보낸다(TK-02)
+  it('TC-CH-060: 오른쪽 버튼 pointerdown 만으로는 타이머가 시작되지 않는다', () => {
     const fn = vi.fn()
     render(<Pad onLongPress={fn} />)
-    const pad = screen.getByTestId('pad')
-    await user.pointer({ keys: '[MouseRight>]', target: pad })
+    fireEvent.pointerDown(screen.getByTestId('pad'), { button: 2, pointerType: 'mouse', clientX: 10, clientY: 10 })
     advance(600)
-    expect(fn).toHaveBeenCalledTimes(0)
-    expect(fireEvent.contextMenu(pad)).toBe(false)
+    expect(fn).not.toHaveBeenCalled()
+  })
+
+  it('TC-CH-060: contextmenu(마우스 우클릭) → preventDefault + onLongPress 1회', () => {
+    const fn = vi.fn()
+    render(<Pad onLongPress={fn} />)
+    expect(fireEvent.contextMenu(screen.getByTestId('pad'))).toBe(false)
     expect(fn).toHaveBeenCalledTimes(1)
   })
 

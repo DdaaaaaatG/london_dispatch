@@ -91,7 +91,15 @@ const deferred = <T,>() => {
 
 const renderChat = () => {
   const onBack = vi.fn()
-  const view = render(<ChatScreen room={ROOM} viewer={READ_ONLY_VIEWER} onBack={onBack} />)
+  const view = render(
+    <ChatScreen
+      room={ROOM}
+      viewer={READ_ONLY_VIEWER}
+      onBack={onBack}
+      onAuthFailure={vi.fn()}
+      onRoomRenamed={vi.fn()}
+    />,
+  )
   return { ...view, onBack }
 }
 

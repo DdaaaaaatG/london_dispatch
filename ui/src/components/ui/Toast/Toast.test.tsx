@@ -49,13 +49,12 @@ describe('useToast (R-CHAT-011)', () => {
     expect(result.current.toast).toBeNull()
   })
 
-  it('TC-RM-032: dismissToast → null, 언마운트 뒤 타이머 0개', () => {
+  // v1.5 DC-09: dismissToast 는 미사용 표면이라 삭제됐다 → 단언하지 않는다(TK-03)
+  it('TC-RM-032: showToast 뒤 언마운트 → 타이머 0개', () => {
     vi.useFakeTimers()
     const { result, unmount } = renderHook(() => useToast())
     act(() => result.current.showToast('a', 'danger'))
-    act(() => result.current.dismissToast())
-    expect(result.current.toast).toBeNull()
-    act(() => result.current.showToast('b', 'danger'))
+    expect(result.current.toast).not.toBeNull()
     unmount()
     expect(vi.getTimerCount()).toBe(0)
   })

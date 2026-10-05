@@ -127,7 +127,8 @@
     "스킬 문구 TODO: server-design-strategy의 AuthContext → Principal",
     "S2 contract v0.3 결정 승인: 인증 실패 3코드(TOKEN_REQUIRED·TOKEN_INVALID·LEVEL_TOO_LOW) 모두 읽기 전용 전환 · 삭제 204 · ooc 필수 · ?t= URL 유지 · 메시지 id 10진만 · 레이트리밋은 400/404도 카운트, 401/403 미카운트",
     "S2 ui 판단 승인: 삭제 NOT_FOUND는 성공 처리 · 메시지 쓰기 동시 1건 · 시트 열림 중 토스트 금지 · rooms 토스트 줄 맨 아래 28px · 메시지 삭제 confirm 문구 확정",
-    "contract 요청: 길이 한도(60·2000)·trim 후 코드 포인트 규칙을 shared/src/limits.ts 상수로(api.md v0.3.1)"
+    "contract 요청: 길이 한도(60·2000)·trim 후 코드 포인트 규칙을 shared/src/limits.ts 상수로(api.md v0.3.1)",
+    "2026-10-05 지인 지정 🔒: 말풍선 배치 세바스찬 좌·시엘 우·유저 중앙·OOC 중앙(스타일 구분). R-CHAT-002 개정 → S2 구현 묶음에 Bubble 재배치 포함, CR-001 기록, 스크린샷 재촬영"
   ],
   "installed": {
     "typescript": "5.9.3",

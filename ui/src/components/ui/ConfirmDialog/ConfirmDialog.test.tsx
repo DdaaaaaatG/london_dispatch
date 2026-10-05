@@ -1,6 +1,6 @@
 /**
  * 공용 ConfirmDialog 스펙 초안 — 단일 소스 ui/src/chat/test/scenarios.md (TC-CH-056)
- * 대상: rooms design/components.md §1.16. 확인 버튼 danger 클래스 키는 'danger'(Button variant 값)로 가정.
+ * 대상: rooms design/components.md §1.16. 확인 버튼 danger 클래스 키는 'danger'(Button variant 값)로 **확정**(메인 세션 결정 TK-09).
  */
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'

@@ -208,6 +208,7 @@ describe('전환 시 열린 상태 정리 (R-CHAT-011 · R-CHAT-007)', () => {
     expect(screen.queryByRole('alertdialog')).toBeNull()
     expect(within(screen.getByRole('log')).getAllByRole('listitem')).toHaveLength(2)
     expectReadOnly()
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: BACK }))) // TK-07
     expect(onAuthFailure).toHaveBeenCalledTimes(1)
     expect(mockedDelete).toHaveBeenCalledTimes(1)
   })

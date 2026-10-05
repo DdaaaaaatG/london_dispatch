@@ -63,6 +63,7 @@ const renderRooms = (autoOpenRoomId: string | null = null) => {
       autoOpenRoomId={autoOpenRoomId}
       onOpenRoom={onOpenRoom}
       onAutoOpenSettled={onAutoOpenSettled}
+      onAuthFailure={vi.fn()}
     />,
   )
   return { ...view, onOpenRoom, onAutoOpenSettled }

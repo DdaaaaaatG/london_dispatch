@@ -52,12 +52,11 @@ describe('TextInput (R-ROOMS-002 · R-CHAT-001)', () => {
     expect(onEscape).toHaveBeenCalledTimes(1)
   })
 
-  it('TC-RM-032: isReadOnly → readOnly, isDisabled → disabled, inputRef 가 input 을 가리킴', () => {
+  // v1.5: TextInput 의 isDisabled 는 삭제됐다 → 단언하지 않는다(TK-04)
+  it('TC-RM-032: isReadOnly → readOnly, inputRef 가 input 을 가리킴', () => {
     const ref = { current: null as HTMLInputElement | null }
-    const { input, rerender } = setup({ isReadOnly: true, inputRef: ref })
+    const { input } = setup({ isReadOnly: true, inputRef: ref })
     expect(input.readOnly).toBe(true)
     expect(ref.current).toBe(input)
-    rerender(<TextInput value="" onChange={vi.fn()} ariaLabel="이름" isDisabled />)
-    expect((screen.getByRole('textbox') as HTMLInputElement).disabled).toBe(true)
   })
 })

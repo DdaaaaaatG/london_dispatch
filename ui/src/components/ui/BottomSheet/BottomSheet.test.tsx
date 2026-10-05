@@ -1,7 +1,7 @@
 /**
  * 공용 BottomSheet · SheetItem 스펙 초안 — 단일 소스 ui/src/chat/test/scenarios.md (TC-CH-055)
  * 대상: rooms design/components.md §1.15. 덮개 = 패널(role 요소)의 부모 요소.
- * - SheetItem tone='danger' 클래스 키는 'danger' 로 가정(설계에 키 이름 없음).
+ * - SheetItem tone='danger' 클래스 키는 'danger' 로 **확정**(메인 세션 결정 TK-09).
  */
 import { useRef, useState } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'

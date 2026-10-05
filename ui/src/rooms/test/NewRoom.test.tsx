@@ -287,6 +287,17 @@ describe('RoomsScreen 방 생성 (R-ROOMS-002 · R-CHAT-011)', () => {
       // ⓒ api
       expect(mockedCreateRoom).toHaveBeenCalledTimes(1)
       expect(mockedCreateRoom.mock.calls[0]).toEqual([{ title: '안개 낀 런던' }])
+
+      // 재제출(TK-06): 실패 뒤 같은 입력으로 다시 만들기 → 2회째 같은 인자, 성공이면 onOpenRoom 1회
+      mockedCreateRoom.mockResolvedValueOnce(ok(CREATED))
+      await act(async () => {
+        fireEvent.click(createButton)
+      })
+      await flushPending()
+      expect(mockedCreateRoom).toHaveBeenCalledTimes(2)
+      expect(mockedCreateRoom.mock.calls[1]).toEqual([{ title: '안개 낀 런던' }])
+      expect(onOpenRoom).toHaveBeenCalledTimes(1)
+      expect(onOpenRoom.mock.calls[0]?.[0]).toEqual(CREATED)
     },
   )
 
@@ -375,9 +386,13 @@ describe('RoomsScreen 취소·Esc·Enter (R-ROOMS-002 · a11y)', () => {
     fireEvent.change(input, { target: { value: '안개 낀 런던' } })
     fireEvent.keyDown(input, { key: 'Enter', code: 'Enter', isComposing: true })
     fireEvent.keyDown(input, { key: 'Enter', code: 'Enter', keyCode: 229 })
+    await flushPending()
+    expect(input.value).toBe('안개 낀 런던') // (a)(b) 입력값 그대로(TK-07)
+    expect(input.readOnly).toBe(false)
     fireEvent.change(input, { target: { value: '   ' } })
     await user.keyboard('{Enter}')
     await flushPending()
+    expect(input.value).toBe('   ') // (c) 입력값 그대로
     expect(mockedCreateRoom).not.toHaveBeenCalled()
     expect(screen.getByRole('group', { name: NEW_ROOM })).not.toBeNull()
 

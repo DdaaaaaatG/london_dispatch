@@ -3,7 +3,7 @@
  * (TC-CH-039 ~ 046 · TC-CH-054 (a)(b)(d))
  * 대상: Bubble 메뉴 핸들러 · useLongPress · MessageMenuSheet · InlineEditor · ConfirmDialog · useMessageWrites
  * - 메뉴 대상 = li 안 [aria-haspopup="dialog"] (C §2.2). 롱프레스는 목록이 그려진 뒤 가짜 시계 + user.pointer.
- * - SheetItem tone='danger' 클래스 키는 'danger' 로 가정한다(설계에 키 이름 없음 — 보고서 가정 표).
+ * - SheetItem tone='danger' 클래스 키는 'danger' 로 **확정**(메인 세션 결정 TK-09, 설계 명시는 ui-designer 몫).
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'

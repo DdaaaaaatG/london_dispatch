@@ -104,6 +104,8 @@ const sendButton = () => screen.getByRole('button', { name: '전송' }) as HTMLB
 const items = () => within(screen.getByRole('log')).getAllByRole('listitem')
 
 // ── 스크롤 mock(TC-CH-038, S1 ChatScroll 규칙: 비클램프) ─────────────
+// contentHeight = 새 말풍선(5번째 li)이 **커밋된 뒤**의 내용 높이. 그 전(li 4개)에는 항상 3000.
+// → 응답 시점(붙이기 전) isNearBottom 측정은 3000 기준이고, 뒤붙임 effect 는 3200 을 본다(TK-01).
 let contentHeight = 3000
 const scrollTops = new WeakMap<Element, number>()
 const installScrollMock = () => {
@@ -111,7 +113,8 @@ const installScrollMock = () => {
   Object.defineProperty(HTMLElement.prototype, 'scrollHeight', {
     configurable: true,
     get(this: HTMLElement) {
-      return isLog(this) ? contentHeight : 0
+      if (!isLog(this)) return 0
+      return this.querySelectorAll('li').length > PAGE.messages.length ? contentHeight : 3000
     },
   })
   Object.defineProperty(HTMLElement.prototype, 'clientHeight', {
