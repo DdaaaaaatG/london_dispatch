@@ -1,6 +1,6 @@
 # chat(대화) 테스트 시나리오
 
-- 기준: `ui/src/chat/design.md` v1.5(+ `design/components.md` · `design/functions.md` · `design/a11y.md` · `design/tc.md` v1.5) / `ui/src/chat/requirements.md` v1.4 / `doc/200_설계/contract/api.md` v0.3.1 / 공용 요소 단일 정의 `ui/src/rooms/design/components.md` §1
+- 기준: `ui/src/chat/design.md` v1.6(CR-001 Bubble 배치, ui-designer 반영 중 — components.md §2.2 v1.6 확인)(+ `design/components.md` · `design/functions.md` · `design/a11y.md` · `design/tc.md` v1.5) / `ui/src/chat/requirements.md` v1.4 / `doc/200_설계/contract/api.md` v0.3.1 / 공용 요소 단일 정의 `ui/src/rooms/design/components.md` §1
 - 작성일: 2026-10-05 · 작성: ui-test-designer · 모드: **증분**(S1 TC-CH-001~030 보존, S2 TC-CH-031~065 추가) · 상태: **초안 v0.5(S2 검증 지적 TK-01~09 반영, 재검증 대기)** · 공용 부품 danger 톤 클래스 키 = `danger` **확정**(메인 세션 결정 TK-09)
 - 묶음: **S1(읽기 전용 판)** + **S2(토큰 + 쓰기)**. S1 TC의 토큰 분기는 "없음" 그대로다. S2 TC는 쓰기 UI마다 토큰 있음(TC-CH-031) ↔ 없음(TC-CH-003·021·022·023) 쌍과 전환(051·052)을 더한다. S3(캐릭터 버튼·speak·재작성)·S4(장기기억)는 「후속 이월」.
 - **S2 공통 전제(추가 — S1 전제는 아래 그대로 유지)**
@@ -64,28 +64,28 @@
 - Then ⓐ `role=status` "아직 대화가 없습니다", `log`·`alert` 없음 ⓑ 언마운트 뒤 `ld:scroll:r1` 없음(한 번도 배치되지 않아 저장 안 함) ⓒ `listMessages` 1회
 - 스펙: `ChatScreen.test.tsx`
 
-### TC-CH-007 · 캐릭터 말풍선 · 종류: 자동 · 요구: R-CHAT-002 · R-LLM-002 · 설계: C §2.2 `character` 행 · §7 CHARACTERS · A 이미지 · C §4 · 토큰: 없음
-- Given 시엘 line 16:40 / 세바스찬 line 09:05
+### TC-CH-007 · 캐릭터 말풍선(세바스찬 왼쪽 · 시엘 오른쪽) · 종류: 자동 · 요구: R-CHAT-002 🔒(CR-001 개정) · R-LLM-002 · 설계: C §2.2 v1.6 `sebastian`·`ciel` 행·클래스 표 · §7 CHARACTERS · A 이미지 · C §4 · 토큰: 없음
+- Given 세바스찬 line 09:05 / 시엘 line 16:40
 - When Bubble을 렌더한다
-- Then ⓐ `character` + `ciel`(또는 `sebastian`) 클래스, `img src="/embed/img/ciel.png" alt=""`(세바스찬은 `/embed/img/sebastian.png`), 이름 `시엘`·`세바스찬`(전체 이름 `시엘 팬텀하이브`·`미카엘리스` 없음), `<time dateTime="2026-10-05T16:40">16:40</time>`, DOM 순서 아바타 → 이름 → 시각 → 본문 ⓑ 표시 전용 — 상태 변경 없음 ⓒ `listMessages` 미호출
+- Then ⓐ 세바스찬 루트 배치 클래스 = 정확히 `character` + `sebastian`(왼쪽), 시엘 = 정확히 `character` + `ciel`(오른쪽). 아바타 `img src="/embed/img/sebastian.png"`·`"/embed/img/ciel.png"`, `alt=""`. 이름 `세바스찬`·`시엘`(전체 이름 `미카엘리스`·`시엘 팬텀하이브` 없음). `<time dateTime="2026-10-05T09:05">09:05</time>`·`16:40`. DOM 순서는 둘 다 아바타 → 이름 → 시각 → 본문(시엘은 화면만 거울) ⓑ 표시 전용 — 상태 변경 없음 ⓒ `listMessages` 미호출
 - 스펙: `ui/src/chat/test/Bubble.test.tsx`
 
-### TC-CH-008 · 유저 말풍선 · 종류: 자동 · 요구: R-CHAT-002 · 설계: C §2.2 `user` 행 · §3.2 비고(일반 텍스트) · §8.1 `unknownAuthor` · 토큰: 없음
+### TC-CH-008 · 유저 말풍선(가운데 말풍선) · 종류: 자동 · 요구: R-CHAT-002 🔒(CR-001 개정) · 설계: C §2.2 v1.6 `user` 행 · §3.2 비고(일반 텍스트) · §8.1 `unknownAuthor` · 토큰: 없음
 - Given 유저 line(미샤 16:42) / `authorName=null` / 본문 `<b>굵게</b>`
 - When Bubble을 렌더한다
-- Then ⓐ `user` 클래스(`character` 아님), 아바타 없음, DOM 순서 작성자명 → 시각(16:42) → 본문. null이면 `이름 없음`. 본문 `<b>`가 요소로 해석되지 않고 글자 그대로 ⓑ 상태 변경 없음 ⓒ `listMessages` 미호출
+- Then ⓐ 배치 클래스 = 정확히 `user`(가운데 말풍선, 캐릭터 키 없음), 아바타 없음, `[지시]` 없음, DOM 순서 작성자명 → 시각(16:42) → 본문. null이면 `이름 없음`. 본문 `<b>`가 요소로 해석되지 않고 글자 그대로 ⓑ 상태 변경 없음 ⓒ `listMessages` 미호출
 - 스펙: `Bubble.test.tsx`
 
-### TC-CH-009 · OOC 말풍선 · 종류: 자동 · 요구: R-CHAT-002 · 설계: C §2.2 `ooc` 행 · §8.1 `oocPrefix`·`oocDecor` · A 장식 · 토큰: 없음
-- Given 유저 ooc `둘이 체스를 둔다`(미샤 16:43)
+### TC-CH-009 · OOC(가운데 한 줄) · 유저와 구분 · 종류: 자동 · 요구: R-CHAT-002 🔒(CR-001 개정) · 설계: C §2.2 v1.6 `ooc` 행·유저/OOC 구분 문단 · §8.1 `oocPrefix`·`oocDecor` · A 장식 · 토큰: 없음
+- Given 유저 ooc `둘이 체스를 둔다`(미샤 16:43) / 같은 작성자·같은 본문의 유저 line과 ooc 한 쌍
 - When Bubble을 렌더한다
-- Then ⓐ `ooc` 클래스, 텍스트에 `[지시]`가 본문보다 앞, `—` 장식 2개가 `aria-hidden="true"`, 작성자명 `미샤` 없음, 아바타 없음, 시각 `16:43` ⓑ 상태 변경 없음 ⓒ `listMessages` 미호출
+- Then ⓐ 배치 클래스 = 정확히 `ooc`, 텍스트에 `[지시]`가 본문보다 앞, `—` 장식 2개 `aria-hidden="true"`, 작성자명 `미샤` 없음, 아바타 없음, 시각 `16:43`. 쌍 비교: 유저는 `user`(`ooc` 아님)·작성자명 있음·접두·장식 0개, OOC는 `ooc`(`user` 아님)·작성자명 없음·`[지시]`·장식 2개(배경 유무·글자 크기는 수동 MC-CH-02) ⓑ 상태 변경 없음 ⓒ `listMessages` 미호출
 - 스펙: `Bubble.test.tsx`
 
-### TC-CH-010 · 변형 판정 · 종류: 자동 · 요구: R-CHAT-002 · 설계: F-CH-15 `bubbleVariantOf` · C §2.2 판정 순서 · 토큰: 무관
+### TC-CH-010 · 변형 판정 · 종류: 자동 · 요구: R-CHAT-002 🔒(CR-001 개정) · 설계: F-CH-15 `bubbleVariantOf` v1.6 · C §2.2 판정 순서 · 토큰: 무관
 - Given speaker × kind 6조합, 그리고 시엘 ooc 메시지
 - When `bubbleVariantOf`를 부르고 Bubble을 렌더한다
-- Then ⓐ 시엘 ooc 렌더는 `ooc` 클래스, 아바타·`시엘` 이름 없음 ⓑ user/line → `user`, */ooc → `ooc`, ciel·sebastian/line → `character` ⓒ api 호출 없음(순수 함수)
+- Then ⓐ 시엘 ooc 렌더는 배치 클래스 정확히 `ooc`, 아바타·`시엘` 이름 없음 ⓑ user/line → `user`, */ooc → `ooc`, ciel/line → `ciel`, sebastian/line → `sebastian` ⓒ api 호출 없음(순수 함수)
 - 스펙: `Bubble.test.tsx`
 
 ### TC-CH-011 · 이전 페이지 요청 · 종류: 자동 · 요구: R-CHAT-003 · R-MSG-001 · 설계: §6.2 · F-CH-05 · F `nextBefore` · C §2.1·§2.3 · C §3 첫 배치 행 · §8.1 `olderLoading`·`historyAriaLabel` · 토큰: 없음
@@ -194,7 +194,7 @@
 ### TC-CH-028 · 390×565 스크린샷(수동) · 종류: 수동 · 요구: R-CHAT-013 · R-CHAT-002 · 설계: §2.1 · §2.3 · C §4 · A 대비·포커스 링·모션 · 토큰: 없음
 - Given 개발 서버, 뷰포트 390×565, 시드 방(캐릭터 2·유저·OOC·긴 단어 포함, 30건 초과)
 - When 첫 화면·이전 페이지 로드 중·빈 방·오류를 스크린샷으로 남기고 실제로 스크롤한다
-- Then ⓐ 가로 스크롤 없음, A 44·D 28, 화자 정렬(캐릭터 왼쪽·유저 오른쪽·OOC 중앙)·색·아바타 28px, 읽던 자리 유지 체감 ⓑ 해당 없음(시각 확인) ⓒ 해당 없음 — 수동 확인표 `MC-CH-01~08`
+- Then ⓐ 가로 스크롤 없음, A 44·D 28, 화자 정렬(세바스찬 왼쪽·시엘 오른쪽·유저 가운데 말풍선·OOC 가운데 한 줄 — CR-001, 설계 v1.6)·색·아바타 28px, 읽던 자리 유지 체감 ⓑ 해당 없음(시각 확인) ⓒ 해당 없음 — 수동 확인표 `MC-CH-01~08`
 - 스펙: `ui/src/chat/test/manual-checklist.md`
 
 ### TC-CH-029 · 늦은 응답 무시 · 종류: 자동 · 요구: R-CHAT-003 · 설계: F §3 `isActiveRef` · F-CH-03·05 · §6.4 늦은 응답 행 · 토큰: 없음
@@ -416,14 +416,14 @@
 - 스펙: `RoomMenu.test.tsx`
 
 ### TC-CH-065 · (S2) 이름 변경 후 목록(App 통합) · 종류: 자동 · 요구: R-CHAT-001 · R-ROOM-003 · 설계: F-CH-26 · rooms F-RM-13 · tc.md v1.5 · 토큰: 있음
-- Given `initToken`, `listRooms` 1회째 `[r1]` · 2회째 `[{…r1, title: '새 이름'}]`, `renameRoom` → `ok({…r1, title: '새 이름'})`
+- Given r1 = `RoomMenu.test.tsx` 지역 픽스처 `티타임`(updatedAt **10.05**. S1 공통 픽스처의 10.07과 다르다 — CF-04). `initToken`, `listRooms` 1회째 `[r1]` · 2회째 `[{…r1, title: '새 이름'}]`, `renameRoom` → `ok({…r1, title: '새 이름'})`
 - When 티타임 진입 → 이름 변경 `새 이름` 저장 → ‹ 뒤로
 - Then ⓐ 목록 행 이름이 `새 이름, 마지막 갱신 10.05`(두 번째 응답 그대로) ⓑ `ld:lastRoomId` 없음 ⓒ `renameRoom` 1회, `listRooms` 총 2회(화면이 목록을 직접 고치지 않음)
 - 스펙: `RoomMenu.test.tsx`
 
 ## TC-FLOW
 
-S1·S2 행. 표기: `A → B`는 **순차 인계**(A의 결과 상태가 B의 Given). `분기:`는 같은 지점에서 갈라지는 **대안·독립 확인**(서로 상태를 넘기지 않는다).
+S1·S2 행. **ⓒ 호출 횟수는 단계 증분으로 읽는다**: 체인 안에서 각 Step의 ⓒ 횟수는 그 Step에서 새로 생긴 호출 수이고 앞 Step 호출에 더해진다(CF-02). 표기: `A → B`는 **순차 인계**(A의 결과 상태가 B의 Given). `분기:`는 같은 지점에서 갈라지는 **대안·독립 확인**(서로 상태를 넘기지 않는다).
 
 ### TC-FLOW-CH-01 · U-CH-01 어느 방인지 확인 · Steps: TC-RM-012(b) → TC-CH-001 → TC-CH-003 → TC-CH-027 → TC-CH-002
 - 목록에서 방 선택(→ ChatScreen 마운트, 방 = RoomSummary) → 제목·생성일(→ 말풍선 표시) → ⋯ 없음(→ 같은 화면) → 레이블·포커스 순서(→ 같은 화면) → ‹ 뒤로(→ 목록·기록 삭제)
@@ -443,11 +443,11 @@ S1·S2 행. 표기: `A → B`는 **순차 인계**(A의 결과 상태가 B의 Gi
 ### TC-FLOW-CH-06 · U-CH-06 위를 읽는 중 새 메시지(상태 모델) · Steps: 분기: TC-CH-016 | TC-CH-018 | TC-CH-019 | TC-CH-020
 - S1에는 새 메시지 발생 경로가 없어 층별로 독립 확인한다: 리듀서(unseen 가산·초기화) | 훅 뒤붙임(위쪽이면 스크롤 유지) | 배지 표시·클릭 | 맨 아래 도달 해제. 순차 체인은 S2·S3에서 발생 경로와 함께 만든다
 
-### TC-FLOW-CH-07 · U-CH-07 등급 통과 회원(토큰 있음) S1 기간 · Steps: TC-RM-012(c) → TC-CH-004 → TC-CH-021 → TC-CH-023
-- `?t=` 주소로 열어 방 진입(→ READ_ONLY_VIEWER chat) → 같은 히스토리(→ 말풍선 표시) → 하단 바 없음 → 열람 안내
+### TC-FLOW-CH-07 · U-CH-07 등급 통과 회원(토큰 있음) S1 기간 · Steps: TC-RM-012(c) → TC-CH-004 → TC-CH-021 → TC-CH-023 · **S1 기간 한정 — S2에서 TC-FLOW-CH-13으로 대체**(CF-01)
+- URL에만 `?t=`가 있고 `initToken`을 부르지 않은 App으로 방 진입(→ READ_ONLY_VIEWER chat) → 같은 히스토리(→ 말풍선 표시) → 하단 바 없음 → 열람 안내. S2에서는 "initToken 미호출이면 읽기 전용"이라는 회귀 확인으로만 남는다
 
 ### TC-FLOW-CH-08 · U-CH-08 대사·지시 전송 → 뒤붙임·자동 스크롤(S2) · Steps: TC-RM-027(a) → TC-CH-031 → TC-CH-032 → TC-CH-033 → TC-CH-034 → TC-CH-038 · 분기: TC-CH-035 | TC-CH-036 | TC-CH-037 · 시각: TC-CH-061
-- 토큰으로 App 시작 → 방 진입(→ 하단 바 렌더) → 빈 입력이면 전송 잠김(→ 입력) → `안녕` 전송(→ `appendUser` 1회·AI 호출 없음, 오른쪽 말풍선 `미샤`, 입력 비움) → OOC 켜고 지시 전송(→ 중앙 말풍선, OOC 유지) → 맨 아래면 자동 스크롤, 위를 보는 중이면 배지 → 배지 클릭으로 맨 아래. 분기: Enter·IME | 연타 1회 | 실패 문구(429 포함)
+- 토큰으로 App 시작 → 방 진입(→ 하단 바 렌더) → 빈 입력이면 전송 잠김(→ 입력) → `안녕` 전송(→ `appendUser` 1회·AI 호출 없음, 가운데 유저 말풍선 `미샤`(CR-001), 입력 비움) → OOC 켜고 지시 전송(→ 중앙 말풍선, OOC 유지) → 맨 아래면 자동 스크롤, 위를 보는 중이면 배지 → 배지 클릭으로 맨 아래. 분기: Enter·IME | 연타 1회 | 실패 문구(429 포함)
 
 ### TC-FLOW-CH-09 · U-CH-10 말풍선 수정·삭제(S2) · Steps: TC-CH-039 → TC-CH-040 → TC-CH-042 → TC-CH-043 → TC-CH-039 → TC-CH-045 · 분기: TC-CH-041 | TC-CH-044 | TC-CH-046 | TC-CH-054
 - 롱프레스·우클릭·Shift+F10으로 메뉴(→ 머리·항목) → 수정(→ 인라인 편집기) → 저장(→ 본문 교체, 히스토리 포커스) → 다른 말풍선 메뉴 → 삭제 확인(→ 말풍선 제거). 분기: 닫기·포커스 복귀 | 수정 실패·취소 | 삭제 실패·이미 없음·빈 결과 재로드 | 쓰기 대기 중 메뉴 막힘
@@ -455,7 +455,7 @@ S1·S2 행. 표기: `A → B`는 **순차 인계**(A의 결과 상태가 B의 Gi
 ### TC-FLOW-CH-10 · U-CH-11 이름 변경·방 삭제 → 목록 복귀(S2) · Steps: TC-CH-047 → TC-CH-048 → TC-CH-065 · TC-CH-047 → TC-CH-050 → TC-CH-064 · 분기: TC-CH-049 | TC-CH-054(c)
 - ⋯ 방 메뉴(→ 항목) → 이름 변경 성공(→ 상단 제목 갱신, 재마운트 없음) → ‹ 뒤로(→ 목록 재요청, 새 이름 행). 또는 ⋯ → 방 삭제 확인(→ 기록 삭제, `onBack`) → App 목록 재요청(→ 지운 방 없음). 분기: 이름 변경 실패는 시트 안 문구 | 이름 변경 대기 중 ⋯ 잠김
 
-### TC-FLOW-CH-11 · U-CH-12 쓰기 거절 → 안내·읽기 전용 전환(S2) · Steps: TC-CH-031 → TC-CH-051(a) → TC-CH-003 → TC-CH-021 → TC-CH-022 → TC-CH-023 · 분기: TC-CH-037(429) | TC-CH-049(LEVEL_TOO_LOW) | TC-CH-052 | TC-CH-051(b) | TC-RM-024
+### TC-FLOW-CH-11 · U-CH-12 쓰기 거절 → 안내·읽기 전용 전환(S2) · Steps: TC-CH-031 → TC-CH-051(a)(체인 끝 = ‹ 뒤로 → rooms에도 「새 방 만들기」 없음) · 전환 후 부재 분기: TC-CH-003 | TC-CH-021 | TC-CH-022 | TC-CH-023(CF-03, 같은 부재 상태를 독립 확인) · 그 밖 분기: TC-CH-037(429) | TC-CH-049(LEVEL_TOO_LOW) | TC-CH-052 | TC-CH-051(b) | TC-RM-024
 - 쓰기 판(→ 하단 바) → 전송이 인증 실패(→ 토큰 비움, 같은 화면 쓰기 UI 제거, 안내 토스트 1회, ‹ 포커스) → 이후 화면은 읽기 전용 판과 같다(⋯ 없음 → 하단 바 없음 → 메뉴 없음 → 열람 안내). 분기: 429는 안내만·전환 없음 | 이름 변경 중 인증 실패 | 편집기·확인 시트가 열린 채 전환 | 두 번째 인증 실패는 다시 알리지 않음 | rooms에서 생성 중 전환
 
 ### TC-FLOW-CH-12 · U-CH-06 위를 읽는 중 내 발화(S2 순차 체인) · Steps: TC-CH-033 → TC-CH-038(b) → TC-CH-016(T9·T11)
@@ -570,10 +570,8 @@ S1·S2 행. 표기: `A → B`는 **순차 인계**(A의 결과 상태가 B의 Gi
 | U-CH-03 | TC-FLOW-CH-03 | S1 |
 | U-CH-04 | TC-FLOW-CH-04 | S1 |
 | U-CH-05 | TC-FLOW-CH-05 | S1 |
-| U-CH-06(토큰 있음, 상태 모델) | TC-FLOW-CH-06 | S1 상태·훅 / 발생 경로 S2·S3 |
-| U-CH-07(토큰 있음) | TC-FLOW-CH-07 | S1 |
-| U-CH-06(S2 발생 경로) | TC-FLOW-CH-12 | S2 |
-| U-CH-07(S2 쓰기 판) | TC-FLOW-CH-13 | S2 |
+| U-CH-06(토큰 있음) | TC-FLOW-CH-12(S2 순차 체인) · TC-FLOW-CH-06(S1 상태·훅 층별) | S1 · S2(speak 경로 S3) |
+| U-CH-07(토큰 있음) | TC-FLOW-CH-13(S2) · TC-FLOW-CH-07(S1 기간 한정) | S1 · S2 |
 | U-CH-08(전송) | TC-FLOW-CH-08 | S2 |
 | U-CH-09(캐릭터 한 턴) | — 후속 이월 | S3 |
 | U-CH-10(수정·삭제) | TC-FLOW-CH-09 | S2(재작성 S3) |
@@ -667,8 +665,11 @@ S1·S2 행. 표기: `A → B`는 **순차 인계**(A의 결과 상태가 B의 Gi
 |---|---|---|---|---|---|---|---|
 | Q-01 | 2026-10-05 | —(메인 세션 결정 TK-05, S1 불변 예외 승인) | S2에서 `ChatScreen` props `onAuthFailure`·`onRoomRenamed`가 필수가 되어 S1 스펙 렌더 도우미 2곳에 빈 콜백 `vi.fn()`을 더함. S1 단언은 바꾸지 않음 | `ui/src/chat/test/ChatScreen.test.tsx` · `ui/src/chat/test/ChatScroll.test.tsx`(renderChat) | TC-CH-001 ~ 006 · 011 ~ 014 · 021 ~ 027 · 029 · 030(같은 렌더 도우미) | 없음(단언 불변) | 전환됨(위 TC 스펙 렌더 도우미) |
 | Q-02 | 2026-10-05 | —(메인 세션 결정, S1 불변 예외 승인) | 상태 모델 S2 확장으로 TC-CH-015 초기값 단언을 9필드로(`writing`·`editingId` = null) | `ui/src/state/chat.test.ts` · 이 문서 TC-CH-015 Then | TC-CH-015 | 없음(TC-CH-053이 S2 전이 담당) | 전환됨(TC-CH-015) |
+| Q-03 | 2026-10-05 | CR-001 | R-CHAT-002 개정(🔒 사용자·지인): 세바스찬 왼쪽 · 시엘 오른쪽 · 유저 가운데 말풍선 · OOC 가운데 한 줄. `BubbleVariant`·루트 클래스 키 변경(설계 v1.6 C §2.2) | `ui/src/chat/test/Bubble.test.tsx` · 이 문서 TC-CH-007~010·028 · `manual-checklist.md` MC-CH-02 | TC-CH-007 · 008 · 009 · 010 · 028 | 없음(기존 TC 갱신, 009에 유저·OOC 구분 쌍 단언 추가) | 전환됨(TC-CH-007~010 · 028) |
 
 ### 변경이력 보충 — v0.5 (2026-10-05)
+
+CR-001 반영(Q-03): TC-CH-007~010을 4종 배치로 갱신(S1 TC 변경 예외 승인), TC-CH-028·MC-CH-02 배치 문구 갱신, FLOW-CH-08 "가운데 유저 말풍선". ui-test-conflict-checker 반영: CF-01 TC-FLOW-CH-07 "S1 기간 한정 — FLOW-CH-13으로 대체", 사용자행 U-CH-06·07 중복 행 통합 · CF-02 TC-FLOW 머리에 "ⓒ 호출 횟수는 단계 증분" 규약 · CF-03 FLOW-CH-11 체인을 031 → 051(a)로 줄이고 003~023은 `분기:` · CF-04 TC-CH-065 Given에 지역 픽스처 updatedAt 10.05 명시 · CF-05 TC-CH-051(b) 같은 토스트 요소 단언.
 
 ui-test-checker S2 판정 FAIL 지적 반영: TC-CH-038 내용 높이 mock을 "새 말풍선 커밋 뒤에만 3200"으로(TK-01, Given 갱신) · TC-CH-060 오른쪽 버튼은 `pointerdown(button 2)` 직접 발송, contextmenu 1회는 별도 it(TK-02) · TC-CH-052 (b) ‹ 포커스 단언 추가(TK-07) · S1 렌더 도우미 빈 콜백(Q-01, TK-05) · TC-CH-015 초기값 9필드(Q-02) · danger 클래스 키 확정(TK-09) · 확인표 v0.2(TK-08). 근거: ui-test-checker TK-01~09 · 메인 세션 결정 TK-05·TK-09
 

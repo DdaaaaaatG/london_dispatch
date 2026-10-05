@@ -163,12 +163,16 @@ describe('인증 실패 전환 — App 통합 (R-CHAT-011 · R-CHAT-008 · R-CHA
 
     await user.type(input, '안녕')
     await user.click(screen.getByRole('button', { name: '전송' }))
-    await screen.findByRole('alert')
+    // CF-05: 첫 토스트 요소를 잡아 둔다. 재표시면 key(toast.id)가 바뀌어 새 요소가 된다
+    const firstAlert = await screen.findByRole('alert')
+    const firstText = firstAlert.textContent
     await user.click(screen.getByRole('button', { name: '전송' }))
     await vi.waitFor(() => expect(mockedAppend).toHaveBeenCalledTimes(2))
     await flushPending()
     expect(onAuthFailure).toHaveBeenCalledTimes(1)
     expect(screen.getAllByRole('alert')).toHaveLength(1)
+    expect(screen.getByRole('alert')).toBe(firstAlert)
+    expect(firstAlert.textContent).toBe(firstText)
   })
 })
 

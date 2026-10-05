@@ -239,7 +239,7 @@ describe('Composer 전송 (R-CHAT-004 · R-CHAT-006 · R-AUTH-004)', () => {
     expect(mockedAppend).not.toHaveBeenCalled()
   })
 
-  it('TC-CH-033: 안녕 전송 → appendUser(r1,{안녕,false}) 1회, 오른쪽 말풍선 미샤, 입력 비움·포커스, AI 호출 없음', async () => {
+  it('TC-CH-033: 안녕 전송 → appendUser(r1,{안녕,false}) 1회, 가운데 유저 말풍선(user) 미샤, 입력 비움·포커스, AI 호출 없음', async () => {
     mockedAppend.mockResolvedValueOnce(ok(SENT))
     renderChat()
     await screen.findByRole('log')

@@ -90,8 +90,8 @@
 - Then ⓐ 모든 상태에서 `button { name: /새 방/ }`·`textbox`·"새 방" 텍스트가 DOM에 없음. `<header>` 안 버튼 0개. 화면 버튼은 행 2개뿐(빈 목록이면 0개) ⓑ `READ_ONLY_VIEWER.canWrite === false`, 저장소 키 0개 ⓒ `listRooms` 1회(쓰기 래퍼 없음)
 - 스펙: `RoomsScreen.test.tsx`
 
-### TC-RM-012 · App 흐름 · 종류: 자동 · 요구: R-ROOMS-001 · R-ROOMS-004 · R-NFR-004 · 설계: F-RM-01~04 · §6.1 · §6.2 · §11.2 D-1·D-2 · C §1.8 · 토큰: 없음 / 있음(S1은 읽지 않음)
-- Given (a) `ld:lastRoomId='r1'` (b) 저장 없음 (c) URL `?t=TESTTOKEN.SIGNATURE`, 저장 없음. `listRooms`·`listMessages`는 항상 성공
+### TC-RM-012 · App 흐름 · 종류: 자동 · 요구: R-ROOMS-001 · R-ROOMS-004 · R-NFR-004 · 설계: F-RM-01~04 · §6.1 · §6.2 · §11.2 D-1·D-2 · C §1.8 · C §1.10 · 토큰: 없음((c)는 URL에만 `?t=`, `initToken` 미호출)
+- Given (a) `ld:lastRoomId='r1'` (b) 저장 없음 (c) URL에만 `?t=TESTTOKEN.SIGNATURE`가 있고 `initToken`은 부르지 않는다. App은 URL을 직접 읽지 않는다(토큰을 읽는 곳은 `main.tsx`의 `initToken` 하나, C §1.10 — v0.5 CF-01 재정의). 저장 없음. `listRooms`·`listMessages`는 항상 성공
 - When (a) App 마운트 → 자동 진입 → ‹ 뒤로 → App 언마운트 후 재마운트 (b) App 마운트 → `체스 대결` 클릭 (c) App 마운트 → `티타임` 클릭 → ‹ 뒤로
 - Then ⓐ (a) `main "대화: 티타임"` → 뒤로 후 `main "방 목록"`·행 표시·h1 `ROOMS` 포커스 → 재마운트 시 chat 없이 목록 (b) `main "대화: 체스 대결"` (c) chat에 `role=note` `열람 전용 - 대화 참여는 등급 회원만`, `textbox` 없음, 목록에 새 방 버튼 없음 ⓑ (a) 진입 후 `ld:lastRoomId='r1'` → 뒤로 후 `null` (b) `'r2'` (c) 저장소 키는 `ld:lastRoomId`·`ld:scroll:*`만, 값에 토큰 문자열 없음 ⓒ (a) `listRooms` 1→2→3회, `listMessages`는 `('r1')` 1회뿐 (b) `listRooms` 1회, `listMessages('r2')` 1회 (c) `listRooms` 2회, `listMessages('r1')`
 - 스펙: `ui/src/rooms/test/App.test.tsx`
@@ -219,7 +219,7 @@
 
 ## TC-FLOW
 
-S1·S2 행. 표기: `A → B`는 **순차 인계**(A의 결과 상태가 B의 Given). `분기:`는 같은 지점에서 갈라지는 **대안·독립 확인**(서로 상태를 넘기지 않는다).
+S1·S2 행. **ⓒ 호출 횟수는 단계 증분으로 읽는다**: 체인 안에서 각 Step의 ⓒ 횟수는 그 Step에서 새로 생긴 호출 수이고 앞 Step 호출에 더해진다(CF-02). 표기: `A → B`는 **순차 인계**(A의 결과 상태가 B의 Given). `분기:`는 같은 지점에서 갈라지는 **대안·독립 확인**(서로 상태를 넘기지 않는다).
 
 ### TC-FLOW-RM-01 · U-RM-01 처음 열어 방 목록 보기(읽기 전용) · Steps: TC-RM-004 → TC-RM-001 → TC-RM-017 → TC-RM-015
 - 로딩 표시(→ 목록 응답) → 서버가 준 순서 그대로 제목·날짜 렌더, 재정렬 없음(→ 목록 표시, 포커스 h1) → 같은 목록의 접근성 이름·Tab 순서 → 같은 화면을 390×565로 시각 확인
@@ -236,7 +236,7 @@ S1·S2 행. 표기: `A → B`는 **순차 인계**(A의 결과 상태가 B의 Gi
 ### TC-FLOW-RM-05 · U-RM-05 쓰기 UI 부재·토큰 비저장 · Steps: 분기: TC-RM-011 | TC-RM-010(키 단언) | TC-RM-012(c)
 - 독립 확인 3건: 새 방 버튼·입력 부재(버튼은 행뿐) | 저장 키가 허용 2종뿐 | `?t=`가 있어도 저장소에 토큰 없음
 
-### TC-FLOW-RM-06 · U-RM-06 등급 통과 회원(토큰 있음) S1 기간 · Steps: TC-RM-012(c) → TC-RM-011 → TC-RM-001 · 분기: TC-RM-008
+### TC-FLOW-RM-06 · U-RM-06 등급 통과 회원(토큰 있음) S1 기간 · Steps: TC-RM-012(c) → TC-RM-011 → TC-RM-001 · 분기: TC-RM-008 · **S1 기간 한정 — S2에서 TC-FLOW-RM-07로 대체**(CF-01. S2에서는 "initToken 미호출이면 읽기 전용" 회귀 확인으로만 남는다)
 - `?t=` 주소로 열어 방 진입 후 뒤로(→ 목록, READ_ONLY_VIEWER) → 새 방 부재(→ 같은 목록) → 목록 렌더 확인. 분기(독립 Given): 저장 id가 있으면 자동 진입이 비회원과 같다
 
 ### TC-FLOW-RM-07 · U-RM-07 새 방 → 그 방 진입(토큰 있음, S2) · Steps: TC-RM-027(a) → TC-RM-018 → TC-RM-019 → TC-RM-020 → TC-RM-021(a) → TC-RM-021(b) · 분기: TC-RM-022 | TC-RM-025 | TC-RM-026 · 시각: TC-RM-031
@@ -326,7 +326,7 @@ S1·S2 행. 표기: `A → B`는 **순차 인계**(A의 결과 상태가 B의 Gi
 | U-RM-03 | TC-FLOW-RM-03 | S1 |
 | U-RM-04 | TC-FLOW-RM-04 | S1 |
 | U-RM-05 | TC-FLOW-RM-05 | S1 |
-| U-RM-06(토큰 있음) | TC-FLOW-RM-06 | S1 |
+| U-RM-06(토큰 있음) | TC-FLOW-RM-07(S2) · TC-FLOW-RM-06(S1 기간 한정) | S1 · S2 |
 | U-RM-07(토큰 있음, 새 방) | TC-FLOW-RM-07 | S2 |
 | U-RM-08(토큰 있음, 생성 거절) | TC-FLOW-RM-08 | S2 |
 | U-RM-09(토큰 있음 → 전환) | TC-FLOW-RM-09 | S2 |
@@ -399,7 +399,7 @@ S1·S2 행. 표기: `A → B`는 **순차 인계**(A의 결과 상태가 B의 Gi
 
 ### 변경이력 보충 — v0.5 (2026-10-05)
 
-ui-test-checker S2 판정 FAIL 지적 반영: TC-RM-023 재제출 2회 단언 추가(TK-06) · TC-RM-026 (a)(b)(c) 입력값 유지 단언 보강(TK-07) · TC-RM-032 `dismissToast`·TextInput `isDisabled` 단언 삭제(TK-03·04, 설계 v1.5) · 기준 설계 v1.5 · S1 렌더 도우미 빈 콜백(Q-01, TK-05) · 공용 부품 danger 클래스 키 `danger` 확정(TK-09). 확인표 v0.2(TK-08). 근거: ui-test-checker TK-01~09 · 메인 세션 결정 TK-05·TK-09
+ui-test-checker S2 판정 FAIL 지적 반영: TC-RM-023 재제출 2회 단언 추가(TK-06) · TC-RM-026 (a)(b)(c) 입력값 유지 단언 보강(TK-07) · TC-RM-032 `dismissToast`·TextInput `isDisabled` 단언 삭제(TK-03·04, 설계 v1.5) · 기준 설계 v1.5 · S1 렌더 도우미 빈 콜백(Q-01, TK-05) · 공용 부품 danger 클래스 키 `danger` 확정(TK-09). 확인표 v0.2(TK-08). 근거: ui-test-checker TK-01~09 · 메인 세션 결정 TK-05·TK-09. ui-test-conflict-checker 반영: CF-01 TC-RM-012(c) Given을 "URL에만 `?t=`, `initToken` 미호출, App은 URL을 직접 읽지 않는다"로 재정의(토큰 비저장 단언 유지, `App.test.tsx` 제목 맞춤) · TC-FLOW-RM-06 "S1 기간 한정 — FLOW-RM-07로 대체", U-RM-06 행 정리 · CF-02 TC-FLOW 머리에 "ⓒ 호출 횟수는 단계 증분" 규약(FLOW-RM-08의 023 → 021(a) 연결 포함)
 
 ## 변경이력
 

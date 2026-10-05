@@ -129,7 +129,7 @@ describe('App 화면 분기 (R-ROOMS-001 · R-ROOMS-004)', () => {
     expect(mockedListMessages.mock.calls[0]).toEqual(['r2'])
   })
 
-  it('TC-RM-012: ?t= 가 있어도(S1 토큰 있음 회원) 읽기 전용 화면이고 토큰이 저장소에 남지 않는다', async () => {
+  it('TC-RM-012: (c) URL 에만 ?t= 가 있고 initToken 미호출 → App 은 URL 을 직접 읽지 않아 읽기 전용, 토큰이 저장소에 남지 않는다', async () => {
     window.history.replaceState(null, '', `/embed/?t=${TOKEN_LIKE}`)
     const user = userEvent.setup()
     render(<App />)
