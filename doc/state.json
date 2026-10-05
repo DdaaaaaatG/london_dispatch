@@ -39,12 +39,12 @@
       "layout": "done",
       "server": "done",
       "contract": "done",
-      "ui": "revising",
-      "ui-check": "pending"
+      "ui": "done",
+      "ui-check": "PASS (M2 L5, 반영 중)"
     }
   },
   "dependencies_approved": [],
-  "next": "ui-designer 결정 2건 반영 → ui-design-checker → 승인 ②",
+  "next": "승인 ②(S1 설계 묶음 + 초기 의존성) 대기",
   "blockers": [],
   "estimate_min": null,
   "actual_min": null,
