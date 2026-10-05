@@ -97,13 +97,24 @@ describe('parseEnv', () => {
   it('SRV-T-007 parseEnv_validates_frame_ancestors', () => {
     const ok = parseEnv({
       ...base,
-      ALLOWED_FRAME_ANCESTORS: 'http://london-gossip.my https://london-gossip.my http://london-gossip.my',
+      ALLOWED_FRAME_ANCESTORS:
+        'http://london-gossip.my https://london-gossip.my http://london-gossip.my',
     })
-    expect(ok.allowedFrameAncestors).toEqual(['http://london-gossip.my', 'https://london-gossip.my'])
-    for (const bad of ['london-gossip.my', 'https://a.my; script-src *', "'self'", 'https://a.my/path']) {
+    expect(ok.allowedFrameAncestors).toEqual([
+      'http://london-gossip.my',
+      'https://london-gossip.my',
+    ])
+    for (const bad of [
+      'london-gossip.my',
+      'https://a.my; script-src *',
+      "'self'",
+      'https://a.my/path',
+    ]) {
       expect(keysOf({ ...base, ALLOWED_FRAME_ANCESTORS: bad })).toEqual(['ALLOWED_FRAME_ANCESTORS'])
     }
-    expect(parseEnv({ ...base, ALLOWED_FRAME_ANCESTORS: '   ' }).allowedFrameAncestors).toHaveLength(2)
+    expect(
+      parseEnv({ ...base, ALLOWED_FRAME_ANCESTORS: '   ' }).allowedFrameAncestors,
+    ).toHaveLength(2)
   })
 
   it('SRV-T-008 parseEnv_allows_missing_llm_api_key', () => {
@@ -144,16 +155,20 @@ describe('requireLlmApiKey', () => {
 
 describe('키 대조', () => {
   const activeKeys = (text: string): string[] =>
-    text.split('\n').flatMap((l) => (/^[A-Z][A-Z0-9_]*\s*=/.test(l) ? [l.split('=')[0]!.trim()] : []))
+    text.split('\n').flatMap(l => (/^[A-Z][A-Z0-9_]*\s*=/.test(l) ? [l.split('=')[0]!.trim()] : []))
   const commentKeys = (text: string): string[] =>
-    text.split('\n').flatMap((l) => (/^#\s+[A-Z][A-Z0-9_]*=/.test(l) ? [l.replace(/^#\s+/, '').split('=')[0]!] : []))
+    text
+      .split('\n')
+      .flatMap(l =>
+        /^#\s+[A-Z][A-Z0-9_]*=/.test(l) ? [l.replace(/^#\s+/, '').split('=')[0]!] : [],
+      )
 
   it('SRV-T-011 env_keys_match_wrangler_vars_and_dev_vars_example', () => {
     const secrets = ['TOKEN_SECRET', 'LLM_API_KEY']
-    const settingKeys = ENV_KEYS.filter((k) => k !== 'DB' && k !== 'ASSETS')
+    const settingKeys = ENV_KEYS.filter(k => k !== 'DB' && k !== 'ASSETS')
     const varsSection = wranglerToml.split('[vars]')[1]!.split(/\n\[/)[0]!
     const varsKeys = activeKeys(varsSection)
-    const nonSecret = settingKeys.filter((k) => !secrets.includes(k)).sort()
+    const nonSecret = settingKeys.filter(k => !secrets.includes(k)).sort()
     expect([...varsKeys].sort()).toEqual(nonSecret)
     expect(activeKeys(devVarsExample).sort()).toEqual([...secrets].sort())
     const commented = [...new Set(commentKeys(devVarsExample))].sort()

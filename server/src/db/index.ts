@@ -24,5 +24,5 @@ export type Db = {
 export const createDb = (binding: D1Database): Db => ({
   rooms: createRoomsRepo(binding),
   messages: createMessagesRepo(binding),
-  batch: (stmts) => binding.batch([...stmts]),
+  batch: stmts => binding.batch([...stmts]),
 })

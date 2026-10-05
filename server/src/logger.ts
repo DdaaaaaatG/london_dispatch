@@ -30,7 +30,7 @@ const FORBIDDEN_KEYS: ReadonlySet<string> = new Set(
     'text',
     'summary',
     'query',
-  ].map((k) => k.toLowerCase()),
+  ].map(k => k.toLowerCase()),
 )
 
 /** 프로젝트에서 console 이 허용되는 유일한 지점 */

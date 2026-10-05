@@ -24,8 +24,10 @@ const base: Message = {
   createdAt: at(16, 40),
 }
 const make = (over: Partial<Message>): Message => ({ ...base, ...over })
-const hasClass = (root: HTMLElement, name: string): boolean => root.querySelector(`[class~="${name}"]`) !== null
-const follows = (a: Node, b: Node): boolean => (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0
+const hasClass = (root: HTMLElement, name: string): boolean =>
+  root.querySelector(`[class~="${name}"]`) !== null
+const follows = (a: Node, b: Node): boolean =>
+  (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0
 
 beforeEach(() => {
   vi.mocked(listMessages).mockReset()
@@ -59,7 +61,9 @@ describe('Bubble 캐릭터 (R-CHAT-002 · R-LLM-002)', () => {
   })
 
   it('TC-CH-007: 세바스찬 — sebastian 클래스, 아바타 /embed/img/sebastian.png, 이름 "세바스찬"', () => {
-    const { container } = render(<Bubble message={make({ speaker: 'sebastian', text: '예, 도련님.', createdAt: at(9, 5) })} />)
+    const { container } = render(
+      <Bubble message={make({ speaker: 'sebastian', text: '예, 도련님.', createdAt: at(9, 5) })} />,
+    )
 
     expect(hasClass(container, 'character')).toBe(true)
     expect(hasClass(container, 'sebastian')).toBe(true)
@@ -75,7 +79,14 @@ describe('Bubble 캐릭터 (R-CHAT-002 · R-LLM-002)', () => {
 describe('Bubble 유저 (R-CHAT-002)', () => {
   it('TC-CH-008: 오른쪽(user) 클래스, 작성자명 → 시각 → 본문, 아바타 없음', () => {
     const { container } = render(
-      <Bubble message={make({ speaker: 'user', text: '나도 한 잔 부탁해요.', authorName: '미샤', createdAt: at(16, 42) })} />,
+      <Bubble
+        message={make({
+          speaker: 'user',
+          text: '나도 한 잔 부탁해요.',
+          authorName: '미샤',
+          createdAt: at(16, 42),
+        })}
+      />,
     )
 
     expect(hasClass(container, 'user')).toBe(true)
@@ -96,7 +107,9 @@ describe('Bubble 유저 (R-CHAT-002)', () => {
   })
 
   it('TC-CH-008: 본문은 일반 텍스트(HTML 해석 안 함)', () => {
-    const { container } = render(<Bubble message={make({ speaker: 'user', authorName: '미샤', text: '<b>굵게</b>' })} />)
+    const { container } = render(
+      <Bubble message={make({ speaker: 'user', authorName: '미샤', text: '<b>굵게</b>' })} />,
+    )
     expect(container.querySelector('b')).toBeNull()
     expect(screen.getByText('<b>굵게</b>')).not.toBeNull()
   })
@@ -105,15 +118,27 @@ describe('Bubble 유저 (R-CHAT-002)', () => {
 describe('Bubble OOC (R-CHAT-002)', () => {
   it('TC-CH-009: 중앙(ooc) 클래스, "[지시] 텍스트", 장식 — 2개 aria-hidden, 작성자명 없음, 시각 있음', () => {
     const { container } = render(
-      <Bubble message={make({ speaker: 'user', kind: 'ooc', text: '둘이 체스를 둔다', authorName: '미샤', createdAt: at(16, 43) })} />,
+      <Bubble
+        message={make({
+          speaker: 'user',
+          kind: 'ooc',
+          text: '둘이 체스를 둔다',
+          authorName: '미샤',
+          createdAt: at(16, 43),
+        })}
+      />,
     )
 
     expect(hasClass(container, 'ooc')).toBe(true)
     expect(hasClass(container, 'user')).toBe(false)
     expect(container.textContent).toContain('[지시]')
     expect(container.textContent).toContain('둘이 체스를 둔다')
-    expect(container.textContent?.indexOf('[지시]')).toBeLessThan(container.textContent?.indexOf('둘이 체스를 둔다') ?? -1)
-    const decor = Array.from(container.querySelectorAll('[aria-hidden="true"]')).filter((el) => el.textContent === '—')
+    expect(container.textContent?.indexOf('[지시]')).toBeLessThan(
+      container.textContent?.indexOf('둘이 체스를 둔다') ?? -1,
+    )
+    const decor = Array.from(container.querySelectorAll('[aria-hidden="true"]')).filter(
+      el => el.textContent === '—',
+    )
     expect(decor).toHaveLength(2)
     expect(screen.queryByText('미샤')).toBeNull()
     expect(container.querySelector('img')).toBeNull()
@@ -122,7 +147,9 @@ describe('Bubble OOC (R-CHAT-002)', () => {
   })
 
   it('TC-CH-010: 캐릭터 speaker 여도 kind=ooc 면 OOC 로 그린다(아바타·캐릭터 이름 없음)', () => {
-    const { container } = render(<Bubble message={make({ speaker: 'ciel', kind: 'ooc', text: '장면 전환' })} />)
+    const { container } = render(
+      <Bubble message={make({ speaker: 'ciel', kind: 'ooc', text: '장면 전환' })} />,
+    )
     expect(hasClass(container, 'ooc')).toBe(true)
     expect(hasClass(container, 'character')).toBe(false)
     expect(container.querySelector('img')).toBeNull()

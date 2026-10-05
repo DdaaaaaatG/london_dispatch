@@ -30,11 +30,15 @@ const readJson = async (res: Response): Promise<unknown> => {
 
 /** 실패 응답 본문을 계약 형식으로 맞춘다. 계약 형식이 아니면 INTERNAL (api.md §3.4) */
 export const toApiError = (body: unknown): ApiError => {
-  const error = (body as { error?: { code?: unknown; message?: unknown } } | null | undefined)?.error
+  const error = (body as { error?: { code?: unknown; message?: unknown } } | null | undefined)
+    ?.error
   const code = error?.code
   if (!isErrorCode(code)) return INTERNAL_ERROR
   const message = error?.message
-  return { code, message: typeof message === 'string' && message !== '' ? message : ERROR_MESSAGES[code] }
+  return {
+    code,
+    message: typeof message === 'string' && message !== '' ? message : ERROR_MESSAGES[code],
+  }
 }
 
 /** 계약 경로로 GET 요청을 보내고 Result 로 정규화한다. S2 에서 method·body 옵션을 추가한다 */

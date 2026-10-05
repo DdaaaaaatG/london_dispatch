@@ -33,7 +33,7 @@ const fakeAssets = (respond: (path: string) => Response = () => new Response('<h
 }
 
 const testRoutes = new Hono<AppEnv>()
-testRoutes.get('/t/ok', (c) => c.json({ ok: true }))
+testRoutes.get('/t/ok', c => c.json({ ok: true }))
 testRoutes.get('/t/conflict', () => {
   throw new AppError('SPEAK_IN_PROGRESS')
 })
@@ -46,16 +46,22 @@ testRoutes.get('/t/boom', () => {
 testRoutes.get('/t/http400', () => {
   throw new HTTPException(400, { message: 'bad json' })
 })
-testRoutes.get('/t/health', (c) => c.json(c.get('services').getHealth()))
+testRoutes.get('/t/health', c => c.json(c.get('services').getHealth()))
 
 const baseEnv = (overrides: Record<string, unknown> = {}): Env =>
-  ({ DB: env.DB, ASSETS: fakeAssets().fetcher, TOKEN_SECRET: 'test-secret', ...overrides }) as unknown as Env
+  ({
+    DB: env.DB,
+    ASSETS: fakeAssets().fetcher,
+    TOKEN_SECRET: 'test-secret',
+    ...overrides,
+  }) as unknown as Env
 
 const call = (
   app: ReturnType<typeof createApp>,
   path: string,
   e: Env = baseEnv(),
-): Promise<Response> => Promise.resolve(app.fetch(new Request(`http://test${path}`), e, createExecutionContext()))
+): Promise<Response> =>
+  Promise.resolve(app.fetch(new Request(`http://test${path}`), e, createExecutionContext()))
 
 const makeApp = () => {
   const log = collector()
@@ -103,18 +109,20 @@ describe('에러 응답', () => {
     const second = makeApp()
     const res2 = await call(second.app, '/t/ok', baseEnv({ LLM_MODEL: 'SENTINEL/x' }))
     expect(res2.status).toBe(500)
-    const logs = second.log.lines.map((l) => l.line).join('\n')
+    const logs = second.log.lines.map(l => l.line).join('\n')
     expect(logs).toContain('LLM_MODEL')
     expect(logs).not.toContain('SENTINEL')
     expect(await res2.text()).not.toContain('LLM_MODEL')
-    expect(log.lines.some((l) => l.level === 'error')).toBe(true)
+    expect(log.lines.some(l => l.level === 'error')).toBe(true)
   })
 
   it('SRV-T-082 onError_maps_AppError_status_and_body', async () => {
     const { app } = makeApp()
     const res = await call(app, '/t/room-missing')
     expect(res.status).toBe(404)
-    expect(await res.json()).toEqual({ error: { code: 'NOT_FOUND', message: '방을 찾을 수 없습니다.' } })
+    expect(await res.json()).toEqual({
+      error: { code: 'NOT_FOUND', message: '방을 찾을 수 없습니다.' },
+    })
   })
 
   it('SRV-T-083 onError_hides_unknown_error_details', async () => {
@@ -125,7 +133,9 @@ describe('에러 응답', () => {
     expect(JSON.parse(body).error.code).toBe('INTERNAL')
     expect(body).not.toContain('SENTINEL_DETAIL')
     expect(body).not.toContain('stack')
-    const entry = log.lines.map((l) => JSON.parse(l.line) as Record<string, unknown>).find((l) => l.event === 'unhandled_error')
+    const entry = log.lines
+      .map(l => JSON.parse(l.line) as Record<string, unknown>)
+      .find(l => l.event === 'unhandled_error')
     expect(entry?.errName).toBe('Error')
   })
 
@@ -149,7 +159,9 @@ describe('에러 응답', () => {
 describe('/embed', () => {
   it('SRV-T-086 embed_maps_paths_to_assets_and_drops_query', async () => {
     const { app } = makeApp()
-    const assets = fakeAssets((p) => (p === '/missing.js' ? new Response('nf', { status: 404 }) : new Response('ok')))
+    const assets = fakeAssets(p =>
+      p === '/missing.js' ? new Response('nf', { status: 404 }) : new Response('ok'),
+    )
     const e = baseEnv({ ASSETS: assets.fetcher })
     for (const path of ['/embed', '/embed/', '/embed?t=abc']) {
       expect((await call(app, path, e)).status, path).toBe(200)
@@ -165,7 +177,14 @@ describe('/embed', () => {
 
 describe('서비스·로그', () => {
   it('SRV-T-087 getHealth_returns_ok_and_version_without_db', () => {
-    const trap = new Proxy({}, { get: () => () => { throw new Error('db touched') } }) as unknown as Db
+    const trap = new Proxy(
+      {},
+      {
+        get: () => () => {
+          throw new Error('db touched')
+        },
+      },
+    ) as unknown as Db
     const services = createServices({ db: trap, logger: createLogger(() => {}), now: () => NOW })
     expect(services.getHealth()).toEqual({ ok: true, version: APP_VERSION })
     expect(APP_VERSION).not.toBe('')
@@ -174,9 +193,11 @@ describe('서비스·로그', () => {
   it('SRV-T-088 logs_never_contain_query_token_or_forbidden_fields', async () => {
     const { app, log } = makeApp()
     await call(app, '/embed?t=SENTINEL_TOKEN')
-    const all = log.lines.map((l) => l.line).join('\n')
+    const all = log.lines.map(l => l.line).join('\n')
     expect(all).not.toContain('SENTINEL_TOKEN')
-    const req = log.lines.map((l) => JSON.parse(l.line) as Record<string, unknown>).find((l) => l.event === 'request')
+    const req = log.lines
+      .map(l => JSON.parse(l.line) as Record<string, unknown>)
+      .find(l => l.event === 'request')
     expect(req?.path).toBe('/embed')
 
     const direct = collector()

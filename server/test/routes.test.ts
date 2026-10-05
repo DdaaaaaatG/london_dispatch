@@ -25,7 +25,12 @@ const fakeAssets = () => {
 }
 
 const baseEnv = (overrides: Record<string, unknown> = {}): Env =>
-  ({ DB: env.DB, ASSETS: fakeAssets().fetcher, TOKEN_SECRET: 'test-secret', ...overrides }) as unknown as Env
+  ({
+    DB: env.DB,
+    ASSETS: fakeAssets().fetcher,
+    TOKEN_SECRET: 'test-secret',
+    ...overrides,
+  }) as unknown as Env
 
 const app = createApp({ routes: apiRoutes, logSink: () => undefined, now: () => NOW })
 
@@ -111,10 +116,16 @@ describe('GET /api/rooms', () => {
   it('API-T-011 rooms_sorted_desc_with_contract_fields', async () => {
     await seedThree()
     const rooms = await (await get('/api/rooms')).json<RoomSummary[]>()
-    expect(rooms.map((r) => r.id)).toEqual(['b', 'c', 'a'])
-    expect(rooms.map((r) => r.messageCount)).toEqual([0, 2, 5])
+    expect(rooms.map(r => r.id)).toEqual(['b', 'c', 'a'])
+    expect(rooms.map(r => r.messageCount)).toEqual([0, 2, 5])
     for (const room of rooms) {
-      expect(Object.keys(room).sort()).toEqual(['createdAt', 'id', 'messageCount', 'title', 'updatedAt'])
+      expect(Object.keys(room).sort()).toEqual([
+        'createdAt',
+        'id',
+        'messageCount',
+        'title',
+        'updatedAt',
+      ])
       expect(typeof room.createdAt).toBe('number')
       expect(typeof room.updatedAt).toBe('number')
       expect(typeof room.messageCount).toBe('number')
@@ -153,18 +164,22 @@ describe('GET /api/rooms/:id/messages — 정상', () => {
     const res = await get(messagesPath(ROOM))
     expect(res.status).toBe(200)
     const page = await res.json<MessagesPage>()
-    expect(page.messages.map((m) => m.id)).toEqual(ids.slice(40))
+    expect(page.messages.map(m => m.id)).toEqual(ids.slice(40))
     expect(page.hasMore).toBe(true)
   })
 
   it('API-T-021 messages_three_pages_via_before_cursor', async () => {
     const ids = await insertLines(ROOM, 70)
     const first = await (await get(messagesPath(ROOM))).json<MessagesPage>()
-    const second = await (await get(messagesPath(ROOM, `?before=${first.messages[0]?.id}`))).json<MessagesPage>()
-    const third = await (await get(messagesPath(ROOM, `?before=${second.messages[0]?.id}`))).json<MessagesPage>()
-    expect([first, second, third].map((p) => p.messages.length)).toEqual([30, 30, 10])
-    expect([first, second, third].map((p) => p.hasMore)).toEqual([true, true, false])
-    const all = [...third.messages, ...second.messages, ...first.messages].map((m) => m.id)
+    const second = await (
+      await get(messagesPath(ROOM, `?before=${first.messages[0]?.id}`))
+    ).json<MessagesPage>()
+    const third = await (
+      await get(messagesPath(ROOM, `?before=${second.messages[0]?.id}`))
+    ).json<MessagesPage>()
+    expect([first, second, third].map(p => p.messages.length)).toEqual([30, 30, 10])
+    expect([first, second, third].map(p => p.hasMore)).toEqual([true, true, false])
+    const all = [...third.messages, ...second.messages, ...first.messages].map(m => m.id)
     expect(all).toEqual(ids)
   })
 
@@ -195,7 +210,15 @@ describe('GET /api/rooms/:id/messages — 정상', () => {
     const { messages } = await res.json<MessagesPage>()
     expect(messages).toHaveLength(3)
     for (const m of messages) {
-      expect(Object.keys(m).sort()).toEqual(['authorName', 'createdAt', 'id', 'kind', 'roomId', 'speaker', 'text'])
+      expect(Object.keys(m).sort()).toEqual([
+        'authorName',
+        'createdAt',
+        'id',
+        'kind',
+        'roomId',
+        'speaker',
+        'text',
+      ])
       expect(typeof m.id).toBe('number')
       expect(typeof m.createdAt).toBe('number')
     }
@@ -218,20 +241,29 @@ describe('GET /api/rooms/:id/messages — 에러', () => {
 
   it('API-T-030 messages_rejects_invalid_limit', async () => {
     for (const limit of ['0', '101', '1.5', 'abc']) {
-      const message = await expectContractError(await get(messagesPath(ROOM, `?limit=${limit}`)), 'VALIDATION_ERROR')
+      const message = await expectContractError(
+        await get(messagesPath(ROOM, `?limit=${limit}`)),
+        'VALIDATION_ERROR',
+      )
       expect(message, limit).toBe('불러올 개수(limit)는 1~100 사이의 정수여야 합니다.')
     }
   })
 
   it('API-T-031 messages_rejects_invalid_before', async () => {
     for (const before of ['0', '-1', 'abc', '9007199254740992']) {
-      const message = await expectContractError(await get(messagesPath(ROOM, `?before=${before}`)), 'VALIDATION_ERROR')
+      const message = await expectContractError(
+        await get(messagesPath(ROOM, `?before=${before}`)),
+        'VALIDATION_ERROR',
+      )
       expect(message, before).toBe('기준 메시지 번호(before)가 올바르지 않습니다.')
     }
   })
 
   it('API-T-032 messages_rejects_repeated_query_key', async () => {
-    const message = await expectContractError(await get(messagesPath(ROOM, '?limit=1&limit=2')), 'VALIDATION_ERROR')
+    const message = await expectContractError(
+      await get(messagesPath(ROOM, '?limit=1&limit=2')),
+      'VALIDATION_ERROR',
+    )
     expect(message).toBe('요청 형식이 올바르지 않습니다.')
   })
 

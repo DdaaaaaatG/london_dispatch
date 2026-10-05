@@ -17,7 +17,8 @@ beforeEach(() => {
   vi.mocked(listMessages).mockReset()
 })
 
-const local = (y: number, m0: number, d: number, h = 0, min = 0): number => new Date(y, m0, d, h, min).getTime()
+const local = (y: number, m0: number, d: number, h = 0, min = 0): number =>
+  new Date(y, m0, d, h, min).getTime()
 
 describe('formatDate (R-ROOMS-001 · R-CHAT-001 · R-CHAT-002)', () => {
   it('TC-RM-013: formatMonthDay → MM.DD 두 자리 0 채움', () => {

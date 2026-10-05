@@ -26,13 +26,13 @@ describe('listMessages', () => {
     const ids = await insertLines('a', 70)
     const svc = service()
     const p1 = await svc.listMessages('a', { limit: 30 })
-    expect(p1.messages.map((m) => m.id)).toEqual(ids.slice(40, 70))
+    expect(p1.messages.map(m => m.id)).toEqual(ids.slice(40, 70))
     expect(p1.hasMore).toBe(true)
     const p2 = await svc.listMessages('a', { limit: 30, before: p1.messages[0]!.id })
-    expect(p2.messages.map((m) => m.id)).toEqual(ids.slice(10, 40))
+    expect(p2.messages.map(m => m.id)).toEqual(ids.slice(10, 40))
     expect(p2.hasMore).toBe(true)
     const p3 = await svc.listMessages('a', { limit: 30, before: p2.messages[0]!.id })
-    expect(p3.messages.map((m) => m.id)).toEqual(ids.slice(0, 10))
+    expect(p3.messages.map(m => m.id)).toEqual(ids.slice(0, 10))
     expect(p3.hasMore).toBe(false)
   })
 
@@ -45,7 +45,7 @@ describe('listMessages', () => {
     }
     const page = await service().listMessages('a', {})
     expect(page.messages).toHaveLength(3)
-    expect(page.messages.every((m) => m.roomId === 'a')).toBe(true)
+    expect(page.messages.every(m => m.roomId === 'a')).toBe(true)
   })
 
   it('SRV-T-068 listMessages_returns_empty_page_for_empty_room', async () => {
@@ -65,7 +65,9 @@ describe('listMessages', () => {
       throw new Error('db touched')
     }
     const db = { rooms: { exists: trap }, messages: { pageDesc: trap } } as unknown as Db
-    expect(await codeOf(createMessagesService({ db }).listMessages('a', { limit: 0 }))).toBe('VALIDATION_ERROR')
+    expect(await codeOf(createMessagesService({ db }).listMessages('a', { limit: 0 }))).toBe(
+      'VALIDATION_ERROR',
+    )
     expect(calls).toBe(0)
   })
 })

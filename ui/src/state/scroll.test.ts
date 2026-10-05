@@ -13,7 +13,11 @@ import {
   restoreScrollTop,
 } from '@/state/scroll'
 
-const m = (scrollTop: number, scrollHeight = 3000, clientHeight = 493) => ({ scrollTop, scrollHeight, clientHeight })
+const m = (scrollTop: number, scrollHeight = 3000, clientHeight = 493) => ({
+  scrollTop,
+  scrollHeight,
+  clientHeight,
+})
 
 describe('scroll.ts (R-CHAT-003 · R-CHAT-010)', () => {
   it('TC-CH-017: 임계값은 위 80px · 아래 120px', () => {

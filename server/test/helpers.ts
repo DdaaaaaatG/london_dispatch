@@ -11,8 +11,15 @@ export const resetDb = async (): Promise<void> => {
   ])
 }
 
-export const insertRoom = async (id: string, title: string, createdAt: number, updatedAt: number): Promise<void> => {
-  await env.DB.prepare('INSERT INTO rooms (id, title, created_at, updated_at) VALUES (?1, ?2, ?3, ?4)')
+export const insertRoom = async (
+  id: string,
+  title: string,
+  createdAt: number,
+  updatedAt: number,
+): Promise<void> => {
+  await env.DB.prepare(
+    'INSERT INTO rooms (id, title, created_at, updated_at) VALUES (?1, ?2, ?3, ?4)',
+  )
     .bind(id, title, createdAt, updatedAt)
     .run()
 }

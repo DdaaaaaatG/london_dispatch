@@ -15,7 +15,8 @@ export const PATHS = {
 } as const
 
 /** :id 자리에 인코딩한 값을 넣는다 */
-const withId = (pattern: string, id: string): string => pattern.replace(':id', encodeURIComponent(id))
+const withId = (pattern: string, id: string): string =>
+  pattern.replace(':id', encodeURIComponent(id))
 
 /** 쿼리 객체 → '?a=1&b=2'. undefined 는 뺀다. 값이 숫자뿐이라 인코딩하지 않는다 */
 const toQueryString = (query: Readonly<Record<string, number | undefined>>): string => {

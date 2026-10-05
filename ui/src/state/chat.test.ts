@@ -25,14 +25,21 @@ const msg = (id: number, text = `본문 ${id}`): Message => ({
   authorName: null,
   createdAt: 1_767_225_600_000 + id * 60_000,
 })
-const ids = (messages: readonly Message[]): number[] => messages.map((x) => x.id)
+const ids = (messages: readonly Message[]): number[] => messages.map(x => x.id)
 const page = (messages: Message[], hasMore: boolean): MessagesPage => ({ messages, hasMore })
 const ERR: ApiError = { code: 'INTERNAL', message: 'x' }
 const NET: ApiError = { code: 'NETWORK', message: '서버에 연결할 수 없습니다.' }
 
-const freeze = (s: ChatState): ChatState => Object.freeze({ ...s, messages: Object.freeze([...s.messages]) as Message[] })
+const freeze = (s: ChatState): ChatState =>
+  Object.freeze({ ...s, messages: Object.freeze([...s.messages]) as Message[] })
 const ready = (over: Partial<ChatState> = {}): ChatState =>
-  freeze({ ...initialChatState, phase: 'ready', messages: [msg(31), msg(32), msg(33)], hasMore: true, ...over })
+  freeze({
+    ...initialChatState,
+    phase: 'ready',
+    messages: [msg(31), msg(32), msg(33)],
+    hasMore: true,
+    ...over,
+  })
 
 describe('chatReducer T1~T8 (R-CHAT-003)', () => {
   it('TC-CH-015: 초기값은 { loading, null, [], false, false, null, 0 }', () => {
@@ -50,7 +57,9 @@ describe('chatReducer T1~T8 (R-CHAT-003)', () => {
   it('TC-CH-015: T1 initialLoadStarted → 초기 상태(어느 상태에서든)', () => {
     const fromError = freeze({ ...initialChatState, phase: 'error', error: ERR })
     expect(chatReducer(fromError, { type: 'initialLoadStarted' })).toEqual(initialChatState)
-    expect(chatReducer(ready({ unseenCount: 2 }), { type: 'initialLoadStarted' })).toEqual(initialChatState)
+    expect(chatReducer(ready({ unseenCount: 2 }), { type: 'initialLoadStarted' })).toEqual(
+      initialChatState,
+    )
   })
 
   it('TC-CH-015: T2 initialLoadSucceeded → ready, 정렬·중복 제거, hasMore 반영', () => {
@@ -98,7 +107,10 @@ describe('chatReducer T1~T8 (R-CHAT-003)', () => {
   })
 
   it('TC-CH-015: T6 빈 페이지면 hasMore=true 가 와도 false', () => {
-    const next = chatReducer(ready({ isLoadingOlder: true }), { type: 'olderLoadSucceeded', page: page([], true) })
+    const next = chatReducer(ready({ isLoadingOlder: true }), {
+      type: 'olderLoadSucceeded',
+      page: page([], true),
+    })
     expect(next.hasMore).toBe(false)
     expect(next.isLoadingOlder).toBe(false)
     expect(ids(next.messages)).toEqual([31, 32, 33])
@@ -106,12 +118,17 @@ describe('chatReducer T1~T8 (R-CHAT-003)', () => {
 
   it('TC-CH-015: T7 isLoadingOlder=false 일 때 늦은 olderLoadSucceeded·olderLoadFailed → 그대로', () => {
     const state = ready({ isLoadingOlder: false })
-    expect(chatReducer(state, { type: 'olderLoadSucceeded', page: page([msg(1)], false) })).toBe(state)
+    expect(chatReducer(state, { type: 'olderLoadSucceeded', page: page([msg(1)], false) })).toBe(
+      state,
+    )
     expect(chatReducer(state, { type: 'olderLoadFailed', error: ERR })).toBe(state)
   })
 
   it('TC-CH-015: T8 olderLoadFailed(isLoadingOlder) → 로딩 해제, olderError 기록, 말풍선 유지', () => {
-    const next = chatReducer(ready({ isLoadingOlder: true }), { type: 'olderLoadFailed', error: ERR })
+    const next = chatReducer(ready({ isLoadingOlder: true }), {
+      type: 'olderLoadFailed',
+      error: ERR,
+    })
     expect(next.isLoadingOlder).toBe(false)
     expect(next.olderError).toEqual(ERR)
     expect(ids(next.messages)).toEqual([31, 32, 33])
@@ -132,7 +149,11 @@ describe('chatReducer T9~T12 · 순수 함수 (R-CHAT-003 · R-MSG-001)', () => 
   })
 
   it('TC-CH-016: T9 맨 아래 근처 → unseenCount=0', () => {
-    const next = chatReducer(ready({ unseenCount: 4 }), { type: 'messagesAppended', messages: [msg(34)], isNearBottom: true })
+    const next = chatReducer(ready({ unseenCount: 4 }), {
+      type: 'messagesAppended',
+      messages: [msg(34)],
+      isNearBottom: true,
+    })
     expect(next.unseenCount).toBe(0)
     expect(ids(next.messages)).toEqual([31, 32, 33, 34])
   })
@@ -140,8 +161,12 @@ describe('chatReducer T9~T12 · 순수 함수 (R-CHAT-003 · R-MSG-001)', () => 
   it('TC-CH-016: T10 phase!==ready 에서 messagesAppended → 그대로', () => {
     const loading = freeze(initialChatState)
     const failed = freeze({ ...initialChatState, phase: 'error', error: ERR })
-    expect(chatReducer(loading, { type: 'messagesAppended', messages: [msg(1)], isNearBottom: false })).toBe(loading)
-    expect(chatReducer(failed, { type: 'messagesAppended', messages: [msg(1)], isNearBottom: true })).toBe(failed)
+    expect(
+      chatReducer(loading, { type: 'messagesAppended', messages: [msg(1)], isNearBottom: false }),
+    ).toBe(loading)
+    expect(
+      chatReducer(failed, { type: 'messagesAppended', messages: [msg(1)], isNearBottom: true }),
+    ).toBe(failed)
   })
 
   it('TC-CH-016: T11 unseenCleared(unseenCount>0) → 0 / T12 이미 0 → 그대로', () => {
@@ -166,7 +191,9 @@ describe('chatReducer T9~T12 · 순수 함수 (R-CHAT-003 · R-MSG-001)', () => 
     expect(canLoadOlder(ready({ hasMore: false }))).toBe(false)
     expect(canLoadOlder(ready({ isLoadingOlder: true }))).toBe(false)
     expect(canLoadOlder(ready({ messages: [] }))).toBe(false)
-    expect(canLoadOlder(freeze({ ...initialChatState, hasMore: true, messages: [msg(1)] }))).toBe(false)
+    expect(canLoadOlder(freeze({ ...initialChatState, hasMore: true, messages: [msg(1)] }))).toBe(
+      false,
+    )
     // olderError 가 있어도 버튼 재시도는 가능(canLoadOlder true), 스크롤 자동 재시도는 불가
     expect(canLoadOlder(ready({ olderError: ERR }))).toBe(true)
     expect(canAutoLoadOlder(ready({ olderError: ERR }))).toBe(false)

@@ -61,10 +61,10 @@ describe('toPage', () => {
   it('SRV-T-065 toPage_returns_ascending_messages_and_hasMore', () => {
     const rows = [5, 4, 3, 2].map(msg)
     const more = toPage(rows, 3)
-    expect(more.messages.map((m) => m.id)).toEqual([3, 4, 5])
+    expect(more.messages.map(m => m.id)).toEqual([3, 4, 5])
     expect(more.hasMore).toBe(true)
     const exact = toPage([3, 2, 1].map(msg), 3)
-    expect(exact.messages.map((m) => m.id)).toEqual([1, 2, 3])
+    expect(exact.messages.map(m => m.id)).toEqual([1, 2, 3])
     expect(exact.hasMore).toBe(false)
     expect(toPage([], 3)).toEqual({ messages: [], hasMore: false })
   })

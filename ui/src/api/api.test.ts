@@ -33,7 +33,10 @@ describe('request', () => {
   })
 
   it('API-T-UI-003 request_maps_fetch_failure_to_NETWORK', async () => {
-    const expected = { ok: false, error: { code: 'NETWORK', message: '서버에 연결할 수 없습니다.' } }
+    const expected = {
+      ok: false,
+      error: { code: 'NETWORK', message: '서버에 연결할 수 없습니다.' },
+    }
     stubFetch(async () => {
       throw new TypeError('offline')
     })
@@ -46,7 +49,10 @@ describe('request', () => {
 
   it('API-T-UI-004 request_maps_non_contract_error_body_to_INTERNAL', async () => {
     stubFetch(async () => new Response('<html>Bad Gateway</html>', { status: 502 }))
-    expect(await request('/x')).toEqual({ ok: false, error: { code: 'INTERNAL', message: ERROR_MESSAGES.INTERNAL } })
+    expect(await request('/x')).toEqual({
+      ok: false,
+      error: { code: 'INTERNAL', message: ERROR_MESSAGES.INTERNAL },
+    })
   })
 
   it('API-T-UI-005 request_handles_unknown_code_and_missing_message', async () => {
@@ -77,7 +83,7 @@ describe('wrappers', () => {
 
   it('API-T-UI-008 listMessages_builds_path_and_query', async () => {
     const urls: string[] = []
-    stubFetch(async (url) => {
+    stubFetch(async url => {
       urls.push(url as string)
       return json({ messages: [], hasMore: false })
     })

@@ -43,7 +43,8 @@ beforeAll(() => {
 })
 
 afterAll(() => {
-  for (const key of ['scrollHeight', 'clientHeight', 'scrollTop']) Reflect.deleteProperty(HTMLElement.prototype, key)
+  for (const key of ['scrollHeight', 'clientHeight', 'scrollTop'])
+    Reflect.deleteProperty(HTMLElement.prototype, key)
 })
 
 type HarnessProps = UseAutoScrollOptions & { resultRef: { current: UseAutoScrollResult | null } }
@@ -102,7 +103,11 @@ describe('useAutoScroll 첫 배치 (R-CHAT-010 복원 · R-CHAT-003)', () => {
   })
 
   it('TC-CH-025: firstId=null 이면 아무것도 하지 않고 getDistanceFromBottom()=null, 이후 id 가 생기면 그때 배치', () => {
-    const { el, resultRef, rerenderWith, options } = setup({ firstId: null, lastId: null, initialDistanceFromBottom: 300 })
+    const { el, resultRef, rerenderWith, options } = setup({
+      firstId: null,
+      lastId: null,
+      initialDistanceFromBottom: 300,
+    })
     expect(el.scrollTop).toBe(0)
     expect(resultRef.current?.getDistanceFromBottom()).toBeNull()
     expect(options.onReachTop).not.toHaveBeenCalled()

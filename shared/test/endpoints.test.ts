@@ -31,6 +31,8 @@ describe('API-T-042 endpoints_build_paths_and_queries', () => {
 
   it('빈 쿼리·undefined 값은 물음표를 붙이지 않는다', () => {
     expect(endpoints.roomMessages('r1', {})).toBe('/api/rooms/r1/messages')
-    expect(endpoints.roomMessages('r1', { limit: undefined } as unknown as MessagesQuery)).toBe('/api/rooms/r1/messages')
+    expect(endpoints.roomMessages('r1', { limit: undefined } as unknown as MessagesQuery)).toBe(
+      '/api/rooms/r1/messages',
+    )
   })
 })

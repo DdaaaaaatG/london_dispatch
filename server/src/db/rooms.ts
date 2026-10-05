@@ -33,7 +33,7 @@ export const createRoomsRepo = (binding: D1Database): RoomsRepo => ({
     const result = await binding.prepare(SQL_ROOMS_LIST_SUMMARIES).all<RoomSummaryRow>()
     return result.results.map(toRoomSummary)
   },
-  exists: async (id) => {
+  exists: async id => {
     const row = await binding.prepare(SQL_ROOMS_EXISTS).bind(id).first<{ found: number }>()
     return row !== null
   },

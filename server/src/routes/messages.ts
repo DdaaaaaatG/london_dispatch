@@ -11,7 +11,7 @@ export const messagesRoutes = new Hono<AppEnv>().get(
   PATHS.roomMessages,
   validate('param', roomIdParam),
   validate('query', messagesQuery),
-  async (c) => {
+  async c => {
     const { id } = c.req.valid('param')
     const query: MessagesQuery = c.req.valid('query')
     const page: MessagesPage = await c.get('services').messages.listMessages(id, toPageQuery(query))

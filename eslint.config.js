@@ -24,7 +24,10 @@ export default tseslint.config(
       'prefer-const': 'error',
       'no-var': 'error',
       '@typescript-eslint/consistent-type-imports': ['error', { prefer: 'type-imports' }],
-      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
+      ],
       '@typescript-eslint/no-explicit-any': 'error',
     },
   },
@@ -38,10 +41,18 @@ export default tseslint.config(
     },
   },
   {
+    // 테스트 하네스는 훅 반환값(ref 포함)을 렌더에서 그대로 전달한다 — react-hooks/refs(React Compiler 규칙)가 오탐
+    files: ['ui/src/**/*.test.tsx'],
+    rules: { 'react-hooks/refs': 'off' },
+  },
+  {
     files: ['ui/src/**/*.ts', 'ui/src/**/*.tsx'],
     ignores: ['ui/src/api/**'],
     rules: {
-      'no-restricted-globals': ['error', { name: 'fetch', message: '화면은 @/api 래퍼만 호출한다 (api.md §2).' }],
+      'no-restricted-globals': [
+        'error',
+        { name: 'fetch', message: '화면은 @/api 래퍼만 호출한다 (api.md §2).' },
+      ],
     },
   },
   {

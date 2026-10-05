@@ -30,8 +30,11 @@ const storageKeys = (): string[] => {
 const blockStorageAccess = (): (() => void) => {
   // vitest jsdom 에서 window 와 globalThis 가 같은 객체일 수도, 다를 수도 있다 → 둘 다 막는다
   const targets = Array.from(new Set<object>([globalThis, window]))
-  const originals = targets.map((target) => [target, Object.getOwnPropertyDescriptor(target, 'localStorage')] as const)
-  for (const target of targets) Object.defineProperty(target, 'localStorage', { configurable: true, get: blocked })
+  const originals = targets.map(
+    target => [target, Object.getOwnPropertyDescriptor(target, 'localStorage')] as const,
+  )
+  for (const target of targets)
+    Object.defineProperty(target, 'localStorage', { configurable: true, get: blocked })
   return () => {
     for (const [target, original] of originals) {
       if (original) Object.defineProperty(target, 'localStorage', original)

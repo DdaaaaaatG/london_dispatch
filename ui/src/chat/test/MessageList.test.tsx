@@ -27,7 +27,8 @@ const msg = (id: number): Message => ({
 const ERR: ApiError = { code: 'INTERNAL', message: 'x' }
 const BADGE = '새 메시지 보기, 맨 아래로 이동'
 /** a 가 문서 순서상 b 보다 앞이면 true */
-const precedes = (a: Node, b: Node): boolean => (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0
+const precedes = (a: Node, b: Node): boolean =>
+  (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0
 
 const renderList = (over: Partial<MessageListProps> = {}) => {
   const props: MessageListProps = {
@@ -86,7 +87,7 @@ describe('MessageList B0 · 스크롤 박스 (R-CHAT-003)', () => {
     expect(log.getAttribute('aria-live')).toBe('polite')
     expect(props.containerRef.current).toBe(log)
     const items = within(log).getAllByRole('listitem')
-    expect(items.map((li) => li.textContent?.includes('본문 1'))).toEqual([true, false, false])
+    expect(items.map(li => li.textContent?.includes('본문 1'))).toEqual([true, false, false])
   })
 
   it('TC-CH-014: olderError → role=alert "이전 대화를 불러오지 못했습니다" + 「다시 시도」 → onRetryOlder', async () => {

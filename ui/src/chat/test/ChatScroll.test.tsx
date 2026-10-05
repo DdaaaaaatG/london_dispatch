@@ -49,7 +49,8 @@ beforeAll(() => {
 })
 
 afterAll(() => {
-  for (const key of ['scrollHeight', 'clientHeight', 'scrollTop']) Reflect.deleteProperty(HTMLElement.prototype, key)
+  for (const key of ['scrollHeight', 'clientHeight', 'scrollTop'])
+    Reflect.deleteProperty(HTMLElement.prototype, key)
 })
 
 // 주의: 이 mock 은 scrollTop 대입값을 자르지 않는다(브라우저는 0 ~ scrollHeight − clientHeight 로 클램프).
@@ -93,11 +94,14 @@ const OLDER = makePage(1, 30, false)
 const BACK = '방 목록으로 돌아가기'
 
 const ok = <T,>(value: T): Result<T> => ({ ok: true, value })
-const fail = (code: ApiErrorCode): Result<never> => ({ ok: false, error: { code, message: 'SERVER-RAW-MESSAGE' } })
+const fail = (code: ApiErrorCode): Result<never> => ({
+  ok: false,
+  error: { code, message: 'SERVER-RAW-MESSAGE' },
+})
 
 const deferred = <T,>() => {
   let resolve!: (value: T) => void
-  const promise = new Promise<T>((r) => {
+  const promise = new Promise<T>(r => {
     resolve = r
   })
   return { promise, resolve }

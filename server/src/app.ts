@@ -36,31 +36,38 @@ const ERR_MESSAGE_LOG_MAX = 300
 export const buildCsp = (frameAncestors?: readonly string[]): string =>
   `frame-ancestors ${frameAncestors && frameAncestors.length > 0 ? frameAncestors.join(' ') : CSP_NONE}`
 
-const requestLog = (logger: Logger, now: () => number): MiddlewareHandler<AppEnv> => async (c, next) => {
-  const start = now()
-  await next()
-  logger.info('request', {
-    method: c.req.method,
-    path: new URL(c.req.url).pathname,
-    status: c.res.status,
-    ms: now() - start,
-  })
-}
+const requestLog =
+  (logger: Logger, now: () => number): MiddlewareHandler<AppEnv> =>
+  async (c, next) => {
+    const start = now()
+    await next()
+    logger.info('request', {
+      method: c.req.method,
+      path: new URL(c.req.url).pathname,
+      status: c.res.status,
+      ms: now() - start,
+    })
+  }
 
 const securityHeaders: MiddlewareHandler<AppEnv> = async (c, next) => {
   await next()
   const ancestors = c.get('cspFrameAncestors')
   // serveEmbed 가 이미 다시 감싼 Response 라 헤더 변경 가능. c.res 재할당은 이전 헤더를 병합해 삭제를 되살리므로 쓰지 않는다
-  c.res.headers.set('Content-Security-Policy', buildCsp(ancestors ? ancestors.split(' ') : undefined))
+  c.res.headers.set(
+    'Content-Security-Policy',
+    buildCsp(ancestors ? ancestors.split(' ') : undefined),
+  )
   c.res.headers.delete('X-Frame-Options')
 }
 
-const bootstrap = (logger: Logger, now: () => number): MiddlewareHandler<AppEnv> => async (c, next) => {
-  const config = parseEnv(c.env)
-  c.set('cspFrameAncestors', config.allowedFrameAncestors.join(' '))
-  c.set('services', createServices({ db: createDb(c.env.DB), logger, now }))
-  await next()
-}
+const bootstrap =
+  (logger: Logger, now: () => number): MiddlewareHandler<AppEnv> =>
+  async (c, next) => {
+    const config = parseEnv(c.env)
+    c.set('cspFrameAncestors', config.allowedFrameAncestors.join(' '))
+    c.set('services', createServices({ db: createDb(c.env.DB), logger, now }))
+    await next()
+  }
 
 /** /embed 요청 경로를 ASSETS 경로로 바꾼다. /embed·/embed/ → / */
 const toAssetPath = (pathname: string): string => {
@@ -75,27 +82,33 @@ const serveEmbed = async (c: Context<AppEnv>): Promise<Response> => {
   return new Response(res.body, res)
 }
 
-const errorResponse = (c: Context<AppEnv>, code: ErrorCode, status: AppError['status'], message: string) =>
-  c.json(toErrorBody(code, message), status)
+const errorResponse = (
+  c: Context<AppEnv>,
+  code: ErrorCode,
+  status: AppError['status'],
+  message: string,
+) => c.json(toErrorBody(code, message), status)
 
-const handleError = (logger: Logger) => (err: Error, c: Context<AppEnv>): Response => {
-  if (err instanceof ConfigError) {
-    logger.error('config_invalid', { keys: err.keys.join(',') })
-    return errorResponse(c, err.code, err.status, err.message)
+const handleError =
+  (logger: Logger) =>
+  (err: Error, c: Context<AppEnv>): Response => {
+    if (err instanceof ConfigError) {
+      logger.error('config_invalid', { keys: err.keys.join(',') })
+      return errorResponse(c, err.code, err.status, err.message)
+    }
+    if (isAppError(err)) {
+      if (err.status >= 500) logger.error('app_error', { code: err.code })
+      return errorResponse(c, err.code, err.status, err.message)
+    }
+    if (err instanceof HTTPException && err.status === 400) {
+      return errorResponse(c, 'VALIDATION_ERROR', 400, MSG_VALIDATION)
+    }
+    logger.error('unhandled_error', {
+      errName: err.name,
+      errMessage: err.message.slice(0, ERR_MESSAGE_LOG_MAX),
+    })
+    return errorResponse(c, 'INTERNAL', 500, MSG_INTERNAL)
   }
-  if (isAppError(err)) {
-    if (err.status >= 500) logger.error('app_error', { code: err.code })
-    return errorResponse(c, err.code, err.status, err.message)
-  }
-  if (err instanceof HTTPException && err.status === 400) {
-    return errorResponse(c, 'VALIDATION_ERROR', 400, MSG_VALIDATION)
-  }
-  logger.error('unhandled_error', {
-    errName: err.name,
-    errMessage: err.message.slice(0, ERR_MESSAGE_LOG_MAX),
-  })
-  return errorResponse(c, 'INTERNAL', 500, MSG_INTERNAL)
-}
 
 /** Hono 앱을 만든다 */
 export const createApp = (options: CreateAppOptions = {}): Hono<AppEnv> => {
@@ -109,7 +122,7 @@ export const createApp = (options: CreateAppOptions = {}): Hono<AppEnv> => {
   app.get(PATHS.embed, serveEmbed)
   app.get(`${PATHS.embed}/*`, serveEmbed)
   if (options.routes) app.route('/', options.routes)
-  app.notFound((c) => errorResponse(c, 'NOT_FOUND', 404, MSG_NOT_FOUND))
+  app.notFound(c => errorResponse(c, 'NOT_FOUND', 404, MSG_NOT_FOUND))
   app.onError(handleError(logger))
   return app
 }

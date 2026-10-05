@@ -7,7 +7,12 @@
  * [테스트] server/test/messages.test.ts, messages-page.test.ts (SRV-T-060~070)
  */
 export type { Message } from '../db'
-export { MESSAGE_PAGE_LIMIT_DEFAULT, MESSAGE_PAGE_LIMIT_MAX, normalizePageQuery, toPage } from './page'
+export {
+  MESSAGE_PAGE_LIMIT_DEFAULT,
+  MESSAGE_PAGE_LIMIT_MAX,
+  normalizePageQuery,
+  toPage,
+} from './page'
 export type { MessagePage, MessagePageQuery, NormalizedPageQuery } from './page'
 export { createMessagesService } from './service'
 export type { MessagesDeps, MessagesService } from './service'

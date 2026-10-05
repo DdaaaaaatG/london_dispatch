@@ -41,11 +41,14 @@ const ROW_TEA = '티타임, 마지막 갱신 10.05'
 const SERVER_RAW = 'SERVER-RAW-MESSAGE'
 
 const ok = <T,>(value: T): Result<T> => ({ ok: true, value })
-const fail = (code: ApiErrorCode, message = SERVER_RAW): Result<never> => ({ ok: false, error: { code, message } })
+const fail = (code: ApiErrorCode, message = SERVER_RAW): Result<never> => ({
+  ok: false,
+  error: { code, message },
+})
 
 const deferred = <T,>() => {
   let resolve!: (value: T) => void
-  const promise = new Promise<T>((r) => {
+  const promise = new Promise<T>(r => {
     resolve = r
   })
   return { promise, resolve }
@@ -92,7 +95,7 @@ describe('RoomsScreen 목록 (R-ROOMS-001 · R-ROOM-001)', () => {
     const rows = within(list).getAllByRole('button')
     // ⓐ 화면
     expect(within(list).getAllByRole('listitem')).toHaveLength(2)
-    expect(rows.map((row) => row.getAttribute('aria-label'))).toEqual([ROW_CHESS, ROW_TEA])
+    expect(rows.map(row => row.getAttribute('aria-label'))).toEqual([ROW_CHESS, ROW_TEA])
     expect(rows[0]?.textContent).toContain('체스 대결')
     const chessTime = rows[0]?.querySelector('time')
     expect(chessTime?.textContent).toBe('10.03')
@@ -164,7 +167,9 @@ describe('RoomsScreen 상태 (R-ROOMS-003)', () => {
     mockedListRooms.mockResolvedValueOnce(ok([]))
     const { onAutoOpenSettled, onOpenRoom } = renderRooms()
 
-    await waitFor(() => expect(screen.getByRole('status').textContent).toContain('아직 방이 없습니다'))
+    await waitFor(() =>
+      expect(screen.getByRole('status').textContent).toContain('아직 방이 없습니다'),
+    )
     expect(screen.queryByRole('list')).toBeNull()
     expect(screen.queryByRole('alert')).toBeNull()
     expect(onAutoOpenSettled).toHaveBeenCalledTimes(1)
@@ -203,17 +208,20 @@ describe('RoomsScreen 상태 (R-ROOMS-003)', () => {
     ['NETWORK', '서버에 연결할 수 없습니다.'],
     ['INTERNAL', ERROR_MESSAGES.INTERNAL],
     ['CONFIG_INVALID', ERROR_MESSAGES.CONFIG_INVALID],
-  ] as const)('TC-RM-007: 오류 상세 %s → 코드별 문구, 서버 message 미표시', async (code, detail) => {
-    mockedListRooms.mockResolvedValueOnce(fail(code))
-    renderRooms()
+  ] as const)(
+    'TC-RM-007: 오류 상세 %s → 코드별 문구, 서버 message 미표시',
+    async (code, detail) => {
+      mockedListRooms.mockResolvedValueOnce(fail(code))
+      renderRooms()
 
-    const alert = await screen.findByRole('alert')
-    expect(alert.textContent).toContain('목록을 불러오지 못했습니다')
-    expect(alert.textContent).toContain(detail)
-    expect(screen.queryByText(new RegExp(SERVER_RAW))).toBeNull()
-    expect(localStorage.length).toBe(0)
-    expect(mockedListRooms).toHaveBeenCalledTimes(1)
-  })
+      const alert = await screen.findByRole('alert')
+      expect(alert.textContent).toContain('목록을 불러오지 못했습니다')
+      expect(alert.textContent).toContain(detail)
+      expect(screen.queryByText(new RegExp(SERVER_RAW))).toBeNull()
+      expect(localStorage.length).toBe(0)
+      expect(mockedListRooms).toHaveBeenCalledTimes(1)
+    },
+  )
 })
 
 // ── 마지막 본 방 자동 진입 ─────────────────────────────
@@ -231,7 +239,9 @@ describe('RoomsScreen 자동 진입 (R-ROOMS-004 · R-CHAT-010)', () => {
     // ⓑ 순서: settle → open. 기록은 그대로
     expect(onOpenRoom.mock.calls[0]?.[0]).toEqual(ROOM_TEA)
     expect(onAutoOpenSettled).toHaveBeenCalledTimes(1)
-    expect(onAutoOpenSettled.mock.invocationCallOrder[0]).toBeLessThan(onOpenRoom.mock.invocationCallOrder[0] ?? Number.NaN)
+    expect(onAutoOpenSettled.mock.invocationCallOrder[0]).toBeLessThan(
+      onOpenRoom.mock.invocationCallOrder[0] ?? Number.NaN,
+    )
     expect(localStorage.getItem('ld:lastRoomId')).toBe('r1')
     // ⓒ 단건 조회 없음 — 목록 1회로 판정
     expect(mockedListRooms).toHaveBeenCalledTimes(1)
@@ -290,7 +300,9 @@ describe('RoomsScreen 자동 진입 (R-ROOMS-004 · R-CHAT-010)', () => {
     await waitFor(() => expect(onOpenRoom).toHaveBeenCalledTimes(1))
     expect(onOpenRoom.mock.calls[0]?.[0]).toEqual(ROOM_TEA)
     expect(onAutoOpenSettled).toHaveBeenCalledTimes(1)
-    expect(onAutoOpenSettled.mock.invocationCallOrder[0]).toBeLessThan(onOpenRoom.mock.invocationCallOrder[0] ?? Number.NaN)
+    expect(onAutoOpenSettled.mock.invocationCallOrder[0]).toBeLessThan(
+      onOpenRoom.mock.invocationCallOrder[0] ?? Number.NaN,
+    )
     expect(mockedListRooms).toHaveBeenCalledTimes(2)
   })
 })
@@ -312,7 +324,10 @@ describe('RoomsScreen 읽기 전용 (R-CHAT-008 · R-ROOMS-002 부재 쪽)', () 
     const header = container.querySelector('header')
     expect(header).not.toBeNull()
     expect(within(header as HTMLElement).queryAllByRole('button')).toHaveLength(0)
-    expect(screen.getAllByRole('button').map((b) => b.getAttribute('aria-label'))).toEqual([ROW_CHESS, ROW_TEA])
+    expect(screen.getAllByRole('button').map(b => b.getAttribute('aria-label'))).toEqual([
+      ROW_CHESS,
+      ROW_TEA,
+    ])
     expect(READ_ONLY_VIEWER.canWrite).toBe(false)
     expect(localStorage.length).toBe(0)
     expect(mockedListRooms).toHaveBeenCalledTimes(1)
@@ -322,7 +337,9 @@ describe('RoomsScreen 읽기 전용 (R-CHAT-008 · R-ROOMS-002 부재 쪽)', () 
     mockedListRooms.mockResolvedValueOnce(ok([]))
     renderRooms()
 
-    await waitFor(() => expect(screen.getByRole('status').textContent).toContain('아직 방이 없습니다'))
+    await waitFor(() =>
+      expect(screen.getByRole('status').textContent).toContain('아직 방이 없습니다'),
+    )
     expectNoWriteUi()
     expect(screen.queryAllByRole('button')).toHaveLength(0)
     expect(mockedListRooms).toHaveBeenCalledTimes(1)

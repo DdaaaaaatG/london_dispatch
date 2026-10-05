@@ -18,7 +18,7 @@ describe('listRooms', () => {
     await insertRoom('a', 'A', 1, 100)
     await insertRoom('b', 'B', 1, 300)
     await insertRoom('c', 'C', 1, 200)
-    expect((await service().listRooms()).map((r) => r.updatedAt)).toEqual([300, 200, 100])
+    expect((await service().listRooms()).map(r => r.updatedAt)).toEqual([300, 200, 100])
   })
 
   it('SRV-T-042 listRooms_includes_messageCount_and_fields', async () => {
@@ -28,9 +28,15 @@ describe('listRooms', () => {
     await insertLines('b', 2)
     await insertLines('c', 5)
     const list = await service().listRooms()
-    expect(list.map((r) => r.messageCount)).toEqual([0, 2, 5])
+    expect(list.map(r => r.messageCount)).toEqual([0, 2, 5])
     for (const r of list) {
-      expect(Object.keys(r).sort()).toEqual(['createdAt', 'id', 'messageCount', 'title', 'updatedAt'])
+      expect(Object.keys(r).sort()).toEqual([
+        'createdAt',
+        'id',
+        'messageCount',
+        'title',
+        'updatedAt',
+      ])
       expect(typeof r.createdAt).toBe('number')
       expect(typeof r.updatedAt).toBe('number')
     }

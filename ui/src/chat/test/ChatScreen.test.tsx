@@ -32,10 +32,42 @@ const ROOM: RoomSummary = {
 const at = (hour: number, minute: number): number => new Date(2026, 9, 5, hour, minute).getTime()
 const PAGE: MessagesPage = {
   messages: [
-    { id: 101, roomId: 'r1', speaker: 'ciel', kind: 'line', text: '세바스찬, 홍차.', authorName: null, createdAt: at(16, 40) },
-    { id: 102, roomId: 'r1', speaker: 'sebastian', kind: 'line', text: '예, 도련님.', authorName: null, createdAt: at(16, 41) },
-    { id: 103, roomId: 'r1', speaker: 'user', kind: 'line', text: '나도 한 잔 부탁해요.', authorName: '미샤', createdAt: at(16, 42) },
-    { id: 104, roomId: 'r1', speaker: 'user', kind: 'ooc', text: '둘이 체스를 둔다', authorName: '미샤', createdAt: at(16, 43) },
+    {
+      id: 101,
+      roomId: 'r1',
+      speaker: 'ciel',
+      kind: 'line',
+      text: '세바스찬, 홍차.',
+      authorName: null,
+      createdAt: at(16, 40),
+    },
+    {
+      id: 102,
+      roomId: 'r1',
+      speaker: 'sebastian',
+      kind: 'line',
+      text: '예, 도련님.',
+      authorName: null,
+      createdAt: at(16, 41),
+    },
+    {
+      id: 103,
+      roomId: 'r1',
+      speaker: 'user',
+      kind: 'line',
+      text: '나도 한 잔 부탁해요.',
+      authorName: '미샤',
+      createdAt: at(16, 42),
+    },
+    {
+      id: 104,
+      roomId: 'r1',
+      speaker: 'user',
+      kind: 'ooc',
+      text: '둘이 체스를 둔다',
+      authorName: '미샤',
+      createdAt: at(16, 43),
+    },
   ],
   hasMore: false,
 }
@@ -44,11 +76,14 @@ const NOTICE = '열람 전용 - 대화 참여는 등급 회원만'
 const SERVER_RAW = 'SERVER-RAW-MESSAGE'
 
 const ok = <T,>(value: T): Result<T> => ({ ok: true, value })
-const fail = (code: ApiErrorCode, message = SERVER_RAW): Result<never> => ({ ok: false, error: { code, message } })
+const fail = (code: ApiErrorCode, message = SERVER_RAW): Result<never> => ({
+  ok: false,
+  error: { code, message },
+})
 
 const deferred = <T,>() => {
   let resolve!: (value: T) => void
-  const promise = new Promise<T>((r) => {
+  const promise = new Promise<T>(r => {
     resolve = r
   })
   return { promise, resolve }
@@ -188,7 +223,9 @@ describe('ChatScreen 첫 로드 (R-CHAT-002 · R-CHAT-003 · R-MSG-001)', () => 
     mockedListMessages.mockResolvedValueOnce(ok({ messages: [], hasMore: false }))
     const { unmount } = renderChat()
 
-    await waitFor(() => expect(screen.getByRole('status').textContent).toContain('아직 대화가 없습니다'))
+    await waitFor(() =>
+      expect(screen.getByRole('status').textContent).toContain('아직 대화가 없습니다'),
+    )
     expect(screen.queryByRole('log')).toBeNull()
     expect(screen.queryByRole('alert')).toBeNull()
     unmount()
@@ -201,17 +238,20 @@ describe('ChatScreen 첫 로드 (R-CHAT-002 · R-CHAT-003 · R-MSG-001)', () => 
     ['NOT_FOUND', '방을 찾을 수 없습니다. 목록으로 돌아가 주세요.'],
     ['INTERNAL', ERROR_MESSAGES.INTERNAL],
     ['VALIDATION_ERROR', ERROR_MESSAGES.VALIDATION_ERROR],
-  ] as const)('TC-CH-030: 오류 상세 %s → 코드별 문구, 서버 message 미표시', async (code, detail) => {
-    mockedListMessages.mockResolvedValueOnce(fail(code))
-    renderChat()
+  ] as const)(
+    'TC-CH-030: 오류 상세 %s → 코드별 문구, 서버 message 미표시',
+    async (code, detail) => {
+      mockedListMessages.mockResolvedValueOnce(fail(code))
+      renderChat()
 
-    const alert = await screen.findByRole('alert')
-    expect(alert.textContent).toContain('대화를 불러오지 못했습니다')
-    expect(alert.textContent).toContain(detail)
-    expect(screen.queryByText(new RegExp(SERVER_RAW))).toBeNull()
-    expect(localStorage.getItem('ld:lastRoomId')).toBe('r1')
-    expect(mockedListMessages).toHaveBeenCalledTimes(1)
-  })
+      const alert = await screen.findByRole('alert')
+      expect(alert.textContent).toContain('대화를 불러오지 못했습니다')
+      expect(alert.textContent).toContain(detail)
+      expect(screen.queryByText(new RegExp(SERVER_RAW))).toBeNull()
+      expect(localStorage.getItem('ld:lastRoomId')).toBe('r1')
+      expect(mockedListMessages).toHaveBeenCalledTimes(1)
+    },
+  )
 })
 
 // ── 읽기 전용 ──────────────────────────────────────────
@@ -226,7 +266,9 @@ describe('ChatScreen 읽기 전용 (R-CHAT-008 · R-CHAT-004/007 부재 쪽)', (
     expect(screen.queryByRole('textbox')).toBeNull()
     expect(screen.queryByRole('switch')).toBeNull()
     expect(screen.queryByRole('button', { name: /전송/ })).toBeNull()
-    expect(screen.getAllByRole('button').map((b) => b.getAttribute('aria-label') ?? b.textContent)).toEqual([BACK])
+    expect(
+      screen.getAllByRole('button').map(b => b.getAttribute('aria-label') ?? b.textContent),
+    ).toEqual([BACK])
     expect(localStorage.getItem('ld:lastRoomId')).toBe('r1')
     expect(mockedListMessages).toHaveBeenCalledTimes(1)
   })

@@ -81,11 +81,14 @@ const intVar = (min: number, max: number, dflt: number) =>
       .default(dflt),
   )
 
-const secret = z.preprocess((v) => (v === '' ? undefined : v), z.string())
-const optionalSecret = z.preprocess((v) => (v === '' ? undefined : v), z.string().optional())
+const secret = z.preprocess(v => (v === '' ? undefined : v), z.string())
+const optionalSecret = z.preprocess(v => (v === '' ? undefined : v), z.string().optional())
 const resource = (method: string) =>
   z.custom<object>(
-    (v) => typeof v === 'object' && v !== null && typeof (v as Record<string, unknown>)[method] === 'function',
+    v =>
+      typeof v === 'object' &&
+      v !== null &&
+      typeof (v as Record<string, unknown>)[method] === 'function',
   )
 
 const ancestors = z.preprocess(
@@ -93,9 +96,9 @@ const ancestors = z.preprocess(
   z
     .string()
     .default(DEFAULT_ANCESTORS)
-    .transform((s) => s.split(/\s+/).filter((x) => x !== ''))
+    .transform(s => s.split(/\s+/).filter(x => x !== ''))
     .pipe(z.array(z.string().regex(ANCESTOR_PATTERN)).min(1))
-    .transform((list) => [...new Set(list)]),
+    .transform(list => [...new Set(list)]),
 )
 
 const schema = z.object({
@@ -103,7 +106,10 @@ const schema = z.object({
   LLM_API_KEY: optionalSecret,
   TOKEN_MIN_LEVEL: intVar(1, 10, 5),
   LLM_PROVIDER: z.preprocess(blankToUndefined, z.enum(LLM_PROVIDERS).default('google')),
-  LLM_MODEL: z.preprocess(blankToUndefined, z.string().regex(MODEL_PATTERN).default('gemini-2.5-flash')),
+  LLM_MODEL: z.preprocess(
+    blankToUndefined,
+    z.string().regex(MODEL_PATTERN).default('gemini-2.5-flash'),
+  ),
   LLM_TIMEOUT_MS: intVar(1000, 60000, 60000),
   ALLOWED_FRAME_ANCESTORS: ancestors,
   RATE_LIMIT_PER_MIN: intVar(1, 600, 20),
@@ -114,7 +120,7 @@ const schema = z.object({
 })
 
 const issueKeys = (error: z.ZodError): string[] =>
-  [...new Set(error.issues.map((i) => String(i.path[0] ?? '')).filter((k) => k !== ''))].sort()
+  [...new Set(error.issues.map(i => String(i.path[0] ?? '')).filter(k => k !== ''))].sort()
 
 /** Workers env 바인딩을 검증·정규화한다. 실패 시 ConfigError(키 이름만) */
 export const parseEnv = (raw: unknown): Config => {

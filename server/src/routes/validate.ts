@@ -11,6 +11,6 @@ export const validate = <Target extends keyof ValidationTargets, Schema extends 
   target: Target,
   schema: Schema,
 ) =>
-  zValidator(target, schema, (result) => {
+  zValidator(target, schema, result => {
     if (!result.success) throw new AppError('VALIDATION_ERROR')
   })
