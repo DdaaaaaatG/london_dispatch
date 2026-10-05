@@ -69,7 +69,7 @@
       "server": "done",
       "contract": "done v0.3",
       "ui": "done v1.4",
-      "ui-check": "running"
+      "ui-check": "PASS (L11, 반영 중)"
     }
   },
   "dependencies_approved": [
@@ -97,7 +97,7 @@
     "prettier",
     "concurrently"
   ],
-  "next": "S2(토큰 + 쓰기) 설계: server-designer(auth·rooms 쓰기·messages 쓰기·rate limit) → contract-designer(S2 엔드포인트·토큰 전달·Bearer) → ui-designer(쓰기 UI) → ui-design-checker → 승인 ②(S2)",
+  "next": "승인 ②(S2) 대기 → shared(limits·types·endpoints) → server S2(auth·rooms·messages) → routes·ui/api → 시나리오 → ui 구현 → 테스트",
   "blockers": [],
   "estimate_min": null,
   "actual_min": null,
