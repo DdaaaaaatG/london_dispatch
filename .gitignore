@@ -33,3 +33,7 @@ doc/300_검증/screenshots/
 Thumbs.db
 *.swp
 server/worker-configuration.d.ts
+
+# python 캐시(가드 스크립트 실행 산출물)
+__pycache__/
+*.pyc
