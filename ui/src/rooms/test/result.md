@@ -22,3 +22,22 @@
 
 ## 요구ID 커버
 R-ROOMS-001~005 모두 자동 TC 1건 이상 PASS. R-ROOMS-005(레이아웃)는 수동 부분 확인.
+
+---
+
+# S2 결과 — rooms(방 목록, 토큰+쓰기) / 2026-10-06 00:47~00:55
+실행: `npx vitest run --project ui --reporter=verbose`(ui 29파일 315 통과), 전체 `npx vitest run`(42파일 488 통과) · 스크린샷 기존 1장(`doc/300_검증/screenshots/20261006-0046/s2-rooms-writer-390x565.png`, puppeteer MCP, 재촬영 없음) · 토큰 테스트 토큰(원문 미기록)
+환경: Node v24.18.0 · wrangler dev 3000
+정적 검사: `npm run typecheck` exit 0 · `npm run lint` exit 0 · `npx prettier --check .` exit 1(`server/tsconfig.json`·`ui/tsconfig.json` 2건 경고, 소스 아님·S1 점검 범위 밖. 별도 정리 권고)
+콘솔 오류: vitest 출력에 FAIL 0
+판정: 통과 (자동 TC-RM-018~029·032 = 13건 PASS / FAIL 0, 수동 TC-RM-030 PASS, TC-RM-031 부분 확인·잔여 SKIP)
+
+| TC | 판정 | 증거 |
+|---|---|---|
+| TC-RM-018~029 · 032 | PASS | verbose 출력의 해당 ID ✓ 줄(it 제목에 TC ID). 등록 TC 수 = 시나리오 자동 TC 수 |
+| TC-RM-030 (토큰 비노출) | PASS | grep: localStorage 접근 = `components/utils/storage.ts`뿐, `state/token.ts`는 모듈 변수만 · `initToken`/`configureClient` 호출 = `main.tsx`뿐 · 화면 소스 `console.` 0건 · `Authorization` 헤더 구성 = `api/client.ts` 1곳 |
+| TC-RM-031 / MC-RM-08 | 부분 확인 | s2-rooms-writer 캡처(Read로 확인): 390폭 가로 스크롤 없음, 「+ 새 방」 우상단 렌더, 목록 3행. 열림/닫힘 높이·토스트·카운터 danger 색 캡처 없음 → 미확인 |
+| MC-RM-07 | PASS | TC-RM-030과 같은 grep |
+| MC-RM-09 | 미확인 | 캡처 없음. manual-checklist 인계 |
+
+요구ID 커버: R-ROOMS-002 자동+캡처 · R-CHAT-009·R-NFR-004·R-API-003 자동+grep. R-ROOMS-005 쓰기판 레이아웃은 부분.

@@ -1,6 +1,6 @@
 {
   "slug": "london-dispatch-build",
-  "phase": "3-implement",
+  "phase": "2-design",
   "orchestrator": "main-session-as-task-manager (사용자 지시 2026-10-05)",
   "slices": [
     "S1 저장+읽기전용",
@@ -9,7 +9,7 @@
     "S4 장기기억",
     "S5 전달·배포"
   ],
-  "current_slice": "S2",
+  "current_slice": "S3",
   "scope": {
     "requirements_doc": "doc/100_요구조건/requirements.md",
     "rtm": "doc/100_요구조건/rtm.md",
@@ -45,9 +45,9 @@
     ],
     "contract": "done (shared·routes·ui/api, api.md v0.2.1)",
     "ui": [
-      "rooms(readonly)",
-      "chat(readonly)",
-      "components",
+      "rooms(read+write)",
+      "chat(read+write)",
+      "components 7종+",
       "state"
     ],
     "design_s1": {
@@ -76,7 +76,8 @@
       "scenarios": "v0.5 (CR-001 포함)",
       "checker": "FAIL→반영 완료",
       "conflict": "PASS→반영 완료"
-    }
+    },
+    "S2": "done 2026-10-06 (tester·manual 마감 중)"
   },
   "dependencies_approved": [
     "hono",
@@ -103,7 +104,7 @@
     "prettier",
     "concurrently"
   ],
-  "next": "ui-implementer(S2 쓰기 UI + CR-001 Bubble 재배치) → ui-tester → 스크린샷 재촬영",
+  "next": "(PC 자동 종료 예정) 다음 세션: S3(AI 발화) 설계 — server-designer(llm·messages speak/regenerate·잠금) → contract-designer → ui-designer(캐릭터 버튼·임시 말풍선·재작성) → checker → 승인 ②(S3). Gemini 키는 지인 전달 전까지 FakeProvider",
   "blockers": [],
   "estimate_min": null,
   "actual_min": null,
@@ -169,5 +170,14 @@
     "vitest_shared": "14 passed",
     "build_ui": "exit 0",
     "browser": "puppeteer 390x565 rooms·chat PASS, 이전 페이지 로드·뒤로 기록 삭제·CSP·토큰 로그 미출력 확인"
+  },
+  "screenshots_s2": "doc/300_검증/screenshots/20261006-0046/",
+  "evidence_s2": {
+    "vitest_all": "488 passed (42 files)",
+    "typecheck": "exit 0",
+    "lint": "0",
+    "prettier": "clean",
+    "build": "ui+server dry-run ok",
+    "browser": "puppeteer 390x565 rooms/chat 쓰기판, CR-001 4종 배치, API 401/201/204"
   }
 }

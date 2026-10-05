@@ -31,3 +31,36 @@
 
 ## 요구ID 커버
 R-CHAT-001~013 자동 TC 1건 이상 PASS(R-CHAT-010 스크롤 저장 TC-CH-025·026 포함). R-CHAT-013 레이아웃은 수동 부분 확인.
+
+---
+
+# S2 결과 — chat(대화, 토큰+쓰기, CR-001) / 2026-10-06 00:47~00:55
+실행: `npx vitest run --project ui --reporter=verbose`(ui 29파일 315 통과), 전체 `npx vitest run`(42파일 488 통과) · 스크린샷 기존 1장(`doc/300_검증/screenshots/20261006-0046/s2-chat-writer-390x565.png`, puppeteer MCP) · 토큰 테스트 토큰(원문 미기록)
+환경: Node v24.18.0 · wrangler dev 3000
+정적 검사: typecheck exit 0 · lint exit 0 · prettier `.` exit 1(tsconfig.json 2건, 소스 아님)
+콘솔 오류: FAIL 0
+판정: 통과 (자동 TC-CH-001~027·029~060·063~065 = 62건 PASS / FAIL 0, 수동 TC-CH-028 PASS(육안), TC-CH-061 부분·잔여 SKIP, TC-CH-062 PASS)
+
+| TC | 판정 | 증거 |
+|---|---|---|
+| TC-CH-007~010 (CR-001 배치) | PASS | Bubble.test ✓ 줄 4건 |
+| TC-CH-031~060 · 063~065 | PASS | verbose ✓ 줄, 등록 수 = 시나리오 자동 수 |
+| TC-CH-028 / MC-CH-02 | PASS(육안) | s2-chat-writer 캡처: 세바스찬 왼쪽(아바타·이름 좌), 시엘 오른쪽(이름 우측), 유저 발화 가운데 말풍선+작성자명, OOC 가운데 `— [지시] … —` 한 줄. 가로 스크롤 없음 |
+| TC-CH-061 / MC-CH-10~13 | 부분 확인 | 캡처로 하단 바(OOC 토글·입력창·전송)·390폭 확인. 메뉴 시트·인라인 편집·3줄 입력 높이 캡처 없음 → 미확인 |
+| TC-CH-062 / MC-CH-14 | PASS | rooms TC-RM-030과 같은 grep + `dangerouslySetInnerHTML` 코드 사용 0건(주석만) |
+| MC-CH-15 | 미확인 | 확인 근거 캡처 없음. manual-checklist 인계 |
+
+## API 실물(curl, 토큰 원문 미기록)
+| 호출 | 기대 | 실측 |
+|---|---|---|
+| POST /api/rooms (토큰) | 201 | 201, 방 생성 |
+| POST /api/rooms/:id/user (토큰 없음) | 401 | 401 |
+| 같은 호출, 위조 토큰 | 401 | 401 |
+| PATCH /api/messages/999999 (본문 `{"text":"x"}`) | 404 | 404 NOT_FOUND |
+| 위 호출 본문 `{"content":"x"}` | — | 400 VALIDATION_ERROR (필드명은 text. 계약 기준 정상) |
+| DELETE /api/rooms/:id | 204 | 204, 이후 GET 404. 테스트 데이터 원복 |
+
+요구ID 커버: R-CHAT-002(CR-001 포함)·004·008·009·011 자동 TC PASS. R-CHAT-013 쓰기판 레이아웃은 부분.
+
+## CR-001 검증
+Bubble.test TC-CH-007~010 PASS + 캡처 육안 일치 → 「검증됨」.
