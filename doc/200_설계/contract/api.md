@@ -1,6 +1,6 @@
 # API 계약 (api.md)
 
-- 상태: **초안 v0.1** · 최종 갱신 2026-10-05 · 소유 contract-designer
+- 상태: **초안 v0.2** · 최종 갱신 2026-10-05 · 소유 contract-designer
 - 묶음: **S1 상세 확정** = `GET /api/health` · `GET /api/rooms` · `GET /api/rooms/:id/messages` · `GET /embed`. 나머지 엔드포인트는 §4.0 표에 행만 두고 S2~S4에서 상세를 정한다.
 - 이 문서가 단일 소스다: **api.md → `shared/src/*` → `server/src/routes/*` → `ui/src/api/*` → `doc/handoff/*`(S5)**. 넷이 어긋나면 contract 결함이다(확정사항 §3).
 - 입력: `doc/000_프로젝트_확정사항.md` §1·§2·§3·§5.2~§5.4·§6, `doc/100_요구조건/requirements.md` §3·§4·§5·§7(R-LLM-002)·§8·§9, `doc/200_설계/server/{index,env,db,rooms,messages}.md`, `doc/200_설계/architecture/ui-layout-01-rooms-chat.md`.
@@ -71,6 +71,8 @@ ui (React, iframe /embed)  ──▶  contract  ──▶  server (Workers + Hon
 | 읽기 엔드포인트에 `Authorization` 헤더가 있을 때 | **무시한다.** 검증하지 않고, 잘못된 토큰이어도 읽기를 거절하지 않는다(401·403 없음) |
 | S2 이후 유지 약속 | 토큰 미들웨어는 쓰기 엔드포인트에만 붙는다. `GET /api/health`·`GET /api/rooms`·`GET /api/rooms/:id/messages`는 계속 토큰 불필요 |
 | 예외(요구 명시) | `GET /api/rooms/:id/memory`는 읽기지만 **토큰 필요**(확정사항 §5.2, R-MEM-001). S4에서 상세 |
+| S1 화면 | **항상 읽기 전용**이다. R-CHAT-009(토큰 메모리 보관)는 S2로 옮겨졌다(requirements §0, 2026-10-05) |
+| 토큰 보관(S2 상세 예정) | 보관은 `ui/src/state/token.ts`가 소유한다. `ui/src/api/client.ts`는 토큰 getter를 주입받아 쓰기 요청에 헤더만 붙인다 |
 
 ### 2.2 전달 규약 — **S2 상세 예정**
 
@@ -79,7 +81,7 @@ ui (React, iframe /embed)  ──▶  contract  ──▶  server (Workers + Hon
 - 토큰은 `Authorization: Bearer <t>` 헤더로만 받는다. 쿠키·쿼리로 받지 않는다.
 - 화면은 `/embed?t=<토큰>`의 `t`를 읽어 **메모리에만** 둔다. `localStorage`·쿠키 저장 금지. API 호출에 `?t=`를 붙이지 않는다.
 - S1의 `ui/src/api/`는 토큰을 읽지도 붙이지도 않는다. 헤더 부착 자리는 §11.3 `buildHeaders`에 TODO로만 남긴다.
-- 토큰 보관 위치(`ui/src/api/client.ts` 대 `ui/src/state/token`)는 S2에서 정한다(§15.4 확인 필요).
+- 토큰 보관 위치는 `ui/src/state/token.ts`로 정해졌다(2026-10-05 결정). `client.ts`는 getter 주입으로 헤더만 붙인다. getter 시그니처와 주입 시점은 S2에서 정한다.
 
 ### 2.3 토큰 형식 — **S2 상세 예정**
 
@@ -529,20 +531,34 @@ import type { CharacterId } from './types'
 
 export type CharacterMeta = {
   id: CharacterId
-  /** 표시명 (확정사항 §1) */
+  /** 전체 표시명 (확정사항 §1). server/characters/{id}.json 의 name 과 같아야 한다 */
   name: string
+  /** 짧은 이름. 말풍선 이름표·버튼 등 좁은 자리에 쓴다 (R-LLM-002 개정 2026-10-05) */
+  shortName: string
   /** 아바타 이미지 경로(동일 출처 절대 경로) */
   avatar: string
 }
 
 export const CHARACTERS: { readonly [K in CharacterId]: CharacterMeta & { readonly id: K } } = {
-  sebastian: { id: 'sebastian', name: '세바스찬 미카엘리스', avatar: `${PATHS.embed}/img/sebastian.png` },
-  ciel: { id: 'ciel', name: '시엘 팬텀하이브', avatar: `${PATHS.embed}/img/ciel.png` },
+  sebastian: {
+    id: 'sebastian',
+    name: '세바스찬 미카엘리스',
+    shortName: '세바스찬',
+    avatar: `${PATHS.embed}/img/sebastian.png`,
+  },
+  ciel: {
+    id: 'ciel',
+    name: '시엘 팬텀하이브',
+    shortName: '시엘',
+    avatar: `${PATHS.embed}/img/ciel.png`,
+  },
 }
 ```
 
 - 화면 사용: `message.speaker === 'user'`이면 유저 말풍선, 아니면 `CHARACTERS[message.speaker]`(타입 좁히기로 `CharacterId`).
-- 버튼 문구 「세바스찬」「시엘」은 화면 `labels.ts` 몫이다. 말풍선에 짧은 이름을 쓸지는 §15.4 확인 필요.
+- 말풍선 이름표는 `shortName`을 쓴다(화면 구성안의 "시엘"·"세바스찬"). 전체 이름 `name`은 그대로 유지한다.
+- 버튼의 접근성 레이블 문구는 화면 `labels.ts` 몫이다. 버튼에 보이는 이름은 `shortName`을 쓸 수 있다.
+- S3 `server/src/llm/characters.ts`가 대조하는 값은 `name`뿐이다. `shortName`은 표시 전용이라 server JSON에 두지 않는다.
 
 ### 5.6 스키마 방식 (확정)
 
@@ -604,6 +620,7 @@ export const CHARACTERS: { readonly [K in CharacterId]: CharacterMeta & { readon
 | 버전 | 일자 | 변경 | 호환성 | 저쪽 재적용 |
 |---|---|---|---|---|
 | v0.1 | 2026-10-05 | 최초 작성(S1). 전체 엔드포인트 표, 에러 코드 13종, S1 엔드포인트 4종 상세, shared 4파일·routes·ui/api 설계 | 추가(신규) | 아니오 |
+| v0.2 | 2026-10-05 | §15.4 결정 반영. `CharacterMeta.shortName` 추가(R-LLM-002 개정). S1 화면은 항상 읽기 전용이고 R-CHAT-009는 S2로 이동. 토큰 보관은 `ui/src/state/token.ts`, `client.ts`는 getter 주입(S2 상세 예정). 방 목록 배열 응답과 §10 위치는 유지 | 추가(구현 전이라 영향 없음) | 아니오 |
 
 ---
 
@@ -624,7 +641,7 @@ export const CHARACTERS: { readonly [K in CharacterId]: CharacterMeta & { readon
 | R-AUTH-003 🔒 (S1 범위) | 읽기 경로 토큰 불필요, 헤더가 있어도 무시 | §2.1 | 신규 | 추가 | API-T-012 · 024 | 읽기 쪽 확정, 쓰기 쪽 S2 |
 | R-AUTH-001 🔒 | 토큰 형식 전사 | §2.3 | — | — | S2 | S2 상세 예정 |
 | R-ENV-003 | 모든 경로 `500 CONFIG_INVALID` | §3.2 · §4.1 | 신규 | 추가 | API-T-003 | 확정 |
-| R-LLM-002 🔒 (표시 메타) | `CHARACTERS`(id·표시명·아바타) | §5.5 | 신규 | 추가 | API-T-043 | 확정(이름 표기는 §15.4) |
+| R-LLM-002 🔒 (표시 메타, 2026-10-05 개정) | `CHARACTERS`(id·name·shortName·avatar) | §5.5 | 신규 | 추가 | API-T-043 | 확정 |
 | R-CHAT-002 🔒 | 말풍선이 쓰는 `speaker`·`kind`·`authorName`·`createdAt`, 캐릭터 메타 | §5.2 · §5.5 | 신규 | 추가 | 화면 TC | 계약 확정 |
 | R-CHAT-003 🔒 | 위로 스크롤 시 `before` 페이지, `hasMore` | §4.3 | 신규 | 추가 | API-T-021, 화면 TC | 계약 확정 |
 | R-ROOMS-001 🔒 | 방 목록 데이터 | §4.2 | 신규 | 추가 | 화면 TC | 계약 확정 |
@@ -801,7 +818,8 @@ const INTERNAL_ERROR: ApiError = { code: 'INTERNAL', message: ERROR_MESSAGES.INT
 const BASE_URL = ''
 
 const buildHeaders = (): Headers => new Headers({ Accept: 'application/json' })
-// TODO(R-API-003): S2 — 쓰기 요청에 Authorization: Bearer <메모리 토큰> 을 붙인다
+// TODO(R-API-003): S2 상세 예정 — 토큰은 ui/src/state/token.ts 가 보관한다. client.ts 는 getter 를 주입받아
+//   쓰기 요청에 Authorization: Bearer 헤더만 붙인다(토큰을 직접 읽거나 저장하지 않는다)
 
 const readJson = async (res: Response): Promise<unknown> => {
   try {
@@ -904,7 +922,7 @@ export { listRooms } from './rooms'
 | 에러 코드 13종·status | §3.2 | `ERROR_CODES` · `ERROR_STATUS` · `ERROR_MESSAGES` · `isErrorCode` | `AppError(code, status, …)` | `ApiErrorCode = ErrorCode \| 'NETWORK'` | 설계 일치(server 권고 §15.2 R2) |
 | `NETWORK` | §3.3 | 없음(의도) | 없음 | `NETWORK_ERROR` | 설계 일치 |
 | 읽기 토큰 불필요 | §2.1 | — | 토큰 미들웨어 없음 | `Authorization` 헤더 안 붙임 | 설계 일치 |
-| 캐릭터 표시 메타 | §5.5 | `CHARACTERS` · `CharacterMeta` · `CharacterId` | 없음(S3 `llm/characters.ts`가 name 대조) | 없음(화면이 shared 직접 import) | 설계 일치 |
+| 캐릭터 표시 메타 `id`·`name`·`shortName`·`avatar` | §5.5 | `CHARACTERS` · `CharacterMeta`(`shortName` 포함) · `CharacterId` | 없음(S3 `llm/characters.ts`가 `name`만 대조) | 없음(화면이 shared 직접 import, 이름표는 `shortName`) | 설계 일치 |
 | 토큰 형식·전달 | §2.2 · §2.3 | S2 | S2 | S2(`buildHeaders` TODO) | S2 예정 |
 | 경로 리터럴 | §5.4 | `endpoints.ts`에만 | `PATHS.*`만 | `endpoints.*`만 | 설계 일치(API-T-044로 검사) |
 
@@ -972,7 +990,7 @@ S1은 처음 만드는 계약이라 **전부 「추가」**다. ui·갠홈 영�
 | API-T-040 | `error_table_matches_contract` | `ERROR_CODES` 집합이 R-API-002 13종과 같음, 모든 코드에 `ERROR_STATUS`·`ERROR_MESSAGES`가 있음, status가 §3.2 표와 같음, 문구가 비어 있지 않음 | R-API-002 |
 | API-T-041 | `isErrorCode_accepts_only_contract_codes` | `'NOT_FOUND'` true · `'NETWORK'`·`'not_found'`·`1`·`undefined` false | R-API-002 |
 | API-T-042 | `endpoints_build_paths_and_queries` | `PATHS` 값 4개, `roomMessages('a b/c')` → `/api/rooms/a%20b%2Fc/messages`, `{ before: 41 }` → `?before=41`, `{ before: 41, limit: 30 }` → `?before=41&limit=30`, `{}`·`{ limit: undefined }` → 물음표 없음 | R-API-001 · R-API-008 |
-| API-T-043 | `characters_meta_matches_contract` | 키가 정확히 `sebastian`·`ciel`, 각 `id`가 키와 같음, 이름이 확정사항 §1, `avatar === '/embed/img/{id}.png'` | R-LLM-002 · R-CHAT-002 |
+| API-T-043 | `characters_meta_matches_contract` | 키가 정확히 `sebastian`·`ciel`, 각 `id`가 키와 같음, `name`이 확정사항 §1 전체 이름, `shortName`이 `세바스찬`·`시엘`, `avatar === '/embed/img/{id}.png'` | R-LLM-002 · R-CHAT-002 |
 | API-T-044 | `no_path_literals_outside_shared`(리뷰 grep) | §14.4 경로 리터럴 grep 결과 0건 | R-API-008 |
 
 ### 14.3 ui/api — `ui/src/api/__tests__/*.test.ts` (`vi.stubGlobal('fetch', …)`)
@@ -1038,7 +1056,16 @@ grep -rnE "[\"'\`]/(api|embed)" server/src/routes ui/src/api
 | contract-designer 에이전트 본문 | 시각은 ISO 8601 문자열 | epoch ms(R-API-004, R-DB-001) |
 | 위임문 | ui/api `ApiError` **클래스**로 정규화 | `ApiError`는 **타입**, 래퍼는 `Result<T>` 반환·throw 금지(ts-rules 에러 처리, contract-design-strategy §11) |
 
-### 15.4 확인 필요 (사용자 판단)
+### 15.4 확인 필요: 결정 완료 (v0.2, 2026-10-05 메인 세션 결정)
+
+| # | 결정 | 반영 절 |
+|---|---|---|
+| 1 | R-LLM-002를 개정해 `CharacterMeta`에 `shortName`(세바스찬 / 시엘)을 추가한다. `name`은 전체 이름을 유지한다 | §5.5 · §10 · §12 · §14.2 |
+| 2 | R-CHAT-009는 S2로 이동했다. S1 화면은 항상 읽기 전용이다. 토큰 보관은 `ui/src/state/token.ts`, `client.ts`는 getter 주입으로 헤더만 붙인다(S2 상세 예정) | §2.1 · §2.2 · §11.3 |
+| 3 | `GET /api/rooms` 응답은 배열 그대로 유지한다(방 목록 페이지네이션 요구 없음) | 변경 없음 |
+| 4 | 요구 추적표는 §10 위치를 유지한다 | 변경 없음 |
+
+아래는 v0.1 당시 질문 원문이다(기록용).
 
 1. **캐릭터 표시명.** 확정사항 §1과 위임문대로 `name`은 전체 이름(`세바스찬 미카엘리스`·`시엘 팬텀하이브`)이다. 화면 구성안은 말풍선에 짧은 이름(`시엘`·`세바스찬`)을 그린다. 짧은 이름이 필요하면 R-LLM-002의 표시 메타에 필드를 추가하는 요구 개정이 필요하다. 그전까지 화면은 `name`을 그대로 쓴다.
 2. **R-CHAT-009 묶음과 토큰 보관 위치.** requirements.md §0은 CHAT-009를 S1에, rtm.md는 S2(`ui/src/state/token`)에 둔다. ui-design-strategy는 `ui/src/api/client.ts` 보관을 말한다. 이 계약은 S1에서 토큰을 다루지 않는다고 가정했다. 그러면 S1 화면은 언제나 읽기 전용이고, 쓰기 UI가 아직 없으니 R-CHAT-008은 자연히 충족된다. 보관 위치는 S2에서 정해야 한다.
