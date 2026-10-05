@@ -1,8 +1,21 @@
-// API-T-UI-001~010 — doc/200_설계/contract/api.md §14.3 (fetch 모킹은 이 폴더 테스트에서만)
+// API-T-UI-001~018 — doc/200_설계/contract/api.md §14.3 (fetch 모킹은 이 폴더 테스트에서만)
 import { ERROR_MESSAGES } from '@shared/errors'
-import { afterEach, describe, expect, it, vi } from 'vitest'
-import { request } from './client'
-import { getHealth, listMessages, listRooms } from './index'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { CreateRoomBody } from '@shared/types'
+import { request, type ApiError } from './client'
+import {
+  appendUser,
+  configureClient,
+  createRoom,
+  deleteMessage,
+  deleteRoom,
+  editMessage,
+  getHealth,
+  isAuthFailure,
+  listMessages,
+  listRooms,
+  renameRoom,
+} from './index'
 
 const json = (body: unknown, status = 200): Response =>
   new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
@@ -18,6 +31,7 @@ const firstCall = (fn: ReturnType<typeof stubFetch>) => {
   return { url, init, headers: new Headers(init.headers) }
 }
 
+beforeEach(() => configureClient({ getToken: () => null }))
 afterEach(() => vi.unstubAllGlobals())
 
 describe('request', () => {
@@ -121,5 +135,135 @@ describe('wrappers', () => {
         expect(result.ok).toBe(false)
       }
     }
+  })
+})
+
+const noContent = (): Response => new Response(null, { status: 204 })
+
+describe('S2 쓰기 래퍼', () => {
+  it('API-T-UI-011 write_wrappers_send_method_url_body_and_bearer', async () => {
+    configureClient({ getToken: () => 'tok' })
+    const calls: Array<[string, () => Promise<unknown>, string, string | undefined]> = [
+      ['/api/rooms', () => createRoom({ title: 't' }), 'POST', '{"title":"t"}'],
+      ['/api/rooms/a%20b', () => renameRoom('a b', { title: 'n' }), 'PATCH', '{"title":"n"}'],
+      ['/api/rooms/r1', () => deleteRoom('r1'), 'DELETE', undefined],
+      [
+        '/api/rooms/r1/user',
+        () => appendUser('r1', { text: 'x', ooc: true }),
+        'POST',
+        '{"text":"x","ooc":true}',
+      ],
+      ['/api/messages/41', () => editMessage(41, { text: 'y' }), 'PATCH', '{"text":"y"}'],
+      ['/api/messages/41', () => deleteMessage(41), 'DELETE', undefined],
+    ]
+    for (const [path, call, method, body] of calls) {
+      const fn = stubFetch(async () => (method === 'DELETE' ? noContent() : json({}, 200)))
+      await call()
+      const { url, init, headers } = firstCall(fn)
+      expect(url).toBe(path)
+      expect(init.method).toBe(method)
+      expect(headers.get('Authorization')).toBe('Bearer tok')
+      expect(init.body).toBe(body)
+      expect(headers.get('Content-Type')).toBe(body === undefined ? null : 'application/json')
+    }
+  })
+
+  it('API-T-UI-012 read_wrappers_never_send_authorization', async () => {
+    configureClient({ getToken: () => 'tok' })
+    for (const call of [getHealth, listRooms, () => listMessages('r1')]) {
+      const fn = stubFetch(async () => json([]))
+      await call()
+      const { init, headers } = firstCall(fn)
+      expect(init.method).toBe('GET')
+      expect(headers.has('Authorization')).toBe(false)
+      expect(headers.has('Content-Type')).toBe(false)
+    }
+  })
+
+  it('API-T-UI-013 write_without_token_sends_no_authorization', async () => {
+    const error = { code: 'TOKEN_REQUIRED', message: '토큰이 필요합니다.' }
+    for (const token of [null, '']) {
+      configureClient({ getToken: () => token })
+      const fn = stubFetch(async () => json({ error }, 401))
+      expect(await createRoom({ title: 't' })).toEqual({ ok: false, error })
+      expect(firstCall(fn).headers.has('Authorization')).toBe(false)
+    }
+  })
+
+  it('API-T-UI-014 rate_limited_carries_retryAfterSec', async () => {
+    const limited = (retryAfterSec?: unknown, code = 'RATE_LIMITED') =>
+      json(
+        { error: { code, message: 'm', ...(retryAfterSec !== undefined && { retryAfterSec }) } },
+        429,
+      )
+    const errorOf = async (res: Response): Promise<ApiError> => {
+      stubFetch(async () => res)
+      const result = await createRoom({ title: 't' })
+      if (result.ok) throw new Error('expected failure')
+      return result.error
+    }
+    expect((await errorOf(limited(40))).retryAfterSec).toBe(40)
+    for (const bad of [0, '40', 1.5, undefined]) {
+      expect('retryAfterSec' in (await errorOf(limited(bad)))).toBe(false)
+    }
+    expect('retryAfterSec' in (await errorOf(limited(40, 'NOT_FOUND')))).toBe(false)
+  })
+
+  it('API-T-UI-015 delete_wrappers_map_204_to_ok_undefined', async () => {
+    const res = noContent()
+    const jsonSpy = vi.spyOn(res, 'json')
+    stubFetch(async () => res)
+    expect(await deleteRoom('r1')).toEqual({ ok: true, value: undefined })
+    expect(jsonSpy).not.toHaveBeenCalled()
+    stubFetch(async () => noContent())
+    expect(await deleteMessage(41)).toEqual({ ok: true, value: undefined })
+    stubFetch(async () => new Response('', { status: 201 }))
+    expect(await createRoom({ title: 't' })).toMatchObject({
+      ok: false,
+      error: { code: 'INTERNAL' },
+    })
+  })
+
+  it('API-T-UI-016 isAuthFailure_matches_three_auth_codes', () => {
+    const codes = ['TOKEN_REQUIRED', 'TOKEN_INVALID', 'LEVEL_TOO_LOW'] as const
+    for (const code of codes) expect(isAuthFailure({ code, message: 'm' })).toBe(true)
+    const others = ['RATE_LIMITED', 'VALIDATION_ERROR', 'NOT_FOUND', 'NETWORK', 'INTERNAL'] as const
+    for (const code of others) expect(isAuthFailure({ code, message: 'm' })).toBe(false)
+  })
+
+  it('API-T-UI-017 write_wrappers_send_contract_keys_only_and_never_reject', async () => {
+    const fn = stubFetch(async () => json({}))
+    await createRoom({ title: 't', extra: 1 } as CreateRoomBody)
+    await appendUser('r1', { text: 'x', ooc: false, extra: 1 } as Parameters<typeof appendUser>[1])
+    expect(fn.mock.calls.map(([, init]) => (init as RequestInit).body)).toEqual([
+      '{"title":"t"}',
+      '{"text":"x","ooc":false}',
+    ])
+    const writes: Array<() => Promise<unknown>> = [
+      () => createRoom({ title: 't' }),
+      () => renameRoom('r1', { title: 't' }),
+      () => deleteRoom('r1'),
+      () => appendUser('r1', { text: 'x', ooc: false }),
+      () => editMessage(1, { text: 'x' }),
+      () => deleteMessage(1),
+    ]
+    const broken: Array<[() => unknown, string]> = [
+      [() => Promise.reject(new TypeError('offline')), 'NETWORK'],
+      [() => new Response('<html>oops</html>', { status: 500 }), 'INTERNAL'],
+    ]
+    for (const [impl, code] of broken) {
+      stubFetch(async () => impl())
+      for (const call of writes) {
+        expect(await call()).toMatchObject({ ok: false, error: { code } })
+      }
+    }
+  })
+
+  it('API-T-UI-018 token_never_persisted_or_sent_in_query', () => {
+    // 리뷰 grep(§14.8)이 정본. 여기서는 getter 가 읽기 요청에서 호출되지 않음만 확인한다
+    const getToken = vi.fn(() => 'tok')
+    configureClient({ getToken })
+    stubFetch(async () => json([]))
+    return listRooms().then(() => expect(getToken).not.toHaveBeenCalled())
   })
 })

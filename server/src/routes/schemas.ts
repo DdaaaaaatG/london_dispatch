@@ -23,3 +23,18 @@ export const toPageQuery = (query: {
   ...(query.before !== undefined && { before: query.before }),
   ...(query.limit !== undefined && { limit: query.limit }),
 })
+
+/** 10진 숫자만 Number(), 그 밖은 NaN. 범위 판정·NOT_FOUND 는 서비스 (api.md §4.5) */
+const toMessageId = (raw: string): number => (/^[0-9]+$/.test(raw) ? Number(raw) : Number.NaN)
+
+/** 경로 :id — 메시지 id */
+export const messageIdParam = z.object({ id: z.string().transform(toMessageId) })
+
+/** POST /api/rooms · PATCH /api/rooms/:id 본문. 타입만 — trim·1~60자는 서비스 */
+export const roomTitleBody = z.object({ title: z.string() })
+
+/** POST /api/rooms/:id/user 본문. ooc 필수 — trim·1~2000자는 서비스 */
+export const userMessageBody = z.object({ text: z.string(), ooc: z.boolean() })
+
+/** PATCH /api/messages/:id 본문 */
+export const editMessageBody = z.object({ text: z.string() })
