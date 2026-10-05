@@ -16,6 +16,12 @@
 | MC-CH-07 | Rosebell 토큰·포커스·대비·모션 | 스크린샷을 `ui_design_concept.md`와 대조, Tab 이동, 대비 측정, OS "동작 줄이기" 켜고 배지·B0 보기. `ui/src/**/*.module.css` 하드코딩 색 검색 | `--bubble-*` 토큰 색, 방 제목 serif lg, D `--color-info`. `:focus-visible` 2px 링(스크롤 박스 포함). 대비 4.5:1 이상(말풍선 바탕 위 포함). 동작 줄이기면 페이드 0ms. 하드코딩 색 0건 | TC-CH-028 · TC-CH-027 · R-CHAT-013 | [ ] |
 | MC-CH-08 | 상태 시각 | ① Slow 3G 첫 로드 ② 빈 방 ③ server 중지 후 첫 로드 오류 ④ 이전 페이지 요청 중 server 중지(B0 오류) — 각각 스크린샷 | 문구가 영역 가운데, 오류 상세 한 줄 + 「다시 시도」. B0 오류는 28px 한 줄에 문구 + 작은 「다시 시도」, 기존 말풍선 유지. D 안내는 모든 상태에서 보임 | TC-CH-004 · 005 · 006 · 014 · 023 · R-CHAT-003 · R-CHAT-013 | [ ] |
 | MC-CH-09 | 리뷰 grep | `ui/src`에서 `dangerouslySetInnerHTML`·`localStorage`·`sessionStorage`·`fetch(` 검색 | `dangerouslySetInnerHTML` 0건. `localStorage` 접근은 `storage.ts`뿐. 화면 코드의 `fetch` 0건(`ui/src/api/` 제외). 토큰 저장 코드 0건 | TC-CH-008 · 024 · 025 · R-NFR-004 · R-CHAT-009(S1 비저장) | [ ] |
+| MC-CH-10 | (S2) 쓰기 판 390×565 | 유효 토큰 주소로 방 진입 → ① 하단 바 1줄 ② 3줄 입력 ③ 4줄 이상(내부 스크롤) ④ 2001자 초과 카운터 스크린샷. DevTools로 높이 측정 | 가로 스크롤 없음. A 44 · C 96(1줄)·136(3줄) · 히스토리 나머지. 캐릭터 버튼 자리 비어 있음(S3). OOC 토글 꺼짐/켜짐 색·글자 두 가지로 구분. 뷰포트 높이 ≤ 480이면 입력 1줄 고정 | TC-CH-061 · TC-CH-031 · 032 · 058 · R-CHAT-013 · R-CHAT-004 | [ ] |
+| MC-CH-11 | (S2) 시트 4종 + E 토스트 | 말풍선 메뉴 · 방 메뉴 · 이름 변경 · 메시지/방 삭제 확인 · 전송 실패 토스트를 각각 스크린샷 | 덮개 `--color-overlay`, 시트 아래에서 올라옴(최대 70%), 머리 한 줄 말줄임, 삭제 항목·확인 버튼 danger 색. E 줄 28 이상, 하단 바 바로 위. 동작 줄이기 켜면 모션 0ms | TC-CH-061 · 039 · 047 · 048 · 045 · 050 · 037 · R-CHAT-013 | [ ] |
+| MC-CH-12 | (S2) 롱프레스 체감(모바일 실기기) | 실제 휴대폰(iOS Safari · Android Chrome)에서 말풍선을 길게 누름 · 누른 채 스크롤 · 짧게 탭 | 약 0.5초에 메뉴 시트 1개(브라우저 기본 메뉴·텍스트 선택 말풍선이 겹쳐 뜨지 않음, iOS 콜아웃 없음). 누른 채 스크롤하면 열리지 않음. 짧은 탭은 아무 일 없음 | TC-CH-039 · 060 · R-CHAT-007 | [ ] |
+| MC-CH-13 | (S2) 포커스 트랩·복귀(키보드만) | 키보드만으로 Tab → 말풍선 → Shift+F10 → 시트 안 Tab 여러 번 → Esc. ⋯ → 이름 변경 → Esc. 메시지 삭제 확인 → 삭제 | 시트가 열린 동안 Tab이 시트 밖(하단 바·상단 바)으로 나가지 않음, 첫 포커스(메뉴 첫 항목·확인 시트 취소·이름 입력)에 포커스 링. 닫으면 연 말풍선·⋯로 복귀, 삭제 뒤엔 히스토리 박스. 스크린 리더(NVDA 또는 VoiceOver)가 시트 이름·토스트를 읽음 | TC-CH-041 · 045 · 047 · 055 · R-CHAT-013 | [ ] |
+| MC-CH-14 | (S2) 토큰 비노출 리뷰 grep(chat) | `ui/src/chat`(테스트 제외)에서 `getToken`·`initToken`·`Authorization`·`fetch(`·`localStorage` 검색 + rooms `MC-RM-07` | 모두 0건(화면은 `viewer`만 본다, 저장소는 `storage.ts` 경유) | TC-CH-062 · R-CHAT-009 · R-NFR-004 · R-API-003 | [ ] |
+| MC-CH-15 | (S2) 실제 전환 체감 | 등급 미달 토큰 주소로 열어 전송 시도 | 토스트 1회 후 하단 바·⋯가 사라지고 열람 안내 줄, ‹에 포커스 링. 실제 갠홈 등급별 토큰 발급·`frame-ancestors`는 S5 handoff 뒤 재확인 | TC-CH-051 · R-CHAT-011 · R-CHAT-008 | [ ] |
 
 ## 이월(S1 범위 밖)
 

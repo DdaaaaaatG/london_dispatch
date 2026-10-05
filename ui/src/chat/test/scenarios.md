@@ -1,8 +1,18 @@
 # chat(대화) 테스트 시나리오
 
-- 기준: `ui/src/chat/design.md` v1.1(+ `design/components.md` · `design/functions.md` · `design/a11y.md`) / `ui/src/chat/requirements.md` v1.1 / `doc/200_설계/contract/api.md` v0.2 / 공용 요소 단일 정의 `ui/src/rooms/design/components.md` §1
-- 작성일: 2026-10-05 · 작성: ui-test-designer · 모드: 신규 · 상태: **초안 v0.3(검증·모순 검사 지적 반영, 재검증 대기)**
-- 묶음: **S1(읽기 전용 판)**. S1 화면은 토큰을 읽지 않으므로 모든 TC의 토큰 분기는 "없음"(READ_ONLY_VIEWER)이다. 쓰기 UI 렌더 쌍은 S2·S3에서 추가한다(아래 「후속 이월」).
+- 기준: `ui/src/chat/design.md` v1.5(+ `design/components.md` · `design/functions.md` · `design/a11y.md` · `design/tc.md` v1.5) / `ui/src/chat/requirements.md` v1.4 / `doc/200_설계/contract/api.md` v0.3.1 / 공용 요소 단일 정의 `ui/src/rooms/design/components.md` §1
+- 작성일: 2026-10-05 · 작성: ui-test-designer · 모드: **증분**(S1 TC-CH-001~030 보존, S2 TC-CH-031~065 추가) · 상태: **초안 v0.4(S2 추가, 검증 대기)**
+- 묶음: **S1(읽기 전용 판)** + **S2(토큰 + 쓰기)**. S1 TC의 토큰 분기는 "없음" 그대로다. S2 TC는 쓰기 UI마다 토큰 있음(TC-CH-031) ↔ 없음(TC-CH-003·021·022·023) 쌍과 전환(051·052)을 더한다. S3(캐릭터 버튼·speak·재작성)·S4(장기기억)는 「후속 이월」.
+- **S2 공통 전제(추가 — S1 전제는 아래 그대로 유지)**
+  - **토큰 주입 진입점 통일**: 화면 단위는 `viewer` props(`WRITER_VIEWER`·`READ_ONLY_VIEWER`)로만. App 통합은 `render(<App />)` 전에 `initToken('?t=test-token')`(`@/state/token`), `afterEach`에서 `clearToken()`. `history.replaceState`·`main.tsx`·`configureClient`는 쓰지 않는다. 화면 코드가 `getToken`을 부르지 않는 것은 리뷰 TC-CH-062.
+  - **ChatScreen props(S2)**: `room · viewer · onBack · onAuthFailure · onRoomRenamed`. App의 전환을 흉내 낼 때는 스펙 안 하네스(`viewer`를 state로 들고 `onAuthFailure`가 spy 호출 + `READ_ONLY_VIEWER`로 바꿈)를 쓴다. 하네스 없이 렌더하면 부모가 전환하지 않은 상황이다(F-CH-16 멱등 확인용).
+  - **래퍼 모킹**: `vi.mock('@/api/messages', () => ({ listMessages, appendUser, editMessage, deleteMessage }))` · `vi.mock('@/api/rooms', () => ({ listRooms, createRoom, renameRoom, deleteRoom }))`(전부 `vi.fn()`). `isAuthFailure`는 실물. delete 성공 = `{ ok: true, value: undefined }`. **"AI 호출 없음"(R-CHAT-006) 단언** = 모킹한 두 모듈의 모든 export 중 `appendUser`와 첫 로드 `listMessages` 1회를 뺀 호출 합계 0(S2에는 speak 래퍼가 없으므로 "모듈 전체 열거"로 판정, tc.md v1.5 DC-08).
+  - **`matchMedia`**: jsdom에 없다. TextArea(C §1.13)를 그리는 스펙은 `vi.stubGlobal('matchMedia', () => ({ matches: false, … }))`, 높이 ≤ 480 판정 TC만 `matches: true`. `afterEach`에서 `vi.unstubAllGlobals()`.
+  - **말풍선 메뉴 대상 요소** = `li` 안 `[aria-haspopup="dialog"]`(쓰기 가능일 때만 붙는다, C §2.2). 메뉴 대상이 없음은 같은 선택자가 `null`.
+  - **롱프레스·토스트 시계**: 목록이 그려진 **뒤** `vi.useFakeTimers()` → `userEvent.setup({ advanceTimers: vi.advanceTimersByTime })` → `user.pointer(…)` → `act(() => vi.advanceTimersByTime(n))`. 토스트 2초도 실패 resolve 전에 가짜 시계를 건다. 가짜 시계 구간에서는 `findBy*`·`waitFor` 금지, `getBy*`·`queryBy*`만.
+  - **대기 규칙**: S1과 같다. "호출 없음·횟수 유지" 앞에 `await act(async () => {})`.
+  - **스크롤 수치 TC(038·046(c))**: S1 ChatScroll 규칙(log 요소 `clientHeight=493`, `scrollHeight`는 변수, `scrollTop` 요소별 기억·비클램프)을 그 스펙 안에서 다시 건다.
+  - **픽스처(S2)**: S1 말풍선 101~104 그대로. 전송 응답 105 유저 line `안녕`(authorName `미샤`, 16:44) · OOC 응답 106 유저 ooc `체스 두기` · 수정 응답 103 text `새 본문` · 이름 변경 응답 `{ …티타임, title: '팬텀하이브 저택의 밤' }`.
 - 공통 전제
   - api 래퍼는 `vi.mock('@/api/messages')`로 대체하고 `Result<T>`를 돌려준다. `fetch` 모킹 금지. `CHARACTERS`는 실제 `@shared/characters`를 쓴다.
   - 응답 순서는 deferred promise + `await findBy*`·`waitFor`로 고정한다. 타이머가 필요한 TC-CH-022만 `vi.useFakeTimers()` 구간을 둔다. 실제 sleep 없음.
@@ -200,9 +210,220 @@
 - Then ⓐ 상세 = `서버에 연결할 수 없습니다.` / `방을 찾을 수 없습니다. 목록으로 돌아가 주세요.` / `ERROR_MESSAGES.INTERNAL` / `ERROR_MESSAGES.VALIDATION_ERROR`, `SERVER-RAW-MESSAGE` 없음 ⓑ `ld:lastRoomId='r1'`(오류여도 기록) ⓒ `listMessages` 1회
 - 스펙: `ChatScreen.test.tsx`
 
+### TC-CH-031 · (S2) 토큰 있음 렌더 쌍 · 종류: 자동 · 요구: R-CHAT-004 · R-CHAT-008 · R-CHAT-001 · R-CHAT-013 · 설계: §2.2 · §3.1 · §10 · C §2.0·§2.6 · §8.1.1 · A 랜드마크 · 토큰: 있음
+- Given `viewer=WRITER_VIEWER`, 픽스처 4건
+- When 마운트한다
+- Then ⓐ `<header>` 버튼 2개(‹ · `방 메뉴 열기`). `group "메시지 작성"` 안에 `switch "OOC 지시 모드"`(`aria-checked="false"`, 글자 `OOC 끔`) · `textbox "메시지 입력"`(placeholder `대사나 지시를 입력`) · `button "전송"`. `button "세바스찬"`·`"시엘"` 없음(S3), `role=note` 없음. 말풍선 4개 모두 메뉴 대상(`tabindex=0`·`aria-haspopup="dialog"`·`aria-keyshortcuts="Shift+F10"`, `menuEnabled` 클래스). TC-CH-003·021·022·023과 쌍 ⓑ `ld:lastRoomId='r1'` ⓒ `listMessages` 1회 `['r1']`, 쓰기 래퍼 0회
+- 스펙: `ui/src/chat/test/Composer.test.tsx`
+
+### TC-CH-032 · (S2) 전송 비활성 · 종류: 자동 · 요구: R-CHAT-004 · R-MSG-002 · 설계: C §2.6 `sendable` · F §1.2 `canSend` · C §1.11·§1.13 · 토큰: 있음
+- Given (a) ready (b) `listMessages` 대기(loading) (c) 첫 로드 실패(error)
+- When (a) 입력 `''` → `'   '` → `'a'×2001` → `'a'×2000` (b)(c) `안녕` 입력
+- Then ⓐ (a) 빈·공백 → `전송` disabled, 카운터 없음 · 2001 → disabled, 카운터 `2001/2000`(`over`), 입력 `aria-invalid="true"` · 2000 → enabled, 카운터 없음(`counterMode='overflow'`) (b)(c) disabled ⓑ 입력값은 넣은 그대로 ⓒ `appendUser` 0회
+- 스펙: `Composer.test.tsx`
+
+### TC-CH-033 · (S2) 전송 성공 · 종류: 자동 · 요구: R-CHAT-006 · R-CHAT-004 · R-AUTH-004 · R-MSG-002 · 설계: §6.3 · F-CH-17 · C §2.6 `submit` · §7 `appendUser` · 토큰: 있음
+- Given ready 4건, `appendUser` → `ok(105 미샤 '안녕')`
+- When `안녕` 입력 → `전송` 클릭
+- Then ⓐ `li` 5개, 끝 말풍선 `user` 클래스·작성자명 `미샤`·본문 `안녕`. 입력값 `''`, 입력에 포커스, switch `OOC 끔` 유지 ⓑ 저장소 키는 `ld:lastRoomId`(=`r1`)뿐 ⓒ `appendUser` 1회, 인자 정확히 `['r1', { text: '안녕', ooc: false }]`. 두 모킹 모듈의 나머지 export 호출 합계 = 첫 `listMessages` 1회뿐(AI 호출 없음)
+- 스펙: `Composer.test.tsx`
+
+### TC-CH-034 · (S2) OOC 토글 · 종류: 자동 · 요구: R-CHAT-004 · R-CHAT-006 · 설계: C §2.6 1행 · C §1.14 · §8.1.1 `oocOn`·`oocOff` · 토큰: 있음
+- Given ready, `appendUser` → `ok(106 ooc '체스 두기')`
+- When switch 클릭 → `체스 두기` 입력 → 전송
+- Then ⓐ 클릭 뒤 `aria-checked="true"`·글자 `OOC 켬` → 전송 뒤 끝 말풍선 `ooc` 클래스·`[지시]` 포함, switch는 계속 `OOC 켬` ⓑ 입력 `''` ⓒ `appendUser` `['r1', { text: '체스 두기', ooc: true }]` 1회
+- 스펙: `Composer.test.tsx`
+
+### TC-CH-035 · (S2) Enter·Shift+Enter·IME · 종류: 자동 · 요구: R-CHAT-004 · R-CHAT-013 · 설계: C §1.13 `onEnter`·IME · A 키보드 · 토큰: 있음
+- Given ready, 입력에 포커스
+- When (a) 빈 입력 Enter (b) `가` 입력 후 `keyDown Enter isComposing: true` (c) Shift+Enter (d) Enter
+- Then ⓐ (a)(b) 변화 없음 (c) 입력값 `가\n` (d) 전송 → 입력 `''` ⓑ — ⓒ (a)(b)(c) `appendUser` 0회 (d) 1회 `['r1', { text: '가\n', ooc: false }]`
+- 스펙: `Composer.test.tsx`
+
+### TC-CH-036 · (S2) 전송 중 중복 방지 · 종류: 자동 · 요구: R-CHAT-006 · R-CHAT-013 · 설계: F-CH-17 `writeInFlightRef` · F §1.1 T13·T14 · C §2.6 `isReadOnly` · A `aria-busy` · 토큰: 있음
+- Given `appendUser` 대기(deferred)
+- When (a) 전송 클릭 → 대기 중 클릭·Enter 2회 → resolve (b) 같은 `act` 안 `fireEvent.click(전송)` 2회
+- Then ⓐ 대기 중 `전송` disabled, 입력 `readOnly`, group `aria-busy="true"` → 응답 뒤 `aria-busy`≠`true`, `readOnly` 해제 ⓑ writing send → null(표시로 관찰) ⓒ (a)(b) `appendUser` 1회
+- 스펙: `Composer.test.tsx`
+
+### TC-CH-037 · (S2) 전송 실패(비인증) · 종류: 자동 · 요구: R-CHAT-011 · R-CHAT-006 · 설계: §6.6 · F-CH-16 · §8.3 · C §1.18 · §11.2 D-7 · 토큰: 있음
+- Given `안녕` 입력, `appendUser` 대기 → 실패: `INTERNAL` · `RATE_LIMITED`+40 · `RATE_LIMITED`(값 없음) · `NOT_FOUND` · `NETWORK` · `VALIDATION_ERROR`
+- When 전송 → (가짜 시계) → resolve → 1999ms → 1ms
+- Then ⓐ E `role=alert` 문구·톤: `ERROR_MESSAGES.INTERNAL`(danger) · `요청이 너무 많습니다. 40초 후 다시 시도해 주세요.`(warning) · `ERROR_MESSAGES.RATE_LIMITED`(warning) · `방을 찾을 수 없습니다. 목록으로 돌아가 주세요.`(danger) · `서버에 연결할 수 없습니다.`(danger) · `메시지는 1~2000자로 입력해 주세요.`(danger). `SERVER-RAW-MESSAGE` 없음. 입력값 `안녕` 유지, `li` 4개, group·⋯ 그대로, `role=note` 없음. 1999ms 있음 → 2000ms 없음 ⓑ `onAuthFailure` 0회 ⓒ `appendUser` 1회
+- 스펙: `Composer.test.tsx`
+
+### TC-CH-038 · (S2) 전송 뒤 스크롤·배지 · 종류: 자동 · 요구: R-CHAT-003 · R-CHAT-006 · 설계: §6.3 · F-CH-17 `isNearBottom` · F-CH-08 조립 · C §3 뒤붙임 행 · F §1.1 T9·T11 · 토큰: 있음
+- Given 스크롤 mock(493 / 내용 3000), 첫 배치 `scrollTop=2507`, 응답 전에 내용 높이를 3200으로 바꾼다
+- When (a) 그대로 전송 성공 (b) `scrollTop=1000` + scroll 후 전송 성공 → 배지 클릭
+- Then ⓐ (a) `scrollTop=3200`, 배지 없음 (b) `scrollTop=1000` 그대로, `button "새 메시지 보기, 맨 아래로 이동"`(글자 `새 메시지`) → 클릭 → `scrollTop=3200`, 배지 없음 ⓑ (a) unseen 0 (b) 1 → 0(배지로 관찰) ⓒ `appendUser` 1회, `listMessages` 1회(새 메시지 반영에 재요청 없음)
+- 스펙: `Composer.test.tsx`
+
+### TC-CH-039 · (S2) 말풍선 메뉴 열기 · 종류: 자동 · 요구: R-CHAT-007 · R-CHAT-013 · 설계: §6.4 1행 · C §2.2 메뉴 핸들러 · C §1.19 · F-CH-18 · A Shift+F10 · 토큰: 있음
+- Given ready, 102(세바스찬) 말풍선 메뉴 대상
+- When (a) `fireEvent.contextMenu` (b) 마우스 왼쪽 누름 → 500ms (c) 누름 → 499ms → 뗌 (d) 누름 → 11px 이동 → 500ms (e) 터치 누름 → 500ms → `contextmenu` (f) 말풍선 포커스 → Shift+F10
+- Then ⓐ (a)(b)(e)(f) `dialog "메시지 메뉴"` 1개((e)는 contextmenu 뒤에도 1개) (c)(d) dialog 없음 ⓑ (a) `fireEvent` 반환 `false`(`defaultPrevented`) ⓒ 쓰기 래퍼 0회
+- 스펙: `ui/src/chat/test/BubbleMenu.test.tsx`
+
+### TC-CH-040 · (S2) 메뉴 내용 · 종류: 자동 · 요구: R-CHAT-007 · R-LLM-002 · 설계: C §2.8 `nameOf`·`excerptOf` · §8.1.1 `messageMenuHeader`·`edit`·`delete`·`cancel` · 토큰: 있음
+- Given 102 세바스찬 · 103 유저(미샤) · 104 OOC · 부품 단위 22자 본문 메시지
+- When 각 말풍선의 메뉴를 연다 / `MessageMenuSheet`를 단독 렌더한다
+- Then ⓐ 머리 `세바스찬 · 16:41  "예, 도련님."` · `미샤 · 16:42  "나도 한 잔 부탁해요."` · `[지시] · 16:43  "둘이 체스를 둔다"` · 22자 → 앞 20자 + `…`. 버튼 순서 `수정`·`삭제`·`취소`, `재작성` 없음. `삭제` 항목은 danger 톤 ⓑ — ⓒ 쓰기 래퍼 0회
+- 스펙: `BubbleMenu.test.tsx`
+
+### TC-CH-041 · (S2) 메뉴 닫기·포커스·트랩 · 종류: 자동 · 요구: R-CHAT-007 · R-CHAT-013 · 설계: C §1.15 포커스·트랩·Esc · F-CH-28 · A 시트 · 토큰: 있음
+- Given 103 말풍선에 포커스 → Shift+F10으로 메뉴 열림(첫 포커스 `수정`)
+- When (a) `취소` (b) Esc (c) 덮개(dialog의 부모) 클릭 (d) Tab×3 · Shift+Tab
+- Then ⓐ (a)(b)(c) dialog 없음, 포커스 = 103 말풍선 (d) `수정`→`삭제`→`취소`→`수정`, Shift+Tab `수정`→`취소` ⓑ sheet null ⓒ 쓰기 래퍼 0회
+- 스펙: `BubbleMenu.test.tsx`
+
+### TC-CH-042 · (S2) 인라인 수정 열기 · 종류: 자동 · 요구: R-CHAT-007 · R-MSG-004 · 설계: §6.4 수정 · F-CH-19 · C §2.7 · §8.1.1 `editAriaLabel`·`editInputAriaLabel` · F §1.1 T21 · 토큰: 있음
+- Given 103 메뉴가 열려 있다
+- When `수정` → 값 변경(`나도 한 잔 부탁해요!` · `'   '` · `'a'×2001`)
+- Then ⓐ dialog 없음, `group "메시지 수정"` 안 `textbox "수정할 내용"` 값 = 원문, 포커스, `selectionStart = selectionEnd = 원문 길이`. 저장 disabled(안 바뀜) → 1글자 바꾸면 enabled → 공백만·2001 disabled. 다른 말풍선·하단 바 그대로 ⓑ editingId 103(편집기로 관찰) ⓒ `editMessage` 0회
+- 스펙: `BubbleMenu.test.tsx`
+
+### TC-CH-043 · (S2) 수정 저장 · 종류: 자동 · 요구: R-CHAT-007 · R-MSG-004 · 설계: F-CH-20 · F-CH-30 · F §1.1 T17 · C §2.7 `isSaving` · 토큰: 있음
+- Given 편집기에서 `새 본문`으로 바꿨다, `editMessage` 대기
+- When 저장 → 대기 중 Esc → resolve `ok({…103, text: '새 본문'})`
+- Then ⓐ 대기 중 `취소`·`저장` disabled, 입력 `readOnly`, Esc 뒤에도 편집기 있음 → 응답 뒤 편집기 없음, 103 본문 `새 본문`, 포커스 = `role=log` ⓑ editingId·writing null ⓒ `editMessage` 1회 `[103, { text: '새 본문' }]`
+- 스펙: `BubbleMenu.test.tsx`
+
+### TC-CH-044 · (S2) 수정 실패·취소 · 종류: 자동 · 요구: R-CHAT-007 · R-CHAT-011 · 설계: F-CH-20 실패 · F-CH-21 · §8.3 `editMessage` 행 · F §1.1 T23 · 토큰: 있음
+- Given 편집기에서 `새 본문`으로 바꿨다
+- When (a) 저장 → `INTERNAL` (b) 저장 → `NOT_FOUND` (c) `취소` (d) Esc
+- Then ⓐ (a)(b) 편집기·입력값 `새 본문` 유지, 토스트 `ERROR_MESSAGES.INTERNAL` / `메시지를 찾을 수 없습니다. 이미 삭제되었을 수 있습니다.`(danger) (c)(d) 편집기 없음, 103 본문 원문, 포커스 = `role=log` ⓑ (a)(b) `onAuthFailure` 0회 ⓒ (a)(b) `editMessage` 1회 (c)(d) 0회
+- 스펙: `BubbleMenu.test.tsx`
+
+### TC-CH-045 · (S2) 메시지 삭제 · 종류: 자동 · 요구: R-CHAT-007 · R-MSG-005 · 설계: §6.4 삭제 · F-CH-22·23 · C §1.16 · §8.1.1 `deleteMessageTitle`·`deleteMessageBody` · F §1.1 T19 · 토큰: 있음
+- Given 103 메뉴가 열려 있다
+- When `삭제` → `취소` → 다시 메뉴 → `삭제` → 확인 `삭제`(대기) → resolve `ok(undefined)`
+- Then ⓐ `alertdialog "이 메시지를 삭제할까요?"`, 본문 `삭제한 메시지는 되돌릴 수 없습니다.`, 첫 포커스 `취소` → 취소 뒤 dialog 없음·103 있음 → 대기 중 두 버튼 disabled → 응답 뒤 `li` 3개(103 없음), dialog 없음, 포커스 = `role=log` ⓑ 저장소 변화 없음 ⓒ `deleteMessage` 취소 시 0회, 확인 뒤 1회 `[103]`
+- 스펙: `BubbleMenu.test.tsx`
+
+### TC-CH-046 · (S2) 삭제 실패·NOT_FOUND·빈 결과 재로드 · 종류: 자동 · 요구: R-CHAT-007 · R-CHAT-011 · R-MSG-005 · 설계: F-CH-23 `RemoveResult` · functions.md `useMessageWrites` · C §3 v1.5 첫 행 · §11.2 D-6 · 토큰: 있음
+- Given (a) `INTERNAL` (b) `NOT_FOUND` (c) 스크롤 mock, `ld:scroll:r1='300'`, 첫 페이지 [101]·`hasMore=true`, 2회째 `listMessages` → [90]·`hasMore=false` (d) 첫 페이지 [101]·`hasMore=false`
+- When 그 말풍선(a·b는 103)을 삭제 확인
+- Then ⓐ (a) 103 유지, dialog 없음, 토스트 `ERROR_MESSAGES.INTERNAL` (b) 103 없음, `alert` 없음 (c) 첫 배치 `scrollTop=2207` → 재로드 뒤 90 말풍선, `scrollTop=2507`(맨 아래, 저장 거리 무시) (d) `role=status` `아직 대화가 없습니다` ⓑ (a) `onAuthFailure` 0회 ⓒ (a)(b) `deleteMessage` 1회 `[103]` (c) `listMessages` 2회, 2회째 정확히 `['r1']` (d) `listMessages` 1회
+- 스펙: `BubbleMenu.test.tsx`
+
+### TC-CH-047 · (S2) ⋯ 방 메뉴 · 종류: 자동 · 요구: R-CHAT-001 · 설계: §6.5 · C §2.0·§2.9 · F-CH-24 · §8.1.1 `moreAriaLabel`·`roomMenuHeader`·`rename`·`deleteRoom` · 토큰: 있음
+- Given ready
+- When `방 메뉴 열기` → (a) `취소` (b) Esc
+- Then ⓐ `dialog "방 메뉴"`, 머리 `방 메뉴 · 티타임`, 버튼 순서 `이름 변경`·`방 삭제`·`취소`, `장기기억` 없음 → 닫힌 뒤 포커스 = ⋯ ⓑ — ⓒ 쓰기 래퍼 0회
+- 스펙: `ui/src/chat/test/RoomMenu.test.tsx`
+
+### TC-CH-048 · (S2) 이름 변경 성공 · 종류: 자동 · 요구: R-CHAT-001 · R-ROOM-003 · 설계: §6.5 이름 변경 · F-CH-25·26 · C §1.17 · C §2.10 `rename` · rooms F-RM-13 · 토큰: 있음
+- Given (a) 화면 단위 (b) App 통합 `initToken`, 티타임 진입
+- When `이름 변경` → 값 확인 → `'  티타임  '`·`'   '`·61자 → `팬텀하이브 저택의 밤` → 저장(또는 Enter)
+- Then ⓐ `dialog "방 이름 변경"`, `textbox "방 이름"` = `티타임`, 카운터 `3/60`, 저장 disabled(그대로·공백·61자) → enabled → 응답 뒤 dialog 없음, 포커스 = ⋯. (b) h1·`main` 이름이 `팬텀하이브 저택의 밤` ⓑ (a) `onRoomRenamed` 1회(응답 RoomSummary) ⓒ `renameRoom` 1회 `['r1', { title: '팬텀하이브 저택의 밤' }]`. (b) `listMessages` 1회 유지(재마운트 없음)
+- 스펙: `RoomMenu.test.tsx`
+
+### TC-CH-049 · (S2) 이름 변경 실패 · 종류: 자동 · 요구: R-CHAT-001 · R-CHAT-011 · 설계: F-CH-26 실패 · §8.3 `renameRoom` 행 · §11.2 D-7 · 토큰: 있음
+- Given 이름 변경 시트에 `새 제목` 입력
+- When 저장 → `INTERNAL` · `NOT_FOUND` · `RATE_LIMITED`+40 · `VALIDATION_ERROR` · `LEVEL_TOO_LOW`(하네스)
+- Then ⓐ 비인증: dialog 유지, 입력 `새 제목` 유지, dialog **안** `role=alert` = `ERROR_MESSAGES.INTERNAL` / `방을 찾을 수 없습니다. 목록으로 돌아가 주세요.` / `요청이 너무 많습니다. 40초 후 다시 시도해 주세요.` / `방 제목은 1~60자로 입력해 주세요.`, 화면의 alert는 그 1개(E 토스트 없음). `LEVEL_TOO_LOW`: dialog 없음, E 토스트 `대화 참여 등급이 아니어서 열람 전용으로 바뀌었습니다.`, `role=note` ⓑ 비인증 `onRoomRenamed`·`onAuthFailure` 0회 / 인증 `onAuthFailure` 1회 ⓒ `renameRoom` 1회
+- 스펙: `RoomMenu.test.tsx`
+
+### TC-CH-050 · (S2) 방 삭제 · 종류: 자동 · 요구: R-CHAT-001 · R-ROOM-004 · R-ROOMS-004 · 설계: §6.5 방 삭제 · F-CH-27 · §8.1.1 `deleteRoomTitle`·`deleteRoomBody` · §11.2 D-6 · 토큰: 있음
+- Given ready, `ld:lastRoomId='r1'`
+- When `방 삭제` → (a) 확인 `삭제`(대기) → 대기 중 Esc·덮개 클릭 → `ok(undefined)` (b) `NOT_FOUND` (c) `INTERNAL`
+- Then ⓐ `alertdialog "이 방을 삭제할까요?"` + `메시지와 장기기억이 함께 지워지며 되돌릴 수 없습니다.`, 첫 포커스 `취소`. (a) 대기 중 두 버튼 disabled, Esc·덮개 뒤에도 dialog 있음 (c) dialog 없음, 토스트 `ERROR_MESSAGES.INTERNAL` ⓑ (a)(b) `onBack` 1회, 그 시점에 `ld:lastRoomId` 이미 `null` (c) `onBack` 0회, `ld:lastRoomId='r1'` ⓒ `deleteRoom` 1회 `['r1']`
+- 스펙: `RoomMenu.test.tsx`
+
+### TC-CH-051 · (S2) 인증 실패 전환(App 통합) · 종류: 자동 · 요구: R-CHAT-011 · R-CHAT-008 · R-CHAT-009 · 설계: §6.6 · F-CH-16·29 · §8.3 인증 3행 · §10 · §11.2 D-8·D-9·D-10 · rooms F-RM-12 · 토큰: 있음 → 없음
+- Given (a) `initToken('?t=test-token')` → App → 티타임 진입, `appendUser` → `LEVEL_TOO_LOW` · `TOKEN_INVALID` · `TOKEN_REQUIRED` (b) 화면 단위(하네스 없음 = 부모가 전환하지 않음), 전송 2회 연속 `LEVEL_TOO_LOW`
+- When (a) `안녕` 전송 → 실패 → 말풍선 contextmenu → ‹ 뒤로 (b) 전송 → 실패 → 다시 전송 → 실패
+- Then ⓐ (a) 같은 화면에서 ⋯·`group`·`textbox`·`switch` DOM 없음, `role=note` `열람 전용 - 대화 참여는 등급 회원만`, E 토스트 1개(warning) 코드별 문구, 포커스 = ‹. contextmenu 뒤 dialog 없음·`defaultPrevented` 아님. ‹ 뒤로 → rooms에 `새 방 만들기` 없음 (b) alert 1개 ⓑ (a) `getToken() === null` (b) `onAuthFailure` 1회(멱등) ⓒ (a) `appendUser` 1회 (b) 2회
+- 스펙: `ui/src/chat/test/AuthTransition.test.tsx`
+
+### TC-CH-052 · (S2) 전환 시 열린 상태 정리 · 종류: 자동 · 요구: R-CHAT-011 · R-CHAT-008 · R-CHAT-007 · 설계: F-CH-11 v1.5 `editingId` 조건 · F-CH-29 · F §1.1 T25 · 토큰: 있음 → 없음(하네스)
+- Given (a) 103 편집기 `새 본문` (b) 103 삭제 확인 시트
+- When (a) 저장 → `TOKEN_INVALID` (b) 확인 `삭제` → `LEVEL_TOO_LOW`
+- Then ⓐ (a) 편집기 없음, 103 본문 원문 (b) dialog 없음, 103 있음. 둘 다 `role=note`, 포커스 ‹ ⓑ `onAuthFailure` 1회(writing·editingId null은 TC-CH-053 T25) ⓒ (a) `editMessage` 1회 (b) `deleteMessage` 1회
+- 스펙: `AuthTransition.test.tsx`
+
+### TC-CH-053 · (S2) 리듀서 T13~T26 · canSend · 종류: 자동 · 요구: R-CHAT-006 · R-CHAT-007 · R-CHAT-011 · R-CHAT-003 · 설계: F §1 · §1.1 T1 비고·T13~T26 · §1.2 `canSend` · F-CH-12 · 토큰: 무관
+- Given 얼린 상태
+- When S2 액션 7종 + ready에서 `initialLoadStarted`
+- Then ⓐ 해당 없음 ⓑ 초기값 9필드(`writing`·`editingId` null). T1(ready·editingId·unseen 있음) → 초기값. T13 writing 설정 / T14(loading·쓰기 중) 같은 참조 / T15 null / T16 같은 참조 / T17 교체·순서 유지·editingId 같은 id면 null·다른 id면 유지 / T18 같은 참조 / T19 제거·editingId null / T20 같은 참조 / T21 editingId / T22(쓰기 중·없는 id·loading) 같은 참조 / T23 null / T24(저장 중·편집 아님) 같은 참조 / T25 둘 다 null / T26 같은 참조. `canSend` ready·null만 true ⓒ api 호출 없음
+- 스펙: `ui/src/state/chat.test.ts`
+
+### TC-CH-054 · (S2) 쓰기 직렬화 · 종류: 자동 · 요구: R-CHAT-007 · R-CHAT-006 · R-CHAT-001 · 설계: §11.2 D-5·D-10 · F-CH-18·24 · C §2.0 `isMenuDisabled` · C §2.8 `isWriteBusy` · 토큰: 있음
+- Given (a) `appendUser` 대기 (b) `editMessage` 대기 (c) `renameRoom` 대기 (d) 부품 `MessageMenuSheet isWriteBusy`
+- When (a) 말풍선 contextmenu·롱프레스 (b) 하단 입력에 `x` 입력 (c) 시트 뒤 ⋯ 확인 (d) true / false로 렌더
+- Then ⓐ (a) dialog 없음, ⋯ disabled (b) 입력값 `x`, `전송` disabled, ⋯ disabled (c) ⋯ disabled (d) true면 `수정`·`삭제` disabled·`취소` enabled, false면 셋 다 enabled ⓑ writing·roomBusy 대기(표시로 관찰) ⓒ 대기 중인 래퍼 1회, 다른 쓰기 래퍼 0회
+- 스펙: `BubbleMenu.test.tsx`(a)(b)(d) · `RoomMenu.test.tsx`(c)
+
+### TC-CH-055 · (S2) BottomSheet·SheetItem · 종류: 자동 · 요구: R-CHAT-007 · R-CHAT-001 · R-CHAT-013 · 설계: C §1.15 · 토큰: 무관
+- Given 바깥 버튼에 포커스한 뒤 시트 렌더(항목 3, `header` 있음/없음, `initialFocusRef`)
+- When Tab·Shift+Tab·Esc·덮개 클릭·패널 클릭·`isDismissDisabled`·언마운트(바깥 버튼 제거 후 포함)
+- Then ⓐ `role=dialog`(또는 `alertdialog`)·`aria-modal="true"`·이름, `header` 없으면 머리 없음, 첫 포커스 = 첫 항목(또는 `initialFocusRef`), Tab 끝→처음·Shift+Tab 처음→끝. SheetItem `danger` 클래스·`isDisabled` → disabled ⓑ 언마운트 → 포커스가 바깥 버튼으로, 그 버튼이 DOM에 없으면 복귀 안 함 ⓒ Esc·덮개 → `onClose` 1회, 패널 클릭 0회, `isDismissDisabled` 0회, 항목 클릭 → `onSelect` 1회
+- 스펙: `ui/src/components/ui/BottomSheet/BottomSheet.test.tsx`
+
+### TC-CH-056 · (S2) ConfirmDialog · 종류: 자동 · 요구: R-CHAT-007 · R-CHAT-001 · 설계: C §1.16 · 토큰: 무관
+- Given title·message·라벨 props
+- When 렌더 / `isBusy` / 버튼·Esc
+- Then ⓐ `alertdialog` 이름 = title, `h2` title·`p` message, 버튼 순서 취소 → 확인, 확인 `danger` 클래스, 첫 포커스 취소. `isBusy` → 두 버튼 disabled ⓑ — ⓒ 확인 → `onConfirm` 1회, 취소·Esc → `onCancel` 1회, `isBusy`면 Esc 0회
+- 스펙: `ui/src/components/ui/ConfirmDialog/ConfirmDialog.test.tsx`
+
+### TC-CH-057 · (S2) PromptSheet · 종류: 자동 · 요구: R-CHAT-001 · 설계: C §1.17 · 토큰: 무관
+- Given `initialValue='티타임'`, `maxChars=60`, `canSave = v => v !== '티타임'`
+- When 렌더 / 값 변경 / Enter / `isBusy` / `errorText`
+- Then ⓐ dialog 이름·h2 = title, 입력 포커스·커서 끝, 카운터 `3/60`, 저장 disabled → 바꾸면 enabled. `isBusy` → 입력 `readOnly`·두 버튼 disabled. `errorText` → `role=alert` ⓑ 입력 로컬 값 유지 ⓒ `canSave` false면 저장·Enter → `onSave` 0회, true면 Enter → `onSave(값)` 1회, 취소 → `onCancel` 1회
+- 스펙: `ui/src/components/ui/PromptSheet/PromptSheet.test.tsx`
+
+### TC-CH-058 · (S2) TextArea · 종류: 자동 · 요구: R-CHAT-004 · R-CHAT-013 · 설계: C §1.13 · 토큰: 무관
+- Given `getComputedStyle` lineHeight 20·padding 8+8, textarea `scrollHeight` 변수, `matchMedia` false/true
+- When 값 변경(scrollHeight 36 · 76 · 116) / Enter·Shift+Enter·IME / `counterMode`
+- Then ⓐ 높이 `36px` hidden · `76px` hidden · `76px` `overflow-y: auto`. `matchMedia(max-height:480)` true면 116에서도 `36px`. `rows=1`. `counterMode='overflow'` 한도 이하 카운터 없음·초과 `over`, `'always'` 항상 ⓑ — ⓒ `onEnter` 있음: Enter → 1회·기본 막음, Shift+Enter → 0회. IME → 0회. `onEnter` 없음: Enter 기본 동작 유지(`defaultPrevented` 아님)
+- 스펙: `ui/src/components/ui/TextArea/TextArea.test.tsx`
+
+### TC-CH-059 · (S2) Toggle · 종류: 자동 · 요구: R-CHAT-004 · 설계: C §1.14 · 토큰: 무관
+- Given `isOn=false`, 라벨 props
+- When 클릭 · Space · Enter / `isOn=true` 다시 렌더
+- Then ⓐ `button role=switch` 이름 = ariaLabel, `aria-checked` false → 글자 offLabel / true → onLabel ⓑ 상태는 props(부품은 바꾸지 않음) ⓒ 클릭·Space·Enter → `onChange(true)` 각 1회
+- 스펙: `ui/src/components/ui/Toggle/Toggle.test.tsx`
+
+### TC-CH-060 · (S2) useLongPress · 종류: 자동 · 요구: R-CHAT-007 · 설계: C §1.19 · 토큰: 무관
+- Given 하네스 요소에 핸들러, 가짜 시계
+- When 누름 → 499/500ms · 10px/11px 이동 · up·leave·cancel · 오른쪽 버튼 · contextmenu · 누름 500ms 뒤 contextmenu · 누름 중 언마운트
+- Then ⓐ 해당 없음 ⓑ `LONG_PRESS_MS=500`·`LONG_PRESS_MOVE_TOLERANCE_PX=10`. 언마운트 뒤 타이머 0개 ⓒ `onLongPress`: 500ms 1회·499ms 0회 · 10px 1회·11px 0회 · up·leave·cancel 0회 · 오른쪽 버튼 0회 · contextmenu 1회 + `defaultPrevented` · 롱프레스 직후 contextmenu 추가 0회(합계 1) · 핸들러 객체는 리렌더해도 같은 참조, 리렌더로 바뀐 최신 `onLongPress`가 불림
+- 스펙: `ui/src/components/hooks/useLongPress.test.tsx`
+
+### TC-CH-061 · (S2) 390×565 쓰기 판 스크린샷 · 종류: 수동 · 요구: R-CHAT-013 · R-CHAT-004 · 설계: §2.2 · §2.3 · C §4 S2 행 · rooms C §1.20 · 토큰: 있음
+- Given 개발 서버, 390×565, 유효 토큰 주소
+- When 하단 바 1줄·3줄, 말풍선 메뉴·방 메뉴·이름 변경·확인 시트, 인라인 수정, E 토스트를 스크린샷으로 남긴다
+- Then ⓐ 가로 스크롤 없음, A 44, C 96(1줄)·136(3줄), 시트 최대 70%·덮개, E 28 이상 ⓑ 해당 없음 ⓒ 해당 없음 — 수동 확인표 `MC-CH-10~13`
+- 스펙: `ui/src/chat/test/manual-checklist.md`
+
+### TC-CH-062 · (S2) 토큰 비노출(리뷰) · 종류: 수동 · 요구: R-CHAT-009 · R-NFR-004 · R-API-003 · 설계: §10 마지막 줄 · §7 머리말 · 토큰: 무관
+- Given `ui/src/chat` 소스(테스트 제외)
+- When grep `getToken`·`initToken`·`Authorization`·`fetch(`·`localStorage`
+- Then ⓐ 해당 없음 ⓑ 0건(화면은 `viewer`만 본다) ⓒ 헤더를 만드는 코드 0건 — 수동 확인표 `MC-CH-14`(rooms `MC-RM-07`과 같은 grep 포함)
+- 스펙: `manual-checklist.md`
+
+### TC-CH-063 · (S2) 늦은 쓰기 응답 무시 · 종류: 자동 · 요구: R-CHAT-006 · R-CHAT-007 · R-CHAT-001 · 설계: §6.7 늦은 응답 행 · F-CH-17·20·23·27 비활성 분기 · 토큰: 있음
+- Given (a) `appendUser` 대기 (b) `editMessage` 대기 (c) `deleteMessage` 대기 (d) `deleteRoom` 대기
+- When 응답 전에 언마운트 → (a)(b)(c) `LEVEL_TOO_LOW`, (d) `ok(undefined)`로 resolve
+- Then ⓐ 화면 없음 ⓑ `onAuthFailure`·`onBack` 0회, `console.error` 0회, (d) `ld:lastRoomId='r1'` 그대로 ⓒ 각 래퍼 1회
+- 스펙: `AuthTransition.test.tsx`
+- 참고: S1 TC-CH-029와 같이 React 19는 언마운트 뒤 dispatch를 경고 없이 무시한다. 판별 지점은 콜백·저장소다.
+
+### TC-CH-064 · (S2) 방 삭제 후 목록(App 통합) · 종류: 자동 · 요구: R-CHAT-001 · R-ROOM-004 · R-ROOMS-004 · 설계: §6.5 · F-CH-27 · rooms F-RM-03 · tc.md v1.5 · 토큰: 있음
+- Given `initToken`, `listRooms` 1회째 `[r1, r2]` · 2회째 `[r2]`
+- When 티타임 진입 → ⋯ → `방 삭제` → `삭제`(`ok(undefined)`)
+- Then ⓐ rooms 화면(`main "방 목록"`), 행은 `체스 대결` 하나 ⓑ `ld:lastRoomId` 없음 ⓒ `deleteRoom` `['r1']` 1회, `listRooms` 총 2회
+- 스펙: `RoomMenu.test.tsx`
+
+### TC-CH-065 · (S2) 이름 변경 후 목록(App 통합) · 종류: 자동 · 요구: R-CHAT-001 · R-ROOM-003 · 설계: F-CH-26 · rooms F-RM-13 · tc.md v1.5 · 토큰: 있음
+- Given `initToken`, `listRooms` 1회째 `[r1]` · 2회째 `[{…r1, title: '새 이름'}]`, `renameRoom` → `ok({…r1, title: '새 이름'})`
+- When 티타임 진입 → 이름 변경 `새 이름` 저장 → ‹ 뒤로
+- Then ⓐ 목록 행 이름이 `새 이름, 마지막 갱신 10.05`(두 번째 응답 그대로) ⓑ `ld:lastRoomId` 없음 ⓒ `renameRoom` 1회, `listRooms` 총 2회(화면이 목록을 직접 고치지 않음)
+- 스펙: `RoomMenu.test.tsx`
+
 ## TC-FLOW
 
-S1 행만 만든다. 표기: `A → B`는 **순차 인계**(A의 결과 상태가 B의 Given). `분기:`는 같은 지점에서 갈라지는 **대안·독립 확인**(서로 상태를 넘기지 않는다).
+S1·S2 행. 표기: `A → B`는 **순차 인계**(A의 결과 상태가 B의 Given). `분기:`는 같은 지점에서 갈라지는 **대안·독립 확인**(서로 상태를 넘기지 않는다).
 
 ### TC-FLOW-CH-01 · U-CH-01 어느 방인지 확인 · Steps: TC-RM-012(b) → TC-CH-001 → TC-CH-003 → TC-CH-027 → TC-CH-002
 - 목록에서 방 선택(→ ChatScreen 마운트, 방 = RoomSummary) → 제목·생성일(→ 말풍선 표시) → ⋯ 없음(→ 같은 화면) → 레이블·포커스 순서(→ 같은 화면) → ‹ 뒤로(→ 목록·기록 삭제)
@@ -224,6 +445,24 @@ S1 행만 만든다. 표기: `A → B`는 **순차 인계**(A의 결과 상태�
 
 ### TC-FLOW-CH-07 · U-CH-07 등급 통과 회원(토큰 있음) S1 기간 · Steps: TC-RM-012(c) → TC-CH-004 → TC-CH-021 → TC-CH-023
 - `?t=` 주소로 열어 방 진입(→ READ_ONLY_VIEWER chat) → 같은 히스토리(→ 말풍선 표시) → 하단 바 없음 → 열람 안내
+
+### TC-FLOW-CH-08 · U-CH-08 대사·지시 전송 → 뒤붙임·자동 스크롤(S2) · Steps: TC-RM-027(a) → TC-CH-031 → TC-CH-032 → TC-CH-033 → TC-CH-034 → TC-CH-038 · 분기: TC-CH-035 | TC-CH-036 | TC-CH-037 · 시각: TC-CH-061
+- 토큰으로 App 시작 → 방 진입(→ 하단 바 렌더) → 빈 입력이면 전송 잠김(→ 입력) → `안녕` 전송(→ `appendUser` 1회·AI 호출 없음, 오른쪽 말풍선 `미샤`, 입력 비움) → OOC 켜고 지시 전송(→ 중앙 말풍선, OOC 유지) → 맨 아래면 자동 스크롤, 위를 보는 중이면 배지 → 배지 클릭으로 맨 아래. 분기: Enter·IME | 연타 1회 | 실패 문구(429 포함)
+
+### TC-FLOW-CH-09 · U-CH-10 말풍선 수정·삭제(S2) · Steps: TC-CH-039 → TC-CH-040 → TC-CH-042 → TC-CH-043 → TC-CH-039 → TC-CH-045 · 분기: TC-CH-041 | TC-CH-044 | TC-CH-046 | TC-CH-054
+- 롱프레스·우클릭·Shift+F10으로 메뉴(→ 머리·항목) → 수정(→ 인라인 편집기) → 저장(→ 본문 교체, 히스토리 포커스) → 다른 말풍선 메뉴 → 삭제 확인(→ 말풍선 제거). 분기: 닫기·포커스 복귀 | 수정 실패·취소 | 삭제 실패·이미 없음·빈 결과 재로드 | 쓰기 대기 중 메뉴 막힘
+
+### TC-FLOW-CH-10 · U-CH-11 이름 변경·방 삭제 → 목록 복귀(S2) · Steps: TC-CH-047 → TC-CH-048 → TC-CH-065 · TC-CH-047 → TC-CH-050 → TC-CH-064 · 분기: TC-CH-049 | TC-CH-054(c)
+- ⋯ 방 메뉴(→ 항목) → 이름 변경 성공(→ 상단 제목 갱신, 재마운트 없음) → ‹ 뒤로(→ 목록 재요청, 새 이름 행). 또는 ⋯ → 방 삭제 확인(→ 기록 삭제, `onBack`) → App 목록 재요청(→ 지운 방 없음). 분기: 이름 변경 실패는 시트 안 문구 | 이름 변경 대기 중 ⋯ 잠김
+
+### TC-FLOW-CH-11 · U-CH-12 쓰기 거절 → 안내·읽기 전용 전환(S2) · Steps: TC-CH-031 → TC-CH-051(a) → TC-CH-003 → TC-CH-021 → TC-CH-022 → TC-CH-023 · 분기: TC-CH-037(429) | TC-CH-049(LEVEL_TOO_LOW) | TC-CH-052 | TC-CH-051(b) | TC-RM-024
+- 쓰기 판(→ 하단 바) → 전송이 인증 실패(→ 토큰 비움, 같은 화면 쓰기 UI 제거, 안내 토스트 1회, ‹ 포커스) → 이후 화면은 읽기 전용 판과 같다(⋯ 없음 → 하단 바 없음 → 메뉴 없음 → 열람 안내). 분기: 429는 안내만·전환 없음 | 이름 변경 중 인증 실패 | 편집기·확인 시트가 열린 채 전환 | 두 번째 인증 실패는 다시 알리지 않음 | rooms에서 생성 중 전환
+
+### TC-FLOW-CH-12 · U-CH-06 위를 읽는 중 내 발화(S2 순차 체인) · Steps: TC-CH-033 → TC-CH-038(b) → TC-CH-016(T9·T11)
+- S1 TC-FLOW-CH-06의 층별 확인을 S2 발생 경로로 잇는다: 전송 성공(→ 응답 Message) → 위쪽이면 스크롤 유지·배지 → 배지 클릭(→ 맨 아래, unseen 0). 리듀서 근거는 T9·T11
+
+### TC-FLOW-CH-13 · U-CH-07 등급 통과 회원 읽기 + 쓰기(S2) · Steps: TC-RM-027(a) → TC-CH-004 → TC-CH-031
+- 토큰 있는 App에서 방 진입(→ 같은 히스토리) → 쓰기 UI 렌더(⋯·하단 바·말풍선 메뉴). 읽기 기능은 S1 FLOW-CH-01~04와 같다
 
 ## 추적표
 
@@ -333,17 +572,94 @@ S1 행만 만든다. 표기: `A → B`는 **순차 인계**(A의 결과 상태�
 | U-CH-05 | TC-FLOW-CH-05 | S1 |
 | U-CH-06(토큰 있음, 상태 모델) | TC-FLOW-CH-06 | S1 상태·훅 / 발생 경로 S2·S3 |
 | U-CH-07(토큰 있음) | TC-FLOW-CH-07 | S1 |
-| U-CH-08 ~ U-CH-12(토큰 있음, 쓰기) | — 후속 이월 | S2 ~ S4 |
+| U-CH-06(S2 발생 경로) | TC-FLOW-CH-12 | S2 |
+| U-CH-07(S2 쓰기 판) | TC-FLOW-CH-13 | S2 |
+| U-CH-08(전송) | TC-FLOW-CH-08 | S2 |
+| U-CH-09(캐릭터 한 턴) | — 후속 이월 | S3 |
+| U-CH-10(수정·삭제) | TC-FLOW-CH-09 | S2(재작성 S3) |
+| U-CH-11(이름 변경·방 삭제) | TC-FLOW-CH-10 | S2(장기기억 S4) |
+| U-CH-12(쓰기 거절·전환) | TC-FLOW-CH-11 | S2(SPEAK_IN_PROGRESS·LLM_FAILED S3) |
 
-## 후속 이월 (S1에서 만들지 않는 TC)
+## 추적표 — S2 추가분 (v0.4)
+
+위 S1 표의 "S2" 후속 칸은 이 절로 닫는다. Bearer 헤더 부착은 래퍼 몫(api 스펙 API-T-UI-011~013)이고, 화면 TC는 래퍼를 계약 인자로 부르는지·화면이 토큰을 만지지 않는지를 단언한다.
+
+### 요구 ↔ TC (S2)
+
+| 요구ID | TC | 비고 |
+|---|---|---|
+| R-CHAT-001 🔒(⋯·이름 변경·방 삭제) | TC-CH-031 · 047 · 048 · 049 · 050 · 054(c) · 055 · 056 · 057 · 063 · 064 · 065 | 장기기억 항목은 S4 |
+| R-CHAT-003 🔒(새 메시지 실제 경로) | TC-CH-038 · 053 | |
+| R-CHAT-004 🔒(OOC·입력·전송) | TC-CH-031 · 032 · 033 · 034 · 035 · 058 · 059 · 061 | 캐릭터 버튼 S3(031에서 부재 단언) |
+| R-CHAT-006 🔒(전송·AI 호출 없음) | TC-CH-033 · 034 · 036 · 037 · 038 · 053 · 054 · 063 | |
+| R-CHAT-007 🔒(수정·삭제) | TC-CH-039 ~ 046 · 052 · 053 · 054 · 055 · 056 · 060 · 063 | 재작성 S3(040에서 부재 단언) |
+| R-CHAT-008 🔒(쓰기 판 쌍·전환) | TC-CH-031 · 051 · 052 | 부재 쪽 S1 003·021·022·023 |
+| R-CHAT-009 🔒 · R-API-003 🔒 | TC-CH-051 · 062 · TC-RM-027 · 028 | |
+| R-CHAT-011(인증 3종·429) | TC-CH-037 · 044 · 046 · 049 · 050 · 051 · 052 · 053 | SPEAK_IN_PROGRESS·LLM_FAILED S3 |
+| R-CHAT-013 🔒(쓰기 판) | TC-CH-031 · 035 · 036 · 039 · 041 · 058 · 061 | |
+| R-LLM-002 🔒(메뉴 머리 이름) | TC-CH-040 | |
+| R-MSG-002 · 004 · 005 🔒(데이터) | TC-CH-032 · 033 · 042 · 043 · 045 · 046 | |
+| R-ROOM-003 · 004 🔒(데이터) | TC-CH-048 · 050 · 064 · 065 | |
+| R-AUTH-004(작성자명) | TC-CH-033 | |
+| R-NFR-004 🔒(화면 쪽) | TC-CH-062 · 033(저장 키) | |
+| R-ROOMS-004(방 삭제 시 기록 삭제) | TC-CH-050 · 064 | |
+
+### 설계 항목 ↔ TC (S2)
+
+| 설계 항목 | TC |
+|---|---|
+| §2.2 토큰 있음 판(A ⋯ · C · E · 시트 4종) | TC-CH-031 · 037 · 039 · 047 · 048 · 050 · 061 |
+| §2.3 C·E 높이, ≤480 1줄 | TC-CH-058 · 061 |
+| §3.1 트리 S2(Composer · InlineEditor · MessageMenuSheet · RoomMenuSheet · ChatSheets · Toast) | TC-CH-031 · 042 · 040 · 047 · 048 · 050 · 037 |
+| §3.2 공용 신규 부품·훅 | TC-CH-055 ~ 060 · TC-RM-032 |
+| §3.2 useMessageWrites · useRoomActions | TC-CH-033 · 043 · 045 · 046 · 048 · 050 · 063 |
+| F §1 S2 필드·액션 7종 · T1 비고 · T13~T26 · `canSend` | TC-CH-053 |
+| F §3 `sheet` · `toast` · `menuButtonRef` · `writeInFlightRef` · `roomBusy` · `wasWritableRef` · `revokedRef` | TC-CH-039 · 037 · 047 · 036 · 054 · 052 · 051(b) |
+| F-CH-11 v1.5 `editingId` canWrite 조건 | TC-CH-052 |
+| F-CH-16 handleWriteFailure(멱등 v1.5) | TC-CH-037 · 049 · 051 |
+| F-CH-17 send | TC-CH-033 · 034 · 036 · 038 |
+| F-CH-18 openMessageMenu(쓰기 대기 중 무시 v1.5) | TC-CH-039 · 054 |
+| F-CH-19 startEdit | TC-CH-042 |
+| F-CH-20 saveEdit | TC-CH-043 · 044 |
+| F-CH-21 cancelEdit | TC-CH-044 |
+| F-CH-22 askDeleteMessage | TC-CH-045 |
+| F-CH-23 confirmDeleteMessage(`RemoveResult` 3분기) | TC-CH-045 · 046 · 054 |
+| F-CH-24 openRoomMenu(대기 중 무시) | TC-CH-047 · 054 |
+| F-CH-25 askRename·askDeleteRoom | TC-CH-048 · 050 |
+| F-CH-26 rename | TC-CH-048 · 049 · 065 |
+| F-CH-27 confirmDeleteRoom | TC-CH-050 · 063 · 064 |
+| F-CH-28 closeSheet | TC-CH-041 · 047 |
+| F-CH-29 전환 effect | TC-CH-051 · 052 |
+| F-CH-30 focusLog | TC-CH-043 · 044 · 045 |
+| C §2.0 ChatTopBar `onOpenMenu`·`menuButtonRef`·`isMenuDisabled` | TC-CH-031 · 047 · 054 |
+| C §2.1 MessageList S2 props(`onOpenMenu`·`editingId`·`isEditSaving`) | TC-CH-031 · 042 · 043 |
+| C §2.2 Bubble 메뉴 핸들러·`menuEnabled`·tabIndex·aria | TC-CH-031 · 039 · 041 |
+| C §2.6 Composer | TC-CH-031 ~ 038 |
+| C §2.7 InlineEditor | TC-CH-042 · 043 · 044 |
+| C §2.8 MessageMenuSheet | TC-CH-040 · 054(d) |
+| C §2.9 RoomMenuSheet | TC-CH-047 |
+| C §2.10 ChatSheets 5종 분기 | TC-CH-039 · 045 · 047 · 048 · 050 |
+| C §3 v1.5 빈 목록 재배치(맨 아래) · 뒤붙임 | TC-CH-046(c) · 038 |
+| C §4 S2 스타일 행 | TC-CH-061 |
+| §6.3 ~ §6.6 파이프라인 | TC-CH-033 · 038 / 039 ~ 046 / 047 ~ 050 / 037 · 051 |
+| §6.7 늦은 응답 행(쓰기) | TC-CH-063 |
+| §7 계약 사용표 쓰기 6종 + `isAuthFailure`·`retryAfterSec` | TC-CH-033 · 043 · 045 · 048 · 050 · 037 · 051 · TC-RM-021 |
+| §8.1.1 S2 문구 22키 | `moreAriaLabel` 031·047 · `composerAriaLabel`·`inputAriaLabel`·`inputPlaceholder`·`send`·`oocAriaLabel`·`oocOn`·`oocOff` 031·034 · `messageMenuAriaLabel`·`messageMenuHeader`·`edit`·`delete`·`cancel` 039·040 · `save`·`editAriaLabel`·`editInputAriaLabel` 042 · `deleteMessageTitle`·`deleteMessageBody` 045 · `roomMenuAriaLabel`·`roomMenuHeader`·`rename`·`deleteRoom` 047 · `renameTitle`·`renameInputAriaLabel` 048 · `deleteRoomTitle`·`deleteRoomBody` 050 |
+| §8.3 writeErrorText 11행 | 인증 3행 051 · RATE_LIMITED 2행 037 · VALIDATION 2행 037·049 · NOT_FOUND 2행 037·049·044 · NETWORK 037 · 그 밖 037·044·046·050 |
+| §10 읽기 전용 분기 12행 | TC-CH-031(있음) ↔ S1 003·021·022·023(없음) · 051 · 052 |
+| §11.2 D-5 · D-6 · D-7 · D-8 · D-9 · D-10 · A-4 · A-5 | 054 · 046·050 · 049·050 · 051 · 051 · 054·051(b) · 061 · 050(비행동 기록) |
+| A(S2) 포커스 순서·키보드·시트·상태 알림·전환 | TC-CH-035 · 039 · 041 · 036 · 051 · 058 |
+| §12 공용화 후보 · §13 CR-C-2 · §14 S3·S4 | 비행동 항목 — TC 대상 아님 |
+
+## 후속 이월 (S2에서 만들지 않는 TC)
 
 | 대상 | 묶음 | 이유 | 그때 만들 것 |
 |---|---|---|---|
-| 하단 바·⋯ 메뉴·말풍선 메뉴의 토큰 있음 렌더 쌍 | S2·S3 | 설계 §14 슬롯만 있음, `viewer.canWrite` 계산 S2 | 토큰 있음 → 렌더 TC, 쓰기 래퍼 호출 인자·토큰 헤더, OOC 전송 시 speak 미호출 |
-| 생성 중 "…" 임시 말풍선·잠금·실패 재시도 | S3 | R-CHAT-005 후속 | 가짜 시계·잠금 해제·오류 말풍선 |
-| 401·403·429 코드별 안내·읽기 전용 전환 | S2·S3 | R-CHAT-011 후속 | `errorDetail` 확장 TC |
-| F-CH-08 조립(배지 클릭 → 맨 아래 + unseenCleared) | S2 | S1에 새 메시지 발생 경로 없음 | 화면 단위 조립 TC |
-| TC-FLOW-CH-06 순차 체인 | S2·S3 | 같음 | 발생 → 배지 → 클릭 → 해제 체인 |
+| 세바스찬·시엘 버튼 렌더 쌍 · speak 호출 인자 · OOC 전송 시 speak 미호출 | S3 | 설계 §14 슬롯만(TC-CH-031이 부재 단언) | 토큰 있음 렌더, `speak` 래퍼 인자, OOC 전송 뒤 speak 0회 |
+| 생성 중 "…" 임시 말풍선·버튼 잠금·실패 말풍선·재시도 | S3 | R-CHAT-005 후속 | 가짜 시계·잠금 해제·오류 말풍선 |
+| 재작성 메뉴 항목 | S3 | R-CHAT-007 후속(TC-CH-040이 부재 단언) | 캐릭터·마지막 메시지 조건, `messageReplaced` |
+| `SPEAK_IN_PROGRESS`·`LLM_FAILED`·`LLM_EMPTY` 문구 | S3 | §8.3 행 추가 예정 | `writeErrorText` 확장 TC |
+| 장기기억 메뉴 항목 | S4 | R-CHAT-012 | 방 메뉴 항목·요약 화면 |
 
 ## 변경 대기열(미검증)
 
@@ -357,3 +673,4 @@ S1 행만 만든다. 표기: `A → B`는 **순차 인계**(A의 결과 상태�
 | v0.1 | 2026-10-05 | 최초 작성(신규 모드). TC-CH-001~030, TC-FLOW-CH-01~07, 추적표 3종, 스펙 초안 7개 | 구축 S1, design.md v1.1 RTM |
 | v0.2 | 2026-10-05 | TC-CH-025 (f) pagehide 리스너 해제 단언 추가. TC-CH-005 재시도 중간 loading 단언. TC-CH-011·014 B0가 `ol`보다 앞(부품 단위). TC-CH-024 요구에서 R-NFR-004 제거, TC-CH-030 요구를 R-CHAT-002로 정정, 요구↔TC 표 맞춤. TC-CH-029 회귀 방지 비고. TC-FLOW 표기 규약(순차 `→` / `분기:`) 도입, FLOW-CH-01~07 재작성. 공통 전제에 named export·Bubble 클래스 키 명시 | ui-test-checker TK-01 ~ TK-07 |
 | v0.3 | 2026-10-05 | TC-CH-011 (c) 픽스처를 계약 가능한 첫 페이지(31~60, 30건, hasMore=true)로 바꾸고 기대를 `before: 31`로 정정. 공통 전제에 스크롤 mock 비클램프·판정 대기 규칙 명시, ChatScroll 스펙의 "호출 없음·횟수 유지" 판정 앞에 `flushPending()` 추가(TC-CH-011 (b)(c)·013·014) | ui-test-conflict-checker CF-02 · CF-03 · CF-05 |
+| v0.4 | 2026-10-05 | **S2 증분**: S2 공통 전제(토큰 주입 = `viewer` props / App은 `initToken`·`clearToken`, 쓰기 래퍼 모킹·AI 호출 없음 판정, `matchMedia` 스텁, 롱프레스·토스트 가짜 시계). TC-CH-031~065 추가(tc.md v1.5 반영: 033 단언 범위·046 재로드 맨 아래·054 메뉴 진입 막힘·064·065 App 흐름), TC-FLOW-CH-08~13 추가, 사용자행 U-CH-06~12 연결, F-CH-08 조립(038)·FLOW-CH-06 순차 체인(FLOW-CH-12) 이월 해소. 「후속 이월」을 S3·S4만 남기고 「추적표 — S2 추가분」 신설. 스펙 신규 `Composer`·`BubbleMenu`·`RoomMenu`·`AuthTransition`·공용 부품 6종, `ui/src/state/chat.test.ts` 확장. S1 TC-CH-001~030 변경 없음 | 구축 S2, design.md v1.5 · tc.md v1.5 |

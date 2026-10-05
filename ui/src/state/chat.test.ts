@@ -14,6 +14,8 @@ import {
   initialChatState,
   mergeMessages,
   nextBefore,
+  canSend,
+  type MessageWrite,
 } from '@/state/chat'
 
 const msg = (id: number, text = `본문 ${id}`): Message => ({
@@ -40,6 +42,133 @@ const ready = (over: Partial<ChatState> = {}): ChatState =>
     hasMore: true,
     ...over,
   })
+
+// ── S2 (TC-CH-053) — functions.md §1.1 T1 비고 · T13~T26 · §1.2 canSend ─────────────
+const SEND: MessageWrite = { kind: 'send' }
+const EDIT32: MessageWrite = { kind: 'edit', messageId: 32 }
+const DEL32: MessageWrite = { kind: 'delete', messageId: 32 }
+
+describe('chatReducer S2 초기값·T1 비고 (R-CHAT-006 · R-CHAT-007)', () => {
+  it('TC-CH-053: 초기값 9필드 — S2 writing·editingId 는 null', () => {
+    expect(initialChatState).toEqual({
+      phase: 'loading',
+      error: null,
+      messages: [],
+      hasMore: false,
+      isLoadingOlder: false,
+      olderError: null,
+      unseenCount: 0,
+      writing: null,
+      editingId: null,
+    })
+  })
+
+  it('TC-CH-053: T1 을 ready 에서 받으면(삭제 뒤 재로드) editingId·unseenCount 도 초기화', () => {
+    const next = chatReducer(ready({ editingId: 32, unseenCount: 2 }), { type: 'initialLoadStarted' })
+    expect(next).toEqual(initialChatState)
+  })
+})
+
+describe('chatReducer T13~T16 writeStarted·writeFinished (R-CHAT-006)', () => {
+  it('TC-CH-053: T13 ready·writing null → writing 설정, 나머지 그대로', () => {
+    const before = ready()
+    const next = chatReducer(before, { type: 'writeStarted', write: SEND })
+    expect(next.writing).toEqual(SEND)
+    expect(next.messages).toBe(before.messages)
+    expect(next.editingId).toBeNull()
+    expect(chatReducer(ready(), { type: 'writeStarted', write: DEL32 }).writing).toEqual(DEL32)
+  })
+
+  it('TC-CH-053: T14 loading·error·이미 쓰기 중 → 같은 참조(거절)', () => {
+    const loading = freeze(initialChatState)
+    const error = freeze({ ...initialChatState, phase: 'error', error: ERR })
+    const busy = ready({ writing: SEND })
+    expect(chatReducer(loading, { type: 'writeStarted', write: SEND })).toBe(loading)
+    expect(chatReducer(error, { type: 'writeStarted', write: SEND })).toBe(error)
+    expect(chatReducer(busy, { type: 'writeStarted', write: EDIT32 })).toBe(busy)
+  })
+
+  it('TC-CH-053: T15 writing 있음 → null / T16 없음 → 같은 참조', () => {
+    expect(chatReducer(ready({ writing: EDIT32 }), { type: 'writeFinished' }).writing).toBeNull()
+    const idle = ready()
+    expect(chatReducer(idle, { type: 'writeFinished' })).toBe(idle)
+  })
+})
+
+describe('chatReducer T17~T20 messageReplaced·messageRemoved (R-CHAT-007 · R-MSG-004 · R-MSG-005)', () => {
+  it('TC-CH-053: T17 같은 id 교체(순서 유지, 새 배열), 편집 중이던 id 면 editingId null', () => {
+    const before = ready({ editingId: 32 })
+    const next = chatReducer(before, { type: 'messageReplaced', message: msg(32, '새 본문') })
+    expect(ids(next.messages)).toEqual([31, 32, 33])
+    expect(next.messages[1]?.text).toBe('새 본문')
+    expect(next.messages).not.toBe(before.messages)
+    expect(next.editingId).toBeNull()
+  })
+
+  it('TC-CH-053: T17 다른 메시지를 편집 중이면 editingId 유지', () => {
+    const next = chatReducer(ready({ editingId: 31 }), { type: 'messageReplaced', message: msg(32, '새 본문') })
+    expect(next.editingId).toBe(31)
+  })
+
+  it('TC-CH-053: T18 없는 id → 같은 참조', () => {
+    const before = ready()
+    expect(chatReducer(before, { type: 'messageReplaced', message: msg(99) })).toBe(before)
+  })
+
+  it('TC-CH-053: T19 같은 id 제거, 편집 중이던 id 면 editingId null / T20 없는 id → 같은 참조', () => {
+    const next = chatReducer(ready({ editingId: 32 }), { type: 'messageRemoved', messageId: 32 })
+    expect(ids(next.messages)).toEqual([31, 33])
+    expect(next.editingId).toBeNull()
+    expect(chatReducer(ready({ editingId: 31 }), { type: 'messageRemoved', messageId: 32 }).editingId).toBe(31)
+    const before = ready()
+    expect(chatReducer(before, { type: 'messageRemoved', messageId: 99 })).toBe(before)
+  })
+})
+
+describe('chatReducer T21~T26 편집·전환 (R-CHAT-007 · R-CHAT-011)', () => {
+  it('TC-CH-053: T21 ready·쓰기 없음·id 있음 → editingId, 다른 편집 중이면 바뀜', () => {
+    expect(chatReducer(ready(), { type: 'editStarted', messageId: 32 }).editingId).toBe(32)
+    expect(chatReducer(ready({ editingId: 31 }), { type: 'editStarted', messageId: 32 }).editingId).toBe(32)
+  })
+
+  it('TC-CH-053: T22 쓰기 중·없는 id·loading → 같은 참조', () => {
+    const busy = ready({ writing: SEND })
+    const loading = freeze(initialChatState)
+    const idle = ready()
+    expect(chatReducer(busy, { type: 'editStarted', messageId: 32 })).toBe(busy)
+    expect(chatReducer(idle, { type: 'editStarted', messageId: 99 })).toBe(idle)
+    expect(chatReducer(loading, { type: 'editStarted', messageId: 32 })).toBe(loading)
+  })
+
+  it('TC-CH-053: T23 편집 중·저장 요청 아님 → editingId null(전송 중이어도 취소 가능)', () => {
+    expect(chatReducer(ready({ editingId: 32 }), { type: 'editCancelled' }).editingId).toBeNull()
+    expect(chatReducer(ready({ editingId: 32, writing: SEND }), { type: 'editCancelled' }).editingId).toBeNull()
+  })
+
+  it('TC-CH-053: T24 편집 아님·저장 요청 중 → 같은 참조', () => {
+    const notEditing = ready()
+    const saving = ready({ editingId: 32, writing: EDIT32 })
+    expect(chatReducer(notEditing, { type: 'editCancelled' })).toBe(notEditing)
+    expect(chatReducer(saving, { type: 'editCancelled' })).toBe(saving)
+  })
+
+  it('TC-CH-053: T25 writing·editingId 중 하나라도 있으면 둘 다 null / T26 둘 다 null → 같은 참조', () => {
+    const revoked = chatReducer(ready({ editingId: 32, writing: EDIT32 }), { type: 'writeAccessRevoked' })
+    expect(revoked.writing).toBeNull()
+    expect(revoked.editingId).toBeNull()
+    expect(ids(revoked.messages)).toEqual([31, 32, 33])
+    expect(chatReducer(ready({ writing: SEND }), { type: 'writeAccessRevoked' }).writing).toBeNull()
+    const idle = ready()
+    expect(chatReducer(idle, { type: 'writeAccessRevoked' })).toBe(idle)
+  })
+
+  it('TC-CH-053: canSend 는 phase=ready 이고 writing=null 일 때만 true', () => {
+    expect(canSend(ready())).toBe(true)
+    expect(canSend(ready({ writing: SEND }))).toBe(false)
+    expect(canSend(initialChatState)).toBe(false)
+    expect(canSend({ ...initialChatState, phase: 'error', error: NET })).toBe(false)
+  })
+})
 
 describe('chatReducer T1~T8 (R-CHAT-003)', () => {
   it('TC-CH-015: 초기값은 { loading, null, [], false, false, null, 0 }', () => {
