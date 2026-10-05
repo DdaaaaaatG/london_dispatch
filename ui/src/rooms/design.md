@@ -24,7 +24,8 @@
 | v1.1 | 2026-10-05 | ‹ 뒤로 시 마지막 본 방 기록 삭제로 변경: §6.2 · §11.2 D-1 · functions.md F-RM-03 · TC-RM-012 | 메인 세션 결정 |
 | v1.2 | 2026-10-05 | 계약 인용 v0.2 · §8.1 `listAriaLabel` 삭제(ul aria-label 없음, components.md §2.2) · §11.2 D-2(main.tsx/App.tsx 분리) · §14 R-NFR-004 행 | 검증 DC-03·04·06·07 |
 | v1.3 | 2026-10-05 | named export 규칙(components.md 머리말) · TC-RM-016 판별 기준(React 19) · CF-01: §6.2 자동 진입 시 목록 미커밋 가능 명시, functions.md F-RM-06·08과 TC-RM-008을 "판정 시점에 목록 응답이 성공 상태"로 재정의(동작 변경 없음) | 시나리오 검증 지적 · conflict-checker CF-01 메인 세션 결정 |
-| v1.4 | 2026-10-05 | **S1 실물 소급**(§11.3 델타 R-1~R-6: `useRoomsLoader` 분리, `loadRooms`가 loading을 설정하지 않음, `ListArea` 지역 컴포넌트, `selectRoom` 없음, App 콜백 `useCallback`, `READ_ONLY_VIEWER` freeze). **S2 상세**: R-ROOMS-002 본문 승격(§2.2·§6.5·§7·§8.3·§10), 토큰·viewer·한도·공용 입력/시트/토스트 단일 정의(components.md §1.10~§1.20), F-RM-12~23, TC-RM-018~031, 계약 인용 v0.3 | 구축 S2 |
+| v1.4 | 2026-10-05 | **S1 실물 소급**(§11.3 델타 R-1~R-6: `useRoomsLoader` 분리, `loadRooms`가 loading을 설정하지 않음, `ListArea` 지역 컴포넌트, `selectRoom` 없음, App 콜백 `useCallback`, `READ_ONLY_VIEWER` freeze). **S2 상세**: R-ROOMS-002 본문 승격(§2.2·§6.5·§7·§8.3·§10), 토큰·viewer·한도·공용 입력/시트/토스트 단일 정의(components.md §1.10~§1.20), F-RM-12~23, TC-RM-018~032, 계약 인용 v0.3 | 구축 S2 |
+| v1.5 | 2026-10-05 | 검증 MINOR 반영: DC-06 F-RM-03 참조(F-CH-27) · DC-07 변경이력 TC 범위 · DC-09 공용 미사용 표면 삭제(`useToast.dismissToast`·`--btn-busy-opacity`·TextInput/TextArea/Toggle `isDisabled`), IconButton `isDisabled` 추가(chat ⋯, 승인) · DC-10 §14 R-API-003 참조 행(R-CHAT-009로 닫힘) | ui-design-checker MINOR · 메인 세션 결정 DC-10 |
 
 ---
 
@@ -372,6 +373,7 @@ contract 변경 요청(설계에 끼워 넣지 않음):
 | R-ROOMS-005 🔒 | §2.3 · C §3 · C §1.20 · A | — | TC-RM-015 · 031(수동·스크린샷 2종) · 017 | ✅ |
 | R-CHAT-008 🔒 (새 방 부분) | §10 · C §1.8 | — | TC-RM-011 · 018 · 024 | ✅ |
 | R-CHAT-009 🔒 (토큰 보관 — 공용 정의) | C §1.10 · F §1.1 · F §2 F-RM-12·20 · §7 · §10 | api.md §2.4 · §11.6 `configureClient` | TC-RM-024 · 027 · 028 · 030(리뷰 grep) | ✅ |
+| R-API-003 🔒 (참조) | R-CHAT-009 행으로 닫힘(헤더 부착은 래퍼, 화면은 메모리 보관만) | api.md §2.2 · §2.4 | R-CHAT-009와 같음 | ✅ |
 | R-CHAT-010 (마지막 본 방) | C §1.7 · F §2 F-RM-08 | — | TC-RM-008 · 010 | ✅ |
 | R-CHAT-011 (생성 실패·전환 — rooms 쪽) | F §2 F-RM-12·18·19·22 · §6.5 · §8.3 · §10 | api.md §2.4 `isAuthFailure` · §3.4 `retryAfterSec` | TC-RM-023 · 024 | ✅ |
 | R-ROOM-001 🔒 (데이터) | §7 | api.md §4.2 | TC-RM-001(서버 순서 유지) | ✅ |
