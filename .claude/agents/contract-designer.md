@@ -41,9 +41,9 @@ hooks:
 4. **계약 확정.** 항목별로 다음을 채운다 — 비워 두지 않는다:
    - 타입: TS 표기 + JSON 예시(열거·nullable은 반드시 예시).
    - 엔드포인트: 메서드·경로·토큰 필요 여부·요청(경로/쿼리/본문 필드·타입·optional·제한값)·응답(상태 코드·본문)·에러 코드·부수 효과·레이트리밋·요구ID.
-   - 에러 코드: 새 코드면 §6 표에 HTTP 상태·발생 조건·message 예 추가. 응답 형태는 항상 `{ error: { code, message } }`.
-   - 토큰: payload 필드·인코딩·서명·만료·검증 순서·실패 코드(§7). 변경 시 handoff도 같이.
-   - 임베드 규약: `/embed` 경로·`?t=` 전달·`frame-ancestors` 출처·화면이 토큰을 다루는 방식(메모리만).
+   - 에러 코드: R-API-002 🔒 13종(`VALIDATION_ERROR, TOKEN_REQUIRED, TOKEN_INVALID, LEVEL_TOO_LOW, RATE_LIMITED, NOT_FOUND, SPEAK_IN_PROGRESS, NOT_LAST_MESSAGE, NOT_CHARACTER_MESSAGE, LLM_FAILED, LLM_EMPTY, CONFIG_INVALID, INTERNAL`) 안에서 고른다 — 만료는 `TOKEN_INVALID`, 대상 없음은 자원 구분 없이 `NOT_FOUND`. 13종 밖의 코드가 필요해 보이면 「확인 필요」로만 올리고, 승인되면 api.md §3 표에 HTTP 상태·발생 조건·message 예를 추가. 응답 형태는 항상 `{ error: { code, message } }`.
+   - 토큰: payload `{ mb_id, nick, ch_name, level, exp }`(갠홈 PHP가 만드는 snake_case, `exp`는 epoch 초 — R-AUTH-001)·인코딩·서명·만료·검증 순서(서명 → `exp` → `level`)·실패 코드(`TOKEN_INVALID` / `LEVEL_TOO_LOW` / 없음 `TOKEN_REQUIRED`)를 api.md §2에. 변경 시 handoff도 같이.
+   - 임베드 규약: `/embed` 경로·`?t=` 전달·CSP(**모든 응답**에 같은 `frame-ancestors <ALLOWED_FRAME_ANCESTORS>`, R-API-006)·화면이 토큰을 다루는 방식(메모리만). `/embed` 서빙·`onError`·`notFound`·요청 로그는 server 진입점(`server/src/app.ts`) 소유이므로 계약에는 "routes가 정의하지 않는다"고 적고 routes 파일로 설계하지 않는다.
    - server 의존: 라우트가 부를 server 서비스 함수(모듈·시그니처). 없으면 **server 변경 요구 명세**(필요 함수·입출력·에러·이유)를 별도 절로.
 5. **요구 추적표.** 요구ID → 계약 항목(타입·엔드포인트·에러·토큰) 매핑을 표로. 어떤 요구에도 닿지 않는 항목이 있으면 넣지 않는다(과잉 금지).
 6. **api.md 갱신.** 절 번호·구조를 유지한 채 Edit한다. 「변경 이력」에 버전·일자·변경·호환성 한 줄을 append. 초안 상태면 버전은 `v0.x`, 사용자 확정 후 매니저가 `v1`로 올린다.
@@ -53,8 +53,10 @@ hooks:
 ## 설계 규칙 (스킬 요약 — 어기면 설계 실패)
 
 - 화면이 쓰는 것은 `ui/src/api/` 래퍼뿐. 계약에 "화면에서 직접 fetch"를 전제하는 표현 금지.
-- JSON: camelCase, 시각은 ISO 8601 문자열(UTC), id는 문자열(rooms)·정수(messages) — 확정사항 §5.4 그대로, 열거는 문자열 리터럴 유니온, 없음은 `null`, 바이너리 금지.
-- 에러: 모든 엔드포인트는 `{ error: { code, message(한국어) } }`. 코드는 §6 표. HTTP 상태는 코드마다 하나.
+- JSON: camelCase, 시각은 Unix epoch **밀리초 정수**(`createdAt: number`, R-API-004), id는 문자열(rooms)·정수(messages) — 확정사항 §5.4 그대로, 열거는 문자열 리터럴 유니온, 없음은 `null`, 바이너리 금지. 토큰 payload만 snake_case 예외(갠홈 PHP 산출물).
+- 페이지: `GET …/messages?before&limit` → `{ messages: Message[], hasMore: boolean }`. `limit` 기본 30·최대 100, `messages`는 오래된→새 순, 다음 페이지는 `before = messages[0].id`(R-MSG-001). 별도 커서 필드를 만들지 않는다.
+- 에러: 모든 엔드포인트는 `{ error: { code, message(한국어) } }`. 코드는 R-API-002 13종(api.md §3 표). HTTP 상태는 코드마다 하나. 변환은 server 진입점 `onError` 한 곳 — 계약에 라우트별 에러 핸들러를 적지 않는다.
+- ui/api 래퍼: 모든 함수는 `Result<T> = { ok: true, value } | { ok: false, error: ApiError }`를 반환하고 throw·reject하지 않는다. `ApiError`는 **타입**(클래스 아님), 클라이언트 전용 코드 `NETWORK`는 `ui/src/api/client.ts`에만 있고 `ErrorCode`에 넣지 않는다.
 - 토큰: `Authorization: Bearer` 헤더로만 받는다. 쿼리의 `?t=`는 `/embed` 진입 시 화면이 읽는 용도뿐이며 API 호출에 쓰지 않는다. payload에 비밀값 없음.
 - 라우트는 얇다 — 검증·저장·AI 로직은 server. 계약 설명에 로직을 적지 말고 server 서비스 함수 이름을 적는다.
 - 읽기(`GET`)는 토큰 불필요, 쓰기는 토큰 필수 — 확정사항 §1. 예외를 만들려면 「확인 필요」.
