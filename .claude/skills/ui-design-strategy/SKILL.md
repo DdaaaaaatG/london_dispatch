@@ -7,7 +7,7 @@ description: 런던_디스패치 화면(ui 계층, React+TypeScript, 390px ifram
 
 - 단일 기준: `doc/000_프로젝트_확정사항.md`(제품 동작·권한·화면 규격·API 요약·계층 위상). 이 스킬은 그 위에서 **화면을 어떻게 만들 것인가**만 정한다.
 - 적용 대상: ui-manager · ui-layout-designer · ui-designer · ui-design-checker · ui-test-designer · ui-test-checker · ui-test-conflict-checker · ui-implementer · ui-tester · ui-fixer · ui-debug · ui-error-analyst · ui-postprocessor · ui-manual-writer · ui-component-designer · ui-component-implementer.
-- 화면은 두 개뿐이다: **rooms**(방 목록)와 **chat**(대화). 둘은 한 SPA 안의 뷰이고 `ui/src/main.tsx`가 현재 방 선택 상태로 분기한다(라우터 라이브러리 없음, URL은 `?t=`만 읽는다).
+- 화면은 두 개뿐이다: **rooms**(방 목록)와 **chat**(대화). 둘은 한 SPA 안의 뷰이고 `ui/src/App.tsx`가 내부 상태(`{ screen: 'rooms' } | { screen: 'chat', room }`)로 분기한다. `ui/src/main.tsx`는 App만 렌더한다(라우터 라이브러리 없음, URL은 `?t=`만 읽는다).
 - 이 화면은 **저쪽 패널(390×640, 헤더 75px) 안의 iframe**에서만 산다. 독립 페이지로 보일 일은 없다.
 
 ---
@@ -105,7 +105,7 @@ ui/src/{screen}/                   screen ∈ { rooms, chat }
 | 5 | 파이프라인 정상·오류 | 각 기능의 정상 흐름과 실패 분기(무엇을 보여주고 어디로 돌아가는가). 생성 중·재시도 포함 |
 | 6 | 라벨 단일 소스 | 확정 문구·aria-label 표가 완결되어 `labels.ts`로 전사 가능 |
 | 7 | 접근성 | 포커스 순서·키보드 조작·역할(role)·상태 알림 |
-| 8 | 진입 분기 등록 | `ui/src/main.tsx`의 뷰 분기(방 미선택 → rooms, 선택 → chat)에 이 화면이 등록되는가 |
+| 8 | 진입 분기 등록 | `ui/src/App.tsx`의 뷰 분기(방 미선택 → rooms, 선택 → chat)에 이 화면이 등록되는가 |
 | 9 | 라이브러리 설치 확인 | 필요한 라이브러리가 `ui/package.json`에 있는가, 없으면 승인 여부 |
 
 ### 3.4 독립 검증 전제
@@ -165,7 +165,7 @@ ui/src/{screen}/                   screen ∈ { rooms, chat }
 
 ### 6.4 페이지네이션·스크롤
 
-- 첫 로드: `listMessages(roomId)` 최신 40개 → 렌더 후 **맨 아래로** 즉시 스크롤(애니메이션 없음).
+- 첫 로드: `listMessages(roomId)` 최신 30개(limit 미지정 = 계약 기본값, R-MSG-001) → 렌더 후 **맨 아래로** 즉시 스크롤(애니메이션 없음). 다음 페이지는 `hasMore`가 true일 때 `before = messages[0].id`.
 - 위로 스크롤해 상단 80px 이내 진입 → `listMessages(roomId, nextBefore)` → 앞에 붙이고 **스크롤 위치 보존**(이전 `scrollHeight` 차이만큼 보정). `nextBefore === null`이면 더 요청하지 않는다.
 - 새 메시지 추가 시: 사용자가 맨 아래 근처(≤ 120px)에 있었을 때만 자동 스크롤. 위에 있었으면 「새 메시지 ↓」 배지.
 - 스크롤 상태·마지막 본 방은 `localStorage`에 try/catch로 저장. 없거나 실패해도 동작은 같다.
