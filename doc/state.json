@@ -1,6 +1,6 @@
 {
   "slug": "london-dispatch-build",
-  "phase": "3-implement",
+  "phase": "2-design",
   "orchestrator": "main-session-as-task-manager (사용자 지시 2026-10-05)",
   "slices": [
     "S1 저장+읽기전용",
@@ -9,7 +9,7 @@
     "S4 장기기억",
     "S5 전달·배포"
   ],
-  "current_slice": "S1",
+  "current_slice": "S2",
   "scope": {
     "requirements_doc": "doc/100_요구조건/requirements.md",
     "rtm": "doc/100_요구조건/rtm.md",
@@ -60,8 +60,11 @@
     "tests_s1": {
       "scenarios": "v0.3",
       "checker": "FAIL→반영 완료(재검증은 ui-tester 결과로 대체)",
-      "conflict": "PASS→반영 완료"
-    }
+      "conflict": "PASS→반영 완료",
+      "tester": "PASS (자동 44, 수동 부분)"
+    },
+    "S1": "done 2026-10-05",
+    "manual_s1": "done"
   },
   "dependencies_approved": [
     "hono",
@@ -88,7 +91,7 @@
     "prettier",
     "concurrently"
   ],
-  "next": "test-designer 스펙 타입·린트 수정 보고 → ui-tester(전체 실행·result.md) → S1 마감(RTM 대조표·매뉴얼) → S2",
+  "next": "S2(토큰 + 쓰기) 설계: server-designer(auth·rooms 쓰기·messages 쓰기·rate limit) → contract-designer(S2 엔드포인트·토큰 전달·Bearer) → ui-designer(쓰기 UI) → ui-design-checker → 승인 ②(S2)",
   "blockers": [],
   "estimate_min": null,
   "actual_min": null,
