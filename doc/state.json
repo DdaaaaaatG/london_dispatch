@@ -34,7 +34,14 @@
     }
   },
   "completed": {
-    "server": [],
+    "server": [
+      "env",
+      "db",
+      "rooms(list)",
+      "messages(list)",
+      "app",
+      "index"
+    ],
     "contract": "shared done (routes·ui/api 2단계 대기)",
     "ui": [],
     "design_s1": {
@@ -71,7 +78,7 @@
     "prettier",
     "concurrently"
   ],
-  "next": "server-implementer(S1) ∥ ui-test-designer → contract-implementer 2단계 → ui-test-checker·conflict-checker → ui-implementer → ui-tester",
+  "next": "contract-implementer 2단계(routes·ui/api) ∥ ui-test-designer → ui-test-checker·conflict-checker → ui-implementer → ui-tester",
   "blockers": [],
   "estimate_min": null,
   "actual_min": null,
@@ -92,7 +99,8 @@
     "S1 ui 설계: design.md를 design/{components,functions,a11y}.md로 분할. 라우터 없이 ui/src/App.tsx 내부 상태 라우팅(확정사항 §4 보충 완료)",
     "R-ROOMS-004: 뒤로로 목록 복귀 시 마지막 본 방 기록 삭제(재진입 가둠 방지)",
     "승인 ② 의존성 후보에 @types/react·@types/react-dom·@testing-library/user-event 추가",
-    "MessagesQuery 등 선택 쿼리 필드는 `?: number | undefined`로 허용(exactOptionalPropertyTypes 대응) — 2단계 contract-implementer가 types.ts·api.md §5.2 반영"
+    "MessagesQuery 등 선택 쿼리 필드는 `?: number | undefined`로 허용(exactOptionalPropertyTypes 대응) — 2단계 contract-implementer가 types.ts·api.md §5.2 반영",
+    "server 구현 조정(승인): AppError(code, message?, options?) · compatibility_date 2026-08-15(workerd 1.20260815.1) · page.test → server/test/messages-page.test.ts · Message/RoomSummary는 @shared 재노출"
   ],
   "installed": {
     "typescript": "5.9.3",
