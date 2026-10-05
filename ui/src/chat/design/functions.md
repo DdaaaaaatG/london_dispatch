@@ -90,8 +90,9 @@ export const restoreScrollTop = (m: Pick<ScrollMetrics, 'scrollHeight' | 'client
 |---|---|---|---|---|
 | `state` | 대화 상태 | `ChatState` | `initialChatState` | `useReducer(chatReducer, initialChatState)` |
 | `initialDistance` | 복원할 스크롤 거리 | `number \| null` | `useState(() => loadScrollOffset(room.id))`(마운트 1회) | 로컬 |
-| `olderInFlightRef` | 이전 페이지 요청 중복 방지(같은 틱의 연속 scroll 이벤트) | `MutableRefObject<boolean>` | `false` | 로컬 `useRef` |
-| `isActiveRef` | 언마운트 뒤 도착한 응답 무시 | `MutableRefObject<boolean>` | 마운트 시 `true`, 언마운트 시 `false` | 로컬 `useRef` |
+| `olderInFlightRef` | 이전 페이지 요청 중복 방지(같은 틱의 연속 scroll 이벤트) | `MutableRefObject<boolean>` | `false` | **`useChatLoader` 훅 내부** `useRef`(ChatScreen은 모른다) |
+| `isActiveRef` | 언마운트 뒤 도착한 응답 무시 | `MutableRefObject<boolean>` | `false` → 훅의 활성 effect가 마운트 시 `true`, cleanup에서 `false` | **`useChatLoader` 훅 내부** `useRef` + 활성 effect(`useEffect(() => { isActiveRef.current = true; return () => { isActiveRef.current = false } }, [])`) |
+| `stateRef` | `loadOlder`가 최신 상태를 읽기 위함 | `MutableRefObject<ChatState>` | `initialChatState`, 렌더마다 갱신 | **`useChatLoader` 훅 내부** |
 | `backButtonRef` | 마운트 시 포커스 대상 | `RefObject<HTMLButtonElement>` | `null` | 로컬 `useRef` |
 | `autoScroll` | 스크롤 제어 | `UseAutoScrollResult` | `useAutoScroll({ firstId, lastId, initialDistanceFromBottom: initialDistance, canAutoLoadOlder: canAutoLoadOlder(state), onReachTop: loadOlder, onReachBottom: clearUnseen })` | 훅 |
 
@@ -106,7 +107,7 @@ export const restoreScrollTop = (m: Pick<ScrollMetrics, 'scrollHeight' | 'client
 | # | 시그니처 | 입력 | 출력·상태 변경 | 동작 | 예외·분기 | 요구ID |
 |---|---|---|---|---|---|---|
 | F-CH-01 | `ChatScreen(props: ChatScreenProps): JSX.Element` | `{ room: RoomSummary; viewer: Viewer; onBack: () => void }` | 주 문서 §2.1 렌더 | `<main aria-label={labels.screenAriaLabel(room.title)}>` → TopBar(`variant='room'`, `title=room.title`, `subtitle={ text: formatMonthDay(room.createdAt), dateTime: toIsoDate(room.createdAt), ariaLabel: labels.createdAtAriaLabel(text) }`, `left=<IconButton icon='back' ariaLabel={labels.backAriaLabel} onClick={back} buttonRef={backButtonRef} />`) → 히스토리 `<section>`(`renderHistory(state)`) → `!viewer.canWrite && <ReadOnlyNotice text={labels.readOnlyNotice} />` | `right` 슬롯·하단 바 없음(S1) | R-CHAT-001 · 002 · 008 · 013 |
-| F-CH-02 | 마운트 effect (`useEffect(…, [])`) | — | 저장소 기록·첫 로드·포커스 | `isActiveRef=true` → `saveLastRoomId(room.id)` → `backButtonRef.current?.focus()` → `loadInitial()`. cleanup `isActiveRef=false` | 저장 실패는 storage가 삼킨다 | R-CHAT-010 · R-ROOMS-004 |
+| F-CH-02 | 마운트 effect (`useEffect(…, [])`) | — | 저장소 기록·첫 로드·포커스 | `saveLastRoomId(room.id)` → `backButtonRef.current?.focus()` → `loadInitial()`(useChatLoader가 준 함수). 활성 플래그(`isActiveRef`)는 useChatLoader 훅의 자체 effect가 켜고 끈다(§3). 이 effect에는 cleanup이 없다 | 저장 실패는 storage가 삼킨다 | R-CHAT-010 · R-ROOMS-004 |
 | F-CH-03 | `loadInitial(): Promise<void>` | — | T1 → T2/T3 | `dispatch({ type: 'initialLoadStarted' })` → `const r = await listMessages(room.id)`(query 없음 = 최신 30건) → `isActiveRef` false면 종료 → `r.ok ? initialLoadSucceeded(r.value) : initialLoadFailed(r.error)` | 래퍼는 throw 없음 | R-CHAT-002 · 003 |
 | F-CH-04 | `retryInitial(): void` | — | `loadInitial()` | 첫 로드 오류 StateView 「다시 시도」 | — | R-CHAT-003 |
 | F-CH-05 | `loadOlder(): Promise<void>` | — | T4 → T6/T8 | `olderInFlightRef`가 true이거나 `!canLoadOlder(state)`면 종료. `before = nextBefore(state)`가 null이면 종료. `olderInFlightRef=true` → `dispatch(olderLoadStarted)` → `const r = await listMessages(room.id, { before })` → `olderInFlightRef=false` → `isActiveRef` false면 종료 → 성공/실패 dispatch | 스크롤 보정은 useAutoScroll 앞붙임 분기 | R-CHAT-003 |

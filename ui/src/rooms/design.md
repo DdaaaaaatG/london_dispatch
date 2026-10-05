@@ -8,7 +8,7 @@
 | 목적 | 방(에피소드) 목록을 최신순으로 보여 주고, 행을 누르면 그 방의 대화 화면으로 보낸다. 패널을 다시 열면 마지막에 본 방으로 바로 들어간다 |
 | 요구 | `ui/src/rooms/requirements.md` v1.0(확정) |
 | 구성안 | `doc/200_설계/architecture/ui-layout-01-rooms-chat.md` §1(패턴 L1) — **수용, 구조 변경 없음** |
-| 계약 | `doc/200_설계/contract/api.md` v0.1 §4.2 · §11.3(`listRooms`) — 확정, 구현 대기 |
+| 계약 | `doc/200_설계/contract/api.md` v0.2 §4.2 · §11.3(`listRooms`) — 확정, 구현 대기 |
 | 묶음 | **S1 상세**: R-ROOMS-001·003·004·005, 참조 R-CHAT-008(새 방 부재)·R-CHAT-010(마지막 본 방). R-ROOMS-002는 §12 |
 | 레이아웃 확정 상태 | **확정**(S1 읽기 전용 판). 토큰 있음 판의 A 오른쪽 버튼·B 입력 행은 S2 예정 슬롯 |
 | 문서 분할 | 40KB 한계로 분할: `design/components.md`(컴포넌트·공용 요소 단일 정의·스타일) · `design/functions.md`(상태·기능) · `design/a11y.md`(접근성). RTM은 이 문서 §14 |
@@ -22,6 +22,7 @@
 |---|---|---|---|
 | v1.0 | 2026-10-05 | 최초 작성(S1 읽기 전용). 40KB 한계로 `design/*.md` 3개 분할 | 구축 S1 |
 | v1.1 | 2026-10-05 | ‹ 뒤로 시 마지막 본 방 기록 삭제로 변경: §6.2 · §11.2 D-1 · functions.md F-RM-03 · TC-RM-012 | 메인 세션 결정 |
+| v1.2 | 2026-10-05 | 계약 인용 v0.2 · §8.1 `listAriaLabel` 삭제(ul aria-label 없음, components.md §2.2) · §11.2 D-2(main.tsx/App.tsx 분리) · §14 R-NFR-004 행 | 검증 DC-03·04·06·07 |
 
 ---
 
@@ -178,7 +179,7 @@ autoOpenRoomId='gone' → listRooms() ok, 목록에 없음 → clearLastRoomId()
 
 ## 7. contract 계약 사용표
 
-api.md v0.1을 **인용**한다(재정의 아님).
+api.md v0.2을 **인용**한다(재정의 아님).
 
 | 엔드포인트 | 요청 | 응답 타입(`shared/src/types.ts`) | 래퍼(`@/api`) | 호출 위치 | 토큰 헤더 | 실패 시 표시 |
 |---|---|---|---|---|---|---|
@@ -198,8 +199,7 @@ api.md v0.1을 **인용**한다(재정의 아님).
 | 키 | 문구 | 쓰는 곳 |
 |---|---|---|
 | `screenTitle` | `ROOMS` | TopBar 제목(h1) |
-| `screenAriaLabel` | `방 목록` | 화면 루트 `<main aria-label>` |
-| `listAriaLabel` | `방 목록` | `<ul aria-label>` |
+| `screenAriaLabel` | `방 목록` | 화면 루트 `<main aria-label>`. 같은 이름이 겹치지 않도록 `<ul>`에는 aria-label을 두지 않는다 |
 | `rowAriaLabel(title, dateText)` | `` `${title}, 마지막 갱신 ${dateText}` `` | ListRow `aria-label` |
 | `loading` | `불러오는 중` | StateView loading |
 | `empty` | `아직 방이 없습니다` | StateView empty |
@@ -248,6 +248,7 @@ api.md v0.1을 **인용**한다(재정의 아님).
 | # | 내용 | 이유 |
 |---|---|---|
 | D-1(결정) | 방에 들어갈 때 마지막 본 방을 기록하고(chat F-CH-02), ‹ 뒤로로 목록에 돌아오면 기록을 지운다(chat F-CH-10). 목록에 없는 방이면 자동 진입 판정에서도 지운다(F-RM-08). 저장 불가 환경은 try/catch로 무시 | 메인 세션 결정 2026-10-05: 사용자가 마지막으로 본 화면이 목록이면 다음 열기도 목록 |
+| D-2(결정) | `ui/src/main.tsx`는 `global.css` import와 `<App />` 렌더만 하고, 화면 분기는 `ui/src/App.tsx`가 한다 | App을 테스트할 수 있게 분리(메인 세션 승인). ui-design-strategy 첫머리의 "main.tsx가 분기" 문구와 다르다 → 스킬 문구 갱신은 메인 세션 TODO |
 | A-2(가정) | 목록 로드가 실패하면 자동 진입을 미루고, 재시도가 성공한 시점에 판정한다 | 방 정보는 목록으로만 얻는다(단건 조회 없음) |
 
 ---
@@ -284,6 +285,7 @@ api.md v0.1을 **인용**한다(재정의 아님).
 | R-CHAT-008 🔒 (새 방 부분) | §10 · C §1.8 | — | TC-RM-011 | ✅ |
 | R-CHAT-010 (마지막 본 방) | C §1.7 · F §2 F-RM-08 | — | TC-RM-008 · 010 | ✅ |
 | R-ROOM-001 🔒 (데이터) | §7 | api.md §4.2 | TC-RM-001(서버 순서 유지) | ✅ |
+| R-NFR-004 🔒 (화면 쪽) | §10(토큰을 읽지도 저장하지도 않음) · C §1.7(storage에 토큰 키 없음) | api.md §2.1(읽기 경로 토큰 불필요) | TC-RM-010(저장 키가 `ld:lastRoomId`뿐) · 리뷰 grep(`localStorage` 접근은 storage.ts만) | ✅ |
 
 ### 14.1 예정 TC 목록 (ui-test-designer가 시나리오로 확정)
 

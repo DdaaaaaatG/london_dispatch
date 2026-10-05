@@ -144,11 +144,10 @@ export type ListRowProps = {
 ```ts
 export type RoomListProps = {
   rooms: readonly RoomSummary[]
-  ariaLabel: string            // labels.listAriaLabel
   onSelect: (room: RoomSummary) => void
 }
 ```
-- 렌더: `<ul aria-label>` → 방마다 `<li key={room.id}><ListRow …/></li>`. 순서는 받은 배열 그대로(서버가 `updatedAt` 내림차순 보장, 화면은 다시 정렬하지 않는다 — api.md §4.2).
+- 렌더: `<ul>`(aria-label 없음. 화면 루트 `<main aria-label="방 목록">`과 이름이 겹치지 않게 한다) → 방마다 `<li key={room.id}><ListRow …/></li>`. 순서는 받은 배열 그대로(서버가 `updatedAt` 내림차순 보장, 화면은 다시 정렬하지 않는다 — api.md §4.2).
 - `dateText = formatMonthDay(room.updatedAt)`, `dateTime = toIsoDate(room.updatedAt)`(R-ROOMS-001 마지막 갱신 날짜).
 
 ---

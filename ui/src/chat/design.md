@@ -211,7 +211,7 @@ hasMore=false → 더 요청하지 않는다(B0 없음)
 
 ## 7. contract 계약 사용표
 
-api.md v0.1을 **인용**한다.
+api.md v0.2를 **인용**한다.
 
 | 엔드포인트 | 요청 | 응답 타입(`shared/src/types.ts`) | 래퍼(`@/api`) | 호출 위치 | 토큰 헤더 | 실패 표시 |
 |---|---|---|---|---|---|---|
@@ -353,6 +353,7 @@ S1은 `viewer = READ_ONLY_VIEWER`(`canWrite: false`) 고정이다. 아래 "미�
 | R-CHAT-013 🔒 | §2.3 · A · C §4 · §8 aria-label | — | TC-CH-027 · 028(수동) | ✅(읽기 전용 판) / 후속(S2: 쓰기 판 스크린샷) |
 | R-LLM-002 🔒 (표시 메타) | C §2.2 · §7 · §13 | api.md v0.2 §5.5 `shortName` | TC-CH-007 | ✅ |
 | R-MSG-001 🔒 (데이터) | §7 · F §1.2 `nextBefore` | api.md §4.3 | TC-CH-004 · 011 | ✅ |
+| R-NFR-004 🔒 (화면 쪽) | §10(토큰을 읽지도 저장하지도 않음) · rooms C §1.7(storage에 토큰 키 없음) | api.md §2.1(읽기 경로 토큰 불필요) | TC-CH-024 · 025(저장 키가 `ld:lastRoomId`·`ld:scroll:{id}`뿐) · 리뷰 grep | ✅ |
 | R-ROOMS-004 (기록·삭제 시점) | F §4 F-CH-02·10 · §6.4 | — | TC-CH-002 · 024 | ✅ |
 
 ### 15.1 예정 TC 목록 (ui-test-designer가 시나리오로 확정)
