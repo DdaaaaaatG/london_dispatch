@@ -46,7 +46,7 @@
 |---|---|---|
 | TC-CH-031 | 토큰 있음 렌더 쌍 | `WRITER_VIEWER` → ⋯(`방 메뉴 열기`) 있음, `group` `메시지 작성` 안에 switch `OOC 지시 모드`(`aria-checked=false`, 글자 `OOC 끔`)·textbox `메시지 입력`(placeholder `대사나 지시를 입력`)·`전송`. `세바스찬`·`시엘` 버튼 없음(S3), `role=note` 없음. TC-CH-003·021·023과 쌍 |
 | TC-CH-032 | 전송 비활성 | 빈 입력·공백만 → 전송 disabled · `phase=loading`·`error` → disabled · 2001자 → disabled, 카운터 `2001/2000`·`aria-invalid=true` · 2000자 → enabled |
-| TC-CH-033 | 전송 성공 | `안녕` 입력 → 전송 → `appendUser(room.id, { text: '안녕', ooc: false })` 1회 · **모킹한 `@/api`의 `appendUser` 외 export(첫 로드 `listMessages` 1회 제외) 호출 0회**(AI 호출 없음, R-CHAT-006) · 응답 `Message`(authorName `미샤`)가 오른쪽 말풍선으로 붙음(작성자명 `미샤`) · 입력 비움, 입력에 포커스 · OOC 값 유지 |
+| TC-CH-033 | 전송 성공 | `안녕` 입력 → 전송 → `appendUser(room.id, { text: '안녕', ooc: false })` 1회 · **모킹한 `@/api`의 `appendUser` 외 export(첫 로드 `listMessages` 1회 제외) 호출 0회**(AI 호출 없음, R-CHAT-006) · 응답 `Message`(authorName `미샤`)가 가운데 말풍선(`user` 클래스, v1.6 CR-001)으로 붙음(작성자명 `미샤`) · 입력 비움, 입력에 포커스 · OOC 값 유지 |
 | TC-CH-034 | OOC 토글 | switch 클릭 → `aria-checked=true`, 글자 `OOC 켬` → 전송 → `appendUser(…, { text, ooc: true })` · 응답 `kind='ooc'`면 중앙 말풍선 · 전송 뒤에도 `OOC 켬` 유지 |
 | TC-CH-035 | Enter·Shift+Enter·IME | Enter → 전송 1회 · Shift+Enter → 줄바꿈(호출 없음) · `isComposing=true` Enter → 호출 없음 · 빈 입력 Enter → 호출 없음 |
 | TC-CH-036 | 전송 중 중복 방지 | 응답 대기 중 전송 disabled, 입력 `readOnly`, group `aria-busy=true` · Enter 연타·클릭 연타 → `appendUser` 1회 · 응답 뒤 해제 |
