@@ -5,7 +5,7 @@
 | 화면 | rooms (방 목록) · 폴더 `ui/src/rooms/` |
 | 요구 확정 상태 | **확정** |
 | 확정일 | 2026-10-05 (전체 요구 승인 ① 2026-10-05T19:06, `doc/100_요구조건/requirements.md` §10) |
-| 이번 묶음 | **S1(저장 + 읽기 전용 화면)** — 상세 설계 대상은 R-ROOMS-001·003·004·005 |
+| 이번 묶음 | S1 구현 완료(R-ROOMS-001·003·004·005) · **S2(토큰 + 쓰기)** — 상세 설계 대상은 R-ROOMS-002, 참조 R-CHAT-008·009·011 |
 | 소유 | ui-designer |
 
 ## 변경이력
@@ -15,6 +15,7 @@
 | v1.0 | 2026-10-05 | 최초 작성. `doc/100_요구조건/requirements.md` §10 전사, S1 범위 표시 | 구축 S1 |
 | v1.1 | 2026-10-05 | R-ROOMS-004 원문을 상위 요구 갱신본(‹ 뒤로 시 기록 삭제)으로 재전사. 계약 인용 v0.2 | 메인 세션 결정 · 검증 DC-02·03 |
 | v1.3 | 2026-10-05 | §4 React 18 → 19(설치 기준), 언마운트 뒤 setState 경고 없음 TC 판별 비고 | 확정사항 §2 개정 · 시나리오 검증 지적 |
+| v1.4 | 2026-10-05 | S2 착수: 묶음 열 갱신(요구 원문 변경 없음). §1.1 참조 행 R-CHAT-009·R-CHAT-011·R-ROOM-002 추가. §2 S2 행(U-RM-07~09) 활성. §3 `createRoom` 재사용(api.md v0.3 확정). §4 설치 기준 갱신 | 구축 S2 |
 
 ---
 
@@ -25,25 +26,28 @@
 | ID | 🔒 | 요구(원문) | 수용 기준(원문) | 묶음 |
 |---|---|---|---|---|
 | R-ROOMS-001 | 🔒 | 방 목록: 제목·마지막 갱신 날짜를 최신순으로. 항목 탭 → 대화 화면. | TC. | S1 |
-| R-ROOMS-002 | 🔒 | 「+ 새 방」 버튼은 **토큰 있을 때만 렌더**. 제목 입력(1~60자) → 생성 → 그 방의 대화 화면으로 이동. | 토큰 없음 시 DOM에 없음. | **S2(후속)** |
+| R-ROOMS-002 | 🔒 | 「+ 새 방」 버튼은 **토큰 있을 때만 렌더**. 제목 입력(1~60자) → 생성 → 그 방의 대화 화면으로 이동. | 토큰 없음 시 DOM에 없음. | **S2** |
 | R-ROOMS-003 | | 로딩·빈 목록("아직 방이 없습니다")·오류(재시도 버튼) 상태 표시. | TC 3종. | S1 |
 | R-ROOMS-004 | 확인 필요 | 방에 들어갈 때 마지막 본 방 id를 `localStorage`(try/catch)에 저장. 앱 시작 시 기록이 있으면 그 방 대화 화면으로 바로 연다. **‹ 뒤로로 목록에 돌아오면 기록을 지운다**(마지막으로 본 화면이 목록이므로 다음 열기는 목록에서 시작. 2026-10-05 메인 세션 결정, 재진입 가둠 방지). 저장 불가 환경에서도 동작. | localStorage throw 모킹 TC. 뒤로 → 재마운트 시 목록 TC. | S1 |
-| R-ROOMS-005 | 🔒 | 폭 390px, 높이는 패널에 맞춤(약 565px), Rosebell 계열 토큰(`ui_design_concept.md`), CSS Modules. | 스크린샷. | S1 |
+| R-ROOMS-005 | 🔒 | 폭 390px, 높이는 패널에 맞춤(약 565px), Rosebell 계열 토큰(`ui_design_concept.md`), CSS Modules. | 스크린샷. | S1(읽기 전용 판) · S2(쓰기 판) |
 
 ### 1.1 이 화면에 걸리는 다른 절의 요구 (원문 소유는 다른 절 — 여기서는 참조만)
 
 | ID | 🔒 | 이 화면에 걸리는 부분(원문 발췌) | 원문 소유 | 묶음 |
 |---|---|---|---|---|
-| R-CHAT-008 | 🔒 | "토큰 없으면 … 새 방 버튼을 **렌더하지 않는다**(숨김 아님)." | `ui/src/chat/requirements.md` | S1 |
+| R-CHAT-008 | 🔒 | "토큰 없으면 … 새 방 버튼을 **렌더하지 않는다**(숨김 아님)." | `ui/src/chat/requirements.md` | S1(부재) · S2(렌더 쌍) |
+| R-CHAT-009 | 🔒 | "토큰은 `?t=`에서 읽어 메모리(모듈 상태)에만 둔다. … 저장은 금지. 모든 쓰기 api 호출에 헤더로 부착." — 토큰 보관·viewer 계산의 공용 정의가 rooms 설계에 있고, 「+ 새 방」 생성이 첫 쓰기 호출이다 | `ui/src/chat/requirements.md` | S2 |
+| R-CHAT-011 | | "오류 코드별 한국어 안내: `RATE_LIMITED`(잠시 후), … `LEVEL_TOO_LOW`·`TOKEN_INVALID`(쓰기 UI를 읽기 전용으로 전환하고 안내) …" — 방 생성 실패 | `ui/src/chat/requirements.md` | S2 |
 | R-CHAT-010 | | "스크롤 위치·마지막 본 방은 `localStorage`(try/catch)." — 마지막 본 방 부분 | `ui/src/chat/requirements.md` | S1 |
 | R-ROOM-001 | 🔒 | "방 목록 조회: `id, title, createdAt, updatedAt, messageCount`를 `updatedAt` 내림차순. 누구나." — 화면이 쓰는 데이터 | `doc/100_요구조건/requirements.md` §4 (server) | S1 |
-| R-NFR-004 | 🔒 | "비밀값·토큰 원문이 로그·응답·번들(`ui/dist`)에 없다." — 화면은 토큰을 읽지도 저장하지도 않는다 | `doc/100_요구조건/requirements.md` §12 | S1 |
+| R-ROOM-002 | 🔒 | "방 생성: `title` 1~60자(trim 후). id는 `crypto.randomUUID()`. 토큰 필요." — 화면 검증 기준 | `doc/100_요구조건/requirements.md` §4 (server) | S2 |
+| R-NFR-004 | 🔒 | "비밀값·토큰 원문이 로그·응답·번들(`ui/dist`)에 없다." — 화면은 토큰을 메모리에만 두고 출력하지 않는다 | `doc/100_요구조건/requirements.md` §12 | S1 · S2 |
 
 ---
 
 ## 2. 사용자·이용 시나리오 명세
 
-대상은 둘뿐이다. **S1에서는 화면이 토큰을 읽지 않는다**(토큰 보관 R-CHAT-009는 S2로 이동, `doc/state.json` 결정). 그래서 S1에서는 두 대상 모두 읽기 전용 화면을 본다. 토큰 있음 전용 행은 S2에서 열린다.
+대상은 둘뿐이다. S2부터 화면이 `?t=`를 읽는다. 토큰이 있으면 「등급 통과 회원」 판, 없거나 인증 실패로 전환되면 「비회원·등급 미달 방문자」 판이다.
 
 | # | 대상 | 상황(언제·왜) | 사용 기능 | 요구ID | 묶음 |
 |---|---|---|---|---|---|
@@ -51,38 +55,41 @@
 | U-RM-02 | 비회원·등급 미달 방문자(읽기 전용) | 관심 있는 방의 대화를 읽고 싶다 | 행 탭/Enter → 대화 화면 | R-ROOMS-001 | S1 |
 | U-RM-03 | 비회원·등급 미달 방문자(읽기 전용) | 목록을 받는 동안·방이 하나도 없을 때·서버에 닿지 않을 때 | 로딩 · 빈 목록 · 오류 + 다시 시도 | R-ROOMS-003 | S1 |
 | U-RM-04 | 비회원·등급 미달 방문자(읽기 전용) | 방을 읽다가 패널을 닫았고, 다시 열었다 | 마지막 본 방 자동 진입. ‹ 뒤로로 목록에 돌아온 뒤 닫았다면 다음에는 목록에서 시작. 저장 불가 브라우저에서도 목록은 정상 | R-ROOMS-004 · R-CHAT-010 | S1 |
-| U-RM-05 | 비회원·등급 미달 방문자(읽기 전용) | 목록 화면을 보는 중 | 「+ 새 방」·새 방 입력 행이 DOM에 없다. 토큰을 읽거나 저장하지 않는다 | R-CHAT-008 · R-ROOMS-002(부재 쪽) · R-NFR-004 | S1 |
-| U-RM-06 | 등급 통과 회원(토큰 있음) | S1 기간: 토큰을 아직 읽지 않으므로 U-RM-01~05와 같은 화면을 본다 | 방 목록 · 진입 · 상태 · 자동 진입 | R-ROOMS-001 · 003 · 004 · 005 | S1 |
-| U-RM-07 | 등급 통과 회원(토큰 있음) | 새 에피소드를 시작하고 싶다 | 「+ 새 방」 → 제목 입력 → 생성 → 그 방 대화 화면 | R-ROOMS-002 | **S2(후속)** |
+| U-RM-05 | 비회원·등급 미달 방문자(읽기 전용) | 목록 화면을 보는 중 | 「+ 새 방」·새 방 입력 행이 DOM에 없다. 토큰을 저장하지 않는다 | R-CHAT-008 · R-ROOMS-002(부재 쪽) · R-NFR-004 | S1 |
+| U-RM-06 | 등급 통과 회원(토큰 있음) | 목록을 보고 방에 들어간다 | 방 목록 · 진입 · 상태 · 자동 진입(읽기 전용과 같다) | R-ROOMS-001 · 003 · 004 · 005 | S1 |
+| U-RM-07 | 등급 통과 회원(토큰 있음) | 새 에피소드를 시작하고 싶다 | 「+ 새 방」 → 제목 입력(1~60자) → 생성 → 그 방 대화 화면 | R-ROOMS-002 · R-ROOM-002 · R-CHAT-008 · R-CHAT-009 | **S2** |
+| U-RM-08 | 등급 통과 회원(토큰 있음) | 방을 만들려 했는데 요청이 거절됐다(과다 요청·서버 오류) | 입력 유지 + 코드별 안내 토스트 | R-CHAT-011 · R-ROOMS-002 | **S2** |
+| U-RM-09 | 등급 통과 회원(토큰 있음) → 전환 | 토큰이 만료됐거나 등급이 내려간 상태에서 방을 만들려 했다 | 안내 1회 + 「+ 새 방」·입력 행 사라짐(읽기 전용 판) | R-CHAT-011 · R-CHAT-009 · R-CHAT-008 | **S2** |
 
-- 모든 요구ID(R-ROOMS-001~005, 참조 R-CHAT-008·010·R-NFR-004)가 1행 이상에 매핑된다. R-ROOM-001은 데이터 요구이므로 §3에 매핑한다.
+- 모든 요구ID(R-ROOMS-001~005, 참조 R-CHAT-008·009·010·011·R-ROOM-002·R-NFR-004)가 1행 이상에 매핑된다. R-ROOM-001은 데이터 요구이므로 §3에 매핑한다.
 
 ---
 
 ## 3. 데이터 계약 요구 명세
 
-계약의 실체는 `doc/200_설계/contract/api.md`(v0.2)가 소유한다. 이 표는 이 화면의 **필요**만 적는다.
+계약의 실체는 `doc/200_설계/contract/api.md`(**v0.3**)가 소유한다. 이 표는 이 화면의 **필요**만 적는다.
 
 | 필요 | 메서드·경로 | 요청 | 응답 | 토큰 | 래퍼(`ui/src/api`) | 재사용/신규 | 묶음 |
 |---|---|---|---|---|---|---|---|
-| 방 목록 | `GET /api/rooms` | 없음 | `RoomSummary[]`(`updatedAt` 내림차순, 서버 정렬) | ✕ | `listRooms(): Promise<Result<RoomSummary[]>>` | **재사용** — api.md §4.2·§11.3 확정. 구현은 contract-implementer 대기 | S1 |
-| 방 생성 | `POST /api/rooms` | 제목 1~60자 | 생성된 방 | ○ | (S2에서 `createRoom`) | 계약 S2 상세 예정(api.md §4.0 E4) | S2 |
+| 방 목록 | `GET /api/rooms` | 없음 | `RoomSummary[]`(`updatedAt` 내림차순, 서버 정렬) | ✕ | `listRooms(): Promise<Result<RoomSummary[]>>` | **재사용** — api.md §4.2, 구현 완료 | S1 |
+| 방 생성 | `POST /api/rooms` | `CreateRoomBody = { title }`(1~60자, trim은 서버) | `201 RoomSummary` | ○ | `createRoom(body): Promise<Result<RoomSummary>>` | **재사용** — api.md §4.6·§11.6 확정, contract 구현 대기 | S2 |
+| 토큰 헤더 주입 · 인증 실패 판정 | (엔드포인트 아님) | `configureClient({ getToken })` | `isAuthFailure(error)` | — | `configureClient` · `isAuthFailure` | **재사용** — api.md §2.4·§11.6 | S2 |
 
-- 방 단건 조회 엔드포인트는 없다(api.md §4.0). 마지막 본 방 복원(R-ROOMS-004)은 `listRooms()` 결과에서 id로 찾는다.
-- `localStorage`는 계약이 아니다. 화면 쪽 유틸 `ui/src/components/utils/storage.ts` 한 곳에서만 접근한다(try/catch).
+- 방 단건 조회 엔드포인트는 없다(api.md §4.0). 생성 응답 `RoomSummary`를 그대로 대화 화면에 넘긴다.
+- `localStorage`는 계약이 아니다. 화면 쪽 유틸 `ui/src/components/utils/storage.ts` 한 곳에서만 접근한다(try/catch). 토큰은 저장소에 두지 않는다.
+- 권고(막지 않음): 길이 한도 shared 상수화(design.md §12 CR-C-2).
 
 ---
 
 ## 4. 확보한 기술 기능
 
-`ui/package.json`이 아직 없다(2026-10-05 확인). `doc/state.json`의 `dependencies_approved`는 비어 있다. 설치 승인은 구축 승인 ②에서 메인 세션이 받는다.
+`ui/package.json` 설치 기준(2026-10-05 확인). S2에 **새 라이브러리 없음**.
 
-| 기능 | 라이브러리 | `ui/package.json` | 승인 상태 | 비고 |
-|---|---|---|---|---|
-| 화면 렌더 | `react` · `react-dom` (**19**, 설치 기준) | 없음(파일 없음) | 미승인(승인 ② 대상) | 확정사항 §2 개정(React 19). TC 판별 비고: React 18부터 언마운트 뒤 setState 경고가 나오지 않는다. 그래서 늦은 응답 TC(TC-RM-016)는 경고 부재가 아니라 "화면 표시·콜백 호출이 바뀌지 않음"으로 판별한다 |
-| 번들·dev 서버 | `vite`(6) · `@vitejs/plugin-react` | 없음 | 미승인 | `base: '/embed/'` |
-| 타입 | `typescript` · `@types/react` · `@types/react-dom` | 없음 | 미승인 | |
-| 테스트 | `vitest` · `jsdom` · `@testing-library/react` | 없음 | 미승인 | 확정사항 §2 |
-| 테스트(조작) | `@testing-library/user-event` | 없음 | 미승인 | tsx-rules §9가 권장. 확정사항 §2 목록에는 없다. 없으면 `fireEvent`로 대체 가능 |
-| 라우팅 | 없음 | — | — | 외부 라우터를 쓰지 않는다. `ui/src/App.tsx` 내부 상태로 분기 |
-| 날짜 표기 | 없음 | — | — | `Date` 내장 + 자체 유틸 `formatDate.ts` |
+| 기능 | 라이브러리 | `ui/package.json` | 비고 |
+|---|---|---|---|
+| 화면 렌더 | `react` · `react-dom` 19 | 있음(`^19.3.0`) | TC 판별 비고: 언마운트 뒤 setState 경고가 없으므로 늦은 응답 TC는 "표시·콜백·저장소가 바뀌지 않음"으로 판별 |
+| 번들·dev 서버 | `vite` · `@vitejs/plugin-react` | 있음 | `base: '/embed/'` |
+| 테스트 | `vitest` · `jsdom` · `@testing-library/react` · `@testing-library/user-event` | 있음 | 롱프레스·토스트 시간은 fake timers |
+| 라우팅 | 없음 | — | `ui/src/App.tsx` 내부 상태로 분기 |
+| 날짜 표기 | 없음 | — | `Date` 내장 + `formatDate.ts` |
+| (S2) 토큰 보관 · 글자 수 · 토스트 · 입력 | 없음 | — | `URLSearchParams`·`Array.from`(코드 포인트)·`setTimeout` 내장 + 자체 공용 컴포넌트 |
