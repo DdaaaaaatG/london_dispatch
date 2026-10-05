@@ -1,0 +1,34 @@
+# 의존성·빌드 산출물
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+
+# 데이터·로그·환경
+data/
+*.sqlite
+*.sqlite-journal
+*.log
+.dev.log
+.env
+.env.*
+!.env.example
+
+# Railway
+.railway/
+
+# Claude 에이전트 개인 메모리 (세션별, 공유 안 함)
+.claude/agent-memory/
+**/.claude/agent-memory/
+# .claude/reports/*.md 는 분석 기록물이므로 커밋 대상이다 (제외하지 않음)
+
+# 스크린샷 (run-app 산출물, 리포트에 인용된 것만 별도 보관)
+doc/300_검증/screenshots/
+
+# 편집기·OS
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db
+*.swp
