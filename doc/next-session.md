@@ -10,7 +10,8 @@
 ## 1. 현재 상태 (2026-10-05)
 - **서버 실행 환경이 Cloudflare Workers로 확정**(지인 결정, 🔒). Railway·Fastify·better-sqlite3·`.env`·`data/`는 쓰지 않는다. 대체: Hono 4 · Cloudflare D1 · Workers Static Assets · Secrets(`.dev.vars`) · `@cloudflare/vitest-pool-workers` · `wrangler deploy`. 확정사항 §2 개정판이 기준.
 - **`.claude` 자산 생성 완료**, Cloudflare 기준으로 일괄 갱신함(에이전트 30·스킬·명령 7·훅·스크립트·rules). 확정사항 §7이 목록이다. 갱신 뒤 `grep -ri railway`로 잔존 0건을 확인했다.
-- **구축 진행 중(S1 — 저장 + 읽기 전용 화면).** 메인 세션이 task-manager 역할을 대행(사용자 지시). 승인 ①·② 완료. 진행 상태·결정 로그는 `doc/state.json`. 완료: 루트 스캐폴딩·의존성 설치, `shared/`(14 tests), `server/`(86 tests: env·db·rooms·messages·app·routes, 마이그레이션 0001, wrangler.toml), `ui/src/api`(10 tests), 화면 설계 v1.3, 시나리오 v0.3·스펙 11파일. 진행: ui-implementer(화면 구현) → ui-tester → 스크린샷 → S2.
+- **S1(저장 + 읽기 전용 화면) 완료 2026-10-05.** 메인 세션이 task-manager 역할을 대행(사용자 지시). 증거: vitest 240/240(shared 14·server 86·ui 140), typecheck·lint·prettier 0, `ui/src/{rooms,chat}/test/result.md`, 캡처 `doc/300_검증/screenshots/20261005-2207/`, 매뉴얼 2종, RTM S1 행 완료. 진행 상태·결정 로그는 `doc/state.json`.
+- **S2(토큰 + 쓰기) 설계 진행 중.** 순서: server-designer(auth·rooms 쓰기·messages 쓰기) → contract-designer → ui-designer → ui-design-checker → 승인 ②(S2) → 구현.
 - 설치 버전은 `doc/state.json.installed`. npm 11.5 버그로 `.npmrc legacy-peer-deps=true`. vitest는 4.x 고정(테스트 풀 peer).
 - 로컬 실행: `server/.dev.vars`가 없으면 `npx wrangler dev --port 3000 --var TOKEN_SECRET:local-dev-secret`(S1은 읽기 전용이라 값은 임의). 로컬 D1(`server/.wrangler/`)에는 마이그레이션과 `server/test/fixtures/seed-s1.sql` 시드가 적용돼 있다.
 - git 저장소 초기화 완료(`main`), 커밋 단위로 진행. 원격은 아직 없다.
