@@ -68,8 +68,8 @@
     "design_s2": {
       "server": "done",
       "contract": "done v0.3",
-      "ui": "running",
-      "ui-check": "pending"
+      "ui": "done v1.4",
+      "ui-check": "running"
     }
   },
   "dependencies_approved": [
@@ -124,7 +124,9 @@
     "S2 server: 메시지 본문 trim + 공백만 거부(승인). 429는 본문 retryAfterSec + Retry-After 헤더(ApiErrorBody에 retryAfterSec? 추가). 이름: nowMs·rateLimitWrites/hitRateLimit·deleteById·purgeBefore. getById는 S3",
     "S2 토큰 교차 벡터 V1~V8(auth.md §2.6)을 contract·S5 handoff가 공유. PHP는 level·exp (int) 캐스트",
     "스킬 문구 TODO: server-design-strategy의 AuthContext → Principal",
-    "S2 contract v0.3 결정 승인: 인증 실패 3코드(TOKEN_REQUIRED·TOKEN_INVALID·LEVEL_TOO_LOW) 모두 읽기 전용 전환 · 삭제 204 · ooc 필수 · ?t= URL 유지 · 메시지 id 10진만 · 레이트리밋은 400/404도 카운트, 401/403 미카운트"
+    "S2 contract v0.3 결정 승인: 인증 실패 3코드(TOKEN_REQUIRED·TOKEN_INVALID·LEVEL_TOO_LOW) 모두 읽기 전용 전환 · 삭제 204 · ooc 필수 · ?t= URL 유지 · 메시지 id 10진만 · 레이트리밋은 400/404도 카운트, 401/403 미카운트",
+    "S2 ui 판단 승인: 삭제 NOT_FOUND는 성공 처리 · 메시지 쓰기 동시 1건 · 시트 열림 중 토스트 금지 · rooms 토스트 줄 맨 아래 28px · 메시지 삭제 confirm 문구 확정",
+    "contract 요청: 길이 한도(60·2000)·trim 후 코드 포인트 규칙을 shared/src/limits.ts 상수로(api.md v0.3.1)"
   ],
   "installed": {
     "typescript": "5.9.3",

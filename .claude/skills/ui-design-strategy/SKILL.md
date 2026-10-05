@@ -155,7 +155,7 @@ ui/src/{screen}/                   screen ∈ { rooms, chat }
 ### 6.2 토큰 분기 — 미렌더
 
 - `viewer.canWrite === false`면 하단 바 전체·⋯ 메뉴·말풍선 컨텍스트 메뉴를 **렌더하지 않는다**(`display:none`·`disabled` 금지 — DOM에 없어야 한다). 히스토리 하단에 한 줄 안내(`labels.readOnlyNotice`)만.
-- `canWrite`는 앱 기동 시 1회 결정되고 바뀌지 않는다(토큰 만료는 쓰기 요청의 `401 TOKEN_EXPIRED`로 드러나며, 그때 안내 + 쓰기 UI 미렌더로 전환).
+- `canWrite`는 앱 기동 시 1회 결정되고 쓰기 가능 → 읽기 전용 한 방향으로만 바뀐다. 쓰기 요청이 `TOKEN_REQUIRED`·`TOKEN_INVALID`(만료 포함)·`LEVEL_TOO_LOW`를 받으면 토큰을 버리고 안내 1회 + 쓰기 UI DOM 제거로 전환한다(api.md v0.3 §2 `isAuthFailure`). `RATE_LIMITED`는 안내만(`retryAfterSec`).
 
 ### 6.3 생성 중 상태
 
@@ -195,7 +195,7 @@ ui/src/{screen}/                   screen ∈ { rooms, chat }
 
 - 목록은 `updatedAt` 내림차순. 각 행: 제목 · 날짜(`MM.DD`) · 마지막 발화 한 줄(있으면). 탭/Enter로 진입.
 - 「+ 새 방」은 `canWrite`일 때만 렌더. 제목 입력은 인라인(기본값 날짜) → 생성 후 바로 chat 진입.
-- 이름 변경·삭제는 행 롱프레스/우클릭 시트(§6.5와 같은 컴포넌트). 삭제는 confirm.
+- 이름 변경·삭제는 방 목록 행이 아니라 대화 화면의 ⋯ 메뉴 시트에서 한다(구성안 미채택: 행 롱프레스 메뉴, R-CHAT-001). 삭제는 confirm.
 - 빈 목록: `labels.rooms.empty` 한 줄 + (canWrite면) 새 방 유도.
 - 로딩·오류: 순서 error → loading → data → empty(tsx-rules).
 
@@ -234,7 +234,7 @@ ui/src/{screen}/                   screen ∈ { rooms, chat }
 |---|---|---|
 | 메시지 삭제 | 필수 | labels.ts |
 | 방 삭제 | 필수 (메시지·장기기억 함께 삭제됨 명시, 되돌릴 수 없음) | labels.ts |
-| 재작성 | 필수 (기존 발화가 사라짐 명시) | labels.ts |
+| 재작성 | 불필요 (R-CHAT-007 🔒: 마지막 캐릭터 메시지만 대상, confirm 없이 즉시. 생성 중 임시 말풍선으로 진행을 보임) | — |
 | 장기기억 직접 편집 저장 | 불필요 | — |
 | 수정 취소 | 불필요 | — |
 
