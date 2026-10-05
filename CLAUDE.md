@@ -13,9 +13,9 @@
 | 서버 실행 환경 | **Cloudflare Workers**(workerd, `nodejs_compat`) 🔒. 로컬 도구는 Node 22+ + TypeScript 5, npm workspaces(`server/` `ui/` `shared/`) |
 | 서버 | Hono 4 + zod. DB는 **Cloudflare D1**(SQLite 호환, 바인딩 `DB`, `server/migrations/*.sql`) |
 | 설정·비밀값 | Secrets(`wrangler secret put`) · 로컬 `server/.dev.vars` · 비밀 아닌 설정은 `wrangler.toml [vars]`. 코드는 `server/src/env.ts`에서만 바인딩 파싱 |
-| 화면 | Vite 6 + React 18, CSS Modules + 변수 토큰. `/embed`는 Workers Static Assets(`ui/dist`) |
-| AI | 제공사 미정. `server/src/llm/` 어댑터 뒤에 격리. `fetch` 기반. 키는 Secrets만 |
-| 테스트 | vitest. 서버 `@cloudflare/vitest-pool-workers`(D1 바인딩 포함), 화면 jsdom + @testing-library/react |
+| 화면 | Vite 8 + React 19 + TS 5.9(설치 기준 2026-10-05), CSS Modules + 변수 토큰. `/embed`는 Workers Static Assets(`ui/dist`, Vite base `/embed/`) |
+| AI | **Google Gemini**(확정, 지인 키 발급). `server/src/llm/` 어댑터 뒤에 격리(교체 가능). `fetch` REST. 키는 Secrets `LLM_API_KEY`만 |
+| 테스트 | vitest 4.x(루트 projects: shared·server·ui). 서버 `@cloudflare/vitest-pool-workers`(workerd + D1), 화면 jsdom + @testing-library/react. `npx vitest run --project <이름>` |
 | 린트 | eslint · prettier |
 | 배포 | `wrangler deploy`(지인 Cloudflare 계정). `*.workers.dev` https. 갠홈 PHP가 https 주소만 받는다 |
 | Git | GitHub 단일 저장소, `main`, 1인 개발 |

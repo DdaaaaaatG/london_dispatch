@@ -53,6 +53,7 @@ verify-manager가 직접 실행한다. 변경 범위에 따라 워크스페이�
 | 항목 | 확인 | 실패 시 |
 |---|---|---|
 | env 키 일치 | `server/.dev.vars.example`(비밀값) ∪ `server/wrangler.toml [vars]`(설정) 키 집합 = `server/src/env.ts` `parseEnv` zod 스키마 키 집합. 비밀값 키(`TOKEN_SECRET`·`LLM_API_KEY`)가 `[vars]`에 **없음** | HIGH, server-manager |
+| 번들 비밀값 grep(R-NFR-004) | `npm run build -w ui` 뒤 `grep -rE "TOKEN_SECRET|LLM_API_KEY|Authorization" ui/dist` 0건, `server/dist`(dry-run 산출)에서 비밀값 실값 패턴 0건. 화면 수동 확인표 MC-RM-06을 대체하는 자동 검사 | HIGH, verify-security-reviewer |
 | D1·자산 바인딩 | `wrangler.toml`의 `[[d1_databases]] binding = "DB"`·`[assets] directory = "../ui/dist"`·`nodejs_compat`가 env.ts 바인딩 타입과 일치, 미적용 마이그레이션(`wrangler d1 migrations list <DB> --local`) 없음 | HIGH, server-manager |
 | frame-ancestors | `env.ts` 기본값·`wrangler.toml [vars]`·api.md §7이 `http://london-gossip.my https://london-gossip.my`로 일치 | HIGH, contract-manager |
 | 레이트리밋 기본값 | `env.ts` 기본값 = 확정사항 §5.2(20/min) = api.md §6 | MEDIUM, contract-manager |

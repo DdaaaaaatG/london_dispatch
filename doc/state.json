@@ -53,9 +53,9 @@
     },
     "scaffold": "done",
     "tests_s1": {
-      "scenarios": "done",
-      "checker": "FAIL(M1 L7) → 수정 중",
-      "conflict": "PASS(M2 L4) → 수정 중"
+      "scenarios": "v0.3",
+      "checker": "FAIL→반영 완료(재검증은 ui-tester 결과로 대체)",
+      "conflict": "PASS→반영 완료"
     }
   },
   "dependencies_approved": [
@@ -83,7 +83,7 @@
     "prettier",
     "concurrently"
   ],
-  "next": "test-designer(TK·CF 수정)·ui-designer(v1.3) 보고 → ui-implementer → ui-tester",
+  "next": "ui-implementer(S1 rooms·chat 읽기 전용) → ui-tester",
   "blockers": [],
   "estimate_min": null,
   "actual_min": null,
