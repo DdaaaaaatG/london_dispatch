@@ -1,7 +1,7 @@
 # chat(대화) 테스트 시나리오
 
 - 기준: `ui/src/chat/design.md` v1.5(+ `design/components.md` · `design/functions.md` · `design/a11y.md` · `design/tc.md` v1.5) / `ui/src/chat/requirements.md` v1.4 / `doc/200_설계/contract/api.md` v0.3.1 / 공용 요소 단일 정의 `ui/src/rooms/design/components.md` §1
-- 작성일: 2026-10-05 · 작성: ui-test-designer · 모드: **증분**(S1 TC-CH-001~030 보존, S2 TC-CH-031~065 추가) · 상태: **초안 v0.4(S2 추가, 검증 대기)**
+- 작성일: 2026-10-05 · 작성: ui-test-designer · 모드: **증분**(S1 TC-CH-001~030 보존, S2 TC-CH-031~065 추가) · 상태: **초안 v0.5(S2 검증 지적 TK-01~09 반영, 재검증 대기)** · 공용 부품 danger 톤 클래스 키 = `danger` **확정**(메인 세션 결정 TK-09)
 - 묶음: **S1(읽기 전용 판)** + **S2(토큰 + 쓰기)**. S1 TC의 토큰 분기는 "없음" 그대로다. S2 TC는 쓰기 UI마다 토큰 있음(TC-CH-031) ↔ 없음(TC-CH-003·021·022·023) 쌍과 전환(051·052)을 더한다. S3(캐릭터 버튼·speak·재작성)·S4(장기기억)는 「후속 이월」.
 - **S2 공통 전제(추가 — S1 전제는 아래 그대로 유지)**
   - **토큰 주입 진입점 통일**: 화면 단위는 `viewer` props(`WRITER_VIEWER`·`READ_ONLY_VIEWER`)로만. App 통합은 `render(<App />)` 전에 `initToken('?t=test-token')`(`@/state/token`), `afterEach`에서 `clearToken()`. `history.replaceState`·`main.tsx`·`configureClient`는 쓰지 않는다. 화면 코드가 `getToken`을 부르지 않는 것은 리뷰 TC-CH-062.
@@ -253,7 +253,7 @@
 - 스펙: `Composer.test.tsx`
 
 ### TC-CH-038 · (S2) 전송 뒤 스크롤·배지 · 종류: 자동 · 요구: R-CHAT-003 · R-CHAT-006 · 설계: §6.3 · F-CH-17 `isNearBottom` · F-CH-08 조립 · C §3 뒤붙임 행 · F §1.1 T9·T11 · 토큰: 있음
-- Given 스크롤 mock(493 / 내용 3000), 첫 배치 `scrollTop=2507`, 응답 전에 내용 높이를 3200으로 바꾼다
+- Given 스크롤 mock(493). 내용 높이는 렌더된 말풍선 수에 연동한다: 4개일 때 3000, 새 말풍선(5번째)이 **커밋된 뒤** 3200. 첫 배치 `scrollTop=2507`. 응답 시점(붙이기 전) `isNearBottom` 측정은 3000 기준이다(TK-01)
 - When (a) 그대로 전송 성공 (b) `scrollTop=1000` + scroll 후 전송 성공 → 배지 클릭
 - Then ⓐ (a) `scrollTop=3200`, 배지 없음 (b) `scrollTop=1000` 그대로, `button "새 메시지 보기, 맨 아래로 이동"`(글자 `새 메시지`) → 클릭 → `scrollTop=3200`, 배지 없음 ⓑ (a) unseen 0 (b) 1 → 0(배지로 관찰) ⓒ `appendUser` 1회, `listMessages` 1회(새 메시지 반영에 재요청 없음)
 - 스펙: `Composer.test.tsx`
@@ -665,6 +665,12 @@ S1·S2 행. 표기: `A → B`는 **순차 인계**(A의 결과 상태가 B의 Gi
 
 | Q-nn | 일자 | CR-ID | 변경 요약 | 변경 파일 | 영향 TC 후보 | 신규 TC 필요 | 상태 |
 |---|---|---|---|---|---|---|---|
+| Q-01 | 2026-10-05 | —(메인 세션 결정 TK-05, S1 불변 예외 승인) | S2에서 `ChatScreen` props `onAuthFailure`·`onRoomRenamed`가 필수가 되어 S1 스펙 렌더 도우미 2곳에 빈 콜백 `vi.fn()`을 더함. S1 단언은 바꾸지 않음 | `ui/src/chat/test/ChatScreen.test.tsx` · `ui/src/chat/test/ChatScroll.test.tsx`(renderChat) | TC-CH-001 ~ 006 · 011 ~ 014 · 021 ~ 027 · 029 · 030(같은 렌더 도우미) | 없음(단언 불변) | 전환됨(위 TC 스펙 렌더 도우미) |
+| Q-02 | 2026-10-05 | —(메인 세션 결정, S1 불변 예외 승인) | 상태 모델 S2 확장으로 TC-CH-015 초기값 단언을 9필드로(`writing`·`editingId` = null) | `ui/src/state/chat.test.ts` · 이 문서 TC-CH-015 Then | TC-CH-015 | 없음(TC-CH-053이 S2 전이 담당) | 전환됨(TC-CH-015) |
+
+### 변경이력 보충 — v0.5 (2026-10-05)
+
+ui-test-checker S2 판정 FAIL 지적 반영: TC-CH-038 내용 높이 mock을 "새 말풍선 커밋 뒤에만 3200"으로(TK-01, Given 갱신) · TC-CH-060 오른쪽 버튼은 `pointerdown(button 2)` 직접 발송, contextmenu 1회는 별도 it(TK-02) · TC-CH-052 (b) ‹ 포커스 단언 추가(TK-07) · S1 렌더 도우미 빈 콜백(Q-01, TK-05) · TC-CH-015 초기값 9필드(Q-02) · danger 클래스 키 확정(TK-09) · 확인표 v0.2(TK-08). 근거: ui-test-checker TK-01~09 · 메인 세션 결정 TK-05·TK-09
 
 ## 변경이력
 

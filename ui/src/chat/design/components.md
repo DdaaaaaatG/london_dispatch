@@ -92,30 +92,33 @@ export type BubbleProps = {
   message: Message
   onOpenMenu?: (message: Message) => void    // S2. 없으면(읽기 전용) 아래 메뉴 핸들러·tabIndex 를 붙이지 않는다
 }
-export type BubbleVariant = 'character' | 'user' | 'ooc'
+export type BubbleVariant = 'sebastian' | 'ciel' | 'user' | 'ooc'          // v1.6 (CR-001)
 export const bubbleVariantOf = (m: Message): BubbleVariant =>
-  m.kind === 'ooc' ? 'ooc' : m.speaker === 'user' ? 'user' : 'character'
+  m.kind === 'ooc' ? 'ooc' : m.speaker === 'user' ? 'user' : m.speaker   // 'sebastian' | 'ciel'
 ```
-판정 순서는 위 함수 그대로(OOC가 먼저). 실물은 지역 컴포넌트 `CharacterBubble`·`UserBubble`·`OocBubble`·`SentTime`으로 나뉜다(소급, 출력 동일). 변형별 렌더:
+판정 순서는 위 함수 그대로(OOC가 먼저 — speaker가 캐릭터여도 `kind='ooc'`면 OOC). 실물은 지역 컴포넌트 `CharacterBubble`(세바스찬·시엘 공용)·`UserBubble`·`OocBubble`·`SentTime`으로 나뉜다. 변형별 렌더(R-CHAT-002 🔒 CR-001 개정):
 
 | 변형 | 정렬 | DOM 순서 | 내용 |
 |---|---|---|---|
-| `character` | 왼쪽 | 아바타 → 이름 → 시각 → 본문 | `meta = CHARACTERS[speaker]`. `<img src={meta.avatar} alt="" width={28} height={28}>` · 이름 `meta.shortName`(sm, 캐릭터 accent) · `<time dateTime={toIsoDateTime(createdAt)}>{formatTime(createdAt)}</time>` · 본문(serif base, 캐릭터 배경 말풍선) |
-| `user` | 오른쪽 | 작성자명 → 시각 → 본문 | 작성자명 `authorName ?? labels.unknownAuthor`(sm) · 시각(xs). 머리 줄은 CSS `flex-direction: row-reverse`라 화면에는 "시각 작성자명" 순서 · 본문(serif base, `--bubble-user-bg` 말풍선). S2 새 발화의 `authorName`은 `appendUser` 응답 값 그대로(R-AUTH-004, 화면이 만들지 않는다) |
-| `ooc` | 중앙 | 장식 → 접두 → 본문 → 장식 → 시각 | `<span aria-hidden="true">{labels.oocDecor}</span> {labels.oocPrefix} {text} <span aria-hidden="true">{labels.oocDecor}</span>` sm `--bubble-ooc-fg` + 시각 xs. 작성자명 표시 안 함 |
+| `sebastian` | **왼쪽** | 아바타 → 이름 → 시각 → 본문 | `meta = CHARACTERS.sebastian`. `<img src={meta.avatar} alt="" width={28} height={28}>` · 이름 `meta.shortName`(sm, accent) · `<time dateTime={toIsoDateTime(createdAt)}>{formatTime(createdAt)}</time>` · 본문(serif base, `--bubble-sebastian-bg` 말풍선, 최대 폭 `--bubble-max-width`) |
+| `ciel` | **오른쪽**(오른쪽 정렬) | 아바타 → 이름 → 시각 → 본문(세바스찬과 **같은 DOM 순서**, 읽는 순서 유지) | `meta = CHARACTERS.ciel`. 내용은 위와 같다. 화면 배치만 거울: 루트 행 `flex-direction: row-reverse`(아바타가 오른쪽 끝), 머리 줄도 `row-reverse`라 화면에는 "시각 이름 (아바타)" 순서, 본문 말풍선 오른쪽 정렬(`margin-left: auto`, 글자는 왼쪽 정렬 유지) |
+| `user` | **가운데**(말풍선) | 작성자명 → 시각 → 본문 | 머리 줄 가운데 정렬, 화면 순서 "작성자명 · 시각"(row-reverse 없음). 작성자명 `authorName ?? labels.unknownAuthor`(sm `--bubble-user-fg`) · 시각(xs). 본문 serif base, 배경 `--bubble-user-bg` 말풍선, 반경 `--radius-lg`, 최대 폭 `--bubble-user-max-width`(86%), 아바타 없음. S2 새 발화의 `authorName`은 응답 값 그대로(R-AUTH-004) |
+| `ooc` | **가운데**(한 줄) | 장식 → 접두 → 본문 → 장식 → 시각 | `<span aria-hidden="true">{labels.oocDecor}</span> {labels.oocPrefix} {text} <span aria-hidden="true">{labels.oocDecor}</span>` sm `--bubble-ooc-fg` + 시각 xs. **배경·테두리 없음**, 작성자명 없음 |
 
-- **클래스명(확정, v1.3).** 루트 요소 클래스:
+- 유저와 OOC는 둘 다 가운데지만 **배경 말풍선 유무 · 작성자명 머리 줄 유무 · 글자 크기(base serif vs sm) · `[지시]` 접두와 `—` 장식**으로 구분한다(색만으로 구분하지 않음).
+- **클래스명(확정, v1.6 — CR-001).** 루트 요소 클래스:
 
 | 클래스 | 붙는 조건 | 역할 |
 |---|---|---|
-| `character` | `bubbleVariantOf(m) === 'character'` | 왼쪽 정렬·아바타 행 형태 |
-| `user` | `=== 'user'` | 오른쪽 정렬·말풍선 형태 |
-| `ooc` | `=== 'ooc'` | 중앙 한 줄·배경 없음 |
-| `ciel` | 변형이 `character`이고 `speaker === 'ciel'` | 색(`--bubble-ciel-*`) |
-| `sebastian` | 변형이 `character`이고 `speaker === 'sebastian'` | 색(`--bubble-sebastian-*`) |
-| `menuEnabled` (S2) | `onOpenMenu`가 있을 때 | `-webkit-touch-callout: none`(iOS 길게 누름 기본 메뉴 억제), 포커스 링 |
+| `character` | 변형이 `sebastian` 또는 `ciel` | **캐릭터 공통**: 아바타·이름 행 형태. 정렬은 정하지 않는다 |
+| `sebastian` | 변형 `sebastian` | **왼쪽 정렬** + 색(`--bubble-sebastian-*`) |
+| `ciel` | 변형 `ciel` | **오른쪽 정렬**(row-reverse) + 색(`--bubble-ciel-*`) |
+| `user` | 변형 `user` | **가운데 말풍선**(배경 있음, 최대 폭 86%) |
+| `ooc` | 변형 `ooc` | **가운데 한 줄**(배경 없음) |
+| `menuEnabled` (S2) | `onOpenMenu`가 있을 때 | `-webkit-touch-callout: none`, 포커스 링 |
 
-  - 조합: 캐릭터 말풍선은 `character` + `ciel`(또는 `sebastian`). 유저는 `user`. OOC는 `ooc`. S2 쓰기 가능이면 셋 모두에 `menuEnabled`가 더 붙는다. `cx(styles.root, styles.character, styles[speaker], onOpenMenu && styles.menuEnabled)`.
+  - 조합: 세바스찬 `character sebastian` · 시엘 `character ciel` · 유저 `user` · OOC `ooc`(speaker가 캐릭터여도 캐릭터 키 없음). 쓰기 가능이면 넷 모두에 `menuEnabled`가 더 붙는다. 캐릭터는 `cx(styles.root, styles.character, styles[variant], onOpenMenu && styles.menuEnabled)`.
+  - 정렬은 캐릭터별 키(`sebastian`·`ciel`)가 결정한다. 테스트는 `toHaveClass('sebastian')`(왼쪽)·`toHaveClass('ciel')`(오른쪽)·`toHaveClass('user')`·`toHaveClass('ooc')`로 배치를 단언한다(non-scoped).
 - 본문은 **일반 텍스트**(React 이스케이프). `dangerouslySetInnerHTML`·마크다운 해석 금지. `white-space: pre-wrap; overflow-wrap: anywhere`.
 - **메뉴 핸들러(S2).** `BubbleView`는 `useLongPress({ onLongPress: () => onOpenMenu?.(message) })`를 **항상** 호출한다(Hook 규칙). `onOpenMenu`가 있을 때만 루트에 `{...longPressHandlers}` · `tabIndex={0}` · `aria-haspopup="dialog"` · `aria-keyshortcuts="Shift+F10"` · `onKeyDown`(Shift+F10 또는 `key === 'ContextMenu'` → `preventDefault()` 후 `onOpenMenu(message)`)를 붙인다. 없으면 아무것도 붙이지 않는다(우클릭은 브라우저 기본 동작, 주 문서 §10).
 
@@ -169,7 +172,7 @@ export type InlineEditorProps = {
 }
 ```
 - 로컬 상태: `text`(초기 `message.text`). `canSave = !isSaving && isMessageTextValid(text) && text !== message.text`.
-- 렌더: `<div role="group" aria-label={labels.editAriaLabel} class={cx(editor, variantClass)}>` — 정렬은 원래 말풍선 변형과 같다(character 왼쪽 · user 오른쪽 · ooc 중앙, 폭 `--bubble-max-width`). 안: `TextArea value onChange ariaLabel={labels.editInputAriaLabel} maxRows={6} maxChars={MESSAGE_TEXT_MAX_CHARS} counterMode='overflow' onEscape={isSaving ? undefined : onCancel} isReadOnly={isSaving}` + 버튼 줄(오른쪽 정렬) `Button sm secondary isDisabled={isSaving}` 취소 · `Button sm primary isDisabled={!canSave}` 저장.
+- 렌더: `<div role="group" aria-label={labels.editAriaLabel} class={cx(editor, variantClass)}>` — 정렬은 원래 말풍선 변형과 같다(v1.6: `sebastian` 왼쪽 · `ciel` 오른쪽 · `user`·`ooc` 가운데. 폭은 캐릭터 `--bubble-max-width`, 유저·OOC `--bubble-user-max-width`). 클래스는 `cx(styles.editor, styles[bubbleVariantOf(message)])`. 안: `TextArea value onChange ariaLabel={labels.editInputAriaLabel} maxRows={6} maxChars={MESSAGE_TEXT_MAX_CHARS} counterMode='overflow' onEscape={isSaving ? undefined : onCancel} isReadOnly={isSaving}` + 버튼 줄(오른쪽 정렬) `Button sm secondary isDisabled={isSaving}` 취소 · `Button sm primary isDisabled={!canSave}` 저장.
 - Enter는 줄바꿈이다(`onEnter` 없음). 저장은 버튼으로만.
 - 마운트 `useLayoutEffect([])`: 입력에 포커스, 커서를 끝으로(`setSelectionRange(len, len)`).
 
@@ -189,7 +192,7 @@ export type MessageMenuSheetProps = {
   2. (재작성 — **S3, 미렌더**. 자리는 수정과 삭제 사이)
   3. `SheetItem label={labels.delete} tone='danger' onSelect={onDelete} isDisabled={isWriteBusy}`
   4. `SheetItem label={labels.cancel} onSelect={onClose}`
-- `nameOf(m)`: 변형 `character` → `CHARACTERS[speaker].shortName` · `user` → `authorName ?? labels.unknownAuthor` · `ooc` → `labels.oocPrefix`. `excerptOf(text)`: 코드 포인트 20자 넘으면 앞 20자 + `…`. 둘 다 이 파일 지역 함수.
+- `nameOf(m)`: 변형 `sebastian`·`ciel` → `CHARACTERS[variant].shortName` · `user` → `authorName ?? labels.unknownAuthor` · `ooc` → `labels.oocPrefix`. `excerptOf(text)`: 코드 포인트 20자 넘으면 앞 20자 + `…`. 둘 다 이 파일 지역 함수.
 - 약 188px(머리 40 + 항목 44×3 + 여백 16). S3에서 재작성 항목이 들어오면 약 232px로 구성안 §2-1 높이와 같아진다.
 
 ### 2.9 RoomMenuSheet (⋯ 방 메뉴) — S2, 구성안 §2-2
@@ -298,7 +301,8 @@ export type UseAutoScrollResult = {
 | (S2) 시트 | `--sheet-*`, 덮개 `--color-overlay`, `--z-sheet`. 머리 줄 40px sm muted 한 줄 말줄임 |
 | (S2) 화면 루트 | `.root { position: relative }`(BottomSheet 덮개 기준) |
 | 화면 좌우 여백 | `--space-4` |
-| 컴포넌트 변수 값 | `--bubble-user-bg: var(--color-bg-elevated)` · `--bubble-max-width: 78%`(폭 ≤ 360px에서 85%) — `global.css`. S2 추가분은 rooms components.md §1.20 |
+| (v1.6) 배치 | 세바스찬 왼쪽 · 시엘 오른쪽(row-reverse) · 유저 가운데 말풍선 · OOC 가운데 한 줄(§2.2) |
+| 컴포넌트 변수 값 | `--bubble-user-bg: var(--color-bg-elevated)` · `--bubble-max-width: 78%`(폭 ≤ 360px에서 85%, 캐릭터) · `--bubble-user-max-width: 86%`(v1.6, 유저·OOC·모든 폭) — `global.css`. S2 추가분은 rooms components.md §1.20 |
 | 파일 | `ui/src/chat/styles/ChatScreen.module.css`, 컴포넌트별 `{Name}.module.css`. 하드코딩 색 금지 |
 
 - 아바타 파일 `ui/public/img/ciel.png`·`sebastian.png`. 경로는 `CHARACTERS.*.avatar`(`/embed/img/{id}.png`).

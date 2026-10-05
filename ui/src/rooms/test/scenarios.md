@@ -1,7 +1,7 @@
 # rooms(방 목록) 테스트 시나리오
 
-- 기준: `ui/src/rooms/design.md` v1.4(+ `design/components.md` · `design/functions.md` · `design/a11y.md`) / `ui/src/rooms/requirements.md` v1.4 / `doc/200_설계/contract/api.md` v0.3.1 / chat 쪽 공용 인용 `ui/src/chat/design.md` v1.5
-- 작성일: 2026-10-05 · 작성: ui-test-designer · 모드: **증분**(S1 TC-RM-001~017 보존, S2 TC-RM-018~032 추가) · 상태: **초안 v0.4(S2 추가, 검증 대기)**
+- 기준: `ui/src/rooms/design.md` v1.5(+ `design/components.md` · `design/functions.md` · `design/a11y.md`) / `ui/src/rooms/requirements.md` v1.4 / `doc/200_설계/contract/api.md` v0.3.1 / chat 쪽 공용 인용 `ui/src/chat/design.md` v1.5
+- 작성일: 2026-10-05 · 작성: ui-test-designer · 모드: **증분**(S1 TC-RM-001~017 보존, S2 TC-RM-018~032 추가) · 상태: **초안 v0.5(S2 검증 지적 TK-01~09 반영, 재검증 대기)**
 - 묶음: **S1(저장 + 읽기 전용 화면)** + **S2(토큰 + 새 방)**. S1 TC의 토큰 분기는 "없음"(READ_ONLY_VIEWER) 그대로다. S2 TC는 토큰 있음/없음 쌍(TC-RM-011 ↔ 018)과 전환(024)을 더한다.
 - **S2 공통 전제(추가 — S1 전제는 아래 그대로 유지)**
   - **토큰 주입 진입점 통일**: 화면 단위 스펙은 `viewer` props(`WRITER_VIEWER`·`READ_ONLY_VIEWER`, `@/state/viewer`)로만 준다. App 통합 스펙은 `render(<App />)` **전에** `initToken('?t=test-token')`(`@/state/token`, 설계가 정한 유일한 읽기 진입점)을 부르고 `afterEach`에서 `clearToken()`. `window.history.replaceState`·`main.tsx` import·`configureClient` 호출은 쓰지 않는다(래퍼를 모킹하므로 Bearer 헤더 부착은 api 스펙 API-T-UI-011~013 몫).
@@ -159,8 +159,8 @@
 
 ### TC-RM-023 · (S2) 생성 실패(비인증) · 종류: 자동 · 요구: R-CHAT-011 · R-ROOMS-002 · 설계: §6.5 실패 행 · F-RM-18·22 · §8.3 · C §1.18 · A 토스트 · 토큰: 있음
 - Given 입력 `'안개 낀 런던'`, `createRoom` 대기 → 실패. 코드: `INTERNAL` · `RATE_LIMITED`+`retryAfterSec: 40` · `RATE_LIMITED`(값 없음) · `NETWORK` · `VALIDATION_ERROR`
-- When `만들기` → (가짜 시계 설치) → 실패 resolve → 1999ms → 1ms
-- Then ⓐ `role=alert` 문구·톤: `ERROR_MESSAGES.INTERNAL`(danger) · `요청이 너무 많습니다. 40초 후 다시 시도해 주세요.`(warning) · `ERROR_MESSAGES.RATE_LIMITED`(warning) · `서버에 연결할 수 없습니다.`(danger) · `방 제목은 1~60자로 입력해 주세요.`(danger). `SERVER-RAW-MESSAGE` 없음. B 행·입력값 `'안개 낀 런던'` 유지, 「+ 새 방」 유지, `만들기` enabled. 1999ms에 alert 있음 → 2000ms에 없음 ⓑ `onAuthFailure` 0회, `onOpenRoom` 0회, 저장소 키 0개 ⓒ `createRoom` 1회 `[{ title: '안개 낀 런던' }]`
+- When `만들기` → (가짜 시계 설치) → 실패 resolve → 1999ms → 1ms → 같은 입력으로 다시 `만들기`(2회째 응답 `ok(안개 낀 런던 r9)`)
+- Then ⓐ `role=alert` 문구·톤: `ERROR_MESSAGES.INTERNAL`(danger) · `요청이 너무 많습니다. 40초 후 다시 시도해 주세요.`(warning) · `ERROR_MESSAGES.RATE_LIMITED`(warning) · `서버에 연결할 수 없습니다.`(danger) · `방 제목은 1~60자로 입력해 주세요.`(danger). `SERVER-RAW-MESSAGE` 없음. B 행·입력값 `'안개 낀 런던'` 유지, 「+ 새 방」 유지, `만들기` enabled. 1999ms에 alert 있음 → 2000ms에 없음 ⓑ 실패 시점: `onAuthFailure` 0회, `onOpenRoom` 0회, 저장소 키 0개 → 재제출 성공 뒤: `onOpenRoom` 1회(응답 RoomSummary), `onAuthFailure` 0회 유지 ⓒ 실패 시점 `createRoom` 1회 `[{ title: '안개 낀 런던' }]` → 재제출 뒤 총 2회, 2회째 인자도 `[{ title: '안개 낀 런던' }]`(실패가 다음 제출을 막지 않음)
 - 스펙: `NewRoom.test.tsx`
 
 ### TC-RM-024 · (S2) 인증 실패 전환 · 종류: 자동 · 요구: R-CHAT-011 · R-CHAT-009 · R-CHAT-008 · 설계: §6.5 isAuthFailure 행 · F-RM-12·18·19 · §8.3 인증 3행 · §10 전환 · 토큰: 있음 → 없음
@@ -214,7 +214,7 @@
 ### TC-RM-032 · (S2) 공용 TextInput·Toast·useToast·Button ref · 종류: 자동 · 요구: R-ROOMS-002 · R-CHAT-011 · R-ROOMS-005 · 설계: C §1.2 `buttonRef` · C §1.3 `more` · C §1.12 · C §1.18 · C §1.9 무문구 · 토큰: 무관
 - Given 부품 단독 렌더(문구는 props)
 - When 입력·키·타이머·ref 연결
-- Then ⓐ TextInput: `input type=text aria-label autoComplete=off`, `maxChars` 있으면 카운터 `n/max`(`aria-hidden`), 초과 시 `over`·`aria-invalid=true`, `maxChars` 없으면 카운터 없음, `isReadOnly` → `readOnly`. Toast: `p role=alert`, 톤 클래스. IconButton `more`: `aria-label` 이름, SVG `aria-hidden`, `isDisabled` → disabled ⓑ useToast: `showToast` → `{ id: 1, message, tone }` → 2000ms 뒤 `null` · 1000ms에 새 `showToast` → id 2, 그 시점부터 2000ms(첫 호출 기준 2000ms에 아직 있음) · `dismissToast` → `null` · 언마운트 뒤 타이머 0개(`vi.getTimerCount()`) · `TOAST_DURATION_MS=2000` ⓒ 콜백: Enter → `onEnter` 1회(`preventDefault`), `isComposing`·`keyCode 229` Enter → 0회, Esc → `onEscape` 1회, 입력 → `onChange(값)`. Button `buttonRef.current`가 그 `button` 요소, `isDisabled` → disabled·클릭 시 `onClick` 0회
+- Then ⓐ TextInput: `input type=text aria-label autoComplete=off`, `maxChars` 있으면 카운터 `n/max`(`aria-hidden`), 초과 시 `over`·`aria-invalid=true`, `maxChars` 없으면 카운터 없음, `isReadOnly` → `readOnly`. Toast: `p role=alert`, 톤 클래스. IconButton `more`: `aria-label` 이름, SVG `aria-hidden`, `isDisabled` → disabled ⓑ useToast: `showToast` → `{ id: 1, message, tone }` → 2000ms 뒤 `null` · 1000ms에 새 `showToast` → id 2, 그 시점부터 2000ms(첫 호출 기준 2000ms에 아직 있음) · `showToast` 뒤 언마운트 → 타이머 0개(`vi.getTimerCount()`). `dismissToast`는 설계 v1.5에서 삭제돼 단언하지 않는다. TextInput `isDisabled`도 v1.5에서 삭제돼 단언하지 않는다 · `TOAST_DURATION_MS=2000` ⓒ 콜백: Enter → `onEnter` 1회(`preventDefault`), `isComposing`·`keyCode 229` Enter → 0회, Esc → `onEscape` 1회, 입력 → `onChange(값)`. Button `buttonRef.current`가 그 `button` 요소, `isDisabled` → disabled·클릭 시 `onClick` 0회
 - 스펙: `ui/src/components/ui/TextInput/TextInput.test.tsx` · `ui/src/components/ui/Toast/Toast.test.tsx` · `ui/src/components/ui/Button/Button.test.tsx`
 
 ## TC-FLOW
@@ -395,6 +395,11 @@ S1·S2 행. 표기: `A → B`는 **순차 인계**(A의 결과 상태가 B의 Gi
 
 | Q-nn | 일자 | CR-ID | 변경 요약 | 변경 파일 | 영향 TC 후보 | 신규 TC 필요 | 상태 |
 |---|---|---|---|---|---|---|---|
+| Q-01 | 2026-10-05 | —(메인 세션 결정 TK-05, S1 불변 예외 승인) | S2에서 `RoomsScreen` props `onAuthFailure`가 필수가 되어 S1 스펙 렌더 도우미에 빈 콜백 `onAuthFailure={vi.fn()}`을 더함. S1 단언은 바꾸지 않음 | `ui/src/rooms/test/RoomsScreen.test.tsx`(renderRooms) | TC-RM-001~011 · 014 · 016 · 017(같은 렌더 도우미) | 없음(단언 불변) | 전환됨(TC-RM-001~017 스펙 렌더 도우미) |
+
+### 변경이력 보충 — v0.5 (2026-10-05)
+
+ui-test-checker S2 판정 FAIL 지적 반영: TC-RM-023 재제출 2회 단언 추가(TK-06) · TC-RM-026 (a)(b)(c) 입력값 유지 단언 보강(TK-07) · TC-RM-032 `dismissToast`·TextInput `isDisabled` 단언 삭제(TK-03·04, 설계 v1.5) · 기준 설계 v1.5 · S1 렌더 도우미 빈 콜백(Q-01, TK-05) · 공용 부품 danger 클래스 키 `danger` 확정(TK-09). 확인표 v0.2(TK-08). 근거: ui-test-checker TK-01~09 · 메인 세션 결정 TK-05·TK-09
 
 ## 변경이력
 
