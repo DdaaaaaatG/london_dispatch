@@ -38,13 +38,13 @@
     "design_s1": {
       "layout": "done",
       "server": "done",
-      "contract": "running",
-      "ui": "pending",
+      "contract": "done",
+      "ui": "running",
       "ui-check": "pending"
     }
   },
   "dependencies_approved": [],
-  "next": "S1 contract-designer → ui-designer → ui-design-checker → 승인 ②",
+  "next": "S1 ui-designer(rooms·chat 읽기 전용 설계) → ui-design-checker → 승인 ②",
   "blockers": [],
   "estimate_min": null,
   "actual_min": null,
@@ -57,6 +57,10 @@
     "/embed CSP를 위해 [assets] run_worker_first=true, ui Vite base='/embed/'. 요청 로그·onError는 server/src/app.ts(진입점) 소유 — 스킬 문구(server-design-strategy §9·server-rules) 갱신 TODO",
     "server/src 루트 보충 파일: app.ts·services.ts·app-error.ts·logger.ts (확정사항 §4 보충 TODO)",
     "rate_limits.window_start = 창 시작 epoch ms (R-AUTH-005 정정)",
-    "방 목록 messageCount는 S1에서 집계 쿼리로. D1 읽기 비용 이슈는 관찰 후 message_count 컬럼 제안 검토"
+    "방 목록 messageCount는 S1에서 집계 쿼리로. D1 읽기 비용 이슈는 관찰 후 message_count 컬럼 제안 검토",
+    "S1 contract: api.md v0.1. GET /api/rooms 응답은 배열 유지(페이지네이션 요구 없음). ui/api는 Result<T> 반환·throw 금지(ApiError 타입)",
+    "CHARACTERS에 shortName 추가(R-LLM-002 개정). R-CHAT-009(토큰 메모리 보관)는 S2로 이동, 보관 위치 ui/src/state/token.ts, client.ts는 getter로 헤더 부착",
+    "server-implementer 제약: 계약 타입은 @shared/types import(재정의 금지), AppError status는 ERROR_STATUS[code], 기본 문구는 ERROR_MESSAGES",
+    "스킬 문구 갱신 TODO(contract-designer 보고 §15.3): 에러 코드명·페이지 기본 30·토큰 payload 표기·/api CSP·routes embed.ts·ISO 시각 → 메인 세션 배치"
   ]
 }

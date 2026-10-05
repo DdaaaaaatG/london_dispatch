@@ -13,8 +13,8 @@
 
 | 묶음 | 이름 | 포함 요구 | 결과물 |
 |---|---|---|---|
-| S1 | 저장 + 읽기 전용 화면 | ENV 전부, DB 전부, ROOM-001·005, MSG-001, API-001~008(읽기 경로), ROOMS-001·003~005, CHAT-001~003·008~010·013, NFR-002·004·005 | 토큰 없이 방 목록·히스토리를 볼 수 있는 화면과 서버 |
-| S2 | 토큰 + 쓰기 | AUTH 전부, TOKEN-001, ROOM-002~004, MSG-002·004·005·008, API(쓰기 경로), ROOMS-002, CHAT-004(입력·전송)·006·007(수정·삭제)·011, NFR-003 일부(레이트리밋) | 등급 통과자가 방을 만들고 발화·지시를 적고 수정·삭제 |
+| S1 | 저장 + 읽기 전용 화면 | ENV 전부, DB 전부, ROOM-001·005, MSG-001, API-001~008(읽기 경로), ROOMS-001·003~005, CHAT-001~003·008·010·013, NFR-002·004·005 | 토큰 없이 방 목록·히스토리를 볼 수 있는 화면과 서버 |
+| S2 | 토큰 + 쓰기 | AUTH 전부, TOKEN-001, ROOM-002~004, MSG-002·004·005·008, API(쓰기 경로), ROOMS-002, CHAT-004(입력·전송)·006·007(수정·삭제)·009·011, NFR-003 일부(레이트리밋) | 등급 통과자가 방을 만들고 발화·지시를 적고 수정·삭제 |
 | S3 | AI 발화 | LLM 전부, MSG-003·006·007, CHAT-005·007(재작성), NFR-001·003 | 세바스찬·시엘 버튼이 동작, 재작성 |
 | S4 | 장기기억 | MEM 전부, CHAT-012 | 자동 요약과 장기기억 보기·편집 |
 | S5 | 전달·배포 | HANDOFF 전부, 배포 절차 | 갠홈에 줄 임베드 주소·토큰 PHP 조각, Cloudflare 배포 |
@@ -86,7 +86,7 @@
 | ID | 🔒 | 요구 | 수용 기준 |
 |---|---|---|---|
 | R-LLM-001 | 🔒 | 어댑터 인터페이스 `generate({ system, turns, timeoutMs }) → { text }`. 구현 2종: `GeminiProvider`(REST `generateContent`, `fetch`, 키는 헤더) · `FakeProvider`(테스트·키 없는 로컬). `LLM_PROVIDER`로 선택. 다른 제공사 추가가 어댑터 1파일 추가로 끝나는 구조. | FakeProvider 전 테스트 통과. Gemini는 요청 본문 스냅샷 테스트. |
-| R-LLM-002 | 🔒 | 캐릭터 설정은 JSON 파일 `server/characters/ciel.json`·`sebastian.json`(필드 `id, name, persona, speech, rules[]`)과 공통 `server/characters/common.json`(`world`, `outputRules[]`). `characters.ts`가 import해 zod로 검증하고 상수로 노출. 파일만 고치면 코드 변경 없이 다음 배포에 반영. 사용자·지인이 내용을 주기 전까지 임시 문구. **표시용 메타(id·표시명·아바타 경로)는 `shared/src/characters.ts` 상수**가 단일 소스이며 화면은 이것으로 speaker→이름·아바타를 그린다(별도 조회 엔드포인트 없음, R-API-001 준수). JSON의 `name`은 shared 표시명과 같아야 한다(검증). 아바타 이미지는 `ui/public/img/{id}.png`. | 잘못된 JSON·불일치 name은 타입체크·테스트에서 실패. 두 캐릭터 id 고정(`ciel`,`sebastian`). |
+| R-LLM-002 | 🔒 | 캐릭터 설정은 JSON 파일 `server/characters/ciel.json`·`sebastian.json`(필드 `id, name, persona, speech, rules[]`)과 공통 `server/characters/common.json`(`world`, `outputRules[]`). `characters.ts`가 import해 zod로 검증하고 상수로 노출. 파일만 고치면 코드 변경 없이 다음 배포에 반영. 사용자·지인이 내용을 주기 전까지 임시 문구. **표시용 메타(id·표시명 `name`·말풍선용 짧은 이름 `shortName`(시엘/세바스찬)·아바타 경로)는 `shared/src/characters.ts` 상수**가 단일 소스이며 화면은 이것으로 speaker→이름·아바타를 그린다(별도 조회 엔드포인트 없음, R-API-001 준수). JSON의 `name`은 shared 표시명과 같아야 한다(검증). 아바타 이미지는 `ui/public/img/{id}.png`. | 잘못된 JSON·불일치 name은 타입체크·테스트에서 실패. 두 캐릭터 id 고정(`ciel`,`sebastian`). |
 | R-LLM-003 | 🔒 | 프롬프트 조립: 시스템 = `common.world` + 눌린 캐릭터의 `persona`·`speech`·`rules` + `common.outputRules`("네 차례. 네 행동·대사만 1~3문장. 상대 대사·이름표·마크다운 금지"). 컨텍스트 = `memory.summary`(있으면) + 최근 `CONTEXT_MESSAGES`개를 `시엘: …` / `세바스찬: …` / `[지시] …` / `[유저 {author_name}] …` 형식으로. | 조립 결과 스냅샷 테스트. |
 | R-LLM-004 | 🔒 | 후처리: 앞머리 이름표(`시엘:`, `세바스찬:` 등) 제거, 양끝 공백·연속 빈 줄 정리, 결과가 비면 `502 LLM_EMPTY`. | 테스트 벡터 5종. |
 | R-LLM-005 | 🔒 | 타임아웃 `LLM_TIMEOUT_MS`(`AbortSignal.timeout`), 네트워크 오류·5xx·타임아웃은 1회 재시도. 최종 실패 `502 LLM_FAILED`(제공사 메시지는 로그에만, 응답에는 일반 문구). | 실패 주입 테스트. |
