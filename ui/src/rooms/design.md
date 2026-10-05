@@ -21,6 +21,7 @@
 | 버전 | 일자 | 변경 | 근거 |
 |---|---|---|---|
 | v1.0 | 2026-10-05 | 최초 작성(S1 읽기 전용). 40KB 한계로 `design/*.md` 3개 분할 | 구축 S1 |
+| v1.1 | 2026-10-05 | ‹ 뒤로 시 마지막 본 방 기록 삭제로 변경: §6.2 · §11.2 D-1 · functions.md F-RM-03 · TC-RM-012 | 메인 세션 결정 |
 
 ---
 
@@ -150,7 +151,8 @@ App 마운트 → autoOpenRoomId = loadLastRoomId() = null
 App 마운트 → autoOpenRoomId = 'r1'
  → RoomsScreen loading → listRooms() ok → 목록에 r1 있음
  → onAutoOpenSettled → onOpenRoom(r1) → ChatScreen(r1)
- → ‹ 뒤로 → backToRooms → RoomsScreen 새 마운트(autoOpenRoomId=null) → 목록 다시 로드 → 목록에 머문다
+ → ‹ 뒤로 → clearLastRoomId()(chat F-CH-10) → backToRooms → RoomsScreen 새 마운트(autoOpenRoomId=null) → 목록 다시 로드 → 목록에 머문다
+ → 이 상태로 패널을 닫았다 다시 열면 저장된 방이 없으므로 목록에서 시작(§6.1)
 ```
 - 자동 진입 중에는 목록이 한 번 그려진 뒤 곧바로 chat으로 바뀐다(목록이 와야 방 정보를 안다 — 단건 조회 없음).
 
@@ -241,12 +243,12 @@ api.md v0.1을 **인용**한다(재정의 아님).
 
 `--color-bg` 배경, 행 56px·`--row-divider`, 제목 serif, 날짜 `--font-ui` xs. `--row-hover-bg`·`--row-divider` 값은 components.md §3에서 정한다.
 
-### 11.2 설계 가정 (구현은 이대로, 사용자 확인 시 값만 바뀜)
+### 11.2 설계 결정·가정
 
-| # | 가정 | 이유 |
+| # | 내용 | 이유 |
 |---|---|---|
-| A-1 | ‹ 뒤로로 목록에 돌아와도 마지막 본 방 기록을 지우지 않는다. 다음에 패널을 열면 그 방으로 다시 들어간다 | R-ROOMS-004 원문 "앱 시작 시 있으면 그 방 대화 화면으로 바로 열고". 지우는 조건은 "목록에 없는 방"뿐. 요구가 「확인 필요」라 사용자 확인 대상 |
-| A-2 | 목록 로드가 실패하면 자동 진입을 미루고, 재시도가 성공한 시점에 판정한다 | 방 정보는 목록으로만 얻는다(단건 조회 없음) |
+| D-1(결정) | 방에 들어갈 때 마지막 본 방을 기록하고(chat F-CH-02), ‹ 뒤로로 목록에 돌아오면 기록을 지운다(chat F-CH-10). 목록에 없는 방이면 자동 진입 판정에서도 지운다(F-RM-08). 저장 불가 환경은 try/catch로 무시 | 메인 세션 결정 2026-10-05: 사용자가 마지막으로 본 화면이 목록이면 다음 열기도 목록 |
+| A-2(가정) | 목록 로드가 실패하면 자동 진입을 미루고, 재시도가 성공한 시점에 판정한다 | 방 정보는 목록으로만 얻는다(단건 조회 없음) |
 
 ---
 
@@ -298,7 +300,7 @@ api.md v0.1을 **인용**한다(재정의 아님).
 | TC-RM-009 | 자동 진입 대상 없음 | 목록에 없음 → `ld:lastRoomId` 삭제, `onOpenRoom` 미호출 |
 | TC-RM-010 | 저장소 throw | `localStorage.getItem/setItem/removeItem` throw → storage 함수 전부 throw 없이 `null`/무시, 화면은 일반 목록 |
 | TC-RM-011 | 읽기 전용 부재 | 「+ 새 방」 버튼·텍스트 입력이 DOM에 없음 |
-| TC-RM-012 | App 흐름(TC-FLOW) | 저장 id 있음 → chat 진입 → ‹ 뒤로 → 목록 표시, 다시 자동 진입하지 않음 |
+| TC-RM-012 | App 흐름(TC-FLOW) | 저장 id 있음 → chat 자동 진입 → ‹ 뒤로 → 목록 표시, `ld:lastRoomId` 삭제됨 → App 재마운트 시 자동 진입 없이 목록 |
 | TC-RM-013 | formatDate | `MM.DD`·`HH:mm` 0 채움, `toIsoDate`·`toIsoDateTime` 형식 |
 | TC-RM-014 | 자동 진입 보류 | 첫 로드 실패 → 자동 진입 없음 → 재시도 성공 → 그때 진입 |
 | TC-RM-015 | 화면 크기·토큰(수동) | 390×565 스크린샷에서 가로 스크롤 없음, 상단 44·행 56, Rosebell 색 |

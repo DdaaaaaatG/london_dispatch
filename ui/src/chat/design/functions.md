@@ -114,7 +114,7 @@ export const restoreScrollTop = (m: Pick<ScrollMetrics, 'scrollHeight' | 'client
 | F-CH-07 | `clearUnseen(): void` | — | T11/T12 | `dispatch({ type: 'unseenCleared' })`. useAutoScroll `onReachBottom` | — | R-CHAT-003 |
 | F-CH-08 | `showNewest(): void` | — | 스크롤 + T11 | 배지 클릭: `autoScroll.scrollToBottom()` → `clearUnseen()` | — | R-CHAT-003 |
 | F-CH-09 | 스크롤 위치 저장 effect (`useEffect(…, [])`) | — | 저장소 기록 | `save = () => { const d = autoScroll.getDistanceFromBottom(); if (d !== null) saveScrollOffset(room.id, d) }`. `window`의 `pagehide`에 `save` 등록. cleanup: 등록 해제 후 `save()` 1회(‹ 뒤로·방 전환) | 한 번도 배치되지 않았으면(로딩·오류·빈 방) 저장하지 않는다 → 이전에 저장된 값이 그대로 남는다 | R-CHAT-010 |
-| F-CH-10 | `back(): void` | — | `onBack()` | ‹ 버튼. 저장은 F-CH-09 cleanup이 한다 | — | R-CHAT-001 |
+| F-CH-10 | `back(): void` | — | 저장소 삭제 + `onBack()` | ‹ 버튼. `clearLastRoomId()` → `onBack()`(마지막으로 본 화면이 목록이 되므로 다음 열기는 목록). 스크롤 위치 저장은 F-CH-09 cleanup이 한다 | 삭제 실패는 storage가 삼키고 `onBack()`은 항상 호출 | R-CHAT-001 · R-ROOMS-004 · R-CHAT-010 |
 | F-CH-11 | `renderHistory(state: ChatState): JSX.Element` (지역 함수) | 상태 | 히스토리 영역 | 판정 순서: `phase==='error'` → `StateView kind='error' message={labels.loadError} detail={errorDetail(state.error.code)} actionLabel={labels.retry} onAction={retryInitial}` / `'loading'` → `StateView kind='loading' message={labels.loading}` / `messages.length > 0` → `MessageList …` / 그 밖 → `StateView kind='empty' message={labels.empty}` | — | R-CHAT-002 · 003 |
 | F-CH-12 | `chatReducer` 외 순수 함수 | §1 | §1 | §1.1 전이표 · §1.2 | — | R-CHAT-003 |
 | F-CH-13 | `scroll.ts` 순수 함수 | §2 | §2 | §2 | — | R-CHAT-003 · 010 |

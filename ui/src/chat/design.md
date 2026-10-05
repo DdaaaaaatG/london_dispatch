@@ -8,7 +8,7 @@
 | 목적 | 고른 방의 히스토리를 메신저 말풍선으로 보여 준다. 위로 올리면 더 오래된 대화를 이어 붙이고 읽던 자리를 지킨다. 토큰이 없으면 쓰기 UI 없이 열람 안내 한 줄만 둔다 |
 | 요구 | `ui/src/chat/requirements.md` v1.0(확정) |
 | 구성안 | `doc/200_설계/architecture/ui-layout-01-rooms-chat.md` §2(패턴 C1) — **수용, 구조 변경 없음** |
-| 계약 | `doc/200_설계/contract/api.md` v0.1 §4.3 · §5.5 · §11.3(`listMessages`, `CHARACTERS`) — 확정, 구현 대기. `shortName`은 §13 contract 반영 필요 |
+| 계약 | `doc/200_설계/contract/api.md` v0.2 §4.3 · §5.5 · §11.3(`listMessages`, `CHARACTERS`) — 확정, 구현 대기. 말풍선 이름은 `CHARACTERS[speaker].shortName`(v0.2 §5.5) |
 | 묶음 | **S1 상세**: R-CHAT-001(‹·제목·날짜)·002·003·008·010·013. 나머지는 §14 후속 묶음 예정 |
 | 레이아웃 확정 상태 | **확정**(S1 읽기 전용 판). 토큰 있음 판의 ⋯·하단 바·E 알림 줄·임시 말풍선은 후속 슬롯 |
 | 문서 분할 | 40KB 한계로 분할: `design/components.md`(로컬 컴포넌트·useAutoScroll·스타일) · `design/functions.md`(리듀서·스크롤 계산·상태·기능) · `design/a11y.md`(접근성). RTM은 이 문서 §15 |
@@ -21,6 +21,7 @@
 | 버전 | 일자 | 변경 | 근거 |
 |---|---|---|---|
 | v1.0 | 2026-10-05 | 최초 작성(S1 읽기 전용). 40KB 한계로 `design/*.md` 3개 분할 | 구축 S1 |
+| v1.1 | 2026-10-05 | ① `shortName` 확정(api.md v0.2 §5.5) → §1·§7·§13·§15 R-LLM-002 ✅. ② ‹ 뒤로 시 마지막 본 방 기록 삭제(F-CH-10, §6.4, TC-CH-002·024) | 메인 세션 결정 2건 |
 
 ---
 
@@ -202,6 +203,8 @@ hasMore=false → 더 요청하지 않는다(B0 없음)
 | 저장소 | 읽기·쓰기 throw | 영향 없음. 복원 거리 없음 = 맨 아래 | — |
 | 늦은 응답 | 응답 전 ‹ 뒤로·방 전환 | 버린다(`isActiveRef`). 이전 페이지 늦은 응답은 T7로도 무시 | — |
 
+- 마지막 본 방 기록(R-ROOMS-004): 방에 들어갈 때 `saveLastRoomId(room.id)`(F-CH-02), ‹ 뒤로로 나갈 때 `clearLastRoomId()`(F-CH-10). 사용자가 마지막으로 본 화면이 목록이면 다음 열기도 목록이다. `pagehide`(패널 닫기)는 기록을 지우지 않는다. 저장소 실패는 storage가 삼킨다.
+
 - 파괴 조작·confirm: S1 chat에는 없다(메시지·방 삭제는 S2, §14). 생성 중 상태: S1 없음(S3).
 
 ---
@@ -219,7 +222,7 @@ api.md v0.1을 **인용**한다.
 - `Result<T>`·`ApiError`·`ApiErrorCode = ErrorCode | 'NETWORK'`은 api.md §11.3. 래퍼는 throw하지 않으므로 화면에 `try/catch`가 없다.
 - 이 엔드포인트가 낼 수 있는 코드: `VALIDATION_ERROR`(400) · `NOT_FOUND`(404) · `CONFIG_INVALID`(500) · `INTERNAL`(500) · 클라이언트 `NETWORK`. 화면은 `limit`을 보내지 않고 `before`는 서버가 준 id만 쓰므로 `VALIDATION_ERROR`는 정상 경로에서 나오지 않는다. 나와도 §8.2 기본 규칙으로 표시한다.
 - 테스트는 `vi.mock('@/api/messages')`로 래퍼를 모킹한다.
-- **미확정 계약**: `CharacterMeta.shortName` — §13 CR-C-1.
+- 미확정 계약 없음. 말풍선 이름은 `CHARACTERS[speaker].shortName`으로 확정(api.md v0.2 §5.5, §13 CR-C-1 반영 완료).
 
 ---
 
@@ -307,7 +310,9 @@ S1은 `viewer = READ_ONLY_VIEWER`(`canWrite: false`) 고정이다. 아래 "미�
 
 | # | 대상 | 요청 | 이유 | 막는 것 |
 |---|---|---|---|---|
-| CR-C-1 | api.md §5.5 `shared/src/characters.ts` · API-T-043 | `CharacterMeta`에 `shortName: string` 추가. 값 `sebastian → '세바스찬'`, `ciel → '시엘'` | R-LLM-002 개정 원문과 `doc/state.json` 결정("CHARACTERS에 shortName 추가")에 있으나 api.md v0.1 초안에 없다(api.md §15.4-1이 열린 채) | Bubble 이름 표시(R-CHAT-002). 반영 전에는 chat Bubble 구현을 시작하지 않는다 |
+| CR-C-1 | api.md §5.5 `shared/src/characters.ts` · API-T-043 | `CharacterMeta`에 `shortName: string` 추가. 값 `sebastian → '세바스찬'`, `ciel → '시엘'` | R-LLM-002 개정 | **반영 완료**(api.md v0.2, 2026-10-05). 막는 것 없음 |
+
+- 현재 열린 contract 변경 요청 없음.
 
 ---
 
@@ -329,7 +334,7 @@ S1은 `viewer = READ_ONLY_VIEWER`(`canWrite: false`) 고정이다. 아래 "미�
 
 ## 15. RTM (요구 추적 매트릭스)
 
-상태: ✅ = 가리킨 절에 실체 있음. `후속(Sn)` = 이번 묶음 범위 밖, §14에 자리만 있음. `조건부` = 설계는 끝났고 §13 contract 반영이 선행돼야 구현 가능. 절 표기: `C` = `design/components.md`, `F` = `design/functions.md`, `A` = `design/a11y.md`.
+상태: ✅ = 가리킨 절에 실체 있음. `후속(Sn)` = 이번 묶음 범위 밖, §14에 자리만 있음. 절 표기: `C` = `design/components.md`, `F` = `design/functions.md`, `A` = `design/a11y.md`.
 
 | 요구ID | 설계 절 | api 계약 | 예정 TC | 상태 |
 |---|---|---|---|---|
@@ -346,16 +351,16 @@ S1은 `viewer = READ_ONLY_VIEWER`(`canWrite: false`) 고정이다. 아래 "미�
 | R-CHAT-011 | §8.2(확장 지점) · §14 | api.md §3.2 | (S2·S3) | 후속(S2·S3) |
 | R-CHAT-012 🔒 | §14 | E13·E14(S4) | (S4) | 후속(S4) |
 | R-CHAT-013 🔒 | §2.3 · A · C §4 · §8 aria-label | — | TC-CH-027 · 028(수동) | ✅(읽기 전용 판) / 후속(S2: 쓰기 판 스크린샷) |
-| R-LLM-002 🔒 (표시 메타) | C §2.2 · §7 · §13 | api.md §5.5(+ CR-C-1) | TC-CH-007 | 조건부(CR-C-1) |
+| R-LLM-002 🔒 (표시 메타) | C §2.2 · §7 · §13 | api.md v0.2 §5.5 `shortName` | TC-CH-007 | ✅ |
 | R-MSG-001 🔒 (데이터) | §7 · F §1.2 `nextBefore` | api.md §4.3 | TC-CH-004 · 011 | ✅ |
-| R-ROOMS-004 (저장 시점) | F §4 F-CH-02 | — | TC-CH-024 | ✅ |
+| R-ROOMS-004 (기록·삭제 시점) | F §4 F-CH-02·10 · §6.4 | — | TC-CH-002 · 024 | ✅ |
 
 ### 15.1 예정 TC 목록 (ui-test-designer가 시나리오로 확정)
 
 | TC | 내용 | 기대(요지) |
 |---|---|---|
 | TC-CH-001 | 상단 바 | h1 = 방 제목, `<time>` = `formatMonthDay(room.createdAt)`(updatedAt 아님), aria-label `방 생성일 MM.DD` |
-| TC-CH-002 | ‹ 뒤로 | 클릭 → `onBack` 1회. 마운트 시 이 버튼에 포커스 |
+| TC-CH-002 | ‹ 뒤로 | 클릭 → `ld:lastRoomId` 삭제 후 `onBack` 1회. 마운트 시 이 버튼에 포커스 |
 | TC-CH-003 | ⋯ 부재 | 상단 바 버튼은 ‹ 하나뿐 |
 | TC-CH-004 | 첫 로드 호출 | `listMessages`가 `(room.id)`로 1회(두 번째 인자 없음), 대기 중 `대화를 불러오는 중` |
 | TC-CH-005 | 첫 로드 오류·재시도 | `role=alert` 제목·상세·「다시 시도」 → 재호출 → 성공 시 말풍선 |
@@ -377,7 +382,7 @@ S1은 `viewer = READ_ONLY_VIEWER`(`canWrite: false`) 고정이다. 아래 "미�
 | TC-CH-021 | 읽기 전용 하단 바 부재 | `세바스찬`·`시엘` 버튼·textbox·switch 없음 |
 | TC-CH-022 | 말풍선 메뉴 부재 | 말풍선 `contextmenu`·500ms 누름 뒤 `dialog`·`menu` 없음 |
 | TC-CH-023 | 열람 안내 | `role=note` 문구 일치 |
-| TC-CH-024 | 마지막 본 방 기록 | 마운트 → `ld:lastRoomId = room.id` |
+| TC-CH-024 | 마지막 본 방 기록·삭제 | 마운트 → `ld:lastRoomId = room.id`. ‹ 뒤로 → 키 삭제. `pagehide`만으로는 삭제 안 함. 저장소 throw여도 `onBack` 호출 |
 | TC-CH-025 | 스크롤 저장·복원 | 언마운트·`pagehide` → `ld:scroll:{id}` 저장, 재마운트 시 `restoreScrollTop` 적용. 로딩 중 언마운트는 저장 안 함 |
 | TC-CH-026 | 저장소 throw | 모든 storage 접근 throw → 화면 정상, 맨 아래 배치 |
 | TC-CH-027 | 접근성 | `role=log`·`aria-live=polite`, 버튼 레이블, 포커스 순서 |
