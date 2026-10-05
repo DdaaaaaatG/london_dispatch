@@ -1,0 +1,8 @@
+node_modules
+dist
+coverage
+.wrangler
+server/worker-configuration.d.ts
+doc
+.claude
+*.md

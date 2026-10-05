@@ -1,0 +1,14 @@
+{
+  "name": "@london-dispatch/shared",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "contract 계약의 코드판 — types · errors · endpoints · characters (단일 소스: doc/200_설계/contract/api.md)",
+  "exports": {
+    "./*": "./src/*.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p .",
+    "test": "vitest run"
+  }
+}

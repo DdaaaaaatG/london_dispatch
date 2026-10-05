@@ -1,0 +1,22 @@
+{
+  "name": "london-dispatch",
+  "version": "0.1.0",
+  "private": true,
+  "description": "런던_디스패치 — 흑집사 자캐 갠홈용 iframe AI 캐릭터 대화창 (Cloudflare Workers + Hono + D1 / Vite + React)",
+  "type": "module",
+  "workspaces": [
+    "shared",
+    "server",
+    "ui"
+  ],
+  "scripts": {
+    "dev": "concurrently -k -n server,ui -c blue,magenta \"npm run dev -w server\" \"npm run dev -w ui\"",
+    "build": "npm run build -w ui && npm run build -w server",
+    "typecheck": "tsc --noEmit -p shared && tsc --noEmit -p server && tsc --noEmit -p ui",
+    "test": "vitest run",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "devDependencies": {}
+}

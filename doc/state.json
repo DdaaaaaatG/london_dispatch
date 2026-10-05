@@ -1,6 +1,6 @@
 {
   "slug": "london-dispatch-build",
-  "phase": "2-design",
+  "phase": "3-implement",
   "orchestrator": "main-session-as-task-manager (사용자 지시 2026-10-05)",
   "slices": [
     "S1 저장+읽기전용",
@@ -29,7 +29,9 @@
   },
   "approvals": {
     "requirements": "2026-10-05T19:06",
-    "design": {}
+    "design": {
+      "S1": "2026-10-05T20:43"
+    }
   },
   "completed": {
     "server": [],
@@ -43,8 +45,32 @@
       "ui-check": "PASS (M2 L5, 반영 중)"
     }
   },
-  "dependencies_approved": [],
-  "next": "승인 ②(S1 설계 묶음 + 초기 의존성) 대기",
+  "dependencies_approved": [
+    "hono",
+    "zod",
+    "@hono/zod-validator",
+    "wrangler",
+    "@cloudflare/workers-types",
+    "@cloudflare/vitest-pool-workers",
+    "react",
+    "react-dom",
+    "vite",
+    "@vitejs/plugin-react",
+    "@types/react",
+    "@types/react-dom",
+    "jsdom",
+    "@testing-library/react",
+    "@testing-library/user-event",
+    "typescript",
+    "vitest",
+    "eslint",
+    "typescript-eslint",
+    "eslint-plugin-react-hooks",
+    "globals",
+    "prettier",
+    "concurrently"
+  ],
+  "next": "메인 세션 루트 스캐폴딩·설치 → contract-implementer(shared) → server-implementer → contract-implementer(routes·ui/api) → ui-test-designer → ui-implementer → ui-tester",
   "blockers": [],
   "estimate_min": null,
   "actual_min": null,

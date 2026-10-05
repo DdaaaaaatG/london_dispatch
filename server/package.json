@@ -1,0 +1,17 @@
+{
+  "name": "@london-dispatch/server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "런던_디스패치 Cloudflare Worker — Hono + D1. 설계: doc/200_설계/server/*.md",
+  "scripts": {
+    "dev": "wrangler dev --port 3000",
+    "build": "wrangler deploy --dry-run --outdir dist",
+    "typecheck": "tsc --noEmit -p .",
+    "test": "vitest run",
+    "migrate:local": "wrangler d1 migrations apply DB --local",
+    "types": "wrangler types"
+  },
+  "dependencies": {},
+  "devDependencies": {}
+}

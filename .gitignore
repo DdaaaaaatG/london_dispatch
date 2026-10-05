@@ -32,3 +32,4 @@ doc/300_검증/screenshots/
 .DS_Store
 Thumbs.db
 *.swp
+server/worker-configuration.d.ts
