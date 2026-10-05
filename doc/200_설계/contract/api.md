@@ -1,6 +1,6 @@
 # API 계약 (api.md)
 
-- 상태: **초안 v0.3** · 최종 갱신 2026-10-05 · 소유 contract-designer
+- 상태: **초안 v0.3.1** · 최종 갱신 2026-10-05 · 소유 contract-designer
 - 묶음: **S1 상세 확정**(구현 완료) = `GET /api/health` · `GET /api/rooms` · `GET /api/rooms/:id/messages` · `GET /embed`. **S2 상세 확정**(구현 전) = 토큰 규약(§2) · `POST /api/rooms` · `PATCH`·`DELETE /api/rooms/:id` · `POST /api/rooms/:id/user` · `PATCH`·`DELETE /api/messages/:id` · 쓰기 레이트리밋(§6). 나머지 엔드포인트는 §4.0 표에 행만 두고 S3~S4에서 상세를 정한다.
 - 이 문서가 단일 소스다: **api.md → `shared/src/*` → `server/src/routes/*` → `ui/src/api/*` → `doc/handoff/*`(S5)**. 넷이 어긋나면 contract 결함이다(확정사항 §3).
 - 입력: `doc/000_프로젝트_확정사항.md` §1·§2·§3·§5.2~§5.4·§6, `doc/100_요구조건/requirements.md` §3·§4·§5·§7(R-LLM-002)·§8·§9, `doc/200_설계/server/{index,env,db,rooms,messages}.md`, `doc/200_설계/architecture/ui-layout-01-rooms-chat.md`.
@@ -31,6 +31,7 @@ ui (React, iframe /embed)  ──▶  contract  ──▶  server (Workers + Hon
 | 에러 코드 | `shared/src/errors.ts` | 13종 전체(`ERROR_CODES` · `ErrorCode` · `ErrorStatus` · `ERROR_STATUS` · `ERROR_MESSAGES` · `isErrorCode`) | 변경 없음(13종 그대로) |
 | 경로 | `shared/src/endpoints.ts` | `PATHS`(embed·health·rooms·roomMessages) · `endpoints` 빌더 | `PATHS.room` · `PATHS.roomUser` · `PATHS.message` · `endpoints.room/roomUser/message` |
 | 캐릭터 표시 메타 | `shared/src/characters.ts` | `CharacterMeta` · `CHARACTERS`(R-LLM-002) | 변경 없음 |
+| 길이 규칙 (v0.3.1) | `shared/src/limits.ts` | — | **신규** `ROOM_TITLE_MAX` · `MESSAGE_TEXT_MAX` · `MEMORY_SUMMARY_MAX` · `countCodePoints` · `normalizeText`(§5.7) |
 | 서버 쪽 | `server/src/routes/{index,validate,schemas,health,rooms,messages}.ts` | `apiRoutes` 조립 · zod 검증 · GET 3종 | `rooms.ts` POST·PATCH·DELETE · `messages.ts` POST user·PATCH·DELETE · `schemas.ts` 본문·메시지 id 스키마 |
 | 화면 쪽 | `ui/src/api/{client,health,rooms,messages,index}.ts` | `request` · `getHealth` · `listRooms` · `listMessages` | `configureClient` · `isAuthFailure` · `createRoom` · `renameRoom` · `deleteRoom` · `appendUser` · `editMessage` · `deleteMessage` |
 | 갠홈 쪽 | `doc/handoff/*` | S5(쓰지 않음) | S5(쓰지 않음). §2.6이 참조 규약 |
@@ -911,6 +912,45 @@ export const CHARACTERS: { readonly [K in CharacterId]: CharacterMeta & { readon
 | 본문 스키마(S2) | `roomTitleBody`(`{ title: z.string() }`, E4·E5 공용) · `userMessageBody`(`{ text: z.string(), ooc: z.boolean() }`) · `editMessageBody`(`{ text: z.string() }`). `.min()`·`.max()`·`.trim()`을 쓰지 않는다 | zod 길이는 UTF-16 단위라 서비스·DB CHECK(코드 포인트)와 어긋난다. 같은 입력에 문구가 두 가지 나오지 않게 한다(rooms.md §9) |
 | 메시지 id(S2) | `messageIdParam`이 10진 숫자 문자열만 `Number()`로, 나머지는 `NaN`으로 바꾼다. 범위 판정·`404`는 서비스 | 경로 식별자는 정규 표기 하나만 인정한다(`0x10`·`1e1`이 다른 메시지를 가리키지 않게) |
 | 타입 대조(S2) | 핸들러에서 `const body: CreateRoomBody = c.req.valid('json')`처럼 shared 본문 타입에 대입한다 | S1과 같은 방식 |
+| 길이 규칙(v0.3.1) | 상수·정규화·세기 함수는 `@shared/limits`(§5.7) 하나. 서버 서비스가 판정에, 화면이 입력 제한·글자 수 표시에 같은 것을 쓴다 | 화면과 서버가 같은 입력을 다르게 세지 않게 한다 |
+
+### 5.7 `shared/src/limits.ts` 전문 초안 (v0.3.1 신규)
+
+```ts
+/**
+ * 길이 상수·규칙 — 단일 소스 doc/200_설계/contract/api.md §5.7
+ * 서버 서비스(trim·길이 판정)와 화면(입력 제한·글자 수 표시)이 같이 import 한다
+ * 규칙: 앞뒤 trim 후 코드 포인트 수로 센다. DB CHECK length() 와 같은 단위다(이모지 1개 = 1자)
+ */
+
+/** 방 제목 최대 글자 수. 최소 1 (R-ROOM-002 · R-ROOM-003) */
+export const ROOM_TITLE_MAX = 60
+
+/** 메시지 본문 최대 글자 수. 최소 1 (R-MSG-002 · R-MSG-004 · R-CHAT-004) */
+export const MESSAGE_TEXT_MAX = 2000
+
+/** 장기기억 요약 최대 글자 수. 최소 0 — 빈 요약 허용 (R-MEM-001 · R-CHAT-012, S4에서 사용) */
+export const MEMORY_SUMMARY_MAX = 4000
+
+/** 코드 포인트 수. UTF-16 길이와 다르다('😀'.length === 2, countCodePoints('😀') === 1) */
+export const countCodePoints = (s: string): number => [...s].length
+
+/** 판정·저장 전 정규화. 앞뒤 공백·줄바꿈만 지우고 중간은 그대로 둔다 */
+export const normalizeText = (s: string): string => s.trim()
+```
+
+| 쓰는 곳 | 쓰는 방식 |
+|---|---|
+| server `rooms.normalizeTitle` | `t = normalizeText(raw)` → `1 <= countCodePoints(t) <= ROOM_TITLE_MAX` 아니면 `VALIDATION_ERROR`(§4.6 문구). 상수는 rooms 모듈이 새로 정의하지 않는다 |
+| server `messages.normalizeMessageText` | 같은 방식, 상한 `MESSAGE_TEXT_MAX`(§4.9 문구) |
+| server memory(S4) | 하한 0, 상한 `MEMORY_SUMMARY_MAX`. trim 여부는 S4 설계가 정한다 |
+| ui `limits.ts`(화면) | 상수·함수를 재노출하거나 그대로 import한다. 전송 비활성 판정(`countCodePoints(normalizeText(s)) === 0`)과 글자 수 표시에 쓴다 |
+| routes zod | 쓰지 않는다. zod는 타입만 본다(§5.6) |
+
+- 화면 판정은 편의일 뿐이다. 최종 판정과 에러 문구는 서버가 낸다. 같은 함수를 쓰므로 화면이 통과시킨 입력이 서버에서 길이 때문에 거부되는 일은 없다.
+- 세는 단위는 코드 포인트다. 결합 이모지(`👨‍👩‍👧`)는 화면에 한 글자로 보여도 5로 센다. SQLite `length()`와 같은 단위라 서비스 통과 후 CHECK 실패(500)가 생기지 않는다(rooms.md D-ROOM-6).
+- `String.prototype.trim`은 전각 공백(`U+3000`)도 지운다. 서버와 화면이 같은 함수를 쓰므로 결과가 같다.
+- shared 규칙(런타임 중립)을 지킨다. 브라우저·workerd 전용 API를 쓰지 않는다.
 
 ---
 
@@ -983,6 +1023,7 @@ export const CHARACTERS: { readonly [K in CharacterId]: CharacterMeta & { readon
 | v0.2 | 2026-10-05 | §15.4 결정 반영. `CharacterMeta.shortName` 추가(R-LLM-002 개정). S1 화면은 항상 읽기 전용이고 R-CHAT-009는 S2로 이동. 토큰 보관은 `ui/src/state/token.ts`, `client.ts`는 getter 주입(S2 상세 예정). 방 목록 배열 응답과 §10 위치는 유지 | 추가(구현 전이라 영향 없음) | 아니오 |
 | v0.2.1 | 2026-10-05 | 구현 완료(S1 routes·ui/api). `MessagesQuery`의 `before?`·`limit?`에 `undefined` 유니온 추가(exactOptionalPropertyTypes 대응). routes 는 서비스 `MessagePageQuery`가 undefined 값을 못 받아 `toPageQuery`로 키를 뺀다 | 비파괴(타입 완화) | 아니오 |
 | v0.3 | 2026-10-05 | S2 상세 확정. §2 토큰(전달·형식·`TokenPayload`·검증 순서·화면 보관·읽기 전용 전환·교차 벡터 V1~V8·handoff 참조), §4.5 쓰기 공통, §4.6~§4.11 E4·E5·E6·E8·E10·E11, §6.1 레이트리밋, shared 본문 타입 4개·`ApiErrorBody.error.retryAfterSec?`·`PATHS.room/roomUser/message`, `204` 정규화, ui/api `configureClient`·`isAuthFailure`·쓰기 래퍼 6개, §14.5~§14.7 테스트 | 추가(기존 엔드포인트·타입·필드 변경 없음. `retryAfterSec`는 선택 필드 추가 = 비파괴) | 아니오(handoff 미전달) |
+| v0.3.1 | 2026-10-05 | ui-designer 요청(메인 세션 승인). `shared/src/limits.ts` 신규: `ROOM_TITLE_MAX`·`MESSAGE_TEXT_MAX`·`MEMORY_SUMMARY_MAX`·`countCodePoints`·`normalizeText`(§5.7). 서버 서비스와 화면이 같은 길이 규칙을 import. §12.1 행, §13.1 행, API-T-046, S2-R4 | 추가(새 파일, 기존 export 변경 없음) | 아니오 |
 
 ---
 
@@ -1013,6 +1054,7 @@ export const CHARACTERS: { readonly [K in CharacterId]: CharacterMeta & { readon
 | R-MSG-002 🔒 | `POST /api/rooms/:id/user` `UserMessageBody` → `201 Message`, AI 호출 없음 | §4.9 · §5.2 | 신규 | 추가 | API-T-061 · 062, server SRV-T-145 | 확정(S2) |
 | R-MSG-004 🔒 | `PATCH /api/messages/:id` `EditMessageBody` → `200 Message` | §4.10 · §5.2 | 신규 | 추가 | API-T-063 · 064 | 확정(S2) |
 | R-MSG-005 🔒 | `DELETE /api/messages/:id` → `204` | §4.11 | 신규 | 추가 | API-T-064 · 065 | 확정(S2) |
+| R-ROOM-002 · R-MSG-002 · R-MSG-004 · R-MEM-001 (길이 규칙, v0.3.1) | 상한 60·2000·4000, trim 후 코드 포인트 세기를 `@shared/limits` 한 곳에 | §5.7 | 신규 | 추가 | API-T-046 · 058 · 062 | 확정(MEMORY는 S4에서 사용) |
 | R-MSG-008 (확인 필요) | 수정·삭제 작성자 제한 없음 | §4.5 · §4.10 · §4.11 | 신규 | 추가 | API-T-066 | 확정(기본값) |
 | R-ROOM-005 | 발화 저장·수정·삭제 시 방 `updatedAt` 갱신, 이름 변경은 유지 | §4.7 · §4.9 ~ §4.11 | 신규 | 추가 | API-T-059 · 061 · 063 · 065 | 확정(S2 경로) |
 | R-NFR-003 🔒 (레이트리밋 몫) | 초과 `429` | §6.1 | 신규 | 추가 | API-T-054, server SRV-T-114 | 확정(S2), speak 409는 S3 |
@@ -1643,6 +1685,7 @@ export { createRoom, deleteRoom, listRooms, renameRoom } from './rooms'
 | `PATCH /api/messages/:id` `{ text }` → `200 Message` | §4.10 | `PATHS.message` · `endpoints.message(messageId: number)` · `EditMessageBody` | `messages.ts` `.patch` · `messageIdParam` · `editMessageBody` | `editMessage(messageId: number, body)` | 설계 일치 |
 | `DELETE /api/messages/:id` → `204` | §4.11 | `PATHS.message` · `endpoints.message` | `messages.ts` `.delete` · `messageIdParam` | `deleteMessage(messageId: number)` → `Result<void>` | 설계 일치 |
 | 메시지 id 표기(10진 숫자) | §4.5 | `endpoints.message`가 `String(number)` | `messageIdParam`(`toMessageId`) | `messageId: number` | 설계 일치 |
+| 길이 규칙 60·2000·4000, trim 후 코드 포인트 (v0.3.1) | §5.7 | `limits.ts` `ROOM_TITLE_MAX` · `MESSAGE_TEXT_MAX` · `MEMORY_SUMMARY_MAX` · `countCodePoints` · `normalizeText` | 쓰지 않음(zod는 타입만). 판정은 server 서비스가 `@shared/limits`로 | 쓰지 않음(api 래퍼는 trim하지 않음). 화면 `limits.ts`가 import | 설계 일치(server 쪽은 S2-R4 반영 후) |
 | 토큰 전달 `Authorization: Bearer` | §2.2 | — | `requireToken`(server auth) 라우트 단위 6개 | `buildHeaders` — `auth: true`이고 getter 값이 있을 때만 | 설계 일치 |
 | 토큰 보관 `?t=` → 메모리 | §2.4 | — | — | `configureClient({ getToken })` · `ClientConfig`(보관은 `state/token.ts`) | 설계 일치(보관 구현은 ui) |
 | 토큰 형식·payload·벡터 | §2.3 · §2.5 | 없음(의도 — `TokenPayload`는 문서 표기) | 없음(server auth zod가 정본) | 없음(화면은 해석하지 않음) | 설계 일치(server auth.md §2와 대조) |
@@ -1684,6 +1727,7 @@ S1은 처음 만드는 계약이라 **전부 「추가」**다. ui·갠홈 영�
 | `configureClient` · `isAuthFailure` | 추가 | 없음 | `configureClient`를 부르지 않으면 getter가 `null`이라 S1 동작과 같다 |
 | 토큰 형식·payload·`?t=` 확정 | 추가(처음 확정) | 저쪽 PHP — **아직 전달 전**이라 재적용 없음 | 이후 바꾸면 **파괴 + 저쪽 PHP 재적용**(§8) |
 | `ERROR_CODES`·status·문구 | 변경 없음 | — | 13종 그대로 |
+| `shared/src/limits.ts` 신규(v0.3.1) | 추가 | 없음(새 파일). server rooms·messages의 모듈 상수는 shared 재노출로 바뀐다(값 같음, S2-R4) | 상한 값을 바꾸면 화면·서버가 함께 바뀐다. 완화는 비파괴, 강화는 기존 데이터·화면 입력에 대해 파괴 |
 
 - **파괴 변경 0건.** S1 엔드포인트(E1·E2·E3·E7)의 요청·응답·에러는 바뀌지 않았다. `GET /api/rooms/:id`는 여전히 `404`다(API-T-013).
 - 이후 바뀔 수 있는 자리: 확정사항 §9-5(권한 "누구나")가 "작성자만"·"관리자만"으로 바뀌면 E5·E6·E10·E11에 `403` 계열 조건이 생긴다. 새 코드가 필요하면 13종 밖이라 R-API-002 개정이 필요하다(파괴는 아니지만 화면 안내 추가).
@@ -1799,6 +1843,7 @@ grep -rnE "[\"'\`]/(api|embed)" server/src/routes ui/src/api
 |---|---|---|---|
 | API-T-042(갱신) | `endpoints_build_paths_and_queries` | `PATHS` 값 **7개**. 나머지 기대는 S1 그대로 | R-API-001 · R-API-008 |
 | API-T-045 | `endpoints_build_write_paths` | `PATHS.room === '/api/rooms/:id'`, `roomUser === '/api/rooms/:id/user'`, `message === '/api/messages/:id'`. `room('a b/c')` → `/api/rooms/a%20b%2Fc`, `roomUser('r1')` → `/api/rooms/r1/user`, `message(41)` → `/api/messages/41` | R-API-001 · R-API-008 |
+| API-T-046 | `limits_match_requirements_and_count_code_points` (v0.3.1) | 상수 `60`·`2000`·`4000`. `countCodePoints`: `''` → 0, `'abc'` → 3, `'한글'` → 2, `'😀'` → 1(`.length`는 2), `'👨‍👩‍👧'` → 5, 이모지 60개 → 60. `normalizeText`: `'  a \n b \n'` → `'a \n b'`(중간 유지), `'　x　'` → `'x'`, `'   '` → `''` | R-ROOM-002 · R-MSG-002 · R-MSG-004 · R-MEM-001 |
 
 ### 14.7 S2 ui/api — `ui/src/api/api.test.ts` (`vi.stubGlobal('fetch', …)`, 각 테스트 전에 `configureClient({ getToken: () => null })`)
 
@@ -1904,6 +1949,7 @@ grep -rnE "\.use\(|get\('principal'\)" server/src/routes
 | S2-R1 | messages.md §9 "메시지 경로 `:id`는 라우트가 `Number(문자열)`로만 바꿔 넘긴다" | 문구를 "10진 숫자 문자열만 `Number()`, 그 밖은 `NaN`"(§4.5 `messageIdParam`)으로 맞춘다. **서비스 변경 없음**(`isMessageId(NaN)` → `NOT_FOUND` 그대로) | `Number('0x10') = 16`·`Number('1e1') = 10`이라 한 메시지에 여러 URL이 생긴다. 라우트 변환은 contract 소관이라 계약에서 좁혔다 |
 | S2-R2 | index.md §2.4 `toErrorBody` | 반환 타입을 `@shared/types`의 `ApiErrorBody`로 둔다(`import type`) | `retryAfterSec` 위치·이름이 바뀌면 server가 컴파일에서 바로 알게 한다(auth.md §9.2·index.md §9 "contract가 다르게 정하면 맞춘다"에 대한 답: **위치는 `error.retryAfterSec`, 이름 그대로**) |
 | S2-R3 | rooms.md §9 · messages.md §9의 "contract가 정한다" 항목 | 결정값을 반영한다: 성공 status 생성 `201`·변경 `200`·삭제 `204`(본문 없음), `ooc`는 필수(기본값 없음) | 문서 간 미결 표시 정리 |
+| S2-R4 (v0.3.1) | rooms.md §2·§2.1 · messages.md §2·§2.2 | rooms·messages 서비스가 `@shared/limits`를 쓴다. `normalizeTitle`·`normalizeMessageText`는 `normalizeText`·`countCodePoints`·`ROOM_TITLE_MAX`·`MESSAGE_TEXT_MAX`로 판정하고, 모듈의 `ROOM_TITLE_MAX`·`MESSAGE_TEXT_MAX`는 새로 정의하지 않고 shared에서 재노출한다(S4 memory는 `MEMORY_SUMMARY_MAX`) | 화면과 서버가 같은 상수·같은 세기 함수를 써서 길이 판정이 어긋나지 않게 한다(메인 세션 승인, 2026-10-05) |
 
 ### 15.7 확인 필요 (S2)
 
