@@ -14,7 +14,7 @@
 - **S2(토큰 + 쓰기) 설계 진행 중.** 순서: server-designer(auth·rooms 쓰기·messages 쓰기) → contract-designer → ui-designer → ui-design-checker → 승인 ②(S2) → 구현.
 - 설치 버전은 `doc/state.json.installed`. npm 11.5 버그로 `.npmrc legacy-peer-deps=true`. vitest는 4.x 고정(테스트 풀 peer).
 - 로컬 실행: `server/.dev.vars`가 없으면 `npx wrangler dev --port 3000 --var TOKEN_SECRET:local-dev-secret`(S1은 읽기 전용이라 값은 임의). 로컬 D1(`server/.wrangler/`)에는 마이그레이션과 `server/test/fixtures/seed-s1.sql` 시드가 적용돼 있다.
-- git 저장소 초기화 완료(`main`), 커밋 단위로 진행. 원격은 아직 없다.
+- git: `main` 단일 브랜치, 원격 `origin` = https://github.com/DdaaaaaatG/london_dispatch.git (2026-10-05 첫 푸시). 커밋 단위로 진행하고 `/sync`로 푸시한다.
 - 갠홈 쪽 준비는 끝나 있다: `http://london-gossip.my/` 헤더에 말풍선 버튼 + 오른쪽 패널(390×640)이 올라가 있고 `rosebell-chatbot.php`의 `$rb_chatbot_embed_url`이 비어 있다. 우리 https 주소와 토큰 PHP 조각을 주면 끝난다. 저쪽 파일 사본은 `../chatbot update/theme/victorian/`(저장소 밖, 참조용).
 
 ## 2. 남은 일
@@ -28,7 +28,7 @@
    - 공통 dev: `typescript` `vitest` `eslint` `prettier` `concurrently`
    - AI SDK는 제공사 확정 후(Workers 호환 `fetch` 기반이어야 함).
 4. 로컬 Cloudflare 준비(메인 세션): `npx wrangler login`은 **사용자가** 수행. 로컬 dev·테스트는 로그인 없이도 된다(로컬 D1).
-5. 원격 저장소 생성 후 `/sync`.
+5. (완료) 원격 저장소 연결·첫 푸시 2026-10-05.
 
 ### 2-2. 구축 뒤
 - `server/scripts/token-test.ts`(`npm run token:test`) — `/run-app` 쓰기 화면 캡처에 필요.
