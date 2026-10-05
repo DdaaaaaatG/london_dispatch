@@ -37,3 +37,4 @@ server/worker-configuration.d.ts
 # python 캐시(가드 스크립트 실행 산출물)
 __pycache__/
 *.pyc
+.ld-token.local
