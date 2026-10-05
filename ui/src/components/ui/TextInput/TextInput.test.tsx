@@ -15,7 +15,14 @@ const setup = (over: Partial<Parameters<typeof TextInput>[0]> = {}) => {
   const onEnter = vi.fn()
   const onEscape = vi.fn()
   const view = render(
-    <TextInput value="" onChange={onChange} ariaLabel="이름" onEnter={onEnter} onEscape={onEscape} {...over} />,
+    <TextInput
+      value=""
+      onChange={onChange}
+      ariaLabel="이름"
+      onEnter={onEnter}
+      onEscape={onEscape}
+      {...over}
+    />,
   )
   const input = screen.getByRole('textbox', { name: '이름' }) as HTMLInputElement
   return { ...view, input, onChange, onEnter, onEscape }

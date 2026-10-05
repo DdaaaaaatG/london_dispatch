@@ -38,6 +38,8 @@
   /* 컴포넌트 변수 (ui_design_concept §3 접두사 + 설계 문서가 값을 정한 것) */
   --bubble-user-bg: var(--color-bg-elevated);
   --bubble-max-width: 78%;
+  /* CR-001: 유저 가운데 말풍선 최대 폭(모든 폭 공통) */
+  --bubble-user-max-width: 86%;
   --row-hover-bg: var(--color-bg-elevated);
   --row-divider: var(--color-border);
   --btn-bg: var(--color-primary);
@@ -46,6 +48,16 @@
   --btn-secondary-bg: var(--color-bg-elevated);
   --btn-danger-bg: var(--color-danger);
   --btn-busy-opacity: 0.55;
+
+  /* S2: 입력(§1.20) · 시트 · 겹침 순서 */
+  --input-bg: var(--color-bg-sunken);
+  --input-fg: var(--color-fg);
+  --input-border: var(--color-border);
+  --input-placeholder: var(--color-fg-muted);
+  --sheet-bg: var(--color-bg-elevated);
+  --sheet-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  --sheet-shadow: 0 -12px 24px rgba(4, 10, 20, 0.45);
+  --z-sheet: 10;
 
   /* 타이포 (§4) */
   --font-serif: 'Noto Serif KR', 'Nanum Myeongjo', serif;

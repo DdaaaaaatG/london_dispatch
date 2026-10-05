@@ -31,8 +31,8 @@ vi.mock('@/api/messages', () => ({
 const mockedListRooms = vi.mocked(listRooms)
 const mockedCreateRoom = vi.mocked(createRoom)
 const mockedListMessages = vi.mocked(listMessages)
-const writeMocks = [createRoom, renameRoom, deleteRoom, appendUser, editMessage, deleteMessage].map(f =>
-  vi.mocked(f),
+const writeMocks = [createRoom, renameRoom, deleteRoom, appendUser, editMessage, deleteMessage].map(
+  f => vi.mocked(f),
 )
 
 const ROOM_TEA: RoomSummary = {
@@ -109,17 +109,20 @@ describe('App 토큰 흐름 (R-ROOMS-002 · R-CHAT-008 · R-CHAT-009)', () => {
     for (const m of writeMocks) expect(m).not.toHaveBeenCalled()
   })
 
-  it.each([[''], ['?t=%20%20']])('TC-RM-027: initToken(%j) → 「+ 새 방」 없음, getToken() null', async search => {
-    initToken(search)
-    render(<App />)
+  it.each([[''], ['?t=%20%20']])(
+    'TC-RM-027: initToken(%j) → 「+ 새 방」 없음, getToken() null',
+    async search => {
+      initToken(search)
+      render(<App />)
 
-    expect(await screen.findByRole('button', { name: ROW_TEA })).not.toBeNull()
-    expect(screen.queryByRole('button', { name: NEW_ROOM })).toBeNull()
-    expect(getToken()).toBeNull()
-    await flushPending()
-    expect(mockedListRooms).toHaveBeenCalledTimes(1)
-    for (const m of writeMocks) expect(m).not.toHaveBeenCalled()
-  })
+      expect(await screen.findByRole('button', { name: ROW_TEA })).not.toBeNull()
+      expect(screen.queryByRole('button', { name: NEW_ROOM })).toBeNull()
+      expect(getToken()).toBeNull()
+      await flushPending()
+      expect(mockedListRooms).toHaveBeenCalledTimes(1)
+      for (const m of writeMocks) expect(m).not.toHaveBeenCalled()
+    },
+  )
 
   it('TC-RM-021: (App) 생성 성공 → 응답 방의 chat, ld:lastRoomId = 응답 id, listMessages(r9)', async () => {
     mockedCreateRoom.mockResolvedValueOnce(ok(CREATED))

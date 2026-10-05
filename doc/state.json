@@ -71,6 +71,11 @@
       "contract": "done v0.3",
       "ui": "done v1.4",
       "ui-check": "PASS (L11, 반영 중)"
+    },
+    "tests_s2": {
+      "scenarios": "v0.5 (CR-001 포함)",
+      "checker": "FAIL→반영 완료",
+      "conflict": "PASS→반영 완료"
     }
   },
   "dependencies_approved": [
@@ -98,7 +103,7 @@
     "prettier",
     "concurrently"
   ],
-  "next": "contract-implementer(shared S2) ∥ ui-test-designer(S2) → server-implementer(S2) → contract-implementer(routes·ui/api) → ui-test-checker·conflict → ui-implementer → ui-tester",
+  "next": "ui-implementer(S2 쓰기 UI + CR-001 Bubble 재배치) → ui-tester → 스크린샷 재촬영",
   "blockers": [],
   "estimate_min": null,
   "actual_min": null,

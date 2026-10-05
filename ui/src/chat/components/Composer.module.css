@@ -1,0 +1,24 @@
+/* C 하단 바 96~136px: 1행 36px(OOC 토글) + 2행 36~76px(입력 · 전송). 패널과 같은 남색에 위쪽 1px 라인 */
+.root {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  background: var(--color-bg);
+  border-top: 1px solid var(--color-border);
+}
+
+/* 오른쪽 끝에 토글. 왼쪽은 S3 캐릭터 버튼 자리라 비워 둔다 */
+.toggleRow {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  height: 36px;
+}
+
+.inputRow {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-2);
+}

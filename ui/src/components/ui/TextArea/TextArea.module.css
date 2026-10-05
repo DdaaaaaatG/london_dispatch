@@ -1,0 +1,55 @@
+/* 높이는 TextArea.tsx 가 계산한다(1줄 36px = line-height 20 + 위아래 padding 8) */
+.wrap {
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-width: 0;
+}
+
+.input {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  padding: 8px var(--space-3);
+  border: 1px solid var(--input-border);
+  border-radius: var(--radius-md);
+  background: var(--input-bg);
+  color: var(--input-fg);
+  font-family: var(--font-ui);
+  font-size: var(--text-base);
+  line-height: 20px;
+  resize: none;
+}
+
+.input::placeholder {
+  color: var(--input-placeholder);
+}
+
+/* 한도를 넘으면 오른쪽 아래에 글자 수가 뜨므로 그 자리를 비운다 */
+.hasCounter {
+  padding-right: 64px;
+}
+
+.input[aria-invalid='true'] {
+  border-color: var(--color-danger);
+}
+
+.input:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 1px;
+}
+
+.counter {
+  position: absolute;
+  right: var(--space-3);
+  bottom: var(--space-1);
+  color: var(--color-fg-muted);
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+
+.over {
+  color: var(--color-danger);
+}

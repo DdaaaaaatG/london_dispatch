@@ -87,7 +87,12 @@ describe('useLongPress (R-CHAT-007)', () => {
   it('TC-CH-060: 오른쪽 버튼 pointerdown 만으로는 타이머가 시작되지 않는다', () => {
     const fn = vi.fn()
     render(<Pad onLongPress={fn} />)
-    fireEvent.pointerDown(screen.getByTestId('pad'), { button: 2, pointerType: 'mouse', clientX: 10, clientY: 10 })
+    fireEvent.pointerDown(screen.getByTestId('pad'), {
+      button: 2,
+      pointerType: 'mouse',
+      clientX: 10,
+      clientY: 10,
+    })
     advance(600)
     expect(fn).not.toHaveBeenCalled()
   })

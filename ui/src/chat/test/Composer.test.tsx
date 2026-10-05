@@ -32,9 +32,10 @@ vi.mock('@/api/rooms', () => ({
 const mockedList = vi.mocked(messagesApi.listMessages)
 const mockedAppend = vi.mocked(messagesApi.appendUser)
 const allMocks = (): Array<[string, ReturnType<typeof vi.fn>]> =>
-  [...Object.entries(messagesApi), ...Object.entries(roomsApi)].map(
-    ([name, fn]) => [name, fn as unknown as ReturnType<typeof vi.fn>],
-  )
+  [...Object.entries(messagesApi), ...Object.entries(roomsApi)].map(([name, fn]) => [
+    name,
+    fn as unknown as ReturnType<typeof vi.fn>,
+  ])
 
 // ── 픽스처 ─────────────────────────────────────────────
 const ROOM: RoomSummary = {
@@ -56,8 +57,20 @@ const msg = (over: Partial<Message> & Pick<Message, 'id'>): Message => ({
 })
 const PAGE: MessagesPage = {
   messages: [
-    msg({ id: 101, speaker: 'ciel', text: '세바스찬, 홍차.', authorName: null, createdAt: at(16, 40) }),
-    msg({ id: 102, speaker: 'sebastian', text: '예, 도련님.', authorName: null, createdAt: at(16, 41) }),
+    msg({
+      id: 101,
+      speaker: 'ciel',
+      text: '세바스찬, 홍차.',
+      authorName: null,
+      createdAt: at(16, 40),
+    }),
+    msg({
+      id: 102,
+      speaker: 'sebastian',
+      text: '예, 도련님.',
+      authorName: null,
+      createdAt: at(16, 41),
+    }),
     msg({ id: 103, text: '나도 한 잔 부탁해요.', createdAt: at(16, 42) }),
     msg({ id: 104, kind: 'ooc', text: '둘이 체스를 둔다', createdAt: at(16, 43) }),
   ],
@@ -70,7 +83,10 @@ const SERVER_RAW = 'SERVER-RAW-MESSAGE'
 const ok = <T,>(value: T): Result<T> => ({ ok: true, value })
 const fail = (code: ApiErrorCode, retryAfterSec?: number): Result<never> => ({
   ok: false,
-  error: retryAfterSec === undefined ? { code, message: SERVER_RAW } : { code, message: SERVER_RAW, retryAfterSec },
+  error:
+    retryAfterSec === undefined
+      ? { code, message: SERVER_RAW }
+      : { code, message: SERVER_RAW, retryAfterSec },
 })
 const deferred = <T,>() => {
   let resolve!: (value: T) => void
@@ -172,17 +188,18 @@ describe('ChatScreen 토큰 있음 렌더 (R-CHAT-004 · R-CHAT-008 · R-CHAT-00
     await screen.findByRole('log')
 
     const header = container.querySelector('header') as HTMLElement
-    expect(within(header).getAllByRole('button').map(b => b.getAttribute('aria-label'))).toEqual([
-      '방 목록으로 돌아가기',
-      '방 메뉴 열기',
-    ])
+    expect(
+      within(header)
+        .getAllByRole('button')
+        .map(b => b.getAttribute('aria-label')),
+    ).toEqual(['방 목록으로 돌아가기', '방 메뉴 열기'])
     const group = composer()
     const toggle = within(group).getByRole('switch', { name: 'OOC 지시 모드' })
     expect(toggle.getAttribute('aria-checked')).toBe('false')
     expect(toggle.textContent).toBe('OOC 끔')
-    expect(within(group).getByRole('textbox', { name: '메시지 입력' }).getAttribute('placeholder')).toBe(
-      '대사나 지시를 입력',
-    )
+    expect(
+      within(group).getByRole('textbox', { name: '메시지 입력' }).getAttribute('placeholder'),
+    ).toBe('대사나 지시를 입력')
     expect(within(group).getByRole('button', { name: '전송' })).not.toBeNull()
     expect(screen.queryByRole('button', { name: '세바스찬' })).toBeNull()
     expect(screen.queryByRole('button', { name: '시엘' })).toBeNull()
@@ -197,7 +214,8 @@ describe('ChatScreen 토큰 있음 렌더 (R-CHAT-004 · R-CHAT-008 · R-CHAT-00
     expect(localStorage.getItem('ld:lastRoomId')).toBe('r1')
     await flushPending()
     expect(mockedList.mock.calls).toEqual([['r1']])
-    for (const [name, fn] of allMocks()) if (name !== 'listMessages') expect(fn).not.toHaveBeenCalled()
+    for (const [name, fn] of allMocks())
+      if (name !== 'listMessages') expect(fn).not.toHaveBeenCalled()
   })
 })
 

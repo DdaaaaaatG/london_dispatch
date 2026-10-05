@@ -40,6 +40,11 @@ const renderList = (over: Partial<MessageListProps> = {}) => {
     onRetryOlder: vi.fn(),
     unseenCount: 0,
     onShowNewest: vi.fn(),
+    // S2 필수 props(설계 C §2.1) — 읽기 전용 기본값. 단언 변경 없음(Q-04)
+    editingId: null,
+    isEditSaving: false,
+    onSaveEdit: vi.fn(),
+    onCancelEdit: vi.fn(),
     ...over,
   }
   return { ...render(<MessageList {...props} />), props }

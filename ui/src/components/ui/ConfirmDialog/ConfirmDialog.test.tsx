@@ -32,7 +32,9 @@ const setup = (isBusy = false) => {
 describe('ConfirmDialog (R-CHAT-007 · R-CHAT-001)', () => {
   it('TC-CH-056: alertdialog 이름 = title, h2·p, 버튼 순서 취소 → 확인, 확인 danger, 첫 포커스 취소', () => {
     const { dialog } = setup()
-    expect(within(dialog).getByRole('heading', { level: 2 }).textContent).toBe('이 방을 삭제할까요?')
+    expect(within(dialog).getByRole('heading', { level: 2 }).textContent).toBe(
+      '이 방을 삭제할까요?',
+    )
     expect(dialog.querySelector('p')?.textContent).toBe('되돌릴 수 없습니다.')
     const buttons = within(dialog).getAllByRole('button')
     expect(buttons.map(b => b.textContent)).toEqual(['취소', '삭제'])
@@ -53,7 +55,8 @@ describe('ConfirmDialog (R-CHAT-007 · R-CHAT-001)', () => {
 
   it('TC-CH-056: isBusy → 두 버튼 disabled, Esc 무시', () => {
     const { dialog, onCancel } = setup(true)
-    for (const b of within(dialog).getAllByRole('button')) expect((b as HTMLButtonElement).disabled).toBe(true)
+    for (const b of within(dialog).getAllByRole('button'))
+      expect((b as HTMLButtonElement).disabled).toBe(true)
     fireEvent.keyDown(dialog, { key: 'Escape' })
     expect(onCancel).not.toHaveBeenCalled()
   })

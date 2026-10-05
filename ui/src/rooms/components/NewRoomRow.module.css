@@ -1,0 +1,11 @@
+/* B 새 방 입력 행 52px. 입력이 남는 폭을 차지한다 */
+.root {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-2);
+  height: 52px;
+  padding: 0 var(--space-4);
+  background: var(--color-bg);
+  border-bottom: 1px solid var(--row-divider);
+}

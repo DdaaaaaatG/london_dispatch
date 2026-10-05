@@ -30,9 +30,16 @@ vi.mock('@/api/rooms', () => ({
   deleteRoom: vi.fn(),
 }))
 
-const mocks = [listMessages, appendUser, editMessage, deleteMessage, listRooms, createRoom, renameRoom, deleteRoom].map(
-  f => vi.mocked(f),
-)
+const mocks = [
+  listMessages,
+  appendUser,
+  editMessage,
+  deleteMessage,
+  listRooms,
+  createRoom,
+  renameRoom,
+  deleteRoom,
+].map(f => vi.mocked(f))
 const mockedAppend = vi.mocked(appendUser)
 const mockedEdit = vi.mocked(editMessage)
 const mockedDelete = vi.mocked(deleteMessage)
@@ -46,13 +53,32 @@ const ROOM: RoomSummary = {
   messageCount: 2,
 }
 const at = (h: number, m: number): number => new Date(2026, 9, 5, h, m).getTime()
-const M101: Message = { id: 101, roomId: 'r1', speaker: 'ciel', kind: 'line', text: '세바스찬, 홍차.', authorName: null, createdAt: at(16, 40) }
-const M103: Message = { id: 103, roomId: 'r1', speaker: 'user', kind: 'line', text: '나도 한 잔 부탁해요.', authorName: '미샤', createdAt: at(16, 42) }
+const M101: Message = {
+  id: 101,
+  roomId: 'r1',
+  speaker: 'ciel',
+  kind: 'line',
+  text: '세바스찬, 홍차.',
+  authorName: null,
+  createdAt: at(16, 40),
+}
+const M103: Message = {
+  id: 103,
+  roomId: 'r1',
+  speaker: 'user',
+  kind: 'line',
+  text: '나도 한 잔 부탁해요.',
+  authorName: '미샤',
+  createdAt: at(16, 42),
+}
 const PAGE: MessagesPage = { messages: [M101, M103], hasMore: false }
 const NOTICE = '열람 전용 - 대화 참여는 등급 회원만'
 const BACK = '방 목록으로 돌아가기'
 
-const fail = (code: ApiErrorCode): Result<never> => ({ ok: false, error: { code, message: 'SERVER-RAW-MESSAGE' } })
+const fail = (code: ApiErrorCode): Result<never> => ({
+  ok: false,
+  error: { code, message: 'SERVER-RAW-MESSAGE' },
+})
 const ok = <T,>(value: T): Result<T> => ({ ok: true, value })
 const deferred = <T,>() => {
   let resolve!: (value: T) => void
@@ -123,40 +149,53 @@ describe('인증 실패 전환 — App 통합 (R-CHAT-011 · R-CHAT-008 · R-CHA
     ['LEVEL_TOO_LOW', '대화 참여 등급이 아니어서 열람 전용으로 바뀌었습니다.'],
     ['TOKEN_INVALID', '인증이 만료되어 열람 전용으로 바뀌었습니다. 새로 고쳐 주세요.'],
     ['TOKEN_REQUIRED', '로그인 정보가 없어 열람 전용으로 바뀌었습니다.'],
-  ] as const)('TC-CH-051: 전송이 %s → 같은 화면 읽기 전용, 토스트 1개, ‹ 포커스, 토큰 비움 → rooms 도 읽기 전용', async (code, text) => {
-    mockedAppend.mockResolvedValueOnce(fail(code))
-    initToken('?t=test-token')
-    render(<App />)
-    const user = userEvent.setup()
-    await user.click(await screen.findByRole('button', { name: /^티타임, 마지막 갱신/ }))
-    await screen.findByRole('log')
+  ] as const)(
+    'TC-CH-051: 전송이 %s → 같은 화면 읽기 전용, 토스트 1개, ‹ 포커스, 토큰 비움 → rooms 도 읽기 전용',
+    async (code, text) => {
+      mockedAppend.mockResolvedValueOnce(fail(code))
+      initToken('?t=test-token')
+      render(<App />)
+      const user = userEvent.setup()
+      await user.click(await screen.findByRole('button', { name: /^티타임, 마지막 갱신/ }))
+      await screen.findByRole('log')
 
-    await user.type(screen.getByRole('textbox', { name: '메시지 입력' }), '안녕')
-    await user.click(screen.getByRole('button', { name: '전송' }))
+      await user.type(screen.getByRole('textbox', { name: '메시지 입력' }), '안녕')
+      await user.click(screen.getByRole('button', { name: '전송' }))
 
-    const alerts = await screen.findAllByRole('alert')
-    expect(alerts).toHaveLength(1)
-    expect(alerts[0]?.textContent).toBe(text)
-    expect(alerts[0]?.classList.contains('warning')).toBe(true)
-    expectReadOnly()
-    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: BACK })))
-    expect(getToken()).toBeNull()
+      const alerts = await screen.findAllByRole('alert')
+      expect(alerts).toHaveLength(1)
+      expect(alerts[0]?.textContent).toBe(text)
+      expect(alerts[0]?.classList.contains('warning')).toBe(true)
+      expectReadOnly()
+      await waitFor(() =>
+        expect(document.activeElement).toBe(screen.getByRole('button', { name: BACK })),
+      )
+      expect(getToken()).toBeNull()
 
-    const bubble = bubbleOf(0)
-    expect(bubble.getAttribute('aria-haspopup')).toBeNull()
-    expect(fireEvent.contextMenu(bubble)).toBe(true)
-    expect(screen.queryByRole('dialog')).toBeNull()
+      const bubble = bubbleOf(0)
+      expect(bubble.getAttribute('aria-haspopup')).toBeNull()
+      expect(fireEvent.contextMenu(bubble)).toBe(true)
+      expect(screen.queryByRole('dialog')).toBeNull()
 
-    await user.click(screen.getByRole('button', { name: BACK }))
-    expect(await screen.findByRole('main', { name: '방 목록' })).not.toBeNull()
-    expect(screen.queryByRole('button', { name: '새 방 만들기' })).toBeNull()
-    expect(mockedAppend).toHaveBeenCalledTimes(1)
-  })
+      await user.click(screen.getByRole('button', { name: BACK }))
+      expect(await screen.findByRole('main', { name: '방 목록' })).not.toBeNull()
+      expect(screen.queryByRole('button', { name: '새 방 만들기' })).toBeNull()
+      expect(mockedAppend).toHaveBeenCalledTimes(1)
+    },
+  )
 
   it('TC-CH-051: (b) 부모가 전환하지 않아도 두 번째 인증 실패는 다시 알리지 않는다(멱등)', async () => {
     mockedAppend.mockResolvedValue(fail('LEVEL_TOO_LOW'))
     const onAuthFailure = vi.fn()
-    render(<ChatScreen room={ROOM} viewer={WRITER_VIEWER} onBack={vi.fn()} onAuthFailure={onAuthFailure} onRoomRenamed={vi.fn()} />)
+    render(
+      <ChatScreen
+        room={ROOM}
+        viewer={WRITER_VIEWER}
+        onBack={vi.fn()}
+        onAuthFailure={onAuthFailure}
+        onRoomRenamed={vi.fn()}
+      />,
+    )
     await screen.findByRole('log')
     const user = userEvent.setup()
     const input = screen.getByRole('textbox', { name: '메시지 입력' })
@@ -185,14 +224,18 @@ describe('전환 시 열린 상태 정리 (R-CHAT-011 · R-CHAT-007)', () => {
     const user = userEvent.setup()
     fireEvent.contextMenu(bubbleOf(1))
     await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: '수정' }))
-    fireEvent.change(screen.getByRole('textbox', { name: '수정할 내용' }), { target: { value: '새 본문' } })
+    fireEvent.change(screen.getByRole('textbox', { name: '수정할 내용' }), {
+      target: { value: '새 본문' },
+    })
     await user.click(screen.getByRole('button', { name: '저장' }))
 
     await screen.findByRole('note')
     expect(screen.queryByRole('group', { name: '메시지 수정' })).toBeNull()
     expect(bubbleOf(1).textContent).toContain('나도 한 잔 부탁해요.')
     expectReadOnly()
-    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: BACK })))
+    await waitFor(() =>
+      expect(document.activeElement).toBe(screen.getByRole('button', { name: BACK })),
+    )
     expect(onAuthFailure).toHaveBeenCalledTimes(1)
     expect(mockedEdit).toHaveBeenCalledTimes(1)
   })
@@ -212,7 +255,9 @@ describe('전환 시 열린 상태 정리 (R-CHAT-011 · R-CHAT-007)', () => {
     expect(screen.queryByRole('alertdialog')).toBeNull()
     expect(within(screen.getByRole('log')).getAllByRole('listitem')).toHaveLength(2)
     expectReadOnly()
-    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: BACK }))) // TK-07
+    await waitFor(() =>
+      expect(document.activeElement).toBe(screen.getByRole('button', { name: BACK })),
+    ) // TK-07
     expect(onAuthFailure).toHaveBeenCalledTimes(1)
     expect(mockedDelete).toHaveBeenCalledTimes(1)
   })
@@ -224,7 +269,13 @@ describe('늦은 쓰기 응답 무시 (R-CHAT-006 · R-CHAT-007 · R-CHAT-001)',
     const onAuthFailure = vi.fn()
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
     const view = render(
-      <ChatScreen room={ROOM} viewer={WRITER_VIEWER} onBack={onBack} onAuthFailure={onAuthFailure} onRoomRenamed={vi.fn()} />,
+      <ChatScreen
+        room={ROOM}
+        viewer={WRITER_VIEWER}
+        onBack={onBack}
+        onAuthFailure={onAuthFailure}
+        onRoomRenamed={vi.fn()}
+      />,
     )
     await screen.findByRole('log')
     return { ...view, onBack, onAuthFailure, errorSpy, user: userEvent.setup() }
@@ -253,7 +304,9 @@ describe('늦은 쓰기 응답 무시 (R-CHAT-006 · R-CHAT-007 · R-CHAT-001)',
     const { unmount, user, onAuthFailure, errorSpy } = await setup()
     fireEvent.contextMenu(bubbleOf(1))
     await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: '수정' }))
-    fireEvent.change(screen.getByRole('textbox', { name: '수정할 내용' }), { target: { value: '새 본문' } })
+    fireEvent.change(screen.getByRole('textbox', { name: '수정할 내용' }), {
+      target: { value: '새 본문' },
+    })
     await user.click(screen.getByRole('button', { name: '저장' }))
     unmount()
     await act(async () => {

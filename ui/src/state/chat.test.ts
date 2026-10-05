@@ -64,7 +64,9 @@ describe('chatReducer S2 초기값·T1 비고 (R-CHAT-006 · R-CHAT-007)', () =>
   })
 
   it('TC-CH-053: T1 을 ready 에서 받으면(삭제 뒤 재로드) editingId·unseenCount 도 초기화', () => {
-    const next = chatReducer(ready({ editingId: 32, unseenCount: 2 }), { type: 'initialLoadStarted' })
+    const next = chatReducer(ready({ editingId: 32, unseenCount: 2 }), {
+      type: 'initialLoadStarted',
+    })
     expect(next).toEqual(initialChatState)
   })
 })
@@ -106,7 +108,10 @@ describe('chatReducer T17~T20 messageReplaced·messageRemoved (R-CHAT-007 · R-M
   })
 
   it('TC-CH-053: T17 다른 메시지를 편집 중이면 editingId 유지', () => {
-    const next = chatReducer(ready({ editingId: 31 }), { type: 'messageReplaced', message: msg(32, '새 본문') })
+    const next = chatReducer(ready({ editingId: 31 }), {
+      type: 'messageReplaced',
+      message: msg(32, '새 본문'),
+    })
     expect(next.editingId).toBe(31)
   })
 
@@ -119,7 +124,9 @@ describe('chatReducer T17~T20 messageReplaced·messageRemoved (R-CHAT-007 · R-M
     const next = chatReducer(ready({ editingId: 32 }), { type: 'messageRemoved', messageId: 32 })
     expect(ids(next.messages)).toEqual([31, 33])
     expect(next.editingId).toBeNull()
-    expect(chatReducer(ready({ editingId: 31 }), { type: 'messageRemoved', messageId: 32 }).editingId).toBe(31)
+    expect(
+      chatReducer(ready({ editingId: 31 }), { type: 'messageRemoved', messageId: 32 }).editingId,
+    ).toBe(31)
     const before = ready()
     expect(chatReducer(before, { type: 'messageRemoved', messageId: 99 })).toBe(before)
   })
@@ -128,7 +135,9 @@ describe('chatReducer T17~T20 messageReplaced·messageRemoved (R-CHAT-007 · R-M
 describe('chatReducer T21~T26 편집·전환 (R-CHAT-007 · R-CHAT-011)', () => {
   it('TC-CH-053: T21 ready·쓰기 없음·id 있음 → editingId, 다른 편집 중이면 바뀜', () => {
     expect(chatReducer(ready(), { type: 'editStarted', messageId: 32 }).editingId).toBe(32)
-    expect(chatReducer(ready({ editingId: 31 }), { type: 'editStarted', messageId: 32 }).editingId).toBe(32)
+    expect(
+      chatReducer(ready({ editingId: 31 }), { type: 'editStarted', messageId: 32 }).editingId,
+    ).toBe(32)
   })
 
   it('TC-CH-053: T22 쓰기 중·없는 id·loading → 같은 참조', () => {
@@ -142,7 +151,9 @@ describe('chatReducer T21~T26 편집·전환 (R-CHAT-007 · R-CHAT-011)', () => 
 
   it('TC-CH-053: T23 편집 중·저장 요청 아님 → editingId null(전송 중이어도 취소 가능)', () => {
     expect(chatReducer(ready({ editingId: 32 }), { type: 'editCancelled' }).editingId).toBeNull()
-    expect(chatReducer(ready({ editingId: 32, writing: SEND }), { type: 'editCancelled' }).editingId).toBeNull()
+    expect(
+      chatReducer(ready({ editingId: 32, writing: SEND }), { type: 'editCancelled' }).editingId,
+    ).toBeNull()
   })
 
   it('TC-CH-053: T24 편집 아님·저장 요청 중 → 같은 참조', () => {
@@ -153,7 +164,9 @@ describe('chatReducer T21~T26 편집·전환 (R-CHAT-007 · R-CHAT-011)', () => 
   })
 
   it('TC-CH-053: T25 writing·editingId 중 하나라도 있으면 둘 다 null / T26 둘 다 null → 같은 참조', () => {
-    const revoked = chatReducer(ready({ editingId: 32, writing: EDIT32 }), { type: 'writeAccessRevoked' })
+    const revoked = chatReducer(ready({ editingId: 32, writing: EDIT32 }), {
+      type: 'writeAccessRevoked',
+    })
     expect(revoked.writing).toBeNull()
     expect(revoked.editingId).toBeNull()
     expect(ids(revoked.messages)).toEqual([31, 32, 33])

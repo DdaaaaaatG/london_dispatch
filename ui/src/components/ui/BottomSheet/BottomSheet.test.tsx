@@ -13,8 +13,21 @@ afterEach(() => {
   cleanup()
 })
 
-type Opts = { header?: boolean; dismissDisabled?: boolean; useInitial?: boolean; role?: 'dialog' | 'alertdialog' }
-const Host = ({ onClose, onSelect, opts }: { onClose: () => void; onSelect: () => void; opts: Opts }) => {
+type Opts = {
+  header?: boolean
+  dismissDisabled?: boolean
+  useInitial?: boolean
+  role?: 'dialog' | 'alertdialog'
+}
+const Host = ({
+  onClose,
+  onSelect,
+  opts,
+}: {
+  onClose: () => void
+  onSelect: () => void
+  opts: Opts
+}) => {
   const [open, setOpen] = useState(false)
   const [outerShown, setOuterShown] = useState(true)
   const initial = useRef<HTMLButtonElement | null>(null)

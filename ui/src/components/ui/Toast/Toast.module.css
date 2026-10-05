@@ -1,0 +1,24 @@
+/* 화면 맨 아래 in-flow 한 줄. 두 줄까지 줄바꿈하며 높이가 늘어난다 */
+.root {
+  display: flex;
+  flex: none;
+  align-items: center;
+  min-height: 28px;
+  margin: 0;
+  padding: var(--space-1) var(--space-4);
+  border-left: 3px solid transparent;
+  background: var(--color-bg-elevated);
+  color: var(--color-fg);
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.warning {
+  border-left-color: var(--color-warning);
+}
+
+.danger {
+  border-left-color: var(--color-danger);
+}

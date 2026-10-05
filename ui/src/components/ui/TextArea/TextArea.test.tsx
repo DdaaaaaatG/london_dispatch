@@ -34,12 +34,17 @@ beforeEach(() => {
   vi.spyOn(window, 'getComputedStyle').mockImplementation((el: Element, pseudo?: string | null) => {
     const style = real(el, pseudo)
     if (!(el instanceof HTMLTextAreaElement)) return style
-    const values: Record<string, string> = { 'line-height': '20px', 'padding-top': '8px', 'padding-bottom': '8px' }
+    const values: Record<string, string> = {
+      'line-height': '20px',
+      'padding-top': '8px',
+      'padding-bottom': '8px',
+    }
     return new Proxy(style, {
       get(target, key) {
         if (key === 'lineHeight') return '20px'
         if (key === 'paddingTop' || key === 'paddingBottom') return '8px'
-        if (key === 'getPropertyValue') return (name: string) => values[name] ?? target.getPropertyValue(name)
+        if (key === 'getPropertyValue')
+          return (name: string) => values[name] ?? target.getPropertyValue(name)
         const v = Reflect.get(target, key)
         return typeof v === 'function' ? v.bind(target) : v
       },

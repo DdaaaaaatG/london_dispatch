@@ -32,6 +32,7 @@ export default defineConfig({
     name: 'ui',
     environment: 'jsdom',
     include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
+    setupFiles: ['./test-setup.ts'],
     css: { modules: { classNameStrategy: 'non-scoped' } },
   },
 })

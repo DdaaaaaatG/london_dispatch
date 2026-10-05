@@ -1,0 +1,55 @@
+/* 덮개는 화면 루트(position: relative)를 기준으로 전체를 덮고, 패널은 아래에 붙는다 */
+.overlay {
+  position: absolute;
+  inset: 0;
+  z-index: var(--z-sheet);
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  background: var(--color-overlay);
+  animation: fade 120ms ease-out;
+}
+
+.panel {
+  width: 100%;
+  max-height: 70%;
+  padding: var(--space-4);
+  overflow-y: auto;
+  background: var(--sheet-bg);
+  border-radius: var(--sheet-radius);
+  box-shadow: var(--sheet-shadow);
+  animation: rise 160ms ease-out;
+}
+
+/* 머리 줄 40px. 한 줄 말줄임 */
+.header {
+  display: flex;
+  align-items: center;
+  height: 40px;
+  overflow: hidden;
+  color: var(--color-fg-muted);
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+@keyframes rise {
+  from {
+    transform: translateY(100%);
+  }
+
+  to {
+    transform: translateY(0);
+  }
+}
+
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}

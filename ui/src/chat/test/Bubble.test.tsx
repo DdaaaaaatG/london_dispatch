@@ -91,7 +91,12 @@ describe('Bubble 유저 — 가운데 말풍선 (R-CHAT-002 · CR-001)', () => {
   it('TC-CH-008: user 클래스만(캐릭터 키 없음), 작성자명 → 시각 → 본문, 아바타 없음', () => {
     const { container } = render(
       <Bubble
-        message={make({ speaker: 'user', text: '나도 한 잔 부탁해요.', authorName: '미샤', createdAt: at(16, 42) })}
+        message={make({
+          speaker: 'user',
+          text: '나도 한 잔 부탁해요.',
+          authorName: '미샤',
+          createdAt: at(16, 42),
+        })}
       />,
     )
 
@@ -113,7 +118,9 @@ describe('Bubble 유저 — 가운데 말풍선 (R-CHAT-002 · CR-001)', () => {
   })
 
   it('TC-CH-008: 본문은 일반 텍스트(HTML 해석 안 함)', () => {
-    const { container } = render(<Bubble message={make({ speaker: 'user', authorName: '미샤', text: '<b>굵게</b>' })} />)
+    const { container } = render(
+      <Bubble message={make({ speaker: 'user', authorName: '미샤', text: '<b>굵게</b>' })} />,
+    )
     expect(container.querySelector('b')).toBeNull()
     expect(screen.getByText('<b>굵게</b>')).not.toBeNull()
   })
@@ -123,14 +130,24 @@ describe('Bubble OOC — 가운데 한 줄 (R-CHAT-002 · CR-001)', () => {
   it('TC-CH-009: ooc 클래스만, "[지시] 텍스트", 장식 — 2개 aria-hidden, 작성자명 없음, 시각 있음', () => {
     const { container } = render(
       <Bubble
-        message={make({ speaker: 'user', kind: 'ooc', text: '둘이 체스를 둔다', authorName: '미샤', createdAt: at(16, 43) })}
+        message={make({
+          speaker: 'user',
+          kind: 'ooc',
+          text: '둘이 체스를 둔다',
+          authorName: '미샤',
+          createdAt: at(16, 43),
+        })}
       />,
     )
 
     expect(placementOf(container)).toEqual(['ooc'])
     expect(container.textContent).toContain('[지시]')
-    expect(container.textContent?.indexOf('[지시]')).toBeLessThan(container.textContent?.indexOf('둘이 체스를 둔다') ?? -1)
-    const decor = Array.from(container.querySelectorAll('[aria-hidden="true"]')).filter(el => el.textContent === '—')
+    expect(container.textContent?.indexOf('[지시]')).toBeLessThan(
+      container.textContent?.indexOf('둘이 체스를 둔다') ?? -1,
+    )
+    const decor = Array.from(container.querySelectorAll('[aria-hidden="true"]')).filter(
+      el => el.textContent === '—',
+    )
     expect(decor).toHaveLength(2)
     expect(screen.queryByText('미샤')).toBeNull()
     expect(container.querySelector('img')).toBeNull()
@@ -139,14 +156,20 @@ describe('Bubble OOC — 가운데 한 줄 (R-CHAT-002 · CR-001)', () => {
   })
 
   it('TC-CH-009: 같은 작성자의 유저 발화와 OOC 는 둘 다 가운데지만 클래스·작성자명·접두·장식으로 구분된다', () => {
-    const user = render(<Bubble message={make({ speaker: 'user', text: '같은 문장', authorName: '미샤' })} />)
+    const user = render(
+      <Bubble message={make({ speaker: 'user', text: '같은 문장', authorName: '미샤' })} />,
+    )
     const userRoot = user.container.firstElementChild as HTMLElement
     const userHasAuthor = user.container.textContent?.includes('미샤')
     const userHasPrefix = user.container.textContent?.includes('[지시]')
     const userDecor = user.container.querySelectorAll('[aria-hidden="true"]').length
     user.unmount()
 
-    const ooc = render(<Bubble message={make({ speaker: 'user', kind: 'ooc', text: '같은 문장', authorName: '미샤' })} />)
+    const ooc = render(
+      <Bubble
+        message={make({ speaker: 'user', kind: 'ooc', text: '같은 문장', authorName: '미샤' })}
+      />,
+    )
     const oocRoot = ooc.container.firstElementChild as HTMLElement
 
     expect(userRoot.classList.contains('user')).toBe(true)
@@ -162,7 +185,9 @@ describe('Bubble OOC — 가운데 한 줄 (R-CHAT-002 · CR-001)', () => {
   })
 
   it('TC-CH-010: 캐릭터 speaker 여도 kind=ooc 면 OOC 로 그린다(캐릭터 키·아바타·캐릭터 이름 없음)', () => {
-    const { container } = render(<Bubble message={make({ speaker: 'ciel', kind: 'ooc', text: '장면 전환' })} />)
+    const { container } = render(
+      <Bubble message={make({ speaker: 'ciel', kind: 'ooc', text: '장면 전환' })} />,
+    )
     expect(placementOf(container)).toEqual(['ooc'])
     expect(container.querySelector('img')).toBeNull()
     expect(screen.queryByText('시엘')).toBeNull()

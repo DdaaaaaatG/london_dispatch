@@ -1,0 +1,8 @@
+/* 메뉴 시트 머리 줄(40px은 BottomSheet 가 준다): 한 줄 말줄임 */
+.menuHeader {
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

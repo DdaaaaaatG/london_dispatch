@@ -65,7 +65,8 @@ describe('PromptSheet (R-CHAT-001)', () => {
   it('TC-CH-057: isBusy → 입력 readOnly·두 버튼 disabled, errorText → role=alert', () => {
     const { sheet, input } = setup({ isBusy: true, errorText: '서버 내부 오류' })
     expect(input.readOnly).toBe(true)
-    for (const b of within(sheet).getAllByRole('button')) expect((b as HTMLButtonElement).disabled).toBe(true)
+    for (const b of within(sheet).getAllByRole('button'))
+      expect((b as HTMLButtonElement).disabled).toBe(true)
     expect(within(sheet).getByRole('alert').textContent).toBe('서버 내부 오류')
   })
 })

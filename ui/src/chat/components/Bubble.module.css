@@ -1,4 +1,8 @@
-/* 설계 chat/design/components.md §4 — 색·간격은 토큰만. 클래스명은 확정(character·user·ooc·ciel·sebastian) */
+/*
+ * 설계 chat/design/components.md §2.2 · §4 (v1.6, CR-001) — 색·간격은 토큰만.
+ * 클래스명은 확정: character · sebastian(왼쪽) · ciel(오른쪽) · user(가운데 말풍선) · ooc(가운데 한 줄) · menuEnabled
+ * 시엘 배치는 CSS 로만 거울(row-reverse)이다. DOM 순서(아바타 → 이름 → 시각 → 본문)는 세바스찬과 같아 읽는 순서가 유지된다.
+ */
 .root {
   display: flex;
   min-width: 0;
@@ -32,7 +36,7 @@
   overflow-wrap: anywhere;
 }
 
-/* 캐릭터: 왼쪽. DOM 순서는 아바타, 이름, 시각, 본문 */
+/* 캐릭터 공통: 아바타 · 이름 행 형태. 정렬은 sebastian · ciel 이 정한다 */
 .character {
   align-items: flex-start;
   gap: var(--space-2);
@@ -55,13 +59,9 @@
   font-size: var(--text-sm);
 }
 
-.ciel .name {
-  color: var(--bubble-ciel-accent);
-}
-
-.ciel .body {
-  background: var(--bubble-ciel-bg);
-  color: var(--bubble-ciel-fg);
+/* 세바스찬: 왼쪽 */
+.sebastian {
+  justify-content: flex-start;
 }
 
 .sebastian .name {
@@ -73,15 +73,33 @@
   color: var(--bubble-sebastian-fg);
 }
 
-/* 유저: 오른쪽. DOM 은 작성자명, 시각 순서이고 화면은 row-reverse 라 시각, 작성자명 순서로 보인다 */
+/* 시엘: 오른쪽. 아바타가 오른쪽 끝, 머리 줄도 거울(시각 이름), 글자는 왼쪽 정렬 유지 */
+.ciel {
+  flex-direction: row-reverse;
+}
+
+.ciel .head {
+  flex-direction: row-reverse;
+}
+
+.ciel .name {
+  color: var(--bubble-ciel-accent);
+}
+
+.ciel .body {
+  background: var(--bubble-ciel-bg);
+  color: var(--bubble-ciel-fg);
+  text-align: left;
+}
+
+/* 유저: 가운데 말풍선. 머리 줄 "작성자명 · 시각", 배경 있음, 최대 폭 86% */
 .user {
   flex-direction: column;
-  align-items: flex-end;
+  align-items: center;
 }
 
 .user .head {
-  flex-direction: row-reverse;
-  justify-content: flex-start;
+  justify-content: center;
   gap: var(--space-2);
 }
 
@@ -90,14 +108,19 @@
   font-size: var(--text-sm);
 }
 
+.user .time::before {
+  content: '·';
+  margin-right: var(--space-2);
+}
+
 .user .body {
-  max-width: var(--bubble-max-width);
+  max-width: var(--bubble-user-max-width);
   background: var(--bubble-user-bg);
   color: var(--color-fg);
   text-align: left;
 }
 
-/* OOC: 중앙 구분 한 줄, 배경 없음 */
+/* OOC: 가운데 한 줄, 배경 없음 */
 .ooc {
   align-items: baseline;
   gap: var(--space-2);
@@ -113,4 +136,15 @@
   text-align: center;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+
+/* S2: 쓰기 가능이면 롱프레스 메뉴 대상이다. 길게 눌러도 브라우저 콜아웃이 뜨지 않게 하고 포커스 링을 둔다 */
+.menuEnabled {
+  -webkit-touch-callout: none;
+}
+
+.menuEnabled:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+  border-radius: var(--radius-lg);
 }

@@ -32,9 +32,16 @@ vi.mock('@/api/rooms', () => ({
   deleteRoom: vi.fn(),
 }))
 
-const mocks = [listMessages, appendUser, editMessage, deleteMessage, listRooms, createRoom, renameRoom, deleteRoom].map(
-  f => vi.mocked(f),
-)
+const mocks = [
+  listMessages,
+  appendUser,
+  editMessage,
+  deleteMessage,
+  listRooms,
+  createRoom,
+  renameRoom,
+  deleteRoom,
+].map(f => vi.mocked(f))
 const mockedList = vi.mocked(listMessages)
 const mockedRename = vi.mocked(renameRoom)
 const mockedDeleteRoom = vi.mocked(deleteRoom)
@@ -74,7 +81,10 @@ const MORE = '방 메뉴 열기'
 const ok = <T,>(value: T): Result<T> => ({ ok: true, value })
 const fail = (code: ApiErrorCode, retryAfterSec?: number): Result<never> => ({
   ok: false,
-  error: retryAfterSec === undefined ? { code, message: 'SERVER-RAW-MESSAGE' } : { code, message: 'SERVER-RAW-MESSAGE', retryAfterSec },
+  error:
+    retryAfterSec === undefined
+      ? { code, message: 'SERVER-RAW-MESSAGE' }
+      : { code, message: 'SERVER-RAW-MESSAGE', retryAfterSec },
 })
 const deferred = <T,>() => {
   let resolve!: (value: T) => void
@@ -88,7 +98,11 @@ const flushPending = async () => {
 }
 
 /** App 의 전환을 흉내 내는 하네스: onAuthFailure → spy + READ_ONLY */
-const Harness = (props: { onAuthFailure: () => void; onBack: () => void; onRoomRenamed: (r: RoomSummary) => void }) => {
+const Harness = (props: {
+  onAuthFailure: () => void
+  onBack: () => void
+  onRoomRenamed: (r: RoomSummary) => void
+}) => {
   const [viewer, setViewer] = useState(WRITER_VIEWER)
   return (
     <ChatScreen
@@ -162,7 +176,11 @@ describe('⋯ 방 메뉴 (R-CHAT-001)', () => {
     renderChat()
     const { user, menu } = await openRoomMenu()
     expect(menu.querySelector('p')?.textContent).toBe('방 메뉴 · 티타임')
-    expect(within(menu).getAllByRole('button').map(b => b.textContent)).toEqual(['이름 변경', '방 삭제', '취소'])
+    expect(
+      within(menu)
+        .getAllByRole('button')
+        .map(b => b.textContent),
+    ).toEqual(['이름 변경', '방 삭제', '취소'])
     expect(within(menu).queryByText(/장기기억/)).toBeNull()
     await user.click(within(menu).getByRole('button', { name: '취소' }))
     expect(screen.queryByRole('dialog')).toBeNull()
@@ -217,22 +235,25 @@ describe('이름 변경 (R-CHAT-001 · R-ROOM-003)', () => {
     ['NOT_FOUND', undefined, '방을 찾을 수 없습니다. 목록으로 돌아가 주세요.'],
     ['RATE_LIMITED', 40, '요청이 너무 많습니다. 40초 후 다시 시도해 주세요.'],
     ['VALIDATION_ERROR', undefined, '방 제목은 1~60자로 입력해 주세요.'],
-  ] as const)('TC-CH-049: 이름 변경 %s → 시트 유지·입력 유지·시트 안 alert, E 토스트 없음', async (code, sec, text) => {
-    mockedRename.mockResolvedValueOnce(fail(code, sec))
-    const { onRoomRenamed, onAuthFailure } = renderChat()
-    const { user, sheet, input, save } = await openRename()
-    fireEvent.change(input, { target: { value: '새 제목' } })
-    await user.click(save)
+  ] as const)(
+    'TC-CH-049: 이름 변경 %s → 시트 유지·입력 유지·시트 안 alert, E 토스트 없음',
+    async (code, sec, text) => {
+      mockedRename.mockResolvedValueOnce(fail(code, sec))
+      const { onRoomRenamed, onAuthFailure } = renderChat()
+      const { user, sheet, input, save } = await openRename()
+      fireEvent.change(input, { target: { value: '새 제목' } })
+      await user.click(save)
 
-    const alert = await within(sheet).findByRole('alert')
-    expect(alert.textContent).toBe(text)
-    expect(screen.getAllByRole('alert')).toHaveLength(1)
-    expect(screen.getByRole('dialog', { name: '방 이름 변경' })).toBe(sheet)
-    expect(input.value).toBe('새 제목')
-    expect(onRoomRenamed).not.toHaveBeenCalled()
-    expect(onAuthFailure).not.toHaveBeenCalled()
-    expect(mockedRename).toHaveBeenCalledTimes(1)
-  })
+      const alert = await within(sheet).findByRole('alert')
+      expect(alert.textContent).toBe(text)
+      expect(screen.getAllByRole('alert')).toHaveLength(1)
+      expect(screen.getByRole('dialog', { name: '방 이름 변경' })).toBe(sheet)
+      expect(input.value).toBe('새 제목')
+      expect(onRoomRenamed).not.toHaveBeenCalled()
+      expect(onAuthFailure).not.toHaveBeenCalled()
+      expect(mockedRename).toHaveBeenCalledTimes(1)
+    },
+  )
 
   it('TC-CH-049: 이름 변경 LEVEL_TOO_LOW → 시트 닫힘, 전환 안내 토스트, 열람 안내', async () => {
     mockedRename.mockResolvedValueOnce(fail('LEVEL_TOO_LOW'))
@@ -262,7 +283,8 @@ describe('이름 변경 (R-CHAT-001 · R-ROOM-003)', () => {
       pending.resolve(ok({ ...ROOM, title: NEW_TITLE }))
     })
     expect(mockedRename).toHaveBeenCalledTimes(1)
-    for (const m of [appendUser, editMessage, deleteMessage, deleteRoom]) expect(vi.mocked(m)).not.toHaveBeenCalled()
+    for (const m of [appendUser, editMessage, deleteMessage, deleteRoom])
+      expect(vi.mocked(m)).not.toHaveBeenCalled()
   })
 })
 
@@ -281,7 +303,8 @@ describe('방 삭제 (R-CHAT-001 · R-ROOM-004 · R-ROOMS-004)', () => {
     expect(confirm.textContent).toContain('메시지와 장기기억이 함께 지워지며 되돌릴 수 없습니다.')
     expect(document.activeElement).toBe(within(confirm).getByRole('button', { name: '취소' }))
     await user.click(within(confirm).getByRole('button', { name: '삭제' }))
-    for (const b of within(confirm).getAllByRole('button')) expect((b as HTMLButtonElement).disabled).toBe(true)
+    for (const b of within(confirm).getAllByRole('button'))
+      expect((b as HTMLButtonElement).disabled).toBe(true)
     fireEvent.keyDown(confirm, { key: 'Escape' })
     fireEvent.click(confirm.parentElement as HTMLElement)
     expect(screen.getByRole('alertdialog')).toBe(confirm)
@@ -335,7 +358,9 @@ describe('App 통합 — 이름 변경·방 삭제 뒤 목록 (TC-FLOW, R-CHAT-0
     const user = await enterTea()
     await user.click(screen.getByRole('button', { name: MORE }))
     await user.click(screen.getByRole('button', { name: '이름 변경' }))
-    fireEvent.change(screen.getByRole('textbox', { name: '방 이름' }), { target: { value: NEW_TITLE } })
+    fireEvent.change(screen.getByRole('textbox', { name: '방 이름' }), {
+      target: { value: NEW_TITLE },
+    })
     await user.click(screen.getByRole('button', { name: '저장' }))
 
     expect(await screen.findByRole('heading', { level: 1, name: NEW_TITLE })).not.toBeNull()
@@ -345,7 +370,9 @@ describe('App 통합 — 이름 변경·방 삭제 뒤 목록 (TC-FLOW, R-CHAT-0
   })
 
   it('TC-CH-064: 방 삭제 → rooms, listRooms 총 2회, 두 번째 응답 그대로, 기록 없음', async () => {
-    mockedListRooms.mockResolvedValueOnce(ok([ROOM, ROOM_CHESS])).mockResolvedValueOnce(ok([ROOM_CHESS]))
+    mockedListRooms
+      .mockResolvedValueOnce(ok([ROOM, ROOM_CHESS]))
+      .mockResolvedValueOnce(ok([ROOM_CHESS]))
     mockedDeleteRoom.mockResolvedValueOnce(ok(undefined))
     const user = await enterTea()
     await user.click(screen.getByRole('button', { name: MORE }))
@@ -353,7 +380,9 @@ describe('App 통합 — 이름 변경·방 삭제 뒤 목록 (TC-FLOW, R-CHAT-0
     await user.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: '삭제' }))
 
     expect(await screen.findByRole('main', { name: '방 목록' })).not.toBeNull()
-    expect(await screen.findByRole('button', { name: '체스 대결, 마지막 갱신 10.03' })).not.toBeNull()
+    expect(
+      await screen.findByRole('button', { name: '체스 대결, 마지막 갱신 10.03' }),
+    ).not.toBeNull()
     expect(screen.queryByRole('button', { name: /^티타임/ })).toBeNull()
     expect(localStorage.getItem('ld:lastRoomId')).toBeNull()
     expect(mockedDeleteRoom.mock.calls).toEqual([['r1']])
@@ -361,12 +390,16 @@ describe('App 통합 — 이름 변경·방 삭제 뒤 목록 (TC-FLOW, R-CHAT-0
   })
 
   it('TC-CH-065: 이름 변경 → ‹ 뒤로 → listRooms 재호출 1회, 행은 두 번째 응답 그대로', async () => {
-    mockedListRooms.mockResolvedValueOnce(ok([ROOM])).mockResolvedValueOnce(ok([{ ...ROOM, title: '새 이름' }]))
+    mockedListRooms
+      .mockResolvedValueOnce(ok([ROOM]))
+      .mockResolvedValueOnce(ok([{ ...ROOM, title: '새 이름' }]))
     mockedRename.mockResolvedValueOnce(ok({ ...ROOM, title: '새 이름' }))
     const user = await enterTea()
     await user.click(screen.getByRole('button', { name: MORE }))
     await user.click(screen.getByRole('button', { name: '이름 변경' }))
-    fireEvent.change(screen.getByRole('textbox', { name: '방 이름' }), { target: { value: '새 이름' } })
+    fireEvent.change(screen.getByRole('textbox', { name: '방 이름' }), {
+      target: { value: '새 이름' },
+    })
     await user.click(screen.getByRole('button', { name: '저장' }))
     await screen.findByRole('heading', { level: 1, name: '새 이름' })
     await user.click(screen.getByRole('button', { name: '방 목록으로 돌아가기' }))

@@ -14,8 +14,14 @@
   cursor: pointer;
 }
 
-.root:hover {
+.root:hover:not(:disabled) {
   background: var(--row-hover-bg);
+}
+
+/* 쓰기 대기 중(chat ⋯)에는 글자색만 흐리게 한다 */
+.root:disabled {
+  color: var(--color-fg-disabled);
+  cursor: default;
 }
 
 .root:focus-visible {

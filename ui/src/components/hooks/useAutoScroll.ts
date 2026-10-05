@@ -3,6 +3,8 @@
  * 요구: R-CHAT-003(이전 페이지 앵커 · 새 메시지 자동 스크롤) · R-CHAT-010(스크롤 위치 복원)
  * 훅은 메시지 타입을 모른다(id 두 개와 스크롤 박스만 안다). IntersectionObserver 를 쓰지 않고 애니메이션 없이 즉시 이동한다.
  * 계산은 ui/src/state/scroll.ts 의 순수 함수가 한다.
+ * S2: 마지막 메시지 삭제로 목록이 비면(firstId null) 첫 배치 상태로 되돌리고, 다시 채워질 때는 저장 거리를 무시하고 맨 아래에 놓는다(TC-CH-046).
+ * 빈 화면 커밋 없이 한 번에 새 최신 페이지로 바뀐 경우(새 목록이 이전 목록보다 전부 앞)도 목록 교체로 보고 맨 아래에 놓는다.
  */
 import { useCallback, useLayoutEffect, useRef } from 'react'
 import type { RefObject } from 'react'
@@ -49,6 +51,8 @@ type Memo = {
   ids: Ids
   /** 첫 배치를 마쳤는가 */
   positioned: boolean
+  /** 목록이 비었다가 다시 채워지는 중이면 저장 거리를 무시하고 맨 아래로 배치한다 */
+  repositionToBottom: boolean
   lastDistance: number | null
 }
 
@@ -56,6 +60,7 @@ const createMemo = (): Memo => ({
   metrics: null,
   ids: { firstId: null, lastId: null },
   positioned: false,
+  repositionToBottom: false,
   lastDistance: null,
 })
 
@@ -73,6 +78,13 @@ const remember = (memo: Memo, el: HTMLElement): ScrollMetrics => {
   return metrics
 }
 
+/**
+ * 새 목록이 이전 목록보다 전부 앞이다 = 목록 교체(앞붙임·뒤붙임·삭제로는 생길 수 없다).
+ * 예: 마지막 메시지 삭제 뒤 최신 페이지를 다시 받았는데 빈 화면 커밋 없이 한 번에 합쳐진 경우. 이때는 맨 아래에 놓는다.
+ */
+const isReplaced = (prev: Ids, next: Ids): boolean =>
+  prev.firstId !== null && next.lastId !== null && next.lastId < prev.firstId
+
 /** 앞붙임 보정 → 뒤붙임 판정 순서로 둘 다 적용한다. before 는 붙기 전 측정값 */
 const adjustAfterChange = (el: HTMLElement, before: ScrollMetrics, prev: Ids, next: Ids): void => {
   if (prev.firstId !== null && next.firstId !== null && next.firstId < prev.firstId) {
@@ -88,13 +100,86 @@ const place = (el: HTMLElement, memo: Memo, next: Ids, initialDistance: number |
   const isFirstPlacement = !memo.positioned
   if (isFirstPlacement) {
     memo.positioned = true
-    el.scrollTop = restoreScrollTop(el, initialDistance)
+    el.scrollTop = restoreScrollTop(el, memo.repositionToBottom ? null : initialDistance)
+    memo.repositionToBottom = false
+  } else if (isReplaced(memo.ids, next)) {
+    el.scrollTop = restoreScrollTop(el, null)
   } else if (memo.metrics !== null) {
     adjustAfterChange(el, memo.metrics, memo.ids, next)
   }
   remember(memo, el)
   memo.ids = next
   return isFirstPlacement
+}
+
+/**
+ * 마지막 메시지 삭제로 목록이 비었다(재로드 대기). 다음에 채워질 때는 저장 거리가 아니라 맨 아래에 배치하도록 되돌린다.
+ * 요소(containerRef)는 목록이 비면 이미 사라졌을 수 있으므로 요소 검사보다 먼저 처리한다
+ */
+const resetForReload = (memo: Memo): void => {
+  memo.positioned = false
+  memo.repositionToBottom = true
+  memo.ids = { firstId: null, lastId: null }
+  memo.lastDistance = null
+}
+
+/**
+ * 목록이 바뀐 커밋에서 하는 일. 비었으면 첫 배치 상태로 되돌리고, 요소가 있으면 배치·보정한다.
+ * 첫 배치가 맨 위 근처이고 이전 페이지를 자동 요청해도 되면 onReachTop 을 한 번 부른다.
+ */
+const applyListChange = (
+  memo: Memo,
+  el: HTMLElement | null,
+  ids: Ids,
+  initialDistance: number | null,
+  latest: Latest,
+): void => {
+  if (ids.firstId === null) {
+    if (memo.positioned) resetForReload(memo)
+    return
+  }
+  if (el === null) return
+  const isFirst = place(el, memo, ids, initialDistance)
+  const metrics = memo.metrics
+  if (isFirst && metrics !== null && isNearTop(metrics) && latest.canAutoLoadOlder) {
+    latest.onReachTop()
+  }
+}
+
+/** 스크롤 박스를 읽고 움직이는 동작 4개(onScroll · isNearBottom · scrollToBottom · getDistanceFromBottom) */
+const useScrollActions = (
+  containerRef: RefObject<HTMLDivElement | null>,
+  memoRef: RefObject<Memo>,
+  latestRef: RefObject<Latest>,
+): Omit<UseAutoScrollResult, 'containerRef'> => {
+  const onScroll = useCallback((): void => {
+    const el = containerRef.current
+    if (el === null) return
+    const metrics = remember(memoRef.current, el)
+    const latest = latestRef.current
+    if (latest.canAutoLoadOlder && isNearTop(metrics)) latest.onReachTop()
+    if (isNearBottom(metrics)) latest.onReachBottom()
+  }, [containerRef, memoRef, latestRef])
+
+  const isNearBottomNow = useCallback((): boolean => {
+    const el = containerRef.current
+    const metrics = el === null ? memoRef.current.metrics : measure(el)
+    return metrics === null || isNearBottom(metrics)
+  }, [containerRef, memoRef])
+
+  const scrollToBottom = useCallback((): void => {
+    const el = containerRef.current
+    if (el === null) return
+    el.scrollTop = el.scrollHeight
+    remember(memoRef.current, el)
+  }, [containerRef, memoRef])
+
+  const getDistanceFromBottom = useCallback(
+    (): number | null => memoRef.current.lastDistance,
+    [memoRef],
+  )
+
+  return { onScroll, isNearBottom: isNearBottomNow, scrollToBottom, getDistanceFromBottom }
 }
 
 export const useAutoScroll = (options: UseAutoScrollOptions): UseAutoScrollResult => {
@@ -111,45 +196,16 @@ export const useAutoScroll = (options: UseAutoScrollOptions): UseAutoScrollResul
 
   // 첫 배치(저장 거리 복원) · 앞붙임(읽던 자리 유지) · 뒤붙임(맨 아래 근처일 때만 따라간다)
   useLayoutEffect(() => {
-    const el = containerRef.current
-    if (el === null || firstId === null) return
-    const memo = memoRef.current
-    const isFirst = place(el, memo, { firstId, lastId }, initialDistanceFromBottom)
-    const metrics = memo.metrics
-    if (isFirst && metrics !== null && isNearTop(metrics) && latestRef.current.canAutoLoadOlder) {
-      latestRef.current.onReachTop()
-    }
+    const ids = { firstId, lastId }
+    applyListChange(
+      memoRef.current,
+      containerRef.current,
+      ids,
+      initialDistanceFromBottom,
+      latestRef.current,
+    )
   }, [firstId, lastId, initialDistanceFromBottom])
 
-  const onScroll = useCallback((): void => {
-    const el = containerRef.current
-    if (el === null) return
-    const metrics = remember(memoRef.current, el)
-    const latest = latestRef.current
-    if (latest.canAutoLoadOlder && isNearTop(metrics)) latest.onReachTop()
-    if (isNearBottom(metrics)) latest.onReachBottom()
-  }, [])
-
-  const isNearBottomNow = useCallback((): boolean => {
-    const el = containerRef.current
-    const metrics = el === null ? memoRef.current.metrics : measure(el)
-    return metrics === null || isNearBottom(metrics)
-  }, [])
-
-  const scrollToBottom = useCallback((): void => {
-    const el = containerRef.current
-    if (el === null) return
-    el.scrollTop = el.scrollHeight
-    remember(memoRef.current, el)
-  }, [])
-
-  const getDistanceFromBottom = useCallback((): number | null => memoRef.current.lastDistance, [])
-
-  return {
-    containerRef,
-    onScroll,
-    isNearBottom: isNearBottomNow,
-    scrollToBottom,
-    getDistanceFromBottom,
-  }
+  const actions = useScrollActions(containerRef, memoRef, latestRef)
+  return { containerRef, ...actions }
 }

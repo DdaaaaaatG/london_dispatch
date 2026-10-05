@@ -14,20 +14,42 @@ afterEach(() => {
 describe('Toggle (R-CHAT-004)', () => {
   it('TC-CH-059: role=switch · 이름 = ariaLabel · aria-checked · 글자 on/off', () => {
     const { rerender } = render(
-      <Toggle isOn={false} onChange={vi.fn()} onLabel="OOC 켬" offLabel="OOC 끔" ariaLabel="OOC 지시 모드" />,
+      <Toggle
+        isOn={false}
+        onChange={vi.fn()}
+        onLabel="OOC 켬"
+        offLabel="OOC 끔"
+        ariaLabel="OOC 지시 모드"
+      />,
     )
     const sw = screen.getByRole('switch', { name: 'OOC 지시 모드' })
     expect(sw.tagName).toBe('BUTTON')
     expect(sw.getAttribute('aria-checked')).toBe('false')
     expect(sw.textContent).toBe('OOC 끔')
-    rerender(<Toggle isOn onChange={vi.fn()} onLabel="OOC 켬" offLabel="OOC 끔" ariaLabel="OOC 지시 모드" />)
+    rerender(
+      <Toggle
+        isOn
+        onChange={vi.fn()}
+        onLabel="OOC 켬"
+        offLabel="OOC 끔"
+        ariaLabel="OOC 지시 모드"
+      />,
+    )
     expect(sw.getAttribute('aria-checked')).toBe('true')
     expect(sw.textContent).toBe('OOC 켬')
   })
 
   it('TC-CH-059: 클릭·Space·Enter → onChange(!isOn) 각 1회, 부품은 상태를 바꾸지 않음', async () => {
     const onChange = vi.fn()
-    render(<Toggle isOn={false} onChange={onChange} onLabel="OOC 켬" offLabel="OOC 끔" ariaLabel="OOC 지시 모드" />)
+    render(
+      <Toggle
+        isOn={false}
+        onChange={onChange}
+        onLabel="OOC 켬"
+        offLabel="OOC 끔"
+        ariaLabel="OOC 지시 모드"
+      />,
+    )
     const user = userEvent.setup()
     const sw = screen.getByRole('switch')
     await user.click(sw)

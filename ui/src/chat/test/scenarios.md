@@ -666,6 +666,7 @@ S1·S2 행. **ⓒ 호출 횟수는 단계 증분으로 읽는다**: 체인 안�
 | Q-01 | 2026-10-05 | —(메인 세션 결정 TK-05, S1 불변 예외 승인) | S2에서 `ChatScreen` props `onAuthFailure`·`onRoomRenamed`가 필수가 되어 S1 스펙 렌더 도우미 2곳에 빈 콜백 `vi.fn()`을 더함. S1 단언은 바꾸지 않음 | `ui/src/chat/test/ChatScreen.test.tsx` · `ui/src/chat/test/ChatScroll.test.tsx`(renderChat) | TC-CH-001 ~ 006 · 011 ~ 014 · 021 ~ 027 · 029 · 030(같은 렌더 도우미) | 없음(단언 불변) | 전환됨(위 TC 스펙 렌더 도우미) |
 | Q-02 | 2026-10-05 | —(메인 세션 결정, S1 불변 예외 승인) | 상태 모델 S2 확장으로 TC-CH-015 초기값 단언을 9필드로(`writing`·`editingId` = null) | `ui/src/state/chat.test.ts` · 이 문서 TC-CH-015 Then | TC-CH-015 | 없음(TC-CH-053이 S2 전이 담당) | 전환됨(TC-CH-015) |
 | Q-03 | 2026-10-05 | CR-001 | R-CHAT-002 개정(🔒 사용자·지인): 세바스찬 왼쪽 · 시엘 오른쪽 · 유저 가운데 말풍선 · OOC 가운데 한 줄. `BubbleVariant`·루트 클래스 키 변경(설계 v1.6 C §2.2) | `ui/src/chat/test/Bubble.test.tsx` · 이 문서 TC-CH-007~010·028 · `manual-checklist.md` MC-CH-02 | TC-CH-007 · 008 · 009 · 010 · 028 | 없음(기존 TC 갱신, 009에 유저·OOC 구분 쌍 단언 추가) | 전환됨(TC-CH-007~010 · 028) |
+| Q-04 | 2026-10-06 | —(메인 세션 결정, S1 불변 예외 승인) | 설계 C §2.1 S2 필수 props(`editingId`·`isEditSaving`·`onSaveEdit`·`onCancelEdit`)가 S1 스펙 렌더 도우미에 빠져 `tsc -p ui` 오류 → 기본값(`null`·`false`·`vi.fn()`×2) 추가. 단언 변경 없음 | `ui/src/chat/test/MessageList.test.tsx`(renderList) | TC-CH-011 · 014 · 019(같은 렌더 도우미) | 없음(단언 불변) | 전환됨(TC-CH-011 · 014 · 019 스펙 렌더 도우미) |
 
 ### 변경이력 보충 — v0.5 (2026-10-05)
 

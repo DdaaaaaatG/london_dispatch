@@ -1,11 +1,13 @@
+/* 루트는 position: relative — 두 화면 규칙 통일(시트·토스트 기준점) */
 .root {
+  position: relative;
   display: flex;
   flex-direction: column;
   height: 100%;
   background: var(--color-bg);
 }
 
-/* C 방 목록: 상단 바를 뺀 나머지. 목록만 스크롤한다 */
+/* C 방 목록: 상단 바(·입력 행·토스트 줄)를 뺀 나머지. 목록만 스크롤한다 */
 .list {
   display: flex;
   flex: 1;

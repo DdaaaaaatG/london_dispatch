@@ -54,8 +54,20 @@ const msg = (over: Partial<Message> & Pick<Message, 'id'>): Message => ({
 const M103 = msg({ id: 103, text: '나도 한 잔 부탁해요.', createdAt: at(16, 42) })
 const PAGE: MessagesPage = {
   messages: [
-    msg({ id: 101, speaker: 'ciel', text: '세바스찬, 홍차.', authorName: null, createdAt: at(16, 40) }),
-    msg({ id: 102, speaker: 'sebastian', text: '예, 도련님.', authorName: null, createdAt: at(16, 41) }),
+    msg({
+      id: 101,
+      speaker: 'ciel',
+      text: '세바스찬, 홍차.',
+      authorName: null,
+      createdAt: at(16, 40),
+    }),
+    msg({
+      id: 102,
+      speaker: 'sebastian',
+      text: '예, 도련님.',
+      authorName: null,
+      createdAt: at(16, 41),
+    }),
     M103,
     msg({ id: 104, kind: 'ooc', text: '둘이 체스를 둔다', createdAt: at(16, 43) }),
   ],
@@ -64,7 +76,10 @@ const PAGE: MessagesPage = {
 const IDS = [101, 102, 103, 104]
 
 const ok = <T,>(value: T): Result<T> => ({ ok: true, value })
-const fail = (code: ApiErrorCode): Result<never> => ({ ok: false, error: { code, message: 'SERVER-RAW-MESSAGE' } })
+const fail = (code: ApiErrorCode): Result<never> => ({
+  ok: false,
+  error: { code, message: 'SERVER-RAW-MESSAGE' },
+})
 const deferred = <T,>() => {
   let resolve!: (value: T) => void
   const promise = new Promise<T>(r => {
@@ -79,7 +94,13 @@ const flushPending = async () => {
 const renderChat = () => {
   const onAuthFailure = vi.fn()
   const view = render(
-    <ChatScreen room={ROOM} viewer={WRITER_VIEWER} onBack={vi.fn()} onAuthFailure={onAuthFailure} onRoomRenamed={vi.fn()} />,
+    <ChatScreen
+      room={ROOM}
+      viewer={WRITER_VIEWER}
+      onBack={vi.fn()}
+      onAuthFailure={onAuthFailure}
+      onRoomRenamed={vi.fn()}
+    />,
   )
   return { ...view, onAuthFailure }
 }
@@ -156,7 +177,8 @@ afterEach(() => {
   vi.restoreAllMocks()
   vi.unstubAllGlobals()
   vi.useRealTimers()
-  for (const key of ['scrollHeight', 'clientHeight', 'scrollTop']) Reflect.deleteProperty(HTMLElement.prototype, key)
+  for (const key of ['scrollHeight', 'clientHeight', 'scrollTop'])
+    Reflect.deleteProperty(HTMLElement.prototype, key)
 })
 
 describe('말풍선 메뉴 열기 (R-CHAT-007 · R-CHAT-013)', () => {
@@ -236,11 +258,23 @@ describe('말풍선 메뉴 내용·닫기 (R-CHAT-007 · R-LLM-002)', () => {
   })
 
   it('TC-CH-040: (부품) 본문이 코드 포인트 20자를 넘으면 앞 20자 + …', () => {
-    const long = msg({ id: 200, text: '가나다라마바사아자차카타파하가나다라마바사아', createdAt: at(16, 42) })
-    render(<MessageMenuSheet message={long} isWriteBusy={false} onEdit={vi.fn()} onDelete={vi.fn()} onClose={vi.fn()} />)
-    expect(screen.getByRole('dialog', { name: '메시지 메뉴' }).querySelector('p')?.textContent).toBe(
-      '미샤 · 16:42  "가나다라마바사아자차카타파하가나다라마바…"',
+    const long = msg({
+      id: 200,
+      text: '가나다라마바사아자차카타파하가나다라마바사아',
+      createdAt: at(16, 42),
+    })
+    render(
+      <MessageMenuSheet
+        message={long}
+        isWriteBusy={false}
+        onEdit={vi.fn()}
+        onDelete={vi.fn()}
+        onClose={vi.fn()}
+      />,
     )
+    expect(
+      screen.getByRole('dialog', { name: '메시지 메뉴' }).querySelector('p')?.textContent,
+    ).toBe('미샤 · 16:42  "가나다라마바사아자차카타파하가나다라마바…"')
   })
 
   it('TC-CH-041: 취소·Esc·덮개 → 닫힘, 포커스가 연 말풍선으로 / Tab·Shift+Tab 순환', async () => {
@@ -348,7 +382,9 @@ describe('인라인 수정 (R-CHAT-007 · R-MSG-004)', () => {
     const alert = await screen.findByRole('alert')
     expect(alert.textContent).toBe(text)
     expect(alert.classList.contains('danger')).toBe(true)
-    expect((screen.getByRole('textbox', { name: '수정할 내용' }) as HTMLTextAreaElement).value).toBe('새 본문')
+    expect(
+      (screen.getByRole('textbox', { name: '수정할 내용' }) as HTMLTextAreaElement).value,
+    ).toBe('새 본문')
     expect(onAuthFailure).not.toHaveBeenCalled()
     expect(mockedEdit).toHaveBeenCalledTimes(1)
   })
@@ -392,7 +428,8 @@ describe('메시지 삭제 (R-CHAT-007 · R-MSG-005)', () => {
 
     ;({ user, confirm } = await openConfirm())
     await user.click(within(confirm).getByRole('button', { name: '삭제' }))
-    for (const b of within(confirm).getAllByRole('button')) expect((b as HTMLButtonElement).disabled).toBe(true)
+    for (const b of within(confirm).getAllByRole('button'))
+      expect((b as HTMLButtonElement).disabled).toBe(true)
     await act(async () => {
       pending.resolve(ok(undefined))
     })
@@ -435,7 +472,9 @@ describe('메시지 삭제 (R-CHAT-007 · R-MSG-005)', () => {
     const only = msg({ id: 101, speaker: 'ciel', text: '세바스찬, 홍차.', authorName: null })
     mockedList.mockReset()
     mockedList.mockResolvedValueOnce(ok({ messages: [only], hasMore: true }))
-    mockedList.mockResolvedValueOnce(ok({ messages: [msg({ id: 90, text: '이전 대화' })], hasMore: false }))
+    mockedList.mockResolvedValueOnce(
+      ok({ messages: [msg({ id: 90, text: '이전 대화' })], hasMore: false }),
+    )
     mockedDelete.mockResolvedValueOnce(ok(undefined))
     renderChat()
     const log = await screen.findByRole('log')
@@ -455,7 +494,10 @@ describe('메시지 삭제 (R-CHAT-007 · R-MSG-005)', () => {
   it('TC-CH-046: (d) 마지막 1개 삭제 + hasMore=false → 재호출 없이 "아직 대화가 없습니다"', async () => {
     mockedList.mockReset()
     mockedList.mockResolvedValueOnce(
-      ok({ messages: [msg({ id: 101, speaker: 'ciel', text: '세바스찬, 홍차.', authorName: null })], hasMore: false }),
+      ok({
+        messages: [msg({ id: 101, speaker: 'ciel', text: '세바스찬, 홍차.', authorName: null })],
+        hasMore: false,
+      }),
     )
     mockedDelete.mockResolvedValueOnce(ok(undefined))
     renderChat()
@@ -465,7 +507,9 @@ describe('메시지 삭제 (R-CHAT-007 · R-MSG-005)', () => {
     await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: '삭제' }))
     await user.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: '삭제' }))
 
-    await vi.waitFor(() => expect(screen.getByRole('status').textContent).toContain('아직 대화가 없습니다'))
+    await vi.waitFor(() =>
+      expect(screen.getByRole('status').textContent).toContain('아직 대화가 없습니다'),
+    )
     await flushPending()
     expect(mockedList).toHaveBeenCalledTimes(1)
   })
@@ -477,7 +521,9 @@ describe('쓰기 직렬화 (R-CHAT-007 · R-CHAT-006, D-5 · D-10)', () => {
     mockedAppend.mockReturnValueOnce(pending.promise)
     renderChat()
     await screen.findByRole('log')
-    fireEvent.change(screen.getByRole('textbox', { name: '메시지 입력' }), { target: { value: '안녕' } })
+    fireEvent.change(screen.getByRole('textbox', { name: '메시지 입력' }), {
+      target: { value: '안녕' },
+    })
     fireEvent.click(screen.getByRole('button', { name: '전송' }))
 
     fireEvent.contextMenu(bubbleOf(103))
@@ -486,7 +532,9 @@ describe('쓰기 직렬화 (R-CHAT-007 · R-CHAT-006, D-5 · D-10)', () => {
     await user.pointer({ keys: '[MouseLeft>]', target: bubbleOf(103) })
     act(() => vi.advanceTimersByTime(500))
     expect(screen.queryByRole('dialog')).toBeNull()
-    expect((screen.getByRole('button', { name: '방 메뉴 열기' }) as HTMLButtonElement).disabled).toBe(true)
+    expect(
+      (screen.getByRole('button', { name: '방 메뉴 열기' }) as HTMLButtonElement).disabled,
+    ).toBe(true)
     expect(mockedAppend).toHaveBeenCalledTimes(1)
     expect(mockedEdit).not.toHaveBeenCalled()
     expect(mockedDelete).not.toHaveBeenCalled()
@@ -501,11 +549,15 @@ describe('쓰기 직렬화 (R-CHAT-007 · R-CHAT-006, D-5 · D-10)', () => {
     fireEvent.change(box, { target: { value: '새 본문' } })
     await user.click(save)
 
-    const composerInput = screen.getByRole('textbox', { name: '메시지 입력' }) as HTMLTextAreaElement
+    const composerInput = screen.getByRole('textbox', {
+      name: '메시지 입력',
+    }) as HTMLTextAreaElement
     await user.type(composerInput, 'x')
     expect(composerInput.value).toBe('x')
     expect((screen.getByRole('button', { name: '전송' }) as HTMLButtonElement).disabled).toBe(true)
-    expect((screen.getByRole('button', { name: '방 메뉴 열기' }) as HTMLButtonElement).disabled).toBe(true)
+    expect(
+      (screen.getByRole('button', { name: '방 메뉴 열기' }) as HTMLButtonElement).disabled,
+    ).toBe(true)
     await flushPending()
     expect(mockedEdit).toHaveBeenCalledTimes(1)
     expect(mockedAppend).not.toHaveBeenCalled()
@@ -514,9 +566,22 @@ describe('쓰기 직렬화 (R-CHAT-007 · R-CHAT-006, D-5 · D-10)', () => {
   it.each([
     [true, [true, true, false]],
     [false, [false, false, false]],
-  ])('TC-CH-054: (d) MessageMenuSheet isWriteBusy=%s → 수정·삭제·취소 disabled = %j', (busy, expected) => {
-    render(<MessageMenuSheet message={M103} isWriteBusy={busy} onEdit={vi.fn()} onDelete={vi.fn()} onClose={vi.fn()} />)
-    const buttons = within(screen.getByRole('dialog')).getAllByRole('button') as HTMLButtonElement[]
-    expect(buttons.map(b => b.disabled)).toEqual(expected)
-  })
+  ])(
+    'TC-CH-054: (d) MessageMenuSheet isWriteBusy=%s → 수정·삭제·취소 disabled = %j',
+    (busy, expected) => {
+      render(
+        <MessageMenuSheet
+          message={M103}
+          isWriteBusy={busy}
+          onEdit={vi.fn()}
+          onDelete={vi.fn()}
+          onClose={vi.fn()}
+        />,
+      )
+      const buttons = within(screen.getByRole('dialog')).getAllByRole(
+        'button',
+      ) as HTMLButtonElement[]
+      expect(buttons.map(b => b.disabled)).toEqual(expected)
+    },
+  )
 })

@@ -38,7 +38,9 @@ describe('IconButton more (R-CHAT-001)', () => {
   it('TC-RM-032: 이름 = ariaLabel, SVG aria-hidden, isDisabled → disabled, buttonRef 연결', () => {
     const ref = { current: null as HTMLButtonElement | null }
     const onClick = vi.fn()
-    const { rerender } = render(<IconButton icon="more" ariaLabel="방 메뉴 열기" onClick={onClick} buttonRef={ref} />)
+    const { rerender } = render(
+      <IconButton icon="more" ariaLabel="방 메뉴 열기" onClick={onClick} buttonRef={ref} />,
+    )
     const button = screen.getByRole('button', { name: '방 메뉴 열기' }) as HTMLButtonElement
     expect(button.querySelector('svg')?.getAttribute('aria-hidden')).toBe('true')
     expect(ref.current).toBe(button)

@@ -58,7 +58,10 @@ const SERVER_RAW = 'SERVER-RAW-MESSAGE'
 const ok = <T,>(value: T): Result<T> => ({ ok: true, value })
 const fail = (code: ApiErrorCode, retryAfterSec?: number): Result<never> => ({
   ok: false,
-  error: retryAfterSec === undefined ? { code, message: SERVER_RAW } : { code, message: SERVER_RAW, retryAfterSec },
+  error:
+    retryAfterSec === undefined
+      ? { code, message: SERVER_RAW }
+      : { code, message: SERVER_RAW, retryAfterSec },
 })
 const deferred = <T,>() => {
   let resolve!: (value: T) => void
@@ -325,7 +328,9 @@ describe('RoomsScreen 방 생성 (R-ROOMS-002 · R-CHAT-011)', () => {
       expect(screen.queryByRole('group', { name: NEW_ROOM })).toBeNull()
       expect(screen.queryByRole('textbox')).toBeNull()
       await vi.waitFor(() =>
-        expect(document.activeElement).toBe(screen.getByRole('heading', { level: 1, name: 'ROOMS' })),
+        expect(document.activeElement).toBe(
+          screen.getByRole('heading', { level: 1, name: 'ROOMS' }),
+        ),
       )
       expect(screen.getByRole('button', { name: ROW_TEA })).not.toBeNull()
       await flushPending()

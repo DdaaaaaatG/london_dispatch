@@ -1,0 +1,30 @@
+/* 말풍선 자리에서 원래 말풍선과 같은 쪽으로 정렬한다(CR-001). 폭: 캐릭터 --bubble-max-width, 유저·OOC --bubble-user-max-width */
+.editor {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  width: 100%;
+}
+
+.sebastian {
+  max-width: var(--bubble-max-width);
+  margin-right: auto;
+}
+
+.ciel {
+  max-width: var(--bubble-max-width);
+  margin-left: auto;
+}
+
+.user,
+.ooc {
+  max-width: var(--bubble-user-max-width);
+  margin-inline: auto;
+}
+
+/* 버튼 줄은 오른쪽 정렬 */
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}

@@ -1,9 +1,18 @@
 /**
- * 대화 상태 리듀서(순수) — 설계 chat/design/functions.md §1 · 전이표 T1~T12 · F-CH-12
- * 요구: R-CHAT-003 · R-MSG-001. React·DOM 의존 없음(타입 import 만). 그대로 = 같은 객체 참조를 돌려준다.
+ * 대화 상태 리듀서(순수) — 설계 chat/design/functions.md §1 · 전이표 T1~T26 · F-CH-12
+ * 요구: R-CHAT-003 · R-CHAT-006 · R-CHAT-007 · R-CHAT-011 · R-MSG-001
+ * 비유: writing 은 방 문 앞의 "사용 중" 팻말이다. 걸려 있는 동안은 다른 메시지 쓰기(전송·수정 저장·삭제)를 시작하지 않는다.
+ * React·DOM 의존 없음(타입 import 만). 그대로 = 같은 객체 참조를 돌려준다.
+ * 낙관적 갱신 없음: 쓰기 결과는 응답을 받은 뒤 T9·T17·T19 로만 반영한다.
  */
 import type { Message, MessagesPage } from '@shared/types'
 import type { ApiError } from '@/api'
+
+/** 진행 중인 메시지 쓰기(한 번에 하나) */
+export type MessageWrite =
+  | { readonly kind: 'send' }
+  | { readonly kind: 'edit'; readonly messageId: number }
+  | { readonly kind: 'delete'; readonly messageId: number }
 
 export type ChatState = {
   /** 첫 페이지 상태 */
@@ -18,6 +27,10 @@ export type ChatState = {
   readonly olderError: ApiError | null
   /** 위를 보는 중 도착한 새 메시지 수 */
   readonly unseenCount: number
+  /** S2: 진행 중인 메시지 쓰기 */
+  readonly writing: MessageWrite | null
+  /** S2: 인라인 수정 중인 메시지 id */
+  readonly editingId: number | null
 }
 
 export const initialChatState: ChatState = {
@@ -28,6 +41,8 @@ export const initialChatState: ChatState = {
   isLoadingOlder: false,
   olderError: null,
   unseenCount: 0,
+  writing: null,
+  editingId: null,
 }
 
 export type ChatAction =
@@ -39,6 +54,13 @@ export type ChatAction =
   | { type: 'olderLoadFailed'; error: ApiError }
   | { type: 'messagesAppended'; messages: readonly Message[]; isNearBottom: boolean }
   | { type: 'unseenCleared' }
+  | { type: 'writeStarted'; write: MessageWrite }
+  | { type: 'writeFinished' }
+  | { type: 'messageReplaced'; message: Message }
+  | { type: 'messageRemoved'; messageId: number }
+  | { type: 'editStarted'; messageId: number }
+  | { type: 'editCancelled' }
+  | { type: 'writeAccessRevoked' }
 
 /** id 기준 합집합. 같은 id 는 incoming 이 이기고, id 오름차순으로 돌려준다. 입력은 바꾸지 않는다 */
 export const mergeMessages = (
@@ -59,6 +81,9 @@ export const canAutoLoadOlder = (s: ChatState): boolean => canLoadOlder(s) && s.
 /** 다음 페이지 before 커서(api.md §4.3). 더 없으면 null */
 export const nextBefore = (s: ChatState): number | null =>
   s.hasMore ? (s.messages[0]?.id ?? null) : null
+
+/** 메시지 쓰기(전송·수정 저장·삭제)를 시작해도 되는가: 첫 로드가 끝났고 진행 중인 쓰기가 없다 */
+export const canSend = (s: ChatState): boolean => s.phase === 'ready' && s.writing === null
 
 const onInitialLoadSucceeded = (page: MessagesPage): ChatState => ({
   ...initialChatState,
@@ -98,6 +123,46 @@ const onMessagesAppended = (
   }
 }
 
+/** T13·T14: 첫 로드가 끝났고 다른 쓰기가 없을 때만 팻말을 건다 */
+const onWriteStarted = (state: ChatState, write: MessageWrite): ChatState =>
+  canSend(state) ? { ...state, writing: write } : state
+
+/** T17·T18: 같은 id 를 응답 본문으로 바꾼다. 그 메시지를 편집 중이었으면 편집을 닫는다 */
+const onMessageReplaced = (state: ChatState, message: Message): ChatState => {
+  if (!state.messages.some(m => m.id === message.id)) return state
+  return {
+    ...state,
+    messages: state.messages.map(m => (m.id === message.id ? message : m)),
+    editingId: state.editingId === message.id ? null : state.editingId,
+  }
+}
+
+/** T19·T20: 같은 id 를 뺀다. 그 메시지를 편집 중이었으면 편집을 닫는다 */
+const onMessageRemoved = (state: ChatState, messageId: number): ChatState => {
+  if (!state.messages.some(m => m.id === messageId)) return state
+  return {
+    ...state,
+    messages: state.messages.filter(m => m.id !== messageId),
+    editingId: state.editingId === messageId ? null : state.editingId,
+  }
+}
+
+/** T21·T22: 첫 로드가 끝났고 쓰기가 없고 그 메시지가 있을 때만 편집을 연다(다른 편집 중이면 바뀐다) */
+const onEditStarted = (state: ChatState, messageId: number): ChatState =>
+  canSend(state) && state.messages.some(m => m.id === messageId)
+    ? { ...state, editingId: messageId }
+    : state
+
+/** T23·T24: 편집 중이고 저장 요청 중이 아니면 편집을 닫는다(전송 중이어도 취소할 수 있다) */
+const onEditCancelled = (state: ChatState): ChatState =>
+  state.editingId !== null && state.writing?.kind !== 'edit' ? { ...state, editingId: null } : state
+
+/** T25·T26: 읽기 전용 전환. 숨은 상태(쓰기 팻말·편집)를 정리한다 */
+const onWriteAccessRevoked = (state: ChatState): ChatState =>
+  state.writing !== null || state.editingId !== null
+    ? { ...state, writing: null, editingId: null }
+    : state
+
 /** 대화 상태 전이. 전이 규칙의 단일 소스(컴포넌트에 다시 쓰지 않는다) */
 export const chatReducer = (state: ChatState, action: ChatAction): ChatState => {
   switch (action.type) {
@@ -117,6 +182,20 @@ export const chatReducer = (state: ChatState, action: ChatAction): ChatState => 
       return onMessagesAppended(state, action.messages, action.isNearBottom)
     case 'unseenCleared':
       return state.unseenCount > 0 ? { ...state, unseenCount: 0 } : state
+    case 'writeStarted':
+      return onWriteStarted(state, action.write)
+    case 'writeFinished':
+      return state.writing !== null ? { ...state, writing: null } : state
+    case 'messageReplaced':
+      return onMessageReplaced(state, action.message)
+    case 'messageRemoved':
+      return onMessageRemoved(state, action.messageId)
+    case 'editStarted':
+      return onEditStarted(state, action.messageId)
+    case 'editCancelled':
+      return onEditCancelled(state)
+    case 'writeAccessRevoked':
+      return onWriteAccessRevoked(state)
     default: {
       const exhaustive: never = action
       return exhaustive

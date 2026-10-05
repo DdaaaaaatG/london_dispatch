@@ -1,10 +1,11 @@
 /**
- * chat 화면 확정 문구·라벨 — 단일 소스 설계 chat/design.md §8.1 · §8.2
+ * chat 화면 확정 문구·라벨 — 단일 소스 설계 chat/design.md §8.1 · §8.1.1 · §8.2 · §8.3
  * JSX·유틸에 한글 문구 리터럴을 직접 쓰지 않는다(aria-label · 오류 문구 포함).
  * 캐릭터 이름은 여기가 아니라 CHARACTERS[id].shortName(shared)이 단일 소스다(R-LLM-002).
  */
 import { ERROR_MESSAGES } from '@shared/errors'
-import type { ApiErrorCode } from '@/api'
+import { MESSAGE_TEXT_MAX, ROOM_TITLE_MAX } from '@shared/limits'
+import type { ApiError, ApiErrorCode } from '@/api'
 
 export const labels = {
   /** 화면 루트 main aria-label */
@@ -26,14 +27,93 @@ export const labels = {
   newMessages: '새 메시지',
   newMessagesAriaLabel: '새 메시지 보기, 맨 아래로 이동',
   readOnlyNotice: '열람 전용 - 대화 참여는 등급 회원만',
+  // ── S2 (§8.1.1) ──
+  moreAriaLabel: '방 메뉴 열기',
+  composerAriaLabel: '메시지 작성',
+  inputAriaLabel: '메시지 입력',
+  inputPlaceholder: '대사나 지시를 입력',
+  send: '전송',
+  oocAriaLabel: 'OOC 지시 모드',
+  oocOn: 'OOC 켬',
+  oocOff: 'OOC 끔',
+  messageMenuAriaLabel: '메시지 메뉴',
+  /** 말풍선 메뉴 머리. 이름 · 시각 뒤에 공백 두 칸과 따옴표 발췌(구성안 §2-1) */
+  messageMenuHeader: (name: string, time: string, excerpt: string): string =>
+    `${name} · ${time}  "${excerpt}"`,
+  edit: '수정',
+  delete: '삭제',
+  cancel: '취소',
+  save: '저장',
+  editAriaLabel: '메시지 수정',
+  editInputAriaLabel: '수정할 내용',
+  deleteMessageTitle: '이 메시지를 삭제할까요?',
+  deleteMessageBody: '삭제한 메시지는 되돌릴 수 없습니다.',
+  roomMenuAriaLabel: '방 메뉴',
+  roomMenuHeader: (title: string): string => `방 메뉴 · ${title}`,
+  rename: '이름 변경',
+  deleteRoom: '방 삭제',
+  renameTitle: '방 이름 변경',
+  renameInputAriaLabel: '방 이름',
+  deleteRoomTitle: '이 방을 삭제할까요?',
+  deleteRoomBody: '메시지와 장기기억이 함께 지워지며 되돌릴 수 없습니다.',
 } as const
 
+const NETWORK_TEXT = '서버에 연결할 수 없습니다.'
+const ROOM_NOT_FOUND_TEXT = '방을 찾을 수 없습니다. 목록으로 돌아가 주세요.'
+
 /**
- * 오류 코드별 상세 문구. 서버 error.message 는 화면에 쓰지 않는다(api.md §3.1).
- * S2·S3 코드별 안내(R-CHAT-011)는 이 함수에 행을 더하는 방식으로 확장한다.
+ * 오류 코드별 상세 문구(읽기). 서버 error.message 는 화면에 쓰지 않는다(api.md §3.1).
+ * 쓰기 실패 문구는 writeErrorText 가 정한다.
  */
 export const errorDetail = (code: ApiErrorCode): string => {
-  if (code === 'NETWORK') return '서버에 연결할 수 없습니다.'
-  if (code === 'NOT_FOUND') return '방을 찾을 수 없습니다. 목록으로 돌아가 주세요.'
+  if (code === 'NETWORK') return NETWORK_TEXT
+  if (code === 'NOT_FOUND') return ROOM_NOT_FOUND_TEXT
   return ERROR_MESSAGES[code]
+}
+
+/** 쓰기 6종 중 화면이 실패를 안내하는 동작(deleteMessage·deleteRoom 의 NOT_FOUND 는 실패로 보지 않는다) */
+export type WriteAction = 'send' | 'editMessage' | 'deleteMessage' | 'renameRoom' | 'deleteRoom'
+
+/** 인증 실패 3종 — 읽기 전용으로 바뀌었음을 알린다(R-CHAT-011). rooms 화면 labels 와 같은 문구 */
+const AUTH_FAILURE_TEXT: Partial<Record<ApiErrorCode, string>> = {
+  TOKEN_REQUIRED: '로그인 정보가 없어 열람 전용으로 바뀌었습니다.',
+  TOKEN_INVALID: '인증이 만료되어 열람 전용으로 바뀌었습니다. 새로 고쳐 주세요.',
+  LEVEL_TOO_LOW: '대화 참여 등급이 아니어서 열람 전용으로 바뀌었습니다.',
+}
+
+const rateLimitedText = (retryAfterSec: number | undefined): string =>
+  retryAfterSec === undefined
+    ? ERROR_MESSAGES.RATE_LIMITED
+    : `요청이 너무 많습니다. ${retryAfterSec}초 후 다시 시도해 주세요.`
+
+/** NOT_FOUND: 메시지 수정이면 메시지, 그 밖에는 방을 못 찾은 것이다 */
+const notFoundText = (action: WriteAction): string =>
+  action === 'editMessage'
+    ? '메시지를 찾을 수 없습니다. 이미 삭제되었을 수 있습니다.'
+    : ROOM_NOT_FOUND_TEXT
+
+const validationText = (action: WriteAction): string =>
+  action === 'renameRoom'
+    ? `방 제목은 1~${ROOM_TITLE_MAX}자로 입력해 주세요.`
+    : `메시지는 1~${MESSAGE_TEXT_MAX}자로 입력해 주세요.`
+
+/**
+ * 쓰기 실패 문구(R-CHAT-011, 설계 §8.3). 문구는 code 와 동작으로 정한다 — 서버 error.message·토큰 값은 쓰지 않는다.
+ * 인증 3종은 전환 안내, RATE_LIMITED 는 retryAfterSec 가 있으면 초를 넣는다.
+ */
+export const writeErrorText = (error: ApiError, action: WriteAction): string => {
+  const authText = AUTH_FAILURE_TEXT[error.code]
+  if (authText !== undefined) return authText
+  switch (error.code) {
+    case 'RATE_LIMITED':
+      return rateLimitedText(error.retryAfterSec)
+    case 'VALIDATION_ERROR':
+      return validationText(action)
+    case 'NOT_FOUND':
+      return notFoundText(action)
+    case 'NETWORK':
+      return NETWORK_TEXT
+    default:
+      return ERROR_MESSAGES[error.code]
+  }
 }
