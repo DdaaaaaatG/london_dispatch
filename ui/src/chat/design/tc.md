@@ -15,10 +15,10 @@
 | TC-CH-004 | 첫 로드 호출 | `listMessages`가 `(room.id)`로 1회(두 번째 인자 없음), 대기 중 `대화를 불러오는 중` |
 | TC-CH-005 | 첫 로드 오류·재시도 | `role=alert` 제목·상세·「다시 시도」 → 재호출 → 성공 시 말풍선 |
 | TC-CH-006 | 빈 방 | `{ messages: [], hasMore: false }` → `아직 대화가 없습니다`, `role=log` 없음 |
-| TC-CH-007 | 캐릭터 말풍선 | 왼쪽 클래스, `img[src="/embed/img/ciel.png"]`, 이름 `시엘`, 시각 `HH:mm` |
-| TC-CH-008 | 유저 말풍선 | 오른쪽 클래스, 작성자명, `authorName=null` → `이름 없음` |
-| TC-CH-009 | OOC | 중앙 클래스, `[지시] 텍스트`, 작성자명 없음 |
-| TC-CH-010 | 변형 판정 | `bubbleVariantOf`: `kind='ooc'`면 speaker와 무관하게 ooc |
+| TC-CH-007 | 캐릭터 말풍선 2종(v1.6 CR-001) | 세바스찬 → `character`+`sebastian`(왼쪽), `img[src="/embed/img/sebastian.png"]`, 이름 `세바스찬` · 시엘 → `character`+`ciel`(오른쪽), `img[src="/embed/img/ciel.png"]`, 이름 `시엘` · 둘 다 DOM 순서 아바타 → 이름 → 시각(`HH:mm`) → 본문 · 서로의 캐릭터 키는 없음 |
+| TC-CH-008 | 유저 말풍선(가운데) | `user` 클래스만(`character`·`sebastian`·`ciel` 없음), 아바타 없음, DOM 순서 작성자명 → 시각 → 본문, `authorName=null` → `이름 없음` |
+| TC-CH-009 | OOC(가운데 한 줄) | `ooc` 클래스만(`user`·`character` 없음), `— [지시] 텍스트 —`(장식 `aria-hidden`), 작성자명·아바타 없음, 시각 있음. 유저 말풍선과 클래스로 구분 |
+| TC-CH-010 | 변형 판정 | `bubbleVariantOf`: `sebastian/line` → `sebastian` · `ciel/line` → `ciel` · `user/line` → `user` · `*/ooc` → `ooc`(speaker가 캐릭터여도) |
 | TC-CH-011 | 이전 페이지 요청 | scrollTop ≤ 80 + scroll 이벤트 → `listMessages(room.id, { before: 첫 id })`, B0, `aria-busy=true` |
 | TC-CH-012 | 앵커 보존 | 앞붙임 후 `scrollTop = 이전 scrollTop + Δ scrollHeight` |
 | TC-CH-013 | 중복·종료 | 로딩 중 scroll 연속 → 요청 1회. `hasMore=false` → 요청 없음 |
