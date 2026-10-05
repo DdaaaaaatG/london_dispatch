@@ -5,7 +5,7 @@
  * - S1 은 토큰을 읽지 않는다: ?t= 가 있어도 READ_ONLY_VIEWER 화면이고 저장소에 토큰이 남지 않는다(R-NFR-004).
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { MessagesPage, RoomSummary } from '@shared/types'
 import type { Result } from '@/api'
@@ -89,8 +89,11 @@ describe('App 화면 분기 (R-ROOMS-001 · R-ROOMS-004)', () => {
     // 1) 자동 진입
     expect(await screen.findByRole('main', { name: '대화: 티타임' })).not.toBeNull()
     expect(mockedListRooms).toHaveBeenCalledTimes(1)
-    expect(mockedListMessages.mock.calls[0]).toEqual(['r1'])
-    expect(localStorage.getItem('ld:lastRoomId')).toBe('r1')
+    // ChatScreen 마운트 effect(저장·첫 로드)는 DOM 커밋 뒤 passive effect 로 돈다 → 기다려서 판정
+    await waitFor(() => {
+      expect(mockedListMessages.mock.calls[0]).toEqual(['r1'])
+      expect(localStorage.getItem('ld:lastRoomId')).toBe('r1')
+    })
 
     // 2) ‹ 뒤로 → 목록 다시 로드, 기록 삭제, h1 포커스
     await user.click(screen.getByRole('button', { name: BACK }))
@@ -117,9 +120,12 @@ describe('App 화면 분기 (R-ROOMS-001 · R-ROOMS-004)', () => {
     await user.click(await screen.findByRole('button', { name: ROW_CHESS }))
     expect(await screen.findByRole('main', { name: '대화: 체스 대결' })).not.toBeNull()
     expect(screen.queryByRole('main', { name: '방 목록' })).toBeNull()
-    expect(localStorage.getItem('ld:lastRoomId')).toBe('r2')
+    // (a)와 같은 이유로 마운트 effect 결과는 기다려서 판정
+    await waitFor(() => {
+      expect(localStorage.getItem('ld:lastRoomId')).toBe('r2')
+      expect(mockedListMessages).toHaveBeenCalledTimes(1)
+    })
     expect(mockedListRooms).toHaveBeenCalledTimes(1)
-    expect(mockedListMessages).toHaveBeenCalledTimes(1)
     expect(mockedListMessages.mock.calls[0]).toEqual(['r2'])
   })
 

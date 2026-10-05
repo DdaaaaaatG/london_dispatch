@@ -124,7 +124,7 @@ describe('ChatScreen 상단 바 (R-CHAT-001 ‹·제목·날짜)', () => {
     const header = container.querySelector('header') as HTMLElement
     const buttons = within(header).getAllByRole('button')
     expect(buttons).toHaveLength(1)
-    expect(buttons[0].getAttribute('aria-label')).toBe(BACK)
+    expect(buttons[0]?.getAttribute('aria-label')).toBe(BACK)
     expect(screen.queryByRole('button', { name: /메뉴|더 보기|⋯/ })).toBeNull()
     expect(READ_ONLY_VIEWER.canWrite).toBe(false)
     expect(mockedListMessages).toHaveBeenCalledTimes(1)
@@ -150,8 +150,8 @@ describe('ChatScreen 첫 로드 (R-CHAT-002 · R-CHAT-003 · R-MSG-001)', () => 
     const log = await screen.findByRole('log')
     const items = within(log).getAllByRole('listitem')
     expect(items).toHaveLength(4)
-    expect(items[0].textContent).toContain('세바스찬, 홍차.')
-    expect(items[3].textContent).toContain('둘이 체스를 둔다')
+    expect(items[0]?.textContent).toContain('세바스찬, 홍차.')
+    expect(items[3]?.textContent).toContain('둘이 체스를 둔다')
     expect(screen.queryByText('대화를 불러오는 중')).toBeNull()
   })
 
@@ -235,7 +235,7 @@ describe('ChatScreen 읽기 전용 (R-CHAT-008 · R-CHAT-004/007 부재 쪽)', (
     mockedListMessages.mockResolvedValueOnce(ok(PAGE))
     renderChat()
     const log = await screen.findByRole('log')
-    const bubble = within(log).getAllByRole('listitem')[0].firstElementChild as HTMLElement
+    const bubble = within(log).getAllByRole('listitem')[0]?.firstElementChild as HTMLElement
 
     expect(fireEvent.contextMenu(bubble)).toBe(true) // preventDefault 되지 않음
     vi.useFakeTimers()

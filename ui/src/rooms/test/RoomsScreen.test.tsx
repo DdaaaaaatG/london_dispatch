@@ -93,11 +93,11 @@ describe('RoomsScreen 목록 (R-ROOMS-001 · R-ROOM-001)', () => {
     // ⓐ 화면
     expect(within(list).getAllByRole('listitem')).toHaveLength(2)
     expect(rows.map((row) => row.getAttribute('aria-label'))).toEqual([ROW_CHESS, ROW_TEA])
-    expect(rows[0].textContent).toContain('체스 대결')
-    const chessTime = rows[0].querySelector('time')
+    expect(rows[0]?.textContent).toContain('체스 대결')
+    const chessTime = rows[0]?.querySelector('time')
     expect(chessTime?.textContent).toBe('10.03')
     expect(chessTime?.getAttribute('datetime')).toBe('2026-10-03')
-    expect(rows[1].querySelector('time')?.getAttribute('datetime')).toBe('2026-10-05')
+    expect(rows[1]?.querySelector('time')?.getAttribute('datetime')).toBe('2026-10-05')
     // ⓑ 저장 — 저장된 방이 없으면 저장소를 건드리지 않는다
     expect(localStorage.length).toBe(0)
     // ⓒ api — 인자 없이 1회
@@ -114,7 +114,7 @@ describe('RoomsScreen 목록 (R-ROOMS-001 · R-ROOM-001)', () => {
 
     // ⓐ·ⓑ 전환은 App 몫 — RoomsScreen 은 콜백만 부른다. 마지막 본 방 저장은 ChatScreen 몫(F-RM-02)
     expect(onOpenRoom).toHaveBeenCalledTimes(1)
-    expect(onOpenRoom.mock.calls[0][0]).toEqual(ROOM_TEA)
+    expect(onOpenRoom.mock.calls[0]?.[0]).toEqual(ROOM_TEA)
     expect(localStorage.getItem('ld:lastRoomId')).toBeNull()
     // ⓒ 클릭으로 재요청하지 않는다
     expect(mockedListRooms).toHaveBeenCalledTimes(1)
@@ -131,7 +131,7 @@ describe('RoomsScreen 목록 (R-ROOMS-001 · R-ROOM-001)', () => {
     expect(onOpenRoom).toHaveBeenCalledTimes(1)
     await user.keyboard('[Space]')
     expect(onOpenRoom).toHaveBeenCalledTimes(2)
-    expect(onOpenRoom.mock.calls[1][0]).toEqual(ROOM_TEA)
+    expect(onOpenRoom.mock.calls[1]?.[0]).toEqual(ROOM_TEA)
     expect(localStorage.getItem('ld:lastRoomId')).toBeNull()
     expect(mockedListRooms).toHaveBeenCalledTimes(1)
   })
@@ -229,9 +229,9 @@ describe('RoomsScreen 자동 진입 (R-ROOMS-004 · R-CHAT-010)', () => {
     expect(screen.queryByRole('status')).toBeNull()
     expect(screen.queryByRole('alert')).toBeNull()
     // ⓑ 순서: settle → open. 기록은 그대로
-    expect(onOpenRoom.mock.calls[0][0]).toEqual(ROOM_TEA)
+    expect(onOpenRoom.mock.calls[0]?.[0]).toEqual(ROOM_TEA)
     expect(onAutoOpenSettled).toHaveBeenCalledTimes(1)
-    expect(onAutoOpenSettled.mock.invocationCallOrder[0]).toBeLessThan(onOpenRoom.mock.invocationCallOrder[0])
+    expect(onAutoOpenSettled.mock.invocationCallOrder[0]).toBeLessThan(onOpenRoom.mock.invocationCallOrder[0] ?? Number.NaN)
     expect(localStorage.getItem('ld:lastRoomId')).toBe('r1')
     // ⓒ 단건 조회 없음 — 목록 1회로 판정
     expect(mockedListRooms).toHaveBeenCalledTimes(1)
@@ -288,9 +288,9 @@ describe('RoomsScreen 자동 진입 (R-ROOMS-004 · R-CHAT-010)', () => {
 
     await user.click(screen.getByRole('button', { name: '다시 시도' }))
     await waitFor(() => expect(onOpenRoom).toHaveBeenCalledTimes(1))
-    expect(onOpenRoom.mock.calls[0][0]).toEqual(ROOM_TEA)
+    expect(onOpenRoom.mock.calls[0]?.[0]).toEqual(ROOM_TEA)
     expect(onAutoOpenSettled).toHaveBeenCalledTimes(1)
-    expect(onAutoOpenSettled.mock.invocationCallOrder[0]).toBeLessThan(onOpenRoom.mock.invocationCallOrder[0])
+    expect(onAutoOpenSettled.mock.invocationCallOrder[0]).toBeLessThan(onOpenRoom.mock.invocationCallOrder[0] ?? Number.NaN)
     expect(mockedListRooms).toHaveBeenCalledTimes(2)
   })
 })

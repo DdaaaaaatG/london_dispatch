@@ -127,7 +127,7 @@ describe('chatReducer T9~T12 · 순수 함수 (R-CHAT-003 · R-MSG-001)', () => 
       isNearBottom: false,
     })
     expect(ids(next.messages)).toEqual([31, 32, 33, 34, 35])
-    expect(next.messages[2].text).toBe('고친 본문') // 같은 id 는 incoming 이 이긴다
+    expect(next.messages[2]?.text).toBe('고친 본문') // 같은 id 는 incoming 이 이긴다
     expect(next.unseenCount).toBe(3) // 1 + 2
   })
 
@@ -155,7 +155,7 @@ describe('chatReducer T9~T12 · 순수 함수 (R-CHAT-003 · R-MSG-001)', () => 
     const incoming = Object.freeze([msg(2), msg(3, '새 값')]) as readonly Message[]
     const merged = mergeMessages(current, incoming)
     expect(ids(merged)).toEqual([1, 2, 3])
-    expect(merged[2].text).toBe('새 값')
+    expect(merged[2]?.text).toBe('새 값')
     expect(ids(current)).toEqual([3, 1])
     expect(ids(incoming)).toEqual([2, 3])
     expect(mergeMessages([], [])).toEqual([])

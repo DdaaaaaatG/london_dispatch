@@ -194,7 +194,7 @@ describe('이전 페이지 로드 (R-CHAT-003 · R-MSG-001)', () => {
     await waitFor(() => expect(log.scrollTop).toBe(3040)) // 40 + (6000 - 3000)
     const items = within(log).getAllByRole('listitem')
     expect(items).toHaveLength(60)
-    expect(items[0].textContent).toContain('본문 1')
+    expect(items[0]?.textContent).toContain('본문 1')
   })
 
   it('TC-CH-013: 로딩 중 scroll 이벤트가 이어져도 요청은 1회', async () => {

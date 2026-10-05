@@ -5,6 +5,7 @@
  * - 스크롤 수치는 ChatScroll.test.tsx 와 같은 방식으로 고정한다: scrollHeight 3000 · clientHeight 493.
  * - 훅은 api 를 모른다(id 두 개와 스크롤 박스만 안다) → api 래퍼 호출 없음.
  */
+import { useEffect } from 'react'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import {
@@ -49,7 +50,11 @@ type HarnessProps = UseAutoScrollOptions & { resultRef: { current: UseAutoScroll
 
 const Harness = ({ resultRef, ...options }: HarnessProps) => {
   const result = useAutoScroll(options)
-  resultRef.current = result
+  // 렌더 중 ref 대입 금지(react-hooks/refs) → 커밋 뒤 effect 에서 최신 결과를 넘긴다.
+  // 의존 배열 없음 = 매 렌더 뒤 갱신. render/rerender 는 act 로 감싸져 effect 까지 끝난 뒤 돌아온다.
+  useEffect(() => {
+    resultRef.current = result
+  })
   return <div ref={result.containerRef} role="log" onScroll={result.onScroll} />
 }
 

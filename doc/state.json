@@ -43,7 +43,12 @@
       "index"
     ],
     "contract": "done (shared·routes·ui/api, api.md v0.2.1)",
-    "ui": [],
+    "ui": [
+      "rooms(readonly)",
+      "chat(readonly)",
+      "components",
+      "state"
+    ],
     "design_s1": {
       "layout": "done",
       "server": "done",
@@ -83,7 +88,7 @@
     "prettier",
     "concurrently"
   ],
-  "next": "ui-implementer(S1 rooms·chat 읽기 전용) → ui-tester",
+  "next": "test-designer 스펙 타입·린트 수정 보고 → ui-tester(전체 실행·result.md) → S1 마감(RTM 대조표·매뉴얼) → S2",
   "blockers": [],
   "estimate_min": null,
   "actual_min": null,
@@ -131,5 +136,13 @@
     "server messages/page.ts MessagePageQuery에 | undefined 허용 검토 — server-designer/implementer",
     "server 설계 5종 머리말 초안→확정 — server-designer",
     "R-NFR-004 번들 grep은 verify 단계 자동 검사로(verify-strategy에 항목 추가) — MC-RM-06 수동 항목 대체"
-  ]
+  ],
+  "screenshots_s1": "doc/300_검증/screenshots/20261005-2207/",
+  "evidence_s1": {
+    "vitest_ui": "140 passed (12 files)",
+    "vitest_server": "86 passed",
+    "vitest_shared": "14 passed",
+    "build_ui": "exit 0",
+    "browser": "puppeteer 390x565 rooms·chat PASS, 이전 페이지 로드·뒤로 기록 삭제·CSP·토큰 로그 미출력 확인"
+  }
 }
