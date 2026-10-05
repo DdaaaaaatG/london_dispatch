@@ -37,14 +37,14 @@
     "ui": [],
     "design_s1": {
       "layout": "done",
-      "server": "running",
-      "contract": "pending",
+      "server": "done",
+      "contract": "running",
       "ui": "pending",
       "ui-check": "pending"
     }
   },
   "dependencies_approved": [],
-  "next": "S1 설계: server-designer(env·db·rooms·messages 읽기·진입점) + ui-layout-designer(rooms·chat 구성안) → contract-designer → ui-designer → ui-design-checker → 승인 ②",
+  "next": "S1 contract-designer → ui-designer → ui-design-checker → 승인 ②",
   "blockers": [],
   "estimate_min": null,
   "actual_min": null,
@@ -52,6 +52,11 @@
     "2026-10-05 레이아웃: rooms=L1, chat=C1+S1+M1. 화자 정렬은 R-CHAT-002(캐릭터 좌/유저 우) 우선 — ui_design_concept.md §2·§7 문구 정정 필요(메인 세션 TODO)",
     "캐릭터 표시 메타(id·name·avatar)는 shared/src/characters.ts 상수, persona 등은 server/characters/*.json (R-LLM-002 개정)",
     "chat 상단 날짜 = 방 생성일(R-CHAT-001 개정). TOKEN_EXPIRED 없음 → TOKEN_INVALID. 재작성 confirm 없음(R-CHAT-007 개정)",
-    "레이아웃 풀 저장 보류(PromptSheet 후보)"
+    "레이아웃 풀 저장 보류(PromptSheet 후보)",
+    "S1 구현 순서: contract-implementer(shared errors·endpoints·types 먼저) → server-implementer → contract-implementer(routes·ui/api)",
+    "/embed CSP를 위해 [assets] run_worker_first=true, ui Vite base='/embed/'. 요청 로그·onError는 server/src/app.ts(진입점) 소유 — 스킬 문구(server-design-strategy §9·server-rules) 갱신 TODO",
+    "server/src 루트 보충 파일: app.ts·services.ts·app-error.ts·logger.ts (확정사항 §4 보충 TODO)",
+    "rate_limits.window_start = 창 시작 epoch ms (R-AUTH-005 정정)",
+    "방 목록 messageCount는 S1에서 집계 쿼리로. D1 읽기 비용 이슈는 관찰 후 message_count 컬럼 제안 검토"
   ]
 }

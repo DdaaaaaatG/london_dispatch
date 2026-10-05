@@ -47,7 +47,7 @@
 | R-AUTH-002 | 🔒 | 검증: 서명(Web Crypto `crypto.subtle`, 상수시간 비교) → `exp` 만료 → `level >= TOKEN_MIN_LEVEL`. 실패 코드: 형식·서명·만료 → `401 TOKEN_INVALID`, 등급 미달 → `403 LEVEL_TOO_LOW`. | 각 실패 경로 테스트. |
 | R-AUTH-003 | 🔒 | 토큰 없는 요청: 읽기 엔드포인트는 허용, 쓰기 엔드포인트는 `401 TOKEN_REQUIRED`. 토큰은 `Authorization: Bearer <t>` 헤더만 받는다(쿠키·쿼리 금지). | 쓰기 엔드포인트 전건 미들웨어 적용 확인(라우트 표 대조). |
 | R-AUTH-004 | 확인 필요(§9-2) | 작성자 표시 이름 = `ch_name`이 비어 있지 않으면 `ch_name`, 아니면 `nick`. 메시지 저장 시 `author_name`에 기록. | 두 경우 테스트. |
-| R-AUTH-005 | 확인 필요(§9-6) | 쓰기 요청 레이트리밋: `mb_id` 단위 분 창(`floor(now/60000)`)당 `RATE_LIMIT_PER_MIN`회. D1 `rate_limits` 조건부 UPSERT. 초과 → `429 RATE_LIMITED`, 응답에 `retryAfterSec`. 오래된 창 행은 주기적으로 삭제. | 21번째 요청 429 테스트. |
+| R-AUTH-005 | 확인 필요(§9-6) | 쓰기 요청 레이트리밋: `mb_id` 단위 분 창당 `RATE_LIMIT_PER_MIN`회. 창 식별은 `window_start = floor(now/60000) * 60000`(창 시작 epoch ms, R-DB-001 시각 규칙과 일치). D1 `rate_limits` 조건부 UPSERT. 초과 → `429 RATE_LIMITED`, 응답에 `retryAfterSec`. 오래된 창 행은 주기적으로 삭제. | 21번째 요청 429 테스트. |
 | R-AUTH-006 | 🔒 | 로그·응답에 토큰 원문·payload 전체·SECRET을 남기지 않는다. 식별은 `mb_id`만. | 로그 출력 grep 테스트. |
 
 ## 4. server — ROOM (방)
