@@ -1,0 +1,8 @@
+/* 스크롤 박스 밖 래퍼의 오른쪽 아래에 겹쳐 놓는다. info 톤(ui_design_concept §3 상태 색 안내) */
+.root {
+  position: absolute;
+  right: var(--space-4);
+  bottom: var(--space-2);
+  --btn-bg: var(--color-info);
+  --btn-hover: var(--color-info);
+}

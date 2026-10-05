@@ -1,0 +1,116 @@
+/* 설계 chat/design/components.md §4 — 색·간격은 토큰만. 클래스명은 확정(character·user·ooc·ciel·sebastian) */
+.root {
+  display: flex;
+  min-width: 0;
+}
+
+.head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-1);
+  font-family: var(--font-ui);
+}
+
+.time {
+  flex: none;
+  color: var(--color-fg-muted);
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.body {
+  margin: 0;
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  font-family: var(--font-serif);
+  font-size: var(--text-base);
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* 캐릭터: 왼쪽. DOM 순서는 아바타, 이름, 시각, 본문 */
+.character {
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+
+.avatar {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.content {
+  min-width: 0;
+  max-width: var(--bubble-max-width);
+}
+
+.name {
+  font-size: var(--text-sm);
+}
+
+.ciel .name {
+  color: var(--bubble-ciel-accent);
+}
+
+.ciel .body {
+  background: var(--bubble-ciel-bg);
+  color: var(--bubble-ciel-fg);
+}
+
+.sebastian .name {
+  color: var(--bubble-sebastian-accent);
+}
+
+.sebastian .body {
+  background: var(--bubble-sebastian-bg);
+  color: var(--bubble-sebastian-fg);
+}
+
+/* 유저: 오른쪽. DOM 은 작성자명, 시각 순서이고 화면은 row-reverse 라 시각, 작성자명 순서로 보인다 */
+.user {
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.user .head {
+  flex-direction: row-reverse;
+  justify-content: flex-start;
+  gap: var(--space-2);
+}
+
+.author {
+  color: var(--bubble-user-fg);
+  font-size: var(--text-sm);
+}
+
+.user .body {
+  max-width: var(--bubble-max-width);
+  background: var(--bubble-user-bg);
+  color: var(--color-fg);
+  text-align: left;
+}
+
+/* OOC: 중앙 구분 한 줄, 배경 없음 */
+.ooc {
+  align-items: baseline;
+  gap: var(--space-2);
+}
+
+.oocText {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  color: var(--bubble-ooc-fg);
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  text-align: center;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

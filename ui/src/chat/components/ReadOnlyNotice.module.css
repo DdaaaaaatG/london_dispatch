@@ -1,0 +1,12 @@
+.root {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  height: 28px;
+  margin: 0;
+  border-top: 1px solid var(--color-border);
+  color: var(--color-info);
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+}

@@ -1,0 +1,121 @@
+/*
+ * 전역 스타일 — 단일 파일(tsx-rules §6). 설계: rooms/design/components.md §3 · chat/design/components.md §4
+ * 토큰 출처: .claude/skills/ui_design_concept.md §3~§6 · §8 · §9. 컴포넌트는 이 변수만 쓴다(하드코딩 색 금지).
+ */
+:root {
+  /* 색 (ui_design_concept §3) */
+  --color-bg: #0b1828;
+  --color-bg-elevated: #102339;
+  --color-bg-sunken: #081220;
+  --color-overlay: rgba(4, 10, 20, 0.6);
+  --color-fg: #e6edf6;
+  --color-fg-muted: #9fb2c9;
+  --color-fg-disabled: #5d6f86;
+  --color-border: rgba(153, 185, 221, 0.22);
+  --color-border-strong: rgba(180, 205, 235, 0.45);
+  --color-primary: #b4cdeb;
+  --color-primary-fg: #0b1828;
+  --color-primary-hover: #cfe0f4;
+  --color-accent: #c3d2e7;
+  --color-success: #7fc8a3;
+  --color-warning: #d9b86a;
+  --color-danger: #d97b73;
+  --color-info: #8ab4ff;
+  --color-focus: #b4cdeb;
+
+  /* 화자별 말풍선 */
+  --bubble-ciel-bg: #16304d;
+  --bubble-ciel-fg: #e6edf6;
+  --bubble-ciel-accent: #6f9ad1;
+  --bubble-sebastian-bg: #2a1f33;
+  --bubble-sebastian-fg: #efe6f2;
+  --bubble-sebastian-accent: #a98bc4;
+  --bubble-user-fg: #9fb2c9;
+  --bubble-ooc-fg: #7f93ab;
+  --bubble-pending-fg: #7f93ab;
+  --bubble-error-border: #d97b73;
+
+  /* 컴포넌트 변수 (ui_design_concept §3 접두사 + 설계 문서가 값을 정한 것) */
+  --bubble-user-bg: var(--color-bg-elevated);
+  --bubble-max-width: 78%;
+  --row-hover-bg: var(--color-bg-elevated);
+  --row-divider: var(--color-border);
+  --btn-bg: var(--color-primary);
+  --btn-fg: var(--color-primary-fg);
+  --btn-hover: var(--color-primary-hover);
+  --btn-secondary-bg: var(--color-bg-elevated);
+  --btn-danger-bg: var(--color-danger);
+  --btn-busy-opacity: 0.55;
+
+  /* 타이포 (§4) */
+  --font-serif: 'Noto Serif KR', 'Nanum Myeongjo', serif;
+  --font-ui: 'Malgun Gothic', '맑은 고딕', 'Segoe UI', system-ui, sans-serif;
+  --text-xs: 11px;
+  --text-sm: 12px;
+  --text-base: 13px;
+  --text-md: 14px;
+  --text-lg: 16px;
+  --text-xl: 18px;
+
+  /* 스페이싱 (§5) · 반경 (§6) */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 16px;
+}
+
+/* 폭 ≤ 360: 말풍선 최대 폭 85% (§9) */
+@media (max-width: 360px) {
+  :root {
+    --bubble-max-width: 85%;
+  }
+}
+
+/* 모션은 줄인다 — 그 외 애니메이션은 없다 (§8) */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0ms !important;
+    transition-duration: 0ms !important;
+  }
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+/* 높이는 100% 체인으로 부모 iframe 을 따른다. 100vh·100dvh 금지 (tsx-rules §6) */
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  overflow: hidden;
+  background: var(--color-bg);
+  color: var(--color-fg);
+  font-family: var(--font-serif);
+  font-size: var(--text-base);
+  line-height: 1.4;
+  -webkit-text-size-adjust: 100%;
+}
+
+/* 폭 ≥ 480: 콘텐츠 최대 폭 480 중앙 (§9) */
+#root {
+  max-width: 480px;
+  margin-inline: auto;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+}

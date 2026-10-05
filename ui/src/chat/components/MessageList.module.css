@@ -1,0 +1,31 @@
+/* 래퍼는 배지(B1)의 기준점이고, 스크롤은 안쪽 박스만 한다 */
+.wrap {
+  position: relative;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.log {
+  flex: 1;
+  min-height: 0;
+  padding: var(--space-3) var(--space-4);
+  overflow-y: auto;
+  /* 앞붙임 보정은 useAutoScroll 이 한다. 브라우저 스크롤 앵커링과 겹치지 않게 끈다 */
+  overflow-anchor: none;
+}
+
+.log:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: -2px;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}

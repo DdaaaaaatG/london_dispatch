@@ -1,0 +1,87 @@
+.root {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  font-family: var(--font-ui);
+  line-height: 1.4;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+/* 시각 크기가 작아도 터치 영역은 44px 이상(ui_design_concept §6) */
+.sm {
+  height: 28px;
+  padding: 0 10px;
+  font-size: var(--text-sm);
+}
+
+.md {
+  height: 36px;
+  padding: 0 14px;
+  font-size: var(--text-base);
+}
+
+.lg {
+  height: 44px;
+  padding: 0 16px;
+  font-size: var(--text-md);
+}
+
+.sm::after {
+  content: '';
+  position: absolute;
+  inset: -8px 0;
+}
+
+.md::after {
+  content: '';
+  position: absolute;
+  inset: -4px 0;
+}
+
+.primary {
+  background: var(--btn-bg);
+  color: var(--btn-fg);
+}
+
+.primary:hover:not(:disabled) {
+  background: var(--btn-hover);
+}
+
+.secondary {
+  background: var(--btn-secondary-bg);
+  color: var(--color-fg);
+  border-color: var(--color-border);
+}
+
+.secondary:hover:not(:disabled) {
+  border-color: var(--color-border-strong);
+}
+
+.danger {
+  background: var(--btn-danger-bg);
+  color: var(--color-bg);
+}
+
+.ghost {
+  background: transparent;
+  color: var(--color-fg);
+}
+
+.ghost:hover:not(:disabled) {
+  background: var(--row-hover-bg);
+}
+
+.root:disabled {
+  opacity: var(--btn-busy-opacity);
+  cursor: default;
+}
+
+.root:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}

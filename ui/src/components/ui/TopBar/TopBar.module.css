@@ -1,0 +1,66 @@
+.root {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-2);
+  height: 44px;
+  padding: 0 var(--space-4);
+  background: var(--color-bg);
+  border-bottom: 1px solid var(--color-border);
+}
+
+/* 44px 버튼 안 아이콘(20px)의 왼쪽 여백을 당겨 화면 여백(16px)에 맞춘다 */
+.left {
+  display: flex;
+  flex: none;
+  margin-left: calc(-1 * var(--space-3));
+}
+
+.right {
+  display: flex;
+  flex: none;
+  align-items: center;
+}
+
+.title {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  font-family: var(--font-serif);
+  font-weight: 500;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* 프로그램 포커스 대상일 뿐 조작 요소가 아니다 */
+.title:focus {
+  outline: none;
+}
+
+.screen {
+  color: var(--color-accent);
+  font-size: var(--text-xl);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.room {
+  color: var(--color-fg);
+  font-size: var(--text-lg);
+}
+
+.subtitle {
+  flex: none;
+  color: var(--color-fg-muted);
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 날짜는 부가 정보라 좁은 폭에서는 감춘다(구성안 §4) */
+@media (max-width: 360px) {
+  .subtitle {
+    display: none;
+  }
+}
