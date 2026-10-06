@@ -1,6 +1,6 @@
 # 종단간 요구 추적 매트릭스 (rtm.md)
 
-> 작성 2026-10-05 · 소유 task-manager(메인 세션 대행). **S1 완료 2026-10-05 · S2 완료 2026-10-06 · S3 완료 2026-10-06** — 행 상태 `완료(S1)`/`완료(S2)`. CR-001(R-CHAT-002 개정)은 S2에서 재검증. 다중 묶음 요구(S1~S4 등)는 S1 범위만 완료. 요구는 `requirements.md`. 상태: `초안` → `설계` → `구현` → `완료`. 해당 없음은 `-`. 테스트ID는 설계 단계에서 채운다(`SRV-T-*` server · `API-T-*` contract · `TC-RM-*`/`TC-CH-*` 화면).
+> 작성 2026-10-05 · 소유 task-manager(메인 세션 대행). **S1 완료 2026-10-05 · S2 완료 2026-10-06 · S3 완료 2026-10-06 · S3b 완료 2026-10-06** — 행 상태 `완료(S1)`/`완료(S2)`. CR-001(R-CHAT-002 개정)은 S2에서 재검증. 다중 묶음 요구(S1~S4 등)는 S1 범위만 완료. 요구는 `requirements.md`. 상태: `초안` → `설계` → `구현` → `완료`. 해당 없음은 `-`. 테스트ID는 설계 단계에서 채운다(`SRV-T-*` server · `API-T-*` contract · `TC-RM-*`/`TC-CH-*` 화면).
 > 묶음(S1~S5)은 requirements.md §0.
 
 | 요구ID | 묶음 | 요구 요약 | ui(화면·요소) | contract(엔드포인트) | server(모듈·함수) | env 키 | 테스트ID | 상태 |
@@ -41,6 +41,7 @@
 | R-LLM-004 | S3 | 🔒 후처리·LLM_EMPTY | chat: 오류 안내 | LLM_EMPTY | llm.postprocess | - | SRV-T-163~173 (후처리 벡터) · TC-CH-074 | 완료(S3) |
 | R-LLM-005 | S3 | 🔒 타임아웃·재시도·LLM_FAILED | chat: 실패 + 재시도 | LLM_FAILED | llm.provider(withRetry) | LLM_TIMEOUT_MS | SRV-T-174~184 (재시도·타임아웃·실패 주입) · TC-CH-073·074 | 완료(S3) |
 | R-LLM-006 | S3 | 프롬프트 주입 완화 | - | - | llm.buildPrompt | - | SRV-T-163~173 (구분자 존재) | 완료(S3) |
+| R-LLM-007 | S3b | 🔒 월 AI 비용 상한 10만원(추정) | chat: 429 안내 문구(실패 말풍선) | 429 LLM_BUDGET_EXCEEDED(14종째) | llm.usage(누적·판정) · db.llm_usage · migrations/0002 | LLM_MONTHLY_BUDGET_KRW, LLM_PRICE_*_USD_PER_M, KRW_PER_USD | SRV-T-210~233 · API-T-085~090·048 · UI-022/023 · TC-CH-096·097 · TC-RM-029 | 완료(S3b) |
 | R-API-001 | S1~S4 | 🔒 엔드포인트 집합 고정 | ui/src/api/* | api.md 전체 · shared/endpoints.ts | routes/* | - | | 완료(S1) |
 | R-API-002 | S1 | 🔒 에러 형식·코드 단일 소스 | ui/src/api: 에러 파싱 | shared/errors.ts | routes 공통 에러 핸들러 · AppError | - | | 완료(S1) |
 | R-API-003 | S2 | 🔒 Bearer 헤더, 토큰 메모리 보관 | ui/src/api/client · ui/src/state/token | api.md §토큰 | auth.requireToken | - | | 완료(S2) |
@@ -84,5 +85,6 @@
 | S1 | 33 (ENV 3·DB 5·ROOM 2·MSG 1·API 8·ROOMS 4·CHAT 7·NFR 3) | 33 | vitest 240/240(`npx vitest run` 2026-10-05) · typecheck·lint·prettier 0건 · `ui/src/{rooms,chat}/test/result.md`(자동 TC 44 PASS, 수동 TC-CH-028 PASS·TC-RM-015 부분) · `doc/300_검증/screenshots/20261005-2207/`(rooms·chat 390×565, 이전 페이지 로드·뒤로 기록 삭제·CSP·토큰 로그 미출력) · api.md §12 4자 대조표 · server dry-run 빌드 exit 0 |
 | S2 | 22 (AUTH 6·TOKEN 1·ROOM 3·MSG 4·API 1·ROOMS 1·CHAT 6(004·006·007·009·011 + 001 ⋯)·NFR 1) | 22 | vitest 488/488(`npx vitest run` 2026-10-06, shared 21·server 152·ui 315) · typecheck·lint·prettier 0건 · `ui/src/{rooms,chat}/test/result.md` S2 절 · `doc/300_검증/screenshots/20261006-0046/`(rooms·chat 쓰기판, CR-001 4종 배치) · API 실물 401/201/204 · api.md §12 S2 4자 대조표 · 교차 벡터 V1~V8 PASS |
 | S3 | 13 (MSG 3·LLM 6·CHAT 2(005·007 재작성)·NFR 2) + CHAT-004·011·003 S3분 | 13 | vitest 709/709(`npx vitest run` 2026-10-06, shared 24·server 233·ui 452) · typecheck·lint 0건 · 빌드 dry-run exit 0 · `ui/src/chat/test/result.md` S3 절(자동 29 PASS, 수동 TC-CH-092 부분) · `doc/300_검증/screenshots/20261006-1318/`(7장: 버튼·임시 말풍선·speak 후·실패/재시도·재작성 메뉴·읽기 전용) · 종단 curl(fake): speak 201 · 무토큰 401 · regenerate 200 · api.md §12.2 S3 4자 대조표 |
+| S3b | 1 (LLM-007) + API-002 개정(14종)·ENV-002 4키 | 1 | vitest 763/763(`npx vitest run` 2026-10-06, shared 25·server 276·ui 462) · typecheck·lint·build 0 · 마이그레이션 0002 로컬 적용 · 종단: speak 201 → est_krw 강제 100000 → 429 LLM_BUDGET_EXCEEDED + Retry-After → 유저 발화 201 · `ui/src/chat/test/result.md` S3b 절 · api.md §12.3 |
 | S4 | | | |
 | S5 | | | |

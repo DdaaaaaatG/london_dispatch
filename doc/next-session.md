@@ -10,21 +10,23 @@
 - contract-implementer 위임문에는 **"미리보기 생략 — 사용자 승인된 확정 계약, 순수 추가"** 를 명시한다. 없으면 미리보기에서 멈춘다.
 
 ## 1. 현재 상태 (2026-10-06)
-- **S1(저장+읽기 전용) · S2(토큰+쓰기) · S3(AI 발화) 완료.** 증거: vitest **709/709**(shared 24·server 233·ui 452), typecheck·lint 0, 빌드 dry-run 0, `ui/src/chat/test/result.md` S3 절, 캡처 `doc/300_검증/screenshots/20261006-1318/`(7장), 매뉴얼 S3 절, RTM S3 행 완료. 종단 curl(fake 제공사): speak 201 · 무토큰 401 · regenerate 200.
+- **S1(저장+읽기 전용) · S2(토큰+쓰기) · S3(AI 발화) · S3b(월 비용 상한) 완료.** 증거: vitest **763/763**(shared 25·server 276·ui 462), typecheck·lint 0, 빌드 dry-run 0, `ui/src/chat/test/result.md` S3 절, 캡처 `doc/300_검증/screenshots/20261006-1318/`(7장), 매뉴얼 S3 절, RTM S3 행 완료. 종단 curl(fake 제공사): speak 201 · 무토큰 401 · regenerate 200.
 - S3 산출: `server/src/llm/`(Gemini REST + Fake, 캐릭터 JSON `server/characters/{ciel,sebastian,common}.json` 임시 문구, 프롬프트·후처리·재시도) · `messages.speak/regenerate` + 방 잠금 · api.md **v0.4**(E9·E12) · chat 화면 v1.7(캐릭터 버튼·임시/실패 말풍선·재시도·재작성). 요약 훅(`afterSpeak`)은 자리만, S4에서 채운다.
 - 승인 ②(S3) 결정 로그는 `doc/state.json` decisions(2026-10-06). 요구 개정: R-LLM-005(로그에 제공사 상태 코드만).
 - 스크린샷 폴더는 `.gitignore` 대상이라 git에 올라가지 않는다(의도). 매뉴얼 이미지(`ui/src/*/manual/img/`)만 추적된다.
 - 이 세션의 dev 서버는 백그라운드 한도(1~2시간)로 자동 종료된다. 종료 후 **고아 workerd/Vite 프로세스가 포트 3000·5173을 잡고 옛 설정으로 응답**할 수 있다 — 이상하면 `netstat -ano | findstr :3000`으로 PID 확인 후 taskkill(/T /F).
 - 브라우저 MCP(Chrome 확장) 미연결 시 캡처는 Chrome 헤드리스 + CDP 스크립트(세션 스크래치패드 `shoot.mjs`·`shoot-s3.mjs`, Node 22 내장 WebSocket, 추가 설치 없음)로 했다. 스크립트는 저장소 밖이라 다음 세션엔 없다 — 필요하면 같은 방식으로 다시 만든다(약 100줄).
 - prettier `--check`가 23개 미변경 파일을 지적한다: 새 클론이 `core.autocrlf=true`라 CRLF로 체크아웃된 산물(`.prettierrc` `endOfLine: lf`). 코드 문제 아님. §3-9 결정 대기.
-- git: `main` 단일 브랜치, 원격 `origin`. **S3 변경분은 아직 커밋 전**(2026-10-06 세션 끝에 `/sync` 여부를 사용자에게 물음).
+- git: `main` 단일 브랜치, 원격 `origin`. S3 커밋 3건 푸시 완료(bc5776d). S3b 완료(커밋 대기 — 사용자 확인 후 /sync).
 
 ## 2. 남은 일
 
 ### 2-1. 우선
-1. **S3 커밋·푸시**: verify-manager PASS 확인 후 `/sync`. (사용자 확인 필요)
-2. **S4(장기기억) 설계부터**: server-designer(memory.md 신규 — `summarizeIfNeeded`·`afterSpeak` 훅 연결·`source_until_id` 전진·중복 방지 R-MEM-003·`memory.get/put`) → contract-designer(E13·E14 GET/PUT memory, api.md v0.5) → ui-designer(chat ⋯ 메뉴 "장기기억" 항목 + M1 MemorySheet, R-CHAT-012) → ui-design-checker → 승인 ②(S4) → 구현(shared → server → routes/api ∥ 시나리오 → 화면 → 테스트 → 매뉴얼).
-3. **S5(전달·배포)**: `doc/handoff/`(contract-designer: 임베드 안내·토큰 PHP 조각·SECRET 전달 절차) · `server/scripts/token-test.ts`(`npm run token:test`, server-manager) · Cloudflare 지인 계정 셋팅(D1 생성·Secrets `TOKEN_SECRET`·`LLM_API_KEY`·플랜) · `/deploy`.
+1. (완료) S3 푸시 2026-10-06 — 원격 main = bc5776d. 자격 증명 캐시 정리 후 성공. 참고: 전역 `.gitconfig`에 `http.sslVerify=false`(TLS 검증 꺼짐) — 사용자에게 복구 권고함.
+2. (완료) **S3b 월 AI 비용 상한** 2026-10-06 — 구현·테스트(763/763)·종단 확인 끝. 커밋은 사용자 확인 후 `/sync`. 운영 전 지인이 `wrangler.toml [vars]`의 단가·환율·예산을 확인하고, Google Cloud 예산 알림(10만원)을 걸도록 S5 handoff에 포함.
+3. **S3c(캐릭터 설정 화면, 사용자 지정 🔒 2026-10-06)** — 캐릭터 관련 항목만(나이·장르/원작·말투·성격·샘플 대사 등), **갠홈 주인만** 보고 편집, JSON 내보내기/가져오기(비밀값 미포함, E.No.S 구조 호환 부분집합), 저장 D1. 관리 화면·엔드포인트 고정(R-API-001)·§9-3a 개정이 걸리는 횡단 건이라 `system-architect`로 구조 분석·전반 설계·계층 패킷을 먼저 받는다. 참고 원본 `C:/Users/Woon/Documents/카카오톡 받은 파일/json/E.No.S v2.51.html`(저장소 밖, 읽기만).
+4. **S4(장기기억) 설계부터**: server-designer(memory.md 신규 — `summarizeIfNeeded`·`afterSpeak` 훅 연결·`source_until_id` 전진·중복 방지 R-MEM-003·`memory.get/put`) → contract-designer(E13·E14 GET/PUT memory, api.md v0.5) → ui-designer(chat ⋯ 메뉴 "장기기억" 항목 + M1 MemorySheet, R-CHAT-012) → ui-design-checker → 승인 ②(S4) → 구현(shared → server → routes/api ∥ 시나리오 → 화면 → 테스트 → 매뉴얼).
+5. **S5(전달·배포)**: `doc/handoff/`(contract-designer: 임베드 안내·토큰 PHP 조각·SECRET 전달 절차) · `server/scripts/token-test.ts`(`npm run token:test`, server-manager) · Cloudflare 지인 계정 셋팅(D1 생성·Secrets `TOKEN_SECRET`·`LLM_API_KEY`·플랜) · `/deploy`.
 
 ### 2-2. 문서 동기화 잔여(`/doc-sync` 또는 개별 위임) — `doc/state.json` `todo_docsync`
 - 스킬 문구 갱신(메인 세션 배치): server-design-strategy §3 에러코드명·§6 어댑터 인터페이스·429 재시도·§7.2 요약 위치·§7.5·§8 / server-rules AppError 예시 / ui-design-strategy §6.3·§7(D-16). 근거는 llm.md 「메인 세션 보고 사항」4·generate.md D-16.
