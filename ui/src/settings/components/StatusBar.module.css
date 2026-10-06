@@ -1,0 +1,35 @@
+/* D 하단 줄 36px: 위 1px 라인은 박스 밖(box-shadow)이라 높이를 먹지 않는다 */
+.bar {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-2);
+  height: 36px;
+  padding: 0 var(--space-4);
+  background: var(--color-bg);
+  box-shadow: 0 -1px 0 var(--color-border);
+}
+
+/* 상태 문구: 남는 폭을 다 쓰고, 넘치면 한 줄 말줄임 */
+.text {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.muted {
+  color: var(--color-fg-muted);
+}
+
+.warning {
+  color: var(--color-warning);
+}
+
+.danger {
+  color: var(--color-danger);
+}

@@ -22,3 +22,7 @@
 .danger {
   border-left-color: var(--color-danger);
 }
+
+.success {
+  border-left-color: var(--color-success);
+}

@@ -1,0 +1,50 @@
+/* 설정 파일 시트 ①②③ 공통. 시트 틀(둥근 위 모서리·덮개·70% 높이)은 공용 BottomSheet 가 준다 */
+.title {
+  margin: 0;
+  overflow: hidden;
+  color: var(--color-fg);
+  font: inherit;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.note {
+  margin: 0 0 var(--space-2);
+  color: var(--color-fg-muted);
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+}
+
+.danger {
+  color: var(--color-danger);
+}
+
+.label {
+  margin: var(--space-3) 0 var(--space-1);
+  color: var(--color-fg-muted);
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+}
+
+.error {
+  margin: var(--space-2) 0 0;
+  color: var(--color-danger);
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  overflow-wrap: anywhere;
+}
+
+.hint {
+  margin: var(--space-2) 0 0;
+  color: var(--color-fg-muted);
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+}
+
+/* 취소·닫기 왼쪽, 주요 버튼 오른쪽 */
+.actions {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+}

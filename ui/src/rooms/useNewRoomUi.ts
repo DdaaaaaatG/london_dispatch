@@ -11,6 +11,7 @@ import type { RoomSummary } from '@shared/types'
 import { type ApiError, isAuthFailure } from '@/api'
 import { useToast } from '@/components/hooks/useToast'
 import type { ToastState } from '@/components/hooks/useToast'
+import type { ToastTone } from '@/components/ui/Toast'
 import type { Viewer } from '@/state/viewer'
 import { toastToneOf } from '@/state/writeFailure'
 import { writeErrorText } from './labels'
@@ -27,6 +28,8 @@ export type UseNewRoomUiOptions = {
 export type NewRoomUi = {
   create: CreateState
   toast: ToastState
+  /** 같은 토스트 줄을 다른 안내(설정 화면에서 돌아올 때의 진입 안내)에도 쓴다 */
+  showToast: (message: string, tone: ToastTone) => void
   newRoomButtonRef: RefObject<HTMLButtonElement | null>
   titleInputRef: RefObject<HTMLInputElement | null>
   openCreate: () => void
@@ -103,6 +106,7 @@ export const useNewRoomUi = ({
   return {
     create,
     toast,
+    showToast,
     newRoomButtonRef,
     titleInputRef,
     openCreate,

@@ -5,7 +5,7 @@
 | 화면 | rooms (방 목록) · 폴더 `ui/src/rooms/` |
 | 요구 확정 상태 | **확정** |
 | 확정일 | 2026-10-05 (전체 요구 승인 ① 2026-10-05T19:06, `doc/100_요구조건/requirements.md` §10) |
-| 이번 묶음 | S1 구현 완료(R-ROOMS-001·003·004·005) · **S2(토큰 + 쓰기)** — 상세 설계 대상은 R-ROOMS-002, 참조 R-CHAT-008·009·011 |
+| 이번 묶음 | S1 구현 완료(R-ROOMS-001·003·004·005) · **S2(토큰 + 쓰기)** — 상세 설계 대상은 R-ROOMS-002, 참조 R-CHAT-008·009·011 · **S3c(보강, CR-001)** — 상단 바 ⚙ 진입·App 주인 판정, 참조 R-SET-009·010 |
 | 소유 | ui-designer |
 
 ## 변경이력
@@ -17,6 +17,7 @@
 | v1.3 | 2026-10-05 | §4 React 18 → 19(설치 기준), 언마운트 뒤 setState 경고 없음 TC 판별 비고 | 확정사항 §2 개정 · 시나리오 검증 지적 |
 | v1.4 | 2026-10-05 | S2 착수: 묶음 열 갱신(요구 원문 변경 없음). §1.1 참조 행 R-CHAT-009·R-CHAT-011·R-ROOM-002 추가. §2 S2 행(U-RM-07~09) 활성. §3 `createRoom` 재사용(api.md v0.3 확정). §4 설치 기준 갱신 | 구축 S2 |
 | v1.5 | 2026-10-05 | §1.1 참조 행 R-API-003 추가(R-CHAT-009로 닫힘). 요구 원문 변경 없음 | 메인 세션 결정 DC-10 |
+| v1.6 | 2026-10-06 | **S3c(CR-001)**: §1.1 참조 행 R-SET-009·R-SET-010 추가. §2 U-RM-10·11. §3 E15 판정 행. rooms 요구 원문 변경 없음 | S3c 승인 ① · rooms CR-001 |
 
 ---
 
@@ -44,6 +45,8 @@
 | R-ROOM-001 | 🔒 | "방 목록 조회: `id, title, createdAt, updatedAt, messageCount`를 `updatedAt` 내림차순. 누구나." — 화면이 쓰는 데이터 | `doc/100_요구조건/requirements.md` §4 (server) | S1 |
 | R-ROOM-002 | 🔒 | "방 생성: `title` 1~60자(trim 후). id는 `crypto.randomUUID()`. 토큰 필요." — 화면 검증 기준 | `doc/100_요구조건/requirements.md` §4 (server) | S2 |
 | R-NFR-004 | 🔒 | "비밀값·토큰 원문이 로그·응답·번들(`ui/dist`)에 없다." — 화면은 토큰을 메모리에만 두고 출력하지 않는다 | `doc/100_요구조건/requirements.md` §12 | S1 · S2 |
+| R-SET-009 | 🔒 | "진입 ⚙는 rooms 상단 바에 **주인일 때만 렌더**(미렌더)." — ⚙ 자리·렌더 조건 | `ui/src/settings/requirements.md` (원문 `doc/100_요구조건/requirements.md` §11-1) | S3c |
+| R-SET-010 | | "주인 판정: 토큰이 있을 때 App이 1회 GET(R-SET-004)으로 판정(200만 주인). 실패(401·403·네트워크)는 조용히 ⚙ 미표시. **판정 결과로 읽기 전용 전환(revokeWrite)하지 않는다**(R-CHAT-011 규칙 불변)." — App 판정·rooms 쓰기 UI 유지 | 같음 | S3c |
 
 ---
 
@@ -63,7 +66,10 @@
 | U-RM-08 | 등급 통과 회원(토큰 있음) | 방을 만들려 했는데 요청이 거절됐다(과다 요청·서버 오류) | 입력 유지 + 코드별 안내 토스트 | R-CHAT-011 · R-ROOMS-002 | **S2** |
 | U-RM-09 | 등급 통과 회원(토큰 있음) → 전환 | 토큰이 만료됐거나 등급이 내려간 상태에서 방을 만들려 했다 | 안내 1회 + 「+ 새 방」·입력 행 사라짐(읽기 전용 판) | R-CHAT-011 · R-CHAT-009 · R-CHAT-008 | **S2** |
 
-- 모든 요구ID(R-ROOMS-001~005, 참조 R-CHAT-008·009·010·011·R-ROOM-002·R-NFR-004)가 1행 이상에 매핑된다. R-ROOM-001은 데이터 요구이므로 §3에 매핑한다.
+| U-RM-10 | 등급 통과 회원(토큰 있음) — 갠홈 주인 | 캐릭터 설정을 고치러 간다 | 판정 200 → 상단 바 ⚙(「+ 새 방」 왼쪽) → 설정 화면. 설정 화면에서 주인이 아니게 되면 안내 토스트 후 ⚙ 없는 목록 | R-SET-009 · R-SET-010 | **S3c** |
+| U-RM-11 | 등급 통과 회원(토큰 있음) — 주인 아님 | 방 목록을 본다 | 판정 403·401·네트워크 실패 → ⚙ 미렌더, 「+ 새 방」·쓰기 유지, 안내 없음 | R-SET-010 · R-CHAT-011 · R-ROOMS-002 | **S3c** |
+
+- 모든 요구ID(R-ROOMS-001~005, 참조 R-CHAT-008·009·010·011·R-ROOM-002·R-NFR-004·R-SET-009·010)가 1행 이상에 매핑된다. R-ROOM-001은 데이터 요구이므로 §3에 매핑한다.
 
 ---
 
@@ -76,6 +82,7 @@
 | 방 목록 | `GET /api/rooms` | 없음 | `RoomSummary[]`(`updatedAt` 내림차순, 서버 정렬) | ✕ | `listRooms(): Promise<Result<RoomSummary[]>>` | **재사용** — api.md §4.2, 구현 완료 | S1 |
 | 방 생성 | `POST /api/rooms` | `CreateRoomBody = { title }`(1~60자, trim은 서버) | `201 RoomSummary` | ○ | `createRoom(body): Promise<Result<RoomSummary>>` | **재사용** — api.md §4.6·§11.6 확정, contract 구현 대기 | S2 |
 | 토큰 헤더 주입 · 인증 실패 판정 | (엔드포인트 아님) | `configureClient({ getToken })` | `isAuthFailure(error)` | — | `configureClient` · `isAuthFailure` | **재사용** — api.md §2.4·§11.6 | S2 |
+| 주인 판정(App, 본문 버림) | `GET /api/settings/characters` (E15) | 없음 | `200`이면 주인, 그 밖 전부 비주인 | ○ | `getCharacterSettings(): Promise<Result<CharacterSettingsResponse>>` | **신규 확정** — api.md v0.5 §2.7·§4.15·§11.13(contract 구현 대기) | S3c |
 
 - 방 단건 조회 엔드포인트는 없다(api.md §4.0). 생성 응답 `RoomSummary`를 그대로 대화 화면에 넘긴다.
 - `localStorage`는 계약이 아니다. 화면 쪽 유틸 `ui/src/components/utils/storage.ts` 한 곳에서만 접근한다(try/catch). 토큰은 저장소에 두지 않는다.

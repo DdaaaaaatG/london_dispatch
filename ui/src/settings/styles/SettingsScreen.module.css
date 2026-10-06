@@ -1,0 +1,8 @@
+/* 루트는 position: relative — 시트·덮개 기준점(rooms · chat 과 같은 규칙). 높이는 100% 체인(100vh 금지) */
+.root {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--color-bg);
+}

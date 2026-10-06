@@ -1,0 +1,9 @@
+.form {
+  display: flex;
+  flex-direction: column;
+}
+
+/* 세계관은 길게 쓰는 글이라 최소 3줄(76px)은 보인다 */
+.area textarea {
+  min-height: 76px;
+}

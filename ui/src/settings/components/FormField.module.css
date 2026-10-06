@@ -1,0 +1,48 @@
+.field {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+/* 2열 그리드 칸 안에서 입력이 칸보다 넓어지지 않게 한다 */
+.half {
+  min-width: 0;
+}
+
+/* 라벨 줄 20px */
+.labelRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  min-height: 20px;
+}
+
+.label {
+  color: var(--color-fg-muted);
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+}
+
+.required {
+  margin-left: 2px;
+  color: var(--color-danger);
+}
+
+.counter {
+  color: var(--color-fg-muted);
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.over {
+  color: var(--color-danger);
+}
+
+.issue {
+  margin: var(--space-1) 0 0;
+  color: var(--color-danger);
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+}

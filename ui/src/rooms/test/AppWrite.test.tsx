@@ -14,7 +14,12 @@ import { appendUser, deleteMessage, editMessage, listMessages } from '@/api/mess
 import { createRoom, deleteRoom, listRooms, renameRoom } from '@/api/rooms'
 import { App } from '@/App'
 import { clearToken, getToken, initToken } from '@/state/token'
+import { getCharacterSettings } from '@/api/settings'
+import { NOT_OWNER } from '@/settings/test/fixtures'
 
+// (S3c, F-RM-24) 토큰이 있으면 App 이 주인 판정 GET 을 1회 부른다 — 실제 fetch 방지 mock, 기본값 비주인(OWNER_ONLY).
+// 이 파일의 단언은 바꾸지 않는다(scenarios.md 변경 대기열 Q-02).
+vi.mock('@/api/settings', () => ({ getCharacterSettings: vi.fn(), saveCharacterSettings: vi.fn() }))
 vi.mock('@/api/rooms', () => ({
   listRooms: vi.fn(),
   createRoom: vi.fn(),
@@ -65,6 +70,8 @@ beforeEach(() => {
   for (const m of writeMocks) m.mockReset()
   mockedListRooms.mockResolvedValue(ok([ROOM_TEA]))
   mockedListMessages.mockResolvedValue(ok(EMPTY))
+  vi.mocked(getCharacterSettings).mockReset()
+  vi.mocked(getCharacterSettings).mockResolvedValue(NOT_OWNER)
   localStorage.clear()
   sessionStorage.clear()
   clearToken()

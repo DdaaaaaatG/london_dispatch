@@ -49,7 +49,7 @@ export type ButtonProps = {
 
 ```ts
 export type IconButtonProps = {
-  icon: 'back' | 'more'        // S2 에서 'more'(⋯) 추가
+  icon: 'back' | 'more' | 'settings'   // S2 에서 'more'(⋯), S3c 에서 'settings'(톱니, rooms ⚙) 추가
   ariaLabel: string            // 필수
   onClick: () => void
   buttonRef?: Ref<HTMLButtonElement>
@@ -58,6 +58,7 @@ export type IconButtonProps = {
 ```
 - 렌더: `<button type="button" aria-label disabled={isDisabled}>` 안에 인라인 SVG(`viewBox 0 0 24 24`, 20×20, `aria-hidden="true"`). 44×44 터치 영역, ghost 톤. 비활성이면 글자색 `--color-fg-disabled`.
 - `back`: path `M15 5l-7 7 7 7`, stroke 1.25. `more`: 가로 점 3개 — `<circle cx=6|12|18 cy=12 r=1.5 fill=currentColor>`, stroke 없음.
+- (S3c) `settings`(톱니, 단순형): 가운데 `<circle cx=12 cy=12 r=3 fill=none>` + 바깥 `<circle cx=12 cy=12 r=6.5 fill=none>` + 톱니 8개 = 중심에서 반지름 6.5→9 짧은 선 8개(0°·45°·…·315°, `path d="M12 3v2.5 M12 18.5V21 M3 12h2.5 M18.5 12H21 M5.6 5.6l1.8 1.8 M16.6 16.6l1.8 1.8 M5.6 18.4l1.8-1.8 M16.6 7.4l1.8-1.8"`). 모두 `stroke=currentColor` 1.25, `stroke-linecap=round`, fill 없음. 사용처: rooms 상단 바 ⚙(F-RM-28). 새 패키지·이미지 파일 없음.
 
 ### 1.4 StateView (`ui/src/components/ui/StateView/`)
 
@@ -282,7 +283,7 @@ export type PromptSheetProps = {
 
 ```ts
 // ui/src/components/ui/Toast/
-export type ToastTone = 'warning' | 'danger'
+export type ToastTone = 'warning' | 'danger' | 'success'   // S3c 'success' 추가(설정 저장 성공·가져오기 요약) — 메인 세션 승인 2026-10-06
 export type ToastProps = { message: string; tone: ToastTone }
 
 // ui/src/components/hooks/useToast.ts
@@ -297,6 +298,7 @@ export const useToast = (): UseToastResult
 - Toast 렌더: `<p role="alert" class={cx(root, tone)}>{message}</p>`. 최소 높이 28px, 두 줄까지 줄바꿈, sm `--font-ui`, 배경 `--color-bg-elevated`, 글자 `--color-fg`, 왼쪽 3px 막대 `--color-warning`/`--color-danger`, 좌우 `--space-4`. 화면은 `<Toast key={toast.id} …/>`로 렌더해 같은 문구도 다시 읽히게 한다.
 - useToast: 타이머 `setTimeout` 하나(ref). 새 `showToast`면 이전 타이머 해제. 언마운트 시 해제. 시간 경과 → `toast = null`. 수동 닫기는 요구가 없어 두지 않는다(v1.5).
 - 위치는 화면이 정한다(rooms 맨 아래 줄, chat E 줄). 시트가 열린 동안에는 토스트를 띄우지 않도록 화면 기능 명세가 경로를 나눈다.
+- (S3c) `success` 톤: 왼쪽 3px 막대 `--color-success`(ui_design_concept §3 "정상·저장됨"). 그 밖 모양은 같다. 사용처는 settings(저장 성공·가져오기 요약)뿐이고 rooms·chat 동작 변경 없음. `toastToneOf`(F-RM-22)는 `success`를 내지 않는다(실패 전용). 메인 세션 승인(2026-10-06, 디자인 컨셉 상태 색 규칙 · R-SET-009 범위). rooms CR-001 공용 변경 2건 중 하나.
 
 ### 1.19 useLongPress (`ui/src/components/hooks/useLongPress.ts`) — S2
 

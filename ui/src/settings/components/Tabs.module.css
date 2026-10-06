@@ -1,0 +1,47 @@
+/* B 탭 줄 40px: 3등분 폭, 선택한 탭은 글자가 밝고 아래 2px 선이 붙는다 */
+.root {
+  display: flex;
+  flex: none;
+  height: 40px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.tab {
+  display: inline-flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  min-width: 0;
+  height: 100%;
+  padding: 0 var(--space-2);
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--color-fg-muted);
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.selected {
+  border-bottom-color: var(--color-primary);
+  color: var(--color-fg);
+}
+
+.tab:hover:not(.selected) {
+  background: var(--row-hover-bg);
+}
+
+.tab:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: -2px;
+}
+
+/* 확인할 항목이 있는 탭 표시. 접근성 이름에는 접미사로도 전한다 */
+.issue {
+  color: var(--color-danger);
+  font-size: var(--text-xs);
+  font-weight: 700;
+}

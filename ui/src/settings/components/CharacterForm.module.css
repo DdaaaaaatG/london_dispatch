@@ -1,0 +1,44 @@
+/* 묶음 사이 --space-5, 필드 사이 --space-3 */
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.groupTitle {
+  margin: 0;
+  color: var(--color-fg-muted);
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.row {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+/* 나이 · 성별 같은 줄 2열 */
+.pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+/* 공용 TextArea 에 최소 줄 prop 이 없어 화면에서 최소 높이를 맞춘다(성격 태그 2줄 56px, 그 밖 3줄 76px) */
+.rows2 textarea {
+  min-height: 56px;
+}
+
+.rows3 textarea {
+  min-height: 76px;
+}

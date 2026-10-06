@@ -27,6 +27,9 @@ export const labels = {
   newRoomPlaceholder: '새 방 제목 입력',
   cancel: '취소',
   create: '만들기',
+  // ── S3c (설정 진입) ──
+  /** 상단 바 ⚙ IconButton(갠홈 주인만 렌더) */
+  settingsAriaLabel: '캐릭터 설정',
 } as const
 
 const NETWORK_TEXT = '서버에 연결할 수 없습니다.'

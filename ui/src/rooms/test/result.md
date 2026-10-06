@@ -44,3 +44,10 @@ R-ROOMS-001~005 모두 자동 TC 1건 이상 PASS. R-ROOMS-005(레이아웃)는 
 
 ## S3b 갱신 (2026-10-06 16:01)
 - TC-RM-029: PASS — `writeRules.test.ts` 해당 ID 11건 ✓. `toastToneOf(LLM_BUDGET_EXCEEDED)=warning`, `LLM_FAILED`·`SPEAK_IN_PROGRESS`=danger 행 포함. ui 전체 34파일 462 통과 / 실패 0, 루트 53파일 763 통과 / 실패 0.
+
+## S3c 절 — ⚙ · 주인 판정 (2026-10-06 20:40)
+실행: npx vitest run --project ui ui/src/settings ui/src/rooms/test/OwnerGate.test.tsx → exit 0, 126/126 통과. ui 전체 592/592 통과, tsc --noEmit exit 0.
+- TC-RM-033~039: 자동 PASS(OwnerGate 스펙 ✓).
+- TC-RM-040(수동, 주인 스크린샷): 부분 PASS. doc/300_검증/screenshots/20261006-2033/rooms-owner.png에서 ⚙ 실측 44x44, 상단 바에서 ⚙ 다음 「+ 새 방」 한 줄, scrollWidth 390=clientWidth(가로 스크롤 없음). 폭 328 캡처와 간격 --space-2 실측은 미실행.
+- 비주인: doc/300_검증/screenshots/20261006-2033/rooms-nonowner.png, 읽기 전용(토큰 없음): doc/300_검증/screenshots/20261006-2033/rooms-readonly.png. 두 화면 모두 ⚙ 없음(DOM 질의 null), 가로 스크롤 없음.
+- FAIL 없음.

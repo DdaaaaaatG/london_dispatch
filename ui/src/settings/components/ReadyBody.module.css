@@ -1,0 +1,7 @@
+/* C 폼 영역: 탭 줄(B)·토스트(E)·안내(F)·하단 줄(D)을 뺀 나머지. 이 영역만 세로 스크롤한다 */
+.panel {
+  flex: 1;
+  min-height: 0;
+  padding: var(--space-4);
+  overflow-y: auto;
+}

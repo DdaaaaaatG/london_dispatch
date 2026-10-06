@@ -1,0 +1,16 @@
+/* F 안내 줄 40px(두 줄). 왼쪽 3px danger 막대 */
+.root {
+  display: flex;
+  flex: none;
+  align-items: center;
+  min-height: 40px;
+  margin: 0;
+  padding: var(--space-1) var(--space-4);
+  border-left: 3px solid var(--color-danger);
+  background: var(--color-bg-elevated);
+  color: var(--color-danger);
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}

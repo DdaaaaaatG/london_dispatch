@@ -1,7 +1,12 @@
 # rooms(방 목록) 테스트 시나리오
 
 - 기준: `ui/src/rooms/design.md` v1.5(+ `design/components.md` · `design/functions.md` · `design/a11y.md`) / `ui/src/rooms/requirements.md` v1.4 / `doc/200_설계/contract/api.md` v0.3.1 / chat 쪽 공용 인용 `ui/src/chat/design.md` v1.5
-- 작성일: 2026-10-05 · 작성: ui-test-designer · 모드: **증분**(S1 TC-RM-001~017 보존, S2 TC-RM-018~032 추가) · 상태: **초안 v0.5(S2 검증 지적 TK-01~09 반영, 재검증 대기)**
+- 작성일: 2026-10-05(S3c 증분 2026-10-06) · 작성: ui-test-designer · 모드: **증분**(S1 TC-RM-001~017 · S2 TC-RM-018~032 보존, **S3c TC-RM-033~040 추가**) · 상태: **v0.6 — S3c 증분 초안(검증 대기)**. S2까지의 판정은 v0.5 그대로
+- **S3c 기준(추가)**: `ui/src/rooms/design.md` v1.6.1(§2.2.1 · §7 E15 판정 행 · §8.1 `settingsAriaLabel` · §10 ⚙ 행 · §14 R-SET-009·010) · `design/functions.md` §1.1 · F-RM-24~29 · `design/pipeline.md` §6.6 · `design/components.md` §1.3 `settings` · §1.18 `success` · `design/a11y.md` S3c 포커스 순서 · `ui/src/settings/design.md` v1.2 · api.md v0.5 §2.7 · §4.15
+- **S3c 공통 전제(추가)**
+  - **판정 래퍼 모킹**: 토큰이 있는 App 스펙은 모두 `vi.mock('@/api/settings', () => ({ getCharacterSettings: vi.fn(), saveCharacterSettings: vi.fn() }))`를 둔다. 판정 effect(F-RM-24)가 토큰이 있으면 첫 렌더 뒤 1회 부르기 때문이다. 주인 판정이 주제가 아닌 스펙은 `beforeEach`에서 기본값 비주인 `NOT_OWNER`(`fail('OWNER_ONLY')`, `@/settings/test/fixtures`)를 준다 — 단언은 바뀌지 않는다(변경 대기열 Q-02).
+  - **판정 결과 관찰**: "조용히 실패" = ⚙ DOM 없음 · 「+ 새 방」 유지 · `getToken()` 유지(revokeWrite 미호출) · `role=alert` 없음. 응답 본문은 쓰지 않으므로 픽스처 `SAVED_RESPONSE` 하나로 충분하다.
+  - **RoomsScreen 새 선택 props**: `isOwner?` · `onOpenSettings?` · `entryNotice?` · `onEntryNoticeShown?`. S1·S2 화면 스펙은 넘기지 않는다(기본값 = 기존 동작).
 - 묶음: **S1(저장 + 읽기 전용 화면)** + **S2(토큰 + 새 방)**. S1 TC의 토큰 분기는 "없음"(READ_ONLY_VIEWER) 그대로다. S2 TC는 토큰 있음/없음 쌍(TC-RM-011 ↔ 018)과 전환(024)을 더한다.
 - **S2 공통 전제(추가 — S1 전제는 아래 그대로 유지)**
   - **토큰 주입 진입점 통일**: 화면 단위 스펙은 `viewer` props(`WRITER_VIEWER`·`READ_ONLY_VIEWER`, `@/state/viewer`)로만 준다. App 통합 스펙은 `render(<App />)` **전에** `initToken('?t=test-token')`(`@/state/token`, 설계가 정한 유일한 읽기 진입점)을 부르고 `afterEach`에서 `clearToken()`. `window.history.replaceState`·`main.tsx` import·`configureClient` 호출은 쓰지 않는다(래퍼를 모킹하므로 Bearer 헤더 부착은 api 스펙 API-T-UI-011~013 몫).
@@ -217,6 +222,54 @@
 - Then ⓐ TextInput: `input type=text aria-label autoComplete=off`, `maxChars` 있으면 카운터 `n/max`(`aria-hidden`), 초과 시 `over`·`aria-invalid=true`, `maxChars` 없으면 카운터 없음, `isReadOnly` → `readOnly`. Toast: `p role=alert`, 톤 클래스. IconButton `more`: `aria-label` 이름, SVG `aria-hidden`, `isDisabled` → disabled ⓑ useToast: `showToast` → `{ id: 1, message, tone }` → 2000ms 뒤 `null` · 1000ms에 새 `showToast` → id 2, 그 시점부터 2000ms(첫 호출 기준 2000ms에 아직 있음) · `showToast` 뒤 언마운트 → 타이머 0개(`vi.getTimerCount()`). `dismissToast`는 설계 v1.5에서 삭제돼 단언하지 않는다. TextInput `isDisabled`도 v1.5에서 삭제돼 단언하지 않는다 · `TOAST_DURATION_MS=2000` ⓒ 콜백: Enter → `onEnter` 1회(`preventDefault`), `isComposing`·`keyCode 229` Enter → 0회, Esc → `onEscape` 1회, 입력 → `onChange(값)`. Button `buttonRef.current`가 그 `button` 요소, `isDisabled` → disabled·클릭 시 `onClick` 0회
 - 스펙: `ui/src/components/ui/TextInput/TextInput.test.tsx` · `ui/src/components/ui/Toast/Toast.test.tsx` · `ui/src/components/ui/Button/Button.test.tsx`
 
+### TC-RM-033 · (S3c) 주인 ⚙ 렌더 · 종류: 자동 · 요구: R-SET-009 · R-SET-010 · R-ROOMS-002 · 설계: §2.2.1 · §8.1 `settingsAriaLabel` · §10 ⚙ 행 · F §1.1 `isOwner`·`probeStartedRef` · F-RM-01·24·28 · A 포커스 순서(S3c 주인) · 토큰: 있음(주인)
+- Given (a) `initToken('?t=test-token')`, `getCharacterSettings` → `ok(SAVED_RESPONSE)` (b) 같은 조건을 `<StrictMode>`로 감싼다 (c) 판정 응답을 대기(deferred)시켰다가 목록이 그려진 뒤 도착시킨다
+- When `<App />`을 렌더하고 목록·판정 응답 뒤 Tab 3회
+- Then ⓐ (a) `button "캐릭터 설정"` 있음, 같은 `<header>` 안에서 ⚙ → `새 방 만들기` DOM 순서, h1 `ROOMS` 포커스 유지, Tab → ⚙ → 「+ 새 방」 → `티타임` 행 (c) 응답 전 ⚙ 없음·「+ 새 방」 있음 → 응답 뒤 ⚙ 나타남, 「+ 새 방」은 같은 부모의 마지막 자식(오른쪽 끝 고정), 포커스 h1 유지 ⓑ `getToken() === 'test-token'`, 저장소 키 0개 ⓒ (a)(b) `getCharacterSettings` 정확히 1회·인자 없음, `saveCharacterSettings` 0회, `listRooms` 1회
+- 스펙: `ui/src/rooms/test/OwnerGate.test.tsx`
+
+### TC-RM-034 · (S3c) 판정 실패 = 조용히 · 종류: 자동 · 요구: R-SET-010 · R-CHAT-011 · R-ROOMS-002 · 설계: F-RM-24 · §7 E15 판정 행 · P §6.6 · §10 「+ 새 방」 행 · 토큰: 있음(비주인)
+- Given `initToken('?t=test-token')`, 판정 → `OWNER_ONLY` · `TOKEN_INVALID` · `TOKEN_REQUIRED` · `LEVEL_TOO_LOW` · `NETWORK` · `INTERNAL` 각각
+- When `<App />`을 렌더한다
+- Then ⓐ ⚙ DOM 없음, `새 방 만들기` 있음, `role=alert` 없음 ⓑ `getToken() === 'test-token'`(revokeWrite 미호출 — canWrite 유지), 저장소 키 0개 ⓒ 판정 1회, `listRooms` 1회, 쓰기 래퍼 0회
+- 스펙: `OwnerGate.test.tsx`
+
+### TC-RM-035 · (S3c) 토큰 없음 · ⚙ 렌더 4분기 · 종류: 자동 · 요구: R-SET-009 · R-SET-010 · R-ROOMS-002 · 설계: F-RM-24 첫 줄 · F-RM-28 · F §2 끝 선택 props · §10 ⚙ 행 · 토큰: 없음 / 있음
+- Given (a) `initToken('')` (b) RoomsScreen 단독: 읽기 전용 + `isOwner` true + `onOpenSettings` · 쓰기 + `isOwner` false · 쓰기 + `isOwner` true + 콜백 없음 · 쓰기 + `isOwner` true + 콜백
+- When (a) `<App />` 렌더 (b) 각각 마운트
+- Then ⓐ (a) ⚙·「+ 새 방」 DOM 없음 (b) 앞 셋은 ⚙ DOM 없음, 넷째만 있음 ⓑ (a) `getToken() === null` (b) `onOpenSettings` 0회 ⓒ (a)(b) `getCharacterSettings` 0회(토큰 없으면 판정 요청도 없음)
+- 스펙: `OwnerGate.test.tsx`
+
+### TC-RM-036 · (S3c) 설정 진입·복귀 · 종류: 자동 · 요구: R-SET-009 · R-SET-004 · 설계: F-RM-25·26 · P §6.6 · A 포커스(설정에서 돌아오면 h1) · settings design §11 D-ST-5 · 토큰: 있음(주인)
+- Given TC-RM-033(a) 화면, 설정 열기 GET → `ok(SAVED_RESPONSE)`
+- When (a) ⚙ 클릭 → 설정 ready → ‹(clean) (b) ⚙에 포커스 후 Enter
+- Then ⓐ (a) `main "캐릭터 설정"`·h1 `캐릭터 설정`·`tablist "설정 묶음"` → ‹ 뒤 `main "방 목록"`, ⚙ 유지, h1 `ROOMS` 포커스 (b) `main "캐릭터 설정"` ⓑ `ld:lastRoomId` 없음(설정 화면은 방이 아니다), 주인 상태 유지 ⓒ `getCharacterSettings` 2회(판정 1 + 설정 열기 1, 복귀 때 재판정 없음), `listRooms` 2회(재마운트), 저장 0회
+- 스펙: `OwnerGate.test.tsx`
+
+### TC-RM-037 · (S3c) 주인 상실 안내 · 종류: 자동 · 요구: R-SET-010 · R-SET-001 · 설계: F-RM-26·27·29 · F §1.1 `roomsNotice` · P §6.6 · settings F-ST-05 · 토큰: 있음(주인 → 주인 아님)
+- Given (a) 주인 App, 설정 열기 GET → `OWNER_ONLY` (b) RoomsScreen 단독 `entryNotice = { message: '캐릭터 설정은 갠홈 주인만 열 수 있습니다.', tone: 'warning' }` + `onEntryNoticeShown`
+- When (a) ⚙ → 목록 복귀 → `티타임` 행 → chat `방 목록으로 돌아가기` (b) 마운트 → `entryNotice=null`로 리렌더 → 원래 props로 리렌더
+- Then ⓐ (a) 목록에 토스트 `캐릭터 설정은 갠홈 주인만 열 수 있습니다.`(`warning`) 1개, ⚙ 없음, 「+ 새 방」 있음 → chat을 다녀온 뒤 같은 안내 없음·⚙ 없음 (b) 토스트 1개 ⓑ (a) `getToken() === 'test-token'`(읽기 전용 전환 아님) (b) `onEntryNoticeShown` 1회(리렌더로 늘지 않음) ⓒ (a) `getCharacterSettings` 2회, `listRooms` 3회
+- 스펙: `OwnerGate.test.tsx`
+
+### TC-RM-038 · (S3c) 쓰기 상실 시 ⚙ 소멸 · 종류: 자동 · 요구: R-SET-010 · R-CHAT-011 · 설계: §10 아래 첫 줄 · F-RM-12·18·28 · settings F-ST-05 · P §6.6 마지막 줄 · 토큰: 있음 → 없음
+- Given 주인 App (a) 방 생성 → `TOKEN_INVALID` (b) 설정 열기 GET → `TOKEN_INVALID`
+- When (a) 「+ 새 방」 → `안개 낀 런던` → 만들기 (b) ⚙
+- Then ⓐ 토스트 `인증이 만료되어 열람 전용으로 바뀌었습니다. 새로 고쳐 주세요.`((b) `warning` 확인), ⚙·「+ 새 방」 모두 DOM 없음, (b) `main "방 목록"` ⓑ `getToken() === null` ⓒ (a) `createRoom` 1회, 판정 1회 (b) `getCharacterSettings` 2회
+- 스펙: `OwnerGate.test.tsx`
+
+### TC-RM-039 · (S3c) 공용 IconButton `settings` · 종류: 자동 · 요구: R-SET-009 · 설계: C §1.3 `settings` · 토큰: 무관
+- Given 공용 IconButton 단독 렌더
+- When `icon='settings'`(클릭 1회) → `'back'` → `'more'` + `isDisabled`로 리렌더
+- Then ⓐ 이름 `캐릭터 설정`, `type=button`, 클래스 `root`(44×44), SVG `aria-hidden=true`, `circle` r = `3`·`6.5` 2개 + `path` 1개 · back `path d = M15 5l-7 7 7 7` · more 원 3개·disabled(회귀 없음) ⓑ 해당 없음(무상태) ⓒ `onClick` 1회
+- 스펙: `OwnerGate.test.tsx`
+
+### TC-RM-040 · (S3c) 주인 판 스크린샷 · 종류: 수동 · 요구: R-SET-009 · R-ROOMS-005 · 설계: §2.2.1 · F-RM-28 간격 · A 터치 · 토큰: 있음(주인)
+- Given 주인 토큰 주소, 뷰포트 390×565와 폭 328
+- When 방 목록을 캡처한다
+- Then ⓐ ⚙ → 「+ 새 방」 한 줄, 간격 `--space-2`, ⚙ 44×44, 가로 스크롤 없음 ⓑ 해당 없음 ⓒ 해당 없음 — 수동 확인표 `ui/src/settings/test/manual-checklist.md` MC-ST-05(S3c 확인표에 묶음)
+- 스펙: `ui/src/settings/test/manual-checklist.md`
+
 ## TC-FLOW
 
 S1·S2 행. **ⓒ 호출 횟수는 단계 증분으로 읽는다**: 체인 안에서 각 Step의 ⓒ 횟수는 그 Step에서 새로 생긴 호출 수이고 앞 Step 호출에 더해진다(CF-02). 표기: `A → B`는 **순차 인계**(A의 결과 상태가 B의 Given). `분기:`는 같은 지점에서 갈라지는 **대안·독립 확인**(서로 상태를 넘기지 않는다).
@@ -247,6 +300,12 @@ S1·S2 행. **ⓒ 호출 횟수는 단계 증분으로 읽는다**: 체인 안�
 
 ### TC-FLOW-RM-09 · U-RM-09 인증 실패 → 읽기 전용 전환(S2) · Steps: TC-RM-019 → TC-RM-024(b) → TC-RM-011 · 분기: TC-RM-024(a)
 - 입력 행에 제목 입력 → 만들기가 `LEVEL_TOO_LOW`(→ `onAuthFailure`→ App이 토큰 비움·READ_ONLY, 안내 토스트 1회, h1 포커스, `getToken()===null`) → 읽기 전용 판과 같은 부재 상태(「+ 새 방」·입력 없음). 분기: 인증 3코드별 문구
+
+### TC-FLOW-RM-10 · U-RM-10 주인 → 설정 → 복귀(S3c) · Steps: TC-RM-033(a) → TC-RM-036 → TC-RM-037(a) · 분기: TC-RM-038(b) · 설정 화면 안: settings TC-FLOW-ST-03 · ST-10
+- 판정 200(→ ⚙, 포커스 h1 유지) → ⚙ 진입·‹ 복귀(→ 목록 재로드, ⚙ 유지) → 다시 진입했을 때 OWNER_ONLY(→ 안내 토스트 1회, ⚙ 없음, 「+ 새 방」 유지, 재마운트 때 반복 없음). 분기: 설정 열기 인증 실패면 읽기 전용 목록
+
+### TC-FLOW-RM-11 · U-RM-11 등급 회원 비주인(S3c) · Steps: TC-RM-034 → TC-RM-035(b) · 분기: TC-RM-035(a)
+- 판정 403·401·네트워크·5xx(→ ⚙ 없음, 「+ 새 방」·토큰 유지, 안내 없음) → 비주인 렌더 분기. 분기: 토큰이 없으면 판정 요청 자체가 없다
 
 ## 추적표
 
@@ -391,11 +450,51 @@ S1·S2 행. **ⓒ 호출 횟수는 단계 증분으로 읽는다**: 체인 안�
 | A(S2) 「+ 새 방」 이름 · B 행 group · Enter·Esc · 전환 h1 포커스 | TC-RM-018 · 019 · 025 · 026 · 024 |
 | §12 CR-C-2 · §13 공용화 후보 | 비행동 항목 — TC 대상 아님(권고·판정 기록) |
 
+## 추적표 — S3c 추가분 (v0.6, CR-001)
+
+### 요구 ↔ TC (S3c)
+
+| 요구ID | TC | 비고 |
+|---|---|---|
+| R-SET-009 🔒(⚙ 진입 부분) | TC-RM-033 · 035(b) · 036 · 039 · 040 | 수용 기준 "비주인·읽기 전용 ⚙ DOM 부재" = 034 · 035 |
+| R-SET-010(주인 판정) | TC-RM-033 · 034 · 035 · 037 · 038 | 수용 기준 "403·401 수신 후에도 canWrite 유지" = 034 |
+| R-ROOMS-002 🔒(상단 바 공유) | TC-RM-033 · 034 · 035 | 「+ 새 방」 위치·유지 |
+| R-CHAT-011(판정에는 미적용) | TC-RM-034 · 038 | |
+| R-SET-001 🔒 · R-SET-004 🔒(참조) | TC-RM-037 · 036 | |
+| R-ROOMS-005 🔒(주인 판) | TC-RM-040 | |
+
+### 설계 항목 ↔ TC (S3c)
+
+| 설계 항목 | TC |
+|---|---|
+| §2.2.1 주인 판 | TC-RM-033 · 040 |
+| §7 E15 판정 행(본문 버림·표시 없음) | TC-RM-033 · 034 |
+| §8.1 `settingsAriaLabel` | TC-RM-033 · 039 |
+| §10 ⚙ 행 · 아래 첫 줄(revokeWrite 시 ⚙ 소멸) | TC-RM-033 · 034 · 035 · 038 |
+| F §1.1 `view` settings · `isOwner` · `probeStartedRef` · `roomsNotice` | TC-RM-036 · 033 · 033(b) · 037 |
+| F-RM-01 App 분기(settings) | TC-RM-036 |
+| F-RM-24 판정 effect | TC-RM-033 · 034 · 035(a) |
+| F-RM-25 openSettings · F-RM-26 leaveSettings · F-RM-27 loseOwner | TC-RM-036 · 036/037 · 037 |
+| F-RM-28 ⚙ 렌더 · F-RM-29 진입 안내 effect | TC-RM-033 · 035(b) · 038 · 040 · 037 |
+| F §2 끝 선택 props 4개(S1·S2 스펙 무수정) | TC-RM-035(b) · 037(b) · 기존 TC-RM-001~032 회귀 |
+| P §6.6 판정·진입 파이프라인 | TC-RM-033 · 034 · 036 · 037 · 038 |
+| C §1.3 IconButton `settings` | TC-RM-039 |
+| C §1.18 ToastTone `success` | settings TC-ST-011 · 024 |
+| A 포커스 순서(S3c 주인) · 설정 복귀 h1 | TC-RM-033 · 036 |
+
+### 사용자행 ↔ TC-FLOW (S3c)
+
+| 사용자행 | TC-FLOW |
+|---|---|
+| U-RM-10 | TC-FLOW-RM-10 |
+| U-RM-11 | TC-FLOW-RM-11 |
+
 ## 변경 대기열(미검증)
 
 | Q-nn | 일자 | CR-ID | 변경 요약 | 변경 파일 | 영향 TC 후보 | 신규 TC 필요 | 상태 |
 |---|---|---|---|---|---|---|---|
 | Q-01 | 2026-10-05 | —(메인 세션 결정 TK-05, S1 불변 예외 승인) | S2에서 `RoomsScreen` props `onAuthFailure`가 필수가 되어 S1 스펙 렌더 도우미에 빈 콜백 `onAuthFailure={vi.fn()}`을 더함. S1 단언은 바꾸지 않음 | `ui/src/rooms/test/RoomsScreen.test.tsx`(renderRooms) | TC-RM-001~011 · 014 · 016 · 017(같은 렌더 도우미) | 없음(단언 불변) | 전환됨(TC-RM-001~017 스펙 렌더 도우미) |
+| Q-02 | 2026-10-06 | CR-001(S3c) | App 주인 판정(F-RM-24)이 토큰 있을 때 `getCharacterSettings`를 1회 부른다 → 토큰 있는 App 스펙에 `vi.mock('@/api/settings')` + `beforeEach` 기본 비주인(`NOT_OWNER`) 추가. 단언은 바꾸지 않음 | `ui/src/rooms/test/AppWrite.test.tsx`(반영) · `ui/src/chat/test/AuthTransition.test.tsx`·`RoomMenu.test.tsx`·`SpeakFlow.test.tsx`(chat 소유 — 같은 mock 3줄 필요, 미반영) | TC-RM-021(b) · 024(b) · 027 · chat 쪽 App 통합 TC | 없음(단언 불변) | AppWrite 전환됨(TC-RM-021·024·027 스펙) · chat 3파일 대기 |
 
 ### 변경이력 보충 — v0.5 (2026-10-05)
 
@@ -410,3 +509,4 @@ ui-test-checker S2 판정 FAIL 지적 반영: TC-RM-023 재제출 2회 단언 �
 | v0.3 | 2026-10-05 | TC-RM-008 ⓐ를 "판정 시점 ready(판정 후 status·alert 없음)"로 재정의하고 "목록이 한 번 그려진다" 단언 제거. TC-RM-010 차단 케이스에 사전 값 주입·차단 상태 단언·해제 후 원값 확인 추가. FLOW-RM-01 문구를 "서버가 준 순서 그대로, 재정렬 없음"으로 | ui-test-conflict-checker CF-01(메인 세션 결정) · CF-04 · CF-06 |
 | v0.4 | 2026-10-05 | **S2 증분**: S2 공통 전제(토큰 주입 = `viewer` props / App은 `initToken`·`clearToken`, 쓰기 래퍼 모킹, 가짜 시계 규칙). TC-RM-018~032 추가, TC-FLOW-RM-07~09 추가, 사용자행 U-RM-07~09 연결, 「S2 이월」 절을 「추적표 — S2 추가분」으로 대체. 스펙 신규 `NewRoom.test.tsx`·`AppWrite.test.tsx`·`ui/src/state/{token,writeRules}.test.ts`·공용 부품 3종. S1 TC-RM-001~017 변경 없음 | 구축 S2, design.md v1.4 §14.1 RTM |
 | v0.4.1 | 2026-10-06 | TC-RM-029 `toastToneOf` 기대에 `LLM_BUDGET_EXCEEDED` → `warning`, `LLM_FAILED`·`SPEAK_IN_PROGRESS` → `danger` 행 추가(스펙 `writeRules.test.ts` 같은 표). rooms 화면 동작 변경 없음(방 생성은 이 코드를 받지 않는다) | rooms design v1.5.1 F-RM-22 · chat S3b TC-CH-097 |
+| v0.6 | 2026-10-06 | **S3c 증분(CR-001)**: S3c 기준·공통 전제 추가, TC-RM-033~040 추가(자동 7 · 수동 1), TC-FLOW-RM-10·11, 「추적표 — S3c 추가분」, 변경 대기열 Q-02(AppWrite mock 추가, chat 3파일 대기). TC-RM-001~032 변경 없음. 스펙 신규 `OwnerGate.test.tsx`. 수동 절차는 settings 확인표 MC-ST-05·06 | rooms design v1.6.1 §14 · settings design v1.2 §14 |
