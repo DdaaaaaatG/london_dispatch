@@ -1,0 +1,5 @@
+/* 설계 chat/design/components.md §2.11 — 캐릭터 버튼 2개, 간격 토큰 */
+.speakButtons {
+  display: flex;
+  gap: var(--space-2);
+}

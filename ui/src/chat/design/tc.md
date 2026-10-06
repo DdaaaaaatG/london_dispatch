@@ -1,9 +1,11 @@
-# chat 상세 설계 — 예정 TC 목록 (분할 문서, v1.5)
+# chat 상세 설계 — 예정 TC 목록 (분할 문서, v1.7)
 
 > 주 문서: `ui/src/chat/design.md` §15 RTM. 40KB 한계로 v1.4에서 주 문서 §15.1을 이 파일로 옮겼다(S1 행은 내용 그대로).
 > ui-test-designer가 시나리오(`ui/src/chat/test/scenarios.md`)로 확정한다. 기대 결과는 3단(화면 · 상태/저장 값 · api 호출 인자)으로 풀어 쓴다.
 > 공통 준비(S2): 쓰기 TC는 `viewer=WRITER_VIEWER`(또는 App 통합이면 `initToken('?t=test-token')`), 끝나면 `clearToken()`. 래퍼는 `vi.mock('@/api')`. 타이머는 `vi.useFakeTimers()`(롱프레스·토스트).
 > v1.5: TC-CH-033 단언 범위(DC-08) · TC-CH-046 재로드 스크롤(DC-04) · TC-CH-054 메뉴 진입 막음(DC-05) · TC-CH-064·065 TC-FLOW(DC-11).
+> v1.7(S3): §3 TC-CH-066~092 추가. **기존 TC 중 S3로 기대가 바뀌는 것**: TC-CH-031(토큰 있음 — 캐릭터 버튼이 **있다**, TC-CH-066으로 대체) · TC-CH-021(읽기 전용 — 버튼 이름 질의를 `/세바스찬\|시엘/` 정규식으로. 접근 이름이 `세바스찬 대사 생성`이라 정확 일치 질의는 S3에서도 null이 되어 단언이 무의미해진다) · TC-CH-040(메뉴 항목 — 대상이 "캐릭터+마지막"이면 `재작성`이 있다, TC-CH-079로 대체) · TC-CH-033(쓰기 경로 0회 단언에 `speak`·`regenerate` 포함 유지 — TC-CH-088) · TC-CH-053(T13~T16·T25 문구 변경분 — TC-CH-085).
+> 공통 준비(S3): `vi.mock('@/api')`에 `speak`·`regenerate`를 더한다. 생성 대기는 "resolve하지 않은 Promise"로 만든 뒤 수동 resolve(화면 타이머가 없으므로 fake timers로 70초를 흘릴 필요 없음 — 흘려도 화면이 바뀌지 않음을 TC-CH-070에서 단언).
 
 ## 1. S1
 
@@ -44,7 +46,7 @@
 
 | TC | 내용 | 기대(요지) |
 |---|---|---|
-| TC-CH-031 | 토큰 있음 렌더 쌍 | `WRITER_VIEWER` → ⋯(`방 메뉴 열기`) 있음, `group` `메시지 작성` 안에 switch `OOC 지시 모드`(`aria-checked=false`, 글자 `OOC 끔`)·textbox `메시지 입력`(placeholder `대사나 지시를 입력`)·`전송`. `세바스찬`·`시엘` 버튼 없음(S3), `role=note` 없음. TC-CH-003·021·023과 쌍 |
+| TC-CH-031 | 토큰 있음 렌더 쌍 | `WRITER_VIEWER` → ⋯(`방 메뉴 열기`) 있음, `group` `메시지 작성` 안에 switch `OOC 지시 모드`(`aria-checked=false`, 글자 `OOC 끔`)·textbox `메시지 입력`(placeholder `대사나 지시를 입력`)·`전송`. `role=note` 없음. TC-CH-003·021·023과 쌍. **캐릭터 버튼 단언은 TC-CH-066으로 대체**(TK-07) |
 | TC-CH-032 | 전송 비활성 | 빈 입력·공백만 → 전송 disabled · `phase=loading`·`error` → disabled · 2001자 → disabled, 카운터 `2001/2000`·`aria-invalid=true` · 2000자 → enabled |
 | TC-CH-033 | 전송 성공 | `안녕` 입력 → 전송 → `appendUser(room.id, { text: '안녕', ooc: false })` 1회 · **모킹한 `@/api`의 `appendUser` 외 export(첫 로드 `listMessages` 1회 제외) 호출 0회**(AI 호출 없음, R-CHAT-006) · 응답 `Message`(authorName `미샤`)가 가운데 말풍선(`user` 클래스, v1.6 CR-001)으로 붙음(작성자명 `미샤`) · 입력 비움, 입력에 포커스 · OOC 값 유지 |
 | TC-CH-034 | OOC 토글 | switch 클릭 → `aria-checked=true`, 글자 `OOC 켬` → 전송 → `appendUser(…, { text, ooc: true })` · 응답 `kind='ooc'`면 중앙 말풍선 · 전송 뒤에도 `OOC 켬` 유지 |
@@ -79,3 +81,40 @@
 | TC-CH-063 | 늦은 쓰기 응답 무시 | 전송·수정·삭제 대기 중 언마운트(‹ 뒤로) → dispatch·토스트·`onAuthFailure`·`onBack` 호출 없음 |
 | TC-CH-064 | 방 삭제 후 목록(TC-FLOW, App 통합) | 목록 `[r1, r2]` → r1 진입 → ⋯ → 방 삭제 → 확인 → `deleteRoom('r1')` 204 → rooms 화면, `listRooms` **재호출 1회**(총 2회), 두 번째 응답 `[r2]`가 그대로 표시, `ld:lastRoomId` 없음 |
 | TC-CH-065 | 이름 변경 후 목록(TC-FLOW, App 통합) | r1 진입 → 이름 변경 성공(응답 title `새 이름`) → ‹ 뒤로 → `listRooms` **재호출 1회**, 행이 두 번째 응답 그대로(`새 이름`) 표시, 화면이 목록을 직접 고치지 않음(재요청 결과만) |
+
+## 3. S3 (AI 발화 · 재작성)
+
+자동 = vitest(jsdom), 수동 = 스크린샷·실기기.
+
+| TC | 내용 | 요구ID | 방식 | 기대(요지) |
+|---|---|---|---|---|
+| TC-CH-066 | 토큰 있음 렌더 쌍(S3) | R-CHAT-004 · 013 · 008 | 자동 | `group` `메시지 작성` 안 1행에 button `세바스찬 대사 생성`(글자 `세바스찬`) → `시엘 대사 생성`(글자 `시엘`) 순서, 그 뒤 switch `OOC 지시 모드`. TC-CH-031의 나머지 단언(⋯·textbox·전송·note 없음) 유지 |
+| TC-CH-067 | 읽기 전용 버튼 부재(S3) | R-CHAT-004 · 008 | 자동 | `READ_ONLY_VIEWER` → `queryByRole('button', { name: /세바스찬\|시엘/ })` null(말풍선 이름 글자는 button이 아니다) · 임시·실패 말풍선 DOM 없음(`.pending` 0개) |
+| TC-CH-068 | speak 호출 인자 | R-CHAT-005 · R-MSG-003 | 자동 | 세바스찬 클릭 → `speak(room.id, { character: 'sebastian' })` 1회(인자 정확히 두 개, 본문 키 `character`만) · 시엘 → `{ character: 'ciel' }` · `appendUser`·`regenerate`·`editMessage`·`deleteMessage` 0회 |
+| TC-CH-069 | 생성 중 임시 말풍선 | R-CHAT-005 · 002 · 013 | 자동 | 대기 중 목록 끝 `li`에 `pending`+`character`+`sebastian` 클래스(왼쪽) / 시엘이면 `ciel`(오른쪽) · 아바타·짧은 이름 있음, `<time>` 없음 · `…`는 `aria-hidden` · `role=status` 이름 없는 영역 글자에 `세바스찬 대사를 만드는 중` · **모양 적용(DC-01)**: 자식에 Bubble 모듈 클래스 `avatar`·`content`·`head`·`name`·`body`가 있다(같은 `Bubble.module.css` 클래스라 실물 자손 선택자 `.sebastian .body`·`.ciel .head`가 걸린다). 수동 확인(TC-CH-092)에서 배경 `--bubble-{c}-bg`와 시엘 머리 줄 거울 배치를 computed style로 본다(jsdom은 CSS Modules 스타일을 계산하지 않음) · contextmenu `defaultPrevented=false`, 500ms 누름 뒤 dialog 없음, `tabIndex` 없음 |
+| TC-CH-070 | 생성 중 잠금 | R-CHAT-005 · 004 | 자동 | 대기 중: 두 캐릭터 버튼 `disabled` · 입력 `안녕` 있어도 전송 `disabled` · textbox `readOnly` **아님**, 타이핑 반영 · ⋯ `disabled` · 말풍선 contextmenu → dialog 없음 · 같은 틱 클릭 연타·시엘 클릭 → `speak` 총 1회 · `vi.advanceTimersByTime(80_000)` 뒤에도 임시 말풍선 그대로(화면 타임아웃 없음) |
+| TC-CH-071 | 성공 교체 | R-CHAT-005 | 자동 | resolve `201 Message(speaker 'ciel', id 99)` → `pending` 0개, 끝 말풍선 `ciel` 클래스·`시엘`·`/embed/img/ciel.png`·본문 = 응답 text, 말풍선 수 +1(중복 없음) · 두 버튼·전송(내용 있으면) 다시 활성 |
+| TC-CH-072 | speak 자동 스크롤 | R-CHAT-003 · 005 | 자동 | 맨 아래 근처: 임시 말풍선 등장 → `scrollTop = scrollHeight`, 성공 → 다시 맨 아래, 배지 없음 · 위쪽(거리 > 120): 등장·성공 모두 scrollTop 그대로, 성공 뒤 배지 `새 메시지`, `unseenCount=1` |
+| TC-CH-073 | 실패 → 재시도 | R-CHAT-005 · 011 | 자동 | `LLM_FAILED` → 같은 자리·같은 쪽에 `pending failed` 말풍선, `role=alert` `생성에 실패했습니다.`, button `세바스찬 대사 재시도`(글자 `재시도`) · E 토스트 **없음** · 두 버튼 활성 · 「재시도」 → `speak(room.id, { character: 'sebastian' })` 2번째 호출, 실패 말풍선이 임시 말풍선으로 · 성공 → 교체. `LLM_EMPTY`도 같은 문구·같은 흐름 |
+| TC-CH-074 | 실패 코드별 문구 | R-CHAT-011 · 005 | 자동 | `SPEAK_IN_PROGRESS` → `이 방에서 이미 대사를 만들고 있습니다. 잠시 후 다시 시도해 주세요.` + 재시도 · `RATE_LIMITED`+`retryAfterSec: 40` → `요청이 너무 많습니다. 40초 후 다시 시도해 주세요.` + 재시도 · `NETWORK` → `서버에 연결할 수 없습니다.` + 재시도 · `INTERNAL` → `ERROR_MESSAGES.INTERNAL` + 재시도 · `CONFIG_INVALID` → `서버 설정이 올바르지 않습니다. 관리자에게 알려 주세요.` + 재시도 button **있음**(사용자 결정 2026-10-06) · 어느 경우도 `onAuthFailure` 0회, 서버 message 미표시 |
+| TC-CH-075 | 실패 말풍선 사라짐 | R-CHAT-005 | 자동 | 세바스찬 실패 말풍선 → 시엘 클릭 → 세바스찬 실패 말풍선 없음, 시엘 임시 말풍선 1개 · 실패 말풍선 상태에서 유저 전송 성공 → 실패 말풍선은 목록 끝에 남는다 · ‹ 뒤로 → 재마운트 → `pending` 0개 |
+| TC-CH-076 | speak 인증 실패 전환 | R-CHAT-011 · 008 | 자동(App 통합 포함) | `LEVEL_TOO_LOW` → **같은 커밋**에서 임시 말풍선·group 없음, `role=note`, 토스트 `대화 참여 등급이 아니어서 열람 전용으로 바뀌었습니다.` 1개, `onAuthFailure` 1회, ‹ 포커스, 리듀서 `pending`·`writing` null · `TOKEN_INVALID`·`TOKEN_REQUIRED` 각각 |
+| TC-CH-077 | speak 방 사라짐 | R-CHAT-005 · R-ROOMS-004 | 자동 | `NOT_FOUND` → `ld:lastRoomId` 삭제, `onBack` 1회, 토스트 없음, `speak` 재호출 없음 |
+| TC-CH-078 | 빈 방 첫 speak | R-CHAT-005 · 003 | 자동 | `{ messages: [], hasMore: false }` → `아직 대화가 없습니다` → 세바스찬 클릭 → 빈 상태 문구 없음, `role=log` 안 임시 말풍선 → 성공 → 말풍선 1개, 맨 아래 배치 |
+| TC-CH-079 | 재작성 표시 조건 | R-CHAT-007 · R-MSG-006 | 자동 | 마지막이 세바스찬 `line` → 메뉴 항목 `수정`·`재작성`·`삭제`·`취소` 순서 · 캐릭터이지만 마지막 아님 → `재작성` 없음 · 마지막이 유저 → 없음 · 마지막이 OOC → 없음 · 실패 말풍선이 끝에 있어도 마지막 메시지가 캐릭터면 있음 · 읽기 전용 → 메뉴 자체 없음(TC-CH-022) |
+| TC-CH-080 | 재작성 실행·진행·성공 | R-CHAT-007 · 005 | 자동 | `재작성` → confirm·alertdialog 없이 시트 닫힘 → `regenerate(72)` 1회(인자 하나) · 대기 중 대상: `regenerating` 클래스, 본문 `aria-busy=true`, 원 본문 그대로, `다시 쓰는 중…`(`role=status`) · 두 버튼·전송 `disabled`, 입력 타이핑 가능 · `200 Message(id 72, 새 text)` → 같은 자리 본문 교체, 말풍선 수 그대로, 표시 사라짐, 포커스 = 그 말풍선 |
+| TC-CH-081 | 재작성 실패 | R-CHAT-007 · 011 | 자동 | `LLM_FAILED`·`LLM_EMPTY` → 원 본문 그대로, 토스트 `대사를 다시 만들지 못했습니다. 메뉴에서 다시 시도해 주세요.` · `SPEAK_IN_PROGRESS` → `ERROR_MESSAGES.SPEAK_IN_PROGRESS` · `CONFIG_INVALID` → `ERROR_MESSAGES.CONFIG_INVALID` · `NOT_CHARACTER_MESSAGE` → `ERROR_MESSAGES.NOT_CHARACTER_MESSAGE` · `RATE_LIMITED`+40 → 초 문구 · 재시도 button 없음 · 다시 메뉴 → `재작성` 다시 가능 |
+| TC-CH-082 | `NOT_LAST_MESSAGE` 재조회 | R-CHAT-007 · 011 | 자동 | 409 → 토스트 `다른 메시지가 먼저 이어져 재작성할 수 없습니다. 대화를 새로 불러옵니다.` · `listMessages(room.id)` 재호출 1회(두 번째 인자 없음) · 목록 = 재조회 응답 · 재조회 응답을 **resolve하기 전**(loading 커밋)에는 포커스가 log로 가지 않고 ‹로도 끌려가지 않는다 → resolve 후(ready 커밋) 포커스 = 히스토리 스크롤 박스(CF-01, F-CH-41) · 재조회 실패면 포커스 이동 없음 · `regenerate` 재호출 없음 |
+| TC-CH-083 | 재작성 대상 사라짐 | R-CHAT-007 · 011 | 자동 | `NOT_FOUND` → 대상 말풍선 제거, 토스트 `메시지를 찾을 수 없습니다. 이미 삭제되었을 수 있습니다.` · 남은 0건 + `hasMore` → `listMessages(room.id)` 재호출 → ready 뒤 포커스 = log · 남은 1건+ → 포커스 = log · 남은 0건 + `!hasMore`(빈 상태 뷰) → 포커스 = ‹ 뒤로(F-CH-41) |
+| TC-CH-084 | 재작성 인증 실패 | R-CHAT-011 · 008 | 자동 | `TOKEN_INVALID` → 전환(TC-CH-051 기대), 대상 표시(`regenerating`) 없음, 원 본문 |
+| TC-CH-085 | 리듀서 S3 | R-CHAT-005 · 007 | 자동(순수) | T13(`regenerate` 허용) · T14(`writeStarted speak` 거절, 같은 참조) · T15/T16(`writing.kind==='speak'`에 `writeFinished` → 같은 참조) · T25(`pending`만 있어도 정리) · T27~T34 각 행 · T27이 실패 `pending`을 덮음 · T29 unseen 규칙(T9와 같음) · T1~T3 뒤 `pending` null · `isRegenerateTarget` 5경계(마지막 캐릭터 line / 마지막 아님 / 유저 / OOC / 빈 목록) · `canSpeak`(편집 중 false, DC-10) · T27이 `editingId !== null`이면 같은 참조 |
+| TC-CH-086 | 문구 함수 | R-CHAT-011 | 자동(순수) | `speakErrorText` `design/generate.md` §3 표 행마다 · `writeErrorText(e, 'regenerate')` §8.4 표 행마다 · 인증 3종은 동작과 무관하게 전환 문구 |
+| TC-CH-087 | 늦은 생성 응답 무시 | R-CHAT-005 · 007 | 자동 | speak·regenerate 대기 중 ‹ 뒤로(언마운트) → resolve(성공·실패·인증 실패·NOT_FOUND 각각) → dispatch·토스트·`onAuthFailure`·`onBack` 추가 호출 없음 |
+| TC-CH-088 | 전송은 AI 호출 없음(유지) | R-CHAT-006 | 자동 | TC-CH-033 단언 그대로 + 모킹 `speak`·`regenerate` 호출 0회를 명시 단언 · Enter 전송도 같음 |
+| TC-CH-089 | 캐릭터 버튼 포커스 복귀 | R-CHAT-013 · 005 | 자동 | 세바스찬 버튼 포커스 → Enter → 대기 중 `button.blur()`로 포커스 잃은 상태 구성(jsdom은 disabled 포커스 이동을 흉내 내지 않음 — 중간 단언 없음, DC-05) → 응답 → 세바스찬 버튼 포커스 · F-CH-38 경합: 생성 중 입력창으로 포커스 이동 → 응답 → 이후 다른 쓰기 잠금 해제에서 캐릭터 버튼으로 끌려가지 않음(복귀 대상 기억이 잠금 해제마다 비워짐) · 대기 중 입력창으로 포커스를 옮겼으면 응답 뒤에도 입력창 |
+| TC-CH-090 | 재시도 잠금 | R-CHAT-005 | 자동 | 실패 말풍선 표시 중 유저 전송 대기 → 「재시도」 `disabled`, 응답 뒤 활성 |
+| TC-CH-091 | `useAutoScroll` tailKey | R-CHAT-003 | 자동(훅) | `tailKey` null → `'sebastian:generating'`: 측정이 맨 아래 근처면 `scrollTop = scrollHeight`, 위쪽이면 그대로 · `generating` → `failed`도 같음 · 값 → null: 변화 없음 · 첫 배치 전이면 무시 |
+| TC-CH-092 | 390×565 스크린샷(수동) | R-CHAT-013 · 002 · 004 | 수동 | 1행 `[세바스찬] [시엘] … [OOC 끔]` 한 줄, 가로 스크롤 없음 · 세바스찬 임시(왼쪽)·시엘 임시(오른쪽) · 실패 말풍선(테두리·`!`·재시도) · 재작성 중(흐림 + 문구 — 가짜 제공사는 즉시 응답해 자동 캡처 불가, **수동 항목 유지**: 실제 제공사 또는 응답 지연 상태에서 사람이 캡처, v1.7.1) · 재작성 항목 있는 메뉴 실측 약 247px(±16px 허용) · 각 1장 · 임시 말풍선 배경색·시엘 머리 줄 거울 배치가 메시지 말풍선과 같음(DC-01) |
+| TC-CH-093 | 「재시도」 뒤 포커스(DC-03) | R-CHAT-013 · 005 | 자동 | 시엘 실패 말풍선 「재시도」 클릭 → 버튼 언마운트 → 응답(성공·실패 각각) → 포커스 = button `시엘 대사 생성` |
+| TC-CH-094 | 인라인 수정 중 생성 잠금(DC-10) | R-CHAT-005 · 007 | 자동 | 편집기 열림 → 두 캐릭터 버튼·「재시도」 `disabled`, 클릭해도 `speak` 0회 · 전송은 내용 있으면 활성(S2 그대로) · 편집 취소 → 버튼 활성 |
+| TC-CH-095 | 수정 저장·삭제 대기 중 캐릭터 버튼·재시도 disabled | R-CHAT-005 · 007 | 자동 | **확정**(시나리오 v0.6.1) — 실패 말풍선을 둔 상태에서 수정 저장·삭제·재작성 대기 중 캐릭터 버튼 2·「재시도」 `disabled` → 응답 후 복원. 대상: functions.md §4.3 잠금 표의 `edit`·`delete`·`regenerate` 행 |

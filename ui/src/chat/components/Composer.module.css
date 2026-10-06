@@ -9,11 +9,12 @@
   border-top: 1px solid var(--color-border);
 }
 
-/* 오른쪽 끝에 토글. 왼쪽은 S3 캐릭터 버튼 자리라 비워 둔다 */
-.toggleRow {
+/* 1행: 왼쪽 캐릭터 버튼 2개, 오른쪽 끝 OOC 토글 */
+.topRow {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: space-between;
+  gap: var(--space-2);
   height: 36px;
 }
 

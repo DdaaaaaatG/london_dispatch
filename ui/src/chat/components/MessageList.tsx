@@ -3,16 +3,19 @@
  * 스크롤 박스(role=log) 안에 B0(이전 로드 중·실패)와 말풍선 목록을, 박스 밖에 새 메시지 배지(B1)를 둔다.
  * 스크롤 계산은 useAutoScroll 이 한다. 여기서는 받은 ref·핸들러를 연결만 한다.
  * S2: editingId 인 메시지는 말풍선 자리에 InlineEditor 를 둔다(읽기 전용이면 호출 쪽이 항상 null 을 넘긴다).
+ * S3: 메시지 <li> 뒤에 pending(임시·실패 말풍선) <li> 하나를 더 둔다. regeneratingId 인 말풍선은 재작성 중 표시를 붙인다.
  * onOpenMenu 는 쓰기 가능일 때만 받는다 — 없으면 말풍선에 메뉴 핸들러가 붙지 않는다.
  */
 import type { RefObject } from 'react'
-import type { Message } from '@shared/types'
+import type { CharacterId, Message } from '@shared/types'
 import type { ApiError } from '@/api'
+import type { PendingSpeak } from '@/state/chat'
 import { labels } from '@/chat/labels'
 import { Bubble } from './Bubble'
 import { InlineEditor } from './InlineEditor'
 import { InlineStatus } from './InlineStatus'
 import { NewMessageBadge } from './NewMessageBadge'
+import { PendingBubble } from './PendingBubble'
 import styles from './MessageList.module.css'
 
 export type MessageListProps = {
@@ -36,6 +39,14 @@ export type MessageListProps = {
   isEditSaving: boolean
   onSaveEdit: (messageId: number, text: string) => void
   onCancelEdit: () => void
+  // ── S3 ──
+  /** 읽기 전용이면 호출 쪽이 항상 null */
+  pending: PendingSpeak | null
+  /** !canSpeak(state) — 「재시도」 disabled */
+  isSpeakLocked: boolean
+  onRetrySpeak: (character: CharacterId) => void
+  /** 재작성 중인 대상 id(없으면 null) */
+  regeneratingId: number | null
 }
 
 type OlderStatusProps = Pick<MessageListProps, 'isLoadingOlder' | 'olderError'> & {
@@ -59,12 +70,13 @@ const OlderStatus = ({ isLoadingOlder, olderError, onRetry }: OlderStatusProps) 
 type MessageItemProps = Pick<
   MessageListProps,
   'onOpenMenu' | 'isEditSaving' | 'onSaveEdit' | 'onCancelEdit'
-> & { message: Message; isEditing: boolean }
+> & { message: Message; isEditing: boolean; isRegenerating: boolean }
 
 /** 목록 한 칸: 수정 중이면 말풍선 자리에 편집기, 아니면 말풍선 */
 const MessageItem = ({
   message,
   isEditing,
+  isRegenerating,
   onOpenMenu,
   isEditSaving,
   onSaveEdit,
@@ -79,7 +91,7 @@ const MessageItem = ({
         onCancel={onCancelEdit}
       />
     ) : (
-      <Bubble message={message} onOpenMenu={onOpenMenu} />
+      <Bubble message={message} onOpenMenu={onOpenMenu} isRegenerating={isRegenerating} />
     )}
   </li>
 )
@@ -98,6 +110,10 @@ export const MessageList = ({
   isEditSaving,
   onSaveEdit,
   onCancelEdit,
+  pending,
+  isSpeakLocked,
+  onRetrySpeak,
+  regeneratingId,
 }: MessageListProps) => (
   <div className={styles.wrap}>
     <div
@@ -117,12 +133,22 @@ export const MessageList = ({
             key={message.id}
             message={message}
             isEditing={message.id === editingId}
+            isRegenerating={message.id === regeneratingId}
             onOpenMenu={onOpenMenu}
             isEditSaving={isEditSaving}
             onSaveEdit={onSaveEdit}
             onCancelEdit={onCancelEdit}
           />
         ))}
+        {pending !== null && (
+          <li key="pending">
+            <PendingBubble
+              pending={pending}
+              isRetryDisabled={isSpeakLocked}
+              onRetry={onRetrySpeak}
+            />
+          </li>
+        )}
       </ol>
     </div>
     {unseenCount > 0 && (

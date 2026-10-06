@@ -3,6 +3,7 @@
  * 요구: R-CHAT-003(이전 페이지 앵커 · 새 메시지 자동 스크롤) · R-CHAT-010(스크롤 위치 복원)
  * 훅은 메시지 타입을 모른다(id 두 개와 스크롤 박스만 안다). IntersectionObserver 를 쓰지 않고 애니메이션 없이 즉시 이동한다.
  * 계산은 ui/src/state/scroll.ts 의 순수 함수가 한다.
+ * S3: tailKey 가 null 이 아닌 새 값으로 바뀌면(임시 말풍선 등장 · 실패 전환) 바뀌기 전 측정이 맨 아래 근처였을 때 맨 아래로 따라간다.
  * S2: 마지막 메시지 삭제로 목록이 비면(firstId null) 첫 배치 상태로 되돌리고, 다시 채워질 때는 저장 거리를 무시하고 맨 아래에 놓는다(TC-CH-046).
  * 빈 화면 커밋 없이 한 번에 새 최신 페이지로 바뀐 경우(새 목록이 이전 목록보다 전부 앞)도 목록 교체로 보고 맨 아래에 놓는다.
  */
@@ -29,6 +30,8 @@ export type UseAutoScrollOptions = {
   onReachTop: () => void
   /** 맨 아래 근처 도달(배지 해제) */
   onReachBottom: () => void
+  /** S3: 목록 끝에 붙는 메시지 아닌 조각(임시·실패 말풍선)의 식별 값. 새 값이 되면 맨 아래 근처였을 때 따라간다. 기본 null */
+  tailKey?: string | null
 }
 
 export type UseAutoScrollResult = {
@@ -182,9 +185,24 @@ const useScrollActions = (
   return { onScroll, isNearBottom: isNearBottomNow, scrollToBottom, getDistanceFromBottom }
 }
 
+/** 임시·실패 말풍선(tailKey)이 새로 나타나거나 바뀌면, 바뀌기 전에 맨 아래 근처였을 때만 맨 아래로 간다(배지는 늘리지 않는다) */
+const useTailFollow = (
+  memoRef: RefObject<Memo>,
+  containerRef: RefObject<HTMLDivElement | null>,
+  tailKey: string | null,
+): void => {
+  useLayoutEffect(() => {
+    const el = containerRef.current
+    const memo = memoRef.current
+    if (tailKey === null || el === null || !memo.positioned) return
+    if (memo.metrics === null || isNearBottom(memo.metrics)) el.scrollTop = el.scrollHeight
+    remember(memo, el)
+  }, [tailKey, memoRef, containerRef])
+}
+
 export const useAutoScroll = (options: UseAutoScrollOptions): UseAutoScrollResult => {
   const { firstId, lastId, initialDistanceFromBottom, canAutoLoadOlder } = options
-  const { onReachTop, onReachBottom } = options
+  const { onReachTop, onReachBottom, tailKey = null } = options
   const containerRef = useRef<HTMLDivElement | null>(null)
   const memoRef = useRef<Memo>(createMemo())
   const latestRef = useRef<Latest>({ canAutoLoadOlder, onReachTop, onReachBottom })
@@ -205,6 +223,8 @@ export const useAutoScroll = (options: UseAutoScrollOptions): UseAutoScrollResul
       latestRef.current,
     )
   }, [firstId, lastId, initialDistanceFromBottom])
+
+  useTailFollow(memoRef, containerRef, tailKey)
 
   const actions = useScrollActions(containerRef, memoRef, latestRef)
   return { containerRef, ...actions }

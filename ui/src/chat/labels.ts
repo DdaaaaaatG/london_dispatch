@@ -56,6 +56,14 @@ export const labels = {
   renameInputAriaLabel: '방 이름',
   deleteRoomTitle: '이 방을 삭제할까요?',
   deleteRoomBody: '메시지와 장기기억이 함께 지워지며 되돌릴 수 없습니다.',
+  // ── S3 (§8.1.2) ──
+  speakAriaLabel: (name: string): string => `${name} 대사 생성`,
+  pendingDots: '…',
+  pendingStatus: (name: string): string => `${name} 대사를 만드는 중`,
+  speakRetry: '재시도',
+  speakRetryAriaLabel: (name: string): string => `${name} 대사 재시도`,
+  regenerate: '재작성',
+  regeneratingNote: '다시 쓰는 중…',
 } as const
 
 const NETWORK_TEXT = '서버에 연결할 수 없습니다.'
@@ -72,7 +80,8 @@ export const errorDetail = (code: ApiErrorCode): string => {
 }
 
 /** 쓰기 6종 중 화면이 실패를 안내하는 동작(deleteMessage·deleteRoom 의 NOT_FOUND 는 실패로 보지 않는다) */
-export type WriteAction = 'send' | 'editMessage' | 'deleteMessage' | 'renameRoom' | 'deleteRoom'
+export type WriteAction =
+  'send' | 'editMessage' | 'deleteMessage' | 'renameRoom' | 'deleteRoom' | 'speak' | 'regenerate'
 
 /** 인증 실패 3종 — 읽기 전용으로 바뀌었음을 알린다(R-CHAT-011). rooms 화면 labels 와 같은 문구 */
 const AUTH_FAILURE_TEXT: Partial<Record<ApiErrorCode, string>> = {
@@ -86,16 +95,22 @@ const rateLimitedText = (retryAfterSec: number | undefined): string =>
     ? ERROR_MESSAGES.RATE_LIMITED
     : `요청이 너무 많습니다. ${retryAfterSec}초 후 다시 시도해 주세요.`
 
-/** NOT_FOUND: 메시지 수정이면 메시지, 그 밖에는 방을 못 찾은 것이다 */
+const LLM_FAILED_SPEAK_TEXT = '생성에 실패했습니다.'
+const LLM_FAILED_REGENERATE_TEXT = '대사를 다시 만들지 못했습니다. 메뉴에서 다시 시도해 주세요.'
+const NOT_LAST_MESSAGE_TEXT =
+  '다른 메시지가 먼저 이어져 재작성할 수 없습니다. 대화를 새로 불러옵니다.'
+
+/** NOT_FOUND: 메시지 수정·재작성이면 메시지, 그 밖에는 방을 못 찾은 것이다 */
 const notFoundText = (action: WriteAction): string =>
-  action === 'editMessage'
+  action === 'editMessage' || action === 'regenerate'
     ? '메시지를 찾을 수 없습니다. 이미 삭제되었을 수 있습니다.'
     : ROOM_NOT_FOUND_TEXT
 
-const validationText = (action: WriteAction): string =>
-  action === 'renameRoom'
-    ? `방 제목은 1~${ROOM_TITLE_MAX}자로 입력해 주세요.`
-    : `메시지는 1~${MESSAGE_TEXT_MAX}자로 입력해 주세요.`
+const validationText = (action: WriteAction): string => {
+  if (action === 'renameRoom') return `방 제목은 1~${ROOM_TITLE_MAX}자로 입력해 주세요.`
+  if (action === 'speak' || action === 'regenerate') return ERROR_MESSAGES.VALIDATION_ERROR
+  return `메시지는 1~${MESSAGE_TEXT_MAX}자로 입력해 주세요.`
+}
 
 /**
  * 쓰기 실패 문구(R-CHAT-011, 설계 §8.3). 문구는 code 와 동작으로 정한다 — 서버 error.message·토큰 값은 쓰지 않는다.
@@ -113,7 +128,15 @@ export const writeErrorText = (error: ApiError, action: WriteAction): string => 
       return notFoundText(action)
     case 'NETWORK':
       return NETWORK_TEXT
+    case 'LLM_FAILED':
+    case 'LLM_EMPTY':
+      return action === 'regenerate' ? LLM_FAILED_REGENERATE_TEXT : LLM_FAILED_SPEAK_TEXT
+    case 'NOT_LAST_MESSAGE':
+      return NOT_LAST_MESSAGE_TEXT
     default:
       return ERROR_MESSAGES[error.code]
   }
 }
+
+/** 실패 말풍선 문구(F-CH-37, generate.md §3). 인증 3종·NOT_FOUND 는 말풍선에 오지 않지만 와도 표의 같은 행을 쓴다 */
+export const speakErrorText = (error: ApiError): string => writeErrorText(error, 'speak')

@@ -14,7 +14,7 @@ import { MessageMenuSheet } from './MessageMenuSheet'
 import { RoomMenuSheet } from './RoomMenuSheet'
 
 export type ChatSheet =
-  | { kind: 'messageMenu'; message: Message }
+  | { kind: 'messageMenu'; message: Message; canRegenerate: boolean }
   | { kind: 'confirmDeleteMessage'; message: Message }
   | { kind: 'roomMenu' }
   | { kind: 'rename'; errorText: string | null }
@@ -29,6 +29,7 @@ export type ChatSheetsProps = {
   roomBusy: 'rename' | 'delete' | null
   onClose: () => void
   onStartEdit: (message: Message) => void
+  onRegenerate: (message: Message) => void
   onAskDeleteMessage: (message: Message) => void
   onConfirmDeleteMessage: (message: Message) => void
   onAskRename: () => void
@@ -48,7 +49,9 @@ const renderMessageSheet = (
       <MessageMenuSheet
         message={message}
         isWriteBusy={props.writing !== null}
+        canRegenerate={sheet.canRegenerate}
         onEdit={() => props.onStartEdit(message)}
+        onRegenerate={() => props.onRegenerate(message)}
         onDelete={() => props.onAskDeleteMessage(message)}
         onClose={props.onClose}
       />

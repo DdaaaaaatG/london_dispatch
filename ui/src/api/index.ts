@@ -1,5 +1,5 @@
 export type { ApiError, ApiErrorCode, ClientConfig, Result } from './client'
 export { configureClient, isAuthFailure } from './client'
 export { getHealth } from './health'
-export { appendUser, deleteMessage, editMessage, listMessages } from './messages'
+export { appendUser, deleteMessage, editMessage, listMessages, regenerate, speak } from './messages'
 export { createRoom, deleteRoom, listRooms, renameRoom } from './rooms'

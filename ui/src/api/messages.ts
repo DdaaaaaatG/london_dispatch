@@ -4,6 +4,7 @@ import type {
   Message,
   MessagesPage,
   MessagesQuery,
+  SpeakBody,
   UserMessageBody,
 } from '@shared/types'
 import { request, type Result } from './client'
@@ -33,3 +34,15 @@ export const editMessage = (messageId: number, body: EditMessageBody): Promise<R
 /** [계약] api.md §4.11 · [요구] R-MSG-005 · R-CHAT-007 — 메시지 삭제(204 → value undefined) */
 export const deleteMessage = (messageId: number): Promise<Result<void>> =>
   request<void>(endpoints.message(messageId), { method: 'DELETE', auth: true })
+
+/** [계약] api.md §4.13 · [요구] R-MSG-003 · R-CHAT-005 — 캐릭터 1턴 생성(201 Message). 최대 70초, 타임아웃 없음 */
+export const speak = (roomId: string, body: SpeakBody): Promise<Result<Message>> =>
+  request<Message>(endpoints.roomSpeak(roomId), {
+    method: 'POST',
+    body: { character: body.character },
+    auth: true,
+  })
+
+/** [계약] api.md §4.14 · [요구] R-MSG-006 · R-CHAT-007 — 같은 캐릭터로 재생성(200 Message). 본문 없음. 최대 70초 */
+export const regenerate = (messageId: number): Promise<Result<Message>> =>
+  request<Message>(endpoints.messageRegenerate(messageId), { method: 'POST', auth: true })

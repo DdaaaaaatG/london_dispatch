@@ -45,6 +45,11 @@ const renderList = (over: Partial<MessageListProps> = {}) => {
     isEditSaving: false,
     onSaveEdit: vi.fn(),
     onCancelEdit: vi.fn(),
+    // S3 필수 props(설계 C §2.1) — 임시 말풍선 없음 기본값. 단언 변경 없음(Q-06)
+    pending: null,
+    isSpeakLocked: false,
+    onRetrySpeak: vi.fn(),
+    regeneratingId: null,
     ...over,
   }
   return { ...render(<MessageList {...props} />), props }

@@ -1,0 +1,47 @@
+/*
+ * 설계 chat/design/components.md §2.12 — 상태 클래스만 둔다(모양은 Bubble.module.css 를 import 해서 쓴다).
+ * 클래스: pending(항상) · failed(실패) · srOnly. 색은 토큰만.
+ */
+.pending {
+  min-width: 0;
+}
+
+.dots {
+  color: var(--bubble-pending-fg);
+}
+
+/* 본문 상자(Bubble 의 body 와 함께 붙는다). 숨은 안내(srOnly)의 기준점 */
+.bodyBox {
+  position: relative;
+}
+
+/* 실패: 본문 테두리를 오류색으로(Bubble 의 body 보다 우선하도록 두 클래스) */
+.failed .bodyBox {
+  border-color: var(--bubble-error-border);
+}
+
+.errorText {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  color: var(--color-fg);
+}
+
+.errorMark {
+  color: var(--color-danger);
+}
+
+.retryRow {
+  display: flex;
+  justify-content: flex-start;
+  margin-top: var(--space-2);
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}

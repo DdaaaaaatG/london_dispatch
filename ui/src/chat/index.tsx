@@ -1,14 +1,15 @@
 /**
  * chat(대화) 화면 — 설계 chat/design.md §2~§10 · design/functions.md §3 · §4 F-CH-01 · 11 · 요구 R-CHAT-001 ~ 013(S2 범위) · R-ROOMS-004
+ * S3: 캐릭터 버튼 2개 · 목록 끝 임시/실패 말풍선 · 말풍선 메뉴 「재작성」(쓰기 가능일 때만). 요구 R-CHAT-004 · 005 · 007
  * 상태 전이는 ui/src/state/chat.ts 리듀서, 요청·스크롤·시트는 useChatScreen 이 조립한 훅들이 한다. 여기서는 렌더만 한다.
  * 토큰이 없으면(viewer.canWrite === false) 쓰기 UI(⋯ 메뉴 · 하단 바 · 말풍선 메뉴 · 시트 · 인라인 수정)는 렌더하지 않는다(숨김 금지).
  * 화면은 토큰을 읽지도 저장하지도 않는다. 인증 실패는 onAuthFailure 로 App 에 알려 읽기 전용으로 전환된다.
  */
 import type { RefObject } from 'react'
-import type { Message, RoomSummary } from '@shared/types'
+import type { CharacterId, Message, RoomSummary } from '@shared/types'
 import { StateView } from '@/components/ui/StateView'
 import { Toast } from '@/components/ui/Toast'
-import { type ChatState, canSend } from '@/state/chat'
+import { type ChatState, canSend, canSpeak } from '@/state/chat'
 import type { Viewer } from '@/state/viewer'
 import { ChatSheets } from './components/ChatSheets'
 import { ChatTopBar } from './components/ChatTopBar'
@@ -41,11 +42,14 @@ type HistoryProps = {
   onOpenMenu: (message: Message) => void
   onSaveEdit: (messageId: number, text: string) => void
   onCancelEdit: () => void
+  onRetrySpeak: (character: CharacterId) => void
 }
 
 /** F-CH-11: 판정 순서 error → loading → data → empty. 쓰기 UI(말풍선 메뉴·편집기)는 canWrite 일 때만 연결한다 */
 const renderHistory = (props: HistoryProps) => {
   const { state, canWrite } = props
+  // 읽기 전용이면 남은 pending·재작성 표시가 있어도 그리지 않는다(전환 커밋에서 바로 사라진다)
+  const pending = canWrite ? state.pending : null
   if (state.phase === 'error') {
     return (
       <StateView
@@ -58,7 +62,9 @@ const renderHistory = (props: HistoryProps) => {
     )
   }
   if (state.phase === 'loading') return <StateView kind="loading" message={labels.loading} />
-  if (state.messages.length === 0) return <StateView kind="empty" message={labels.empty} />
+  if (state.messages.length === 0 && pending === null) {
+    return <StateView kind="empty" message={labels.empty} />
+  }
   return (
     <MessageList
       messages={state.messages}
@@ -74,6 +80,12 @@ const renderHistory = (props: HistoryProps) => {
       isEditSaving={state.writing?.kind === 'edit'}
       onSaveEdit={props.onSaveEdit}
       onCancelEdit={props.onCancelEdit}
+      pending={pending}
+      isSpeakLocked={!canSpeak(state)}
+      onRetrySpeak={props.onRetrySpeak}
+      regeneratingId={
+        canWrite && state.writing?.kind === 'regenerate' ? state.writing.messageId : null
+      }
     />
   )
 }
@@ -94,6 +106,7 @@ const SheetLayer = ({ room, state, sheets }: SheetLayerProps) =>
       roomBusy={sheets.roomBusy}
       onClose={sheets.closeSheet}
       onStartEdit={sheets.startEdit}
+      onRegenerate={sheets.regenerateFromMenu}
       onAskDeleteMessage={sheets.askDeleteMessage}
       onConfirmDeleteMessage={sheets.confirmDeleteMessage}
       onAskRename={sheets.askRename}
@@ -107,12 +120,20 @@ type FooterProps = {
   canWrite: boolean
   state: ChatState
   onSend: (text: string, ooc: boolean) => Promise<boolean>
+  onSpeak: (character: CharacterId) => void
 }
 
 /** C 하단 바(쓰기 가능) 또는 D 열람 안내(읽기 전용) 중 하나 */
-const Footer = ({ canWrite, state, onSend }: FooterProps) =>
+const Footer = ({ canWrite, state, onSend, onSpeak }: FooterProps) =>
   canWrite ? (
-    <Composer canSend={canSend(state)} isSending={state.writing?.kind === 'send'} onSend={onSend} />
+    <Composer
+      canSend={canSend(state)}
+      isSending={state.writing?.kind === 'send'}
+      onSend={onSend}
+      canSpeak={canSpeak(state)}
+      speakingCharacter={state.writing?.kind === 'speak' ? state.writing.character : null}
+      onSpeak={onSpeak}
+    />
   ) : (
     <ReadOnlyNotice text={labels.readOnlyNotice} />
   )
@@ -145,10 +166,16 @@ export const ChatScreen = (props: ChatScreenProps) => {
           onOpenMenu: sheets.openMessageMenu,
           onSaveEdit: write.saveEdit,
           onCancelEdit: sheets.cancelEdit,
+          onRetrySpeak: write.speakAs,
         })}
       </section>
       {toast && <Toast key={toast.id} message={toast.message} tone={toast.tone} />}
-      <Footer canWrite={viewer.canWrite} state={state} onSend={write.send} />
+      <Footer
+        canWrite={viewer.canWrite}
+        state={state}
+        onSend={write.send}
+        onSpeak={write.speakAs}
+      />
       {viewer.canWrite && <SheetLayer room={room} state={state} sheets={sheets} />}
     </main>
   )

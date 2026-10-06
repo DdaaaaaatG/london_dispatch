@@ -21,6 +21,9 @@ vi.mock('@/api/messages', () => ({
   appendUser: vi.fn(),
   editMessage: vi.fn(),
   deleteMessage: vi.fn(),
+  // S3: AI 호출 0회 단언(TC-CH-033·088)이 speak·regenerate 까지 열거하도록 mock 목록에 더한다
+  speak: vi.fn(),
+  regenerate: vi.fn(),
 }))
 vi.mock('@/api/rooms', () => ({
   listRooms: vi.fn(),
@@ -183,7 +186,8 @@ afterEach(() => {
 })
 
 describe('ChatScreen 토큰 있음 렌더 (R-CHAT-004 · R-CHAT-008 · R-CHAT-001)', () => {
-  it('TC-CH-031: ⋯·하단 바(OOC·입력·전송) 있음, 캐릭터 버튼·열람 안내 없음, 말풍선 메뉴 대상', async () => {
+  // S3: "캐릭터 버튼 없음" 단언은 TC-CH-066(SpeakFlow.test.tsx)으로 대체됨 — 나머지 단언 유지
+  it('TC-CH-031: ⋯·하단 바(OOC·입력·전송) 있음, 열람 안내 없음, 말풍선 메뉴 대상', async () => {
     const { container } = renderChat()
     await screen.findByRole('log')
 
@@ -201,8 +205,6 @@ describe('ChatScreen 토큰 있음 렌더 (R-CHAT-004 · R-CHAT-008 · R-CHAT-00
       within(group).getByRole('textbox', { name: '메시지 입력' }).getAttribute('placeholder'),
     ).toBe('대사나 지시를 입력')
     expect(within(group).getByRole('button', { name: '전송' })).not.toBeNull()
-    expect(screen.queryByRole('button', { name: '세바스찬' })).toBeNull()
-    expect(screen.queryByRole('button', { name: '시엘' })).toBeNull()
     expect(screen.queryByRole('note')).toBeNull()
     for (const li of items()) {
       const target = li.querySelector('[aria-haspopup="dialog"]') as HTMLElement
@@ -282,6 +284,33 @@ describe('Composer 전송 (R-CHAT-004 · R-CHAT-006 · R-AUTH-004)', () => {
       .reduce((sum, [, fn]) => sum + fn.mock.calls.length, 0)
     expect(others).toBe(1) // 첫 로드 listMessages 1회뿐
   })
+
+  it.each([
+    ['클릭', false, false],
+    ['Enter', true, false],
+    ['OOC 켬 + 클릭', false, true],
+  ] as const)(
+    'TC-CH-088: %s 전송은 AI 호출 없음 — speak·regenerate 0회 명시(R-CHAT-006 유지)',
+    async (_label, byEnter, ooc) => {
+      mockedAppend.mockResolvedValueOnce(ok(ooc ? { ...SENT, kind: 'ooc' } : SENT))
+      renderChat()
+      await screen.findByRole('log')
+      const user = userEvent.setup()
+      if (ooc) await user.click(screen.getByRole('switch', { name: 'OOC 지시 모드' }))
+      await user.type(input(), '안녕')
+      if (byEnter) await user.keyboard('{Enter}')
+      else await user.click(sendButton())
+      await vi.waitFor(() => expect(items()).toHaveLength(5))
+      await flushPending()
+      expect(mockedAppend.mock.calls).toEqual([['r1', { text: '안녕', ooc }]])
+      expect(vi.mocked(messagesApi.speak)).not.toHaveBeenCalled()
+      expect(vi.mocked(messagesApi.regenerate)).not.toHaveBeenCalled()
+      const others = allMocks()
+        .filter(([name]) => name !== 'appendUser')
+        .reduce((sum, [, fn]) => sum + fn.mock.calls.length, 0)
+      expect(others).toBe(1) // 첫 로드 listMessages 1회뿐
+    },
+  )
 
   it('TC-CH-034: OOC 켬 → appendUser(…, ooc: true) → 중앙 OOC 말풍선, 전송 뒤에도 OOC 켬', async () => {
     mockedAppend.mockResolvedValueOnce(ok(SENT_OOC))

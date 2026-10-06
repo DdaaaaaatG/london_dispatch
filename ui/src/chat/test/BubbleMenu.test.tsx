@@ -21,6 +21,8 @@ vi.mock('@/api/messages', () => ({
   appendUser: vi.fn(),
   editMessage: vi.fn(),
   deleteMessage: vi.fn(),
+  speak: vi.fn(), // S3 mock 목록(호출 단언은 SpeakFlow·Regenerate 스펙)
+  regenerate: vi.fn(),
 }))
 vi.mock('@/api/rooms', () => ({
   listRooms: vi.fn(),
@@ -244,7 +246,9 @@ describe('말풍선 메뉴 내용·닫기 (R-CHAT-007 · R-LLM-002)', () => {
     [102, '세바스찬 · 16:41  "예, 도련님."'],
     [103, '미샤 · 16:42  "나도 한 잔 부탁해요."'],
     [104, '[지시] · 16:43  "둘이 체스를 둔다"'],
-  ])('TC-CH-040: %i 메뉴 머리 = %s, 항목 수정·삭제·취소(재작성 없음)', async (id, header) => {
+    // S3: 재작성 표시 조건은 TC-CH-079(Regenerate.test.tsx)로 대체됨. 이 픽스처는 마지막이 OOC(104)라
+    // 102·103·104 어느 것도 재작성 대상이 아니다 → "재작성 없음" 단언은 S3 에서도 그대로 성립한다
+  ])('TC-CH-040: %i 메뉴 머리 = %s, 항목 수정·삭제·취소(재작성 대상 아님)', async (id, header) => {
     renderChat()
     await screen.findByRole('log')
     const dialog = openMenu(id)
@@ -267,6 +271,8 @@ describe('말풍선 메뉴 내용·닫기 (R-CHAT-007 · R-LLM-002)', () => {
       <MessageMenuSheet
         message={long}
         isWriteBusy={false}
+        canRegenerate={false}
+        onRegenerate={vi.fn()}
         onEdit={vi.fn()}
         onDelete={vi.fn()}
         onClose={vi.fn()}
@@ -573,6 +579,8 @@ describe('쓰기 직렬화 (R-CHAT-007 · R-CHAT-006, D-5 · D-10)', () => {
         <MessageMenuSheet
           message={M103}
           isWriteBusy={busy}
+          canRegenerate={false}
+          onRegenerate={vi.fn()}
           onEdit={vi.fn()}
           onDelete={vi.fn()}
           onClose={vi.fn()}

@@ -1,7 +1,7 @@
-// API-T-UI-001~018 — doc/200_설계/contract/api.md §14.3 (fetch 모킹은 이 폴더 테스트에서만)
+// API-T-UI-001~021 — doc/200_설계/contract/api.md §14.3 (fetch 모킹은 이 폴더 테스트에서만)
 import { ERROR_MESSAGES } from '@shared/errors'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { CreateRoomBody } from '@shared/types'
+import type { CreateRoomBody, SpeakBody } from '@shared/types'
 import { request, type ApiError } from './client'
 import {
   appendUser,
@@ -14,7 +14,9 @@ import {
   isAuthFailure,
   listMessages,
   listRooms,
+  regenerate,
   renameRoom,
+  speak,
 } from './index'
 
 const json = (body: unknown, status = 200): Response =>
@@ -265,5 +267,81 @@ describe('S2 쓰기 래퍼', () => {
     configureClient({ getToken })
     stubFetch(async () => json([]))
     return listRooms().then(() => expect(getToken).not.toHaveBeenCalled())
+  })
+})
+
+describe('S3 생성 래퍼', () => {
+  const message = {
+    id: 72,
+    roomId: 'r1',
+    speaker: 'ciel',
+    kind: 'line',
+    text: 't',
+    authorName: null,
+  }
+
+  it('API-T-UI-019 generate_wrappers_send_method_url_body_and_bearer', async () => {
+    configureClient({ getToken: () => 'tok' })
+    const fn = stubFetch(async () => json(message, 201))
+    await speak('r1', { character: 'ciel' })
+    await speak('a b', { character: 'ciel', extra: 1 } as SpeakBody)
+    await regenerate(72)
+    const calls = fn.mock.calls.map(([url, init]) => ({
+      url: url as string,
+      init: init as RequestInit,
+      headers: new Headers((init as RequestInit).headers),
+    }))
+    expect(calls.map(c => [c.init.method, c.url])).toEqual([
+      ['POST', '/api/rooms/r1/speak'],
+      ['POST', '/api/rooms/a%20b/speak'],
+      ['POST', '/api/messages/72/regenerate'],
+    ])
+    expect(calls[0]?.init.body).toBe('{"character":"ciel"}')
+    expect(calls[1]?.init.body).toBe('{"character":"ciel"}')
+    expect(calls[0]?.headers.get('Content-Type')).toBe('application/json')
+    expect(calls[2]?.init.body).toBeUndefined()
+    expect(calls[2]?.headers.has('Content-Type')).toBe(false)
+    for (const c of calls) expect(c.headers.get('Authorization')).toBe('Bearer tok')
+  })
+
+  it('API-T-UI-020 generate_wrappers_pass_s3_codes_and_never_reject', async () => {
+    const cases = [
+      ['SPEAK_IN_PROGRESS', 409],
+      ['NOT_LAST_MESSAGE', 409],
+      ['NOT_CHARACTER_MESSAGE', 400],
+      ['LLM_FAILED', 502],
+      ['LLM_EMPTY', 502],
+      ['CONFIG_INVALID', 500],
+    ] as const
+    const calls: Array<() => Promise<unknown>> = [
+      () => speak('r1', { character: 'ciel' }),
+      () => regenerate(72),
+    ]
+    for (const [code, status] of cases) {
+      const error = { code, message: ERROR_MESSAGES[code] }
+      for (const call of calls) {
+        stubFetch(async () => json({ error }, status))
+        const result = (await call()) as { ok: false; error: ApiError }
+        expect(result).toEqual({ ok: false, error })
+        expect(isAuthFailure(result.error)).toBe(false)
+      }
+    }
+    const broken: Array<[() => unknown, string]> = [
+      [() => Promise.reject(new TypeError('offline')), 'NETWORK'],
+      [() => new Response('<html>Bad Gateway</html>', { status: 502 }), 'INTERNAL'],
+    ]
+    for (const [impl, code] of broken) {
+      stubFetch(async () => impl())
+      for (const call of calls) expect(await call()).toMatchObject({ ok: false, error: { code } })
+    }
+  })
+
+  it('API-T-UI-021 generate_wrappers_set_no_timeout', async () => {
+    const fn = stubFetch(async () => json(message, 201))
+    await speak('r1', { character: 'sebastian' })
+    await regenerate(72)
+    for (const [, init] of fn.mock.calls as Array<[string, RequestInit]>) {
+      expect('signal' in init).toBe(false)
+    }
   })
 })

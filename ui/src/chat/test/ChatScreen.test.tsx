@@ -269,8 +269,8 @@ describe('ChatScreen 읽기 전용 (R-CHAT-008 · R-CHAT-004/007 부재 쪽)', (
     renderChat()
     await screen.findByRole('log')
 
-    expect(screen.queryByRole('button', { name: '세바스찬' })).toBeNull()
-    expect(screen.queryByRole('button', { name: '시엘' })).toBeNull()
+    // S3: 캐릭터 버튼 접근 이름이 "세바스찬 대사 생성"이라 정확 일치 질의는 무의미 → 정규식(tc.md v1.7)
+    expect(screen.queryByRole('button', { name: /세바스찬|시엘/ })).toBeNull()
     expect(screen.queryByRole('textbox')).toBeNull()
     expect(screen.queryByRole('switch')).toBeNull()
     expect(screen.queryByRole('button', { name: /전송/ })).toBeNull()

@@ -3,6 +3,7 @@
  * 변형 4종(CR-001): 세바스찬 왼쪽 · 시엘 오른쪽(화면만 거울, DOM 순서는 같다) · 유저 가운데 말풍선 · OOC 가운데 한 줄.
  * 루트 클래스(확정): 세바스찬 character sebastian · 시엘 character ciel · 유저 user · OOC ooc(speaker 가 캐릭터여도 캐릭터 키 없음).
  * 본문은 일반 텍스트(React 이스케이프)다. dangerouslySetInnerHTML·마크다운 해석 금지.
+ * S3: isRegenerating(재작성 요청 중인 캐릭터 대사)이면 루트 regenerating · 본문 aria-busy · 머리 줄 "다시 쓰는 중…" role=status(기존 텍스트는 그대로).
  * S2: onOpenMenu 가 있을 때(쓰기 가능)만 롱프레스·우클릭·Shift+F10 핸들러와 tabIndex·aria 를 붙인다. 없으면(읽기 전용) 아무것도 붙이지 않는다.
  */
 import { memo } from 'react'
@@ -19,6 +20,8 @@ export type BubbleProps = {
   message: Message
   /** 쓰기 가능일 때만. 없으면 메뉴 핸들러·tabIndex 를 붙이지 않는다 */
   onOpenMenu?: ((message: Message) => void) | undefined
+  /** S3: 재작성 요청 중인 대상(캐릭터 변형에서만 의미가 있다) */
+  isRegenerating?: boolean
 }
 export type BubbleVariant = 'sebastian' | 'ciel' | 'user' | 'ooc'
 
@@ -47,17 +50,34 @@ const CharacterBubble = ({
   speaker,
   rootProps,
   menuClass,
-}: VariantProps & { speaker: CharacterId }) => {
+  isRegenerating,
+}: VariantProps & { speaker: CharacterId; isRegenerating: boolean }) => {
   const meta = CHARACTERS[speaker]
   return (
-    <div className={cx(styles.root, styles.character, styles[speaker], menuClass)} {...rootProps}>
+    <div
+      className={cx(
+        styles.root,
+        styles.character,
+        styles[speaker],
+        isRegenerating && styles.regenerating,
+        menuClass,
+      )}
+      {...rootProps}
+    >
       <img className={styles.avatar} src={meta.avatar} alt="" width={28} height={28} />
       <div className={styles.content}>
         <div className={styles.head}>
           <span className={styles.name}>{meta.shortName}</span>
           <SentTime createdAt={message.createdAt} />
+          {isRegenerating && (
+            <span className={styles.regeneratingNote} role="status">
+              {labels.regeneratingNote}
+            </span>
+          )}
         </div>
-        <p className={styles.body}>{message.text}</p>
+        <p className={styles.body} aria-busy={isRegenerating ? true : undefined}>
+          {message.text}
+        </p>
       </div>
     </div>
   )
@@ -108,13 +128,15 @@ const useMenuAttributes = (
   }
 }
 
-const BubbleView = ({ message, onOpenMenu }: BubbleProps) => {
+const BubbleView = ({ message, onOpenMenu, isRegenerating = false }: BubbleProps) => {
   const rootProps = useMenuAttributes(message, onOpenMenu)
   const menuClass = onOpenMenu !== undefined && styles.menuEnabled
   const variant = bubbleVariantOf(message)
   if (variant === 'ooc') return <OocBubble {...{ message, rootProps, menuClass }} />
   if (variant === 'user') return <UserBubble {...{ message, rootProps, menuClass }} />
-  return <CharacterBubble {...{ message, rootProps, menuClass }} speaker={variant} />
+  return (
+    <CharacterBubble {...{ message, rootProps, menuClass, isRegenerating }} speaker={variant} />
+  )
 }
 
 /** 말풍선 한 개. 같은 message·onOpenMenu 면 다시 그리지 않는다(목록 격리, tsx-rules §5) */

@@ -1,5 +1,5 @@
 /**
- * useChatSheets — 설계 chat/design/functions.md §4.2 F-CH-18 · 19 · 21 · 22 · 23 · 24 · 25 · 26 · 27 · 28 (50줄 한계 때문에 ChatScreen 에서 분리)
+ * useChatSheets — 설계 chat/design/functions.md §4.2 F-CH-18 · 19 · 21 · 22 · 23 · 24 · 25 · 26 · 27 · 28 · §4.3 F-CH-35 · F-CH-36 (50줄 한계 때문에 ChatScreen 에서 분리)
  * 요구: R-CHAT-001 · R-CHAT-007 · R-CHAT-011
  * 열린 시트(sheet) 상태와 시트에서 일어나는 동작(말풍선 메뉴 · 수정 · 삭제 확인 · ⋯ 방 메뉴 · 이름 변경 · 방 삭제)을 조립한다.
  * 쓰기 대기 중(writing · roomBusy)에는 메뉴를 열지 않는다(D-10) — 그래서 쓰기는 화면 전체에서 한 번에 하나다.
@@ -10,10 +10,10 @@ import type { Dispatch, SetStateAction } from 'react'
 import type { Message, RoomSummary } from '@shared/types'
 import { type ApiError, isAuthFailure } from '@/api'
 import { clearLastRoomId } from '@/components/utils/storage'
-import type { ChatAction, ChatState } from '@/state/chat'
+import { type ChatAction, type ChatState, isRegenerateTarget } from '@/state/chat'
 import type { ChatSheet } from './components/ChatSheets'
 import { type WriteAction, writeErrorText } from './labels'
-import type { RemoveResult } from './useMessageWrites'
+import type { RegenerateResult, RemoveResult } from './useMessageWrites'
 import { useRoomActions } from './useRoomActions'
 
 type SetSheet = Dispatch<SetStateAction<ChatSheet | null>>
@@ -25,6 +25,10 @@ export type UseChatSheetsOptions = {
   isActive: () => boolean
   loadInitial: () => Promise<void>
   removeMessage: (messageId: number) => Promise<RemoveResult>
+  /** S3: F-CH-34 */
+  regenerateMessage: (messageId: number) => Promise<RegenerateResult>
+  /** S3: 다음 ready 커밋 뒤 히스토리로 포커스(F-CH-41) */
+  requestLogFocus: () => void
   handleWriteFailure: (error: ApiError, action: WriteAction) => void
   /** 히스토리 스크롤 박스로 포커스(없으면 ‹) */
   focusLog: () => void
@@ -95,18 +99,56 @@ const useRoomSheets = (options: RoomSheetsOptions) => {
 
 type MessageSheetsOptions = Pick<
   UseChatSheetsOptions,
-  'getState' | 'dispatch' | 'loadInitial' | 'removeMessage' | 'focusLog'
+  | 'getState'
+  | 'dispatch'
+  | 'loadInitial'
+  | 'removeMessage'
+  | 'regenerateMessage'
+  | 'requestLogFocus'
+  | 'focusLog'
 > & { setSheet: SetSheet; isRoomBusy: () => boolean }
 
-/** 말풍선 메뉴 · 수정 · 메시지 삭제 확인 (F-CH-18 ~ F-CH-23) */
+type RegenerateSheetOptions = Pick<
+  MessageSheetsOptions,
+  'loadInitial' | 'regenerateMessage' | 'requestLogFocus' | 'setSheet'
+>
+
+/**
+ * F-CH-36: 「재작성」. confirm 없이 시트를 닫고 요청한다. 대상이 사라졌거나 목록이 낡았으면 재조회하고,
+ * 포커스는 동기로 옮기지 않고 다음 ready 커밋 뒤에 옮기도록 요청만 한다(F-CH-41, 재조회 중에는 log 가 없다)
+ */
+const useRegenerateFromMenu = (options: RegenerateSheetOptions) => {
+  const { loadInitial, regenerateMessage, requestLogFocus, setSheet } = options
+  return useCallback(
+    async (message: Message): Promise<void> => {
+      setSheet(null)
+      const result = await regenerateMessage(message.id)
+      if (result.kind === 'removed') {
+        if (result.isEmptyWithMore) void loadInitial()
+        requestLogFocus()
+      } else if (result.kind === 'stale') {
+        void loadInitial()
+        requestLogFocus()
+      }
+    },
+    [loadInitial, regenerateMessage, requestLogFocus, setSheet],
+  )
+}
+
+/** 말풍선 메뉴 · 수정 · 재작성 · 메시지 삭제 확인 (F-CH-18 ~ F-CH-23 · F-CH-35 · F-CH-36) */
 const useMessageSheets = (options: MessageSheetsOptions) => {
   const { getState, dispatch, loadInitial, removeMessage, focusLog, setSheet, isRoomBusy } = options
+  const regenerate = useRegenerateFromMenu(options)
 
   /** F-CH-18: 쓰기 대기 중이면 무시(D-10) */
   const openMessageMenu = useCallback(
     (message: Message): void => {
       if (getState().writing !== null || isRoomBusy()) return
-      setSheet({ kind: 'messageMenu', message })
+      setSheet({
+        kind: 'messageMenu',
+        message,
+        canRegenerate: isRegenerateTarget(getState(), message.id),
+      })
     },
     [getState, isRoomBusy, setSheet],
   )
@@ -140,7 +182,14 @@ const useMessageSheets = (options: MessageSheetsOptions) => {
     [removeMessage, setSheet, focusLog, loadInitial],
   )
 
-  return { openMessageMenu, startEdit, cancelEdit, askDeleteMessage, confirmDeleteMessage }
+  return {
+    openMessageMenu,
+    startEdit,
+    cancelEdit,
+    askDeleteMessage,
+    confirmDeleteMessage,
+    regenerateFromMenu: regenerate,
+  }
 }
 
 export const useChatSheets = (options: UseChatSheetsOptions) => {

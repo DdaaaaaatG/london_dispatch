@@ -15,7 +15,10 @@ import {
   mergeMessages,
   nextBefore,
   canSend,
+  canSpeak,
+  isRegenerateTarget,
   type MessageWrite,
+  type PendingSpeak,
 } from '@/state/chat'
 
 const msg = (id: number, text = `본문 ${id}`): Message => ({
@@ -49,7 +52,7 @@ const EDIT32: MessageWrite = { kind: 'edit', messageId: 32 }
 const DEL32: MessageWrite = { kind: 'delete', messageId: 32 }
 
 describe('chatReducer S2 초기값·T1 비고 (R-CHAT-006 · R-CHAT-007)', () => {
-  it('TC-CH-053: 초기값 9필드 — S2 writing·editingId 는 null', () => {
+  it('TC-CH-053: 초기값 10필드 — S2 writing·editingId · S3 pending 은 null(Q-05)', () => {
     expect(initialChatState).toEqual({
       phase: 'loading',
       error: null,
@@ -60,6 +63,7 @@ describe('chatReducer S2 초기값·T1 비고 (R-CHAT-006 · R-CHAT-007)', () =>
       unseenCount: 0,
       writing: null,
       editingId: null,
+      pending: null,
     })
   })
 
@@ -183,8 +187,182 @@ describe('chatReducer T21~T26 편집·전환 (R-CHAT-007 · R-CHAT-011)', () => 
   })
 })
 
+// ── S3 (TC-CH-085) — functions.md §1.1 T13~T16·T25 개정 · T27~T34 · §1.2 canSpeak·isRegenerateTarget ──────
+const SPEAK_SEB: MessageWrite = { kind: 'speak', character: 'sebastian' }
+const REGEN33: MessageWrite = { kind: 'regenerate', messageId: 33 }
+const GEN_SEB: PendingSpeak = { character: 'sebastian', status: 'generating', error: null }
+const FAILED_SEB: PendingSpeak = { character: 'sebastian', status: 'failed', error: ERR }
+const FAILED_CIEL: PendingSpeak = { character: 'ciel', status: 'failed', error: NET }
+const LLM: ApiError = { code: 'LLM_FAILED', message: 'x' }
+const speaking = (over: Partial<ChatState> = {}) =>
+  ready({ writing: SPEAK_SEB, pending: GEN_SEB, ...over })
+
+describe('S3 chatReducer T13~T16·T25 개정 (R-CHAT-005 · R-CHAT-007)', () => {
+  it('TC-CH-085: T13 writeStarted regenerate 허용 — writing 설정, 실패 pending 은 같은 참조로 유지', () => {
+    const before = ready({ pending: FAILED_SEB })
+    const next = chatReducer(before, { type: 'writeStarted', write: REGEN33 })
+    expect(next.writing).toEqual(REGEN33)
+    expect(next.pending).toBe(FAILED_SEB)
+    expect(next.messages).toBe(before.messages)
+  })
+
+  it('TC-CH-085: T14 writeStarted speak 는 거절(같은 참조) — speak 는 speakStarted 로만 시작', () => {
+    const idle = ready()
+    expect(chatReducer(idle, { type: 'writeStarted', write: SPEAK_SEB })).toBe(idle)
+  })
+
+  it('TC-CH-085: T15 regenerate 중 writeFinished → null / T16 speak 중 writeFinished → 같은 참조', () => {
+    expect(chatReducer(ready({ writing: REGEN33 }), { type: 'writeFinished' }).writing).toBeNull()
+    const busy = speaking()
+    expect(chatReducer(busy, { type: 'writeFinished' })).toBe(busy)
+  })
+
+  it('TC-CH-085: T25 pending 만 있어도 writeAccessRevoked → writing·editingId·pending 모두 null', () => {
+    const revoked = chatReducer(ready({ pending: FAILED_CIEL }), { type: 'writeAccessRevoked' })
+    expect(revoked.pending).toBeNull()
+    expect(revoked.writing).toBeNull()
+    expect(revoked.editingId).toBeNull()
+    const gen = chatReducer(speaking(), { type: 'writeAccessRevoked' })
+    expect(gen.pending).toBeNull()
+    expect(gen.writing).toBeNull()
+  })
+
+  it('TC-CH-085: T1~T3 는 pending 을 null 로(재로드 시 실패 말풍선 사라짐)', () => {
+    const withFailed = ready({ pending: FAILED_SEB })
+    expect(chatReducer(withFailed, { type: 'initialLoadStarted' }).pending).toBeNull()
+    expect(
+      chatReducer(withFailed, { type: 'initialLoadSucceeded', page: page([msg(1)], false) })
+        .pending,
+    ).toBeNull()
+    expect(chatReducer(withFailed, { type: 'initialLoadFailed', error: NET }).pending).toBeNull()
+  })
+})
+
+describe('S3 chatReducer T27~T34 speak (R-CHAT-005 · R-CHAT-003)', () => {
+  it('TC-CH-085: T27 speakStarted(canSpeak) → writing speak·pending generating', () => {
+    const before = ready()
+    const next = chatReducer(before, { type: 'speakStarted', character: 'ciel' })
+    expect(next.writing).toEqual({ kind: 'speak', character: 'ciel' })
+    expect(next.pending).toEqual({ character: 'ciel', status: 'generating', error: null })
+    expect(next.messages).toBe(before.messages)
+  })
+
+  it('TC-CH-085: T27 이전 실패 pending(같은·다른 캐릭터)을 새 임시 pending 이 덮는다', () => {
+    expect(
+      chatReducer(ready({ pending: FAILED_SEB }), { type: 'speakStarted', character: 'sebastian' })
+        .pending,
+    ).toEqual(GEN_SEB)
+    expect(
+      chatReducer(ready({ pending: FAILED_SEB }), { type: 'speakStarted', character: 'ciel' })
+        .pending,
+    ).toEqual({ character: 'ciel', status: 'generating', error: null })
+  })
+
+  it('TC-CH-085: T28 첫 로드 전·다른 쓰기 중·이미 생성 중·인라인 수정 중 → 같은 참조', () => {
+    const loading = freeze(initialChatState)
+    const sending = ready({ writing: SEND })
+    const regen = ready({ writing: REGEN33 })
+    const already = speaking()
+    const editing = ready({ editingId: 32 })
+    for (const s of [loading, sending, regen, already, editing])
+      expect(chatReducer(s, { type: 'speakStarted', character: 'ciel' })).toBe(s)
+  })
+
+  it('TC-CH-085: T29 speakSucceeded 맨 아래 근처 → 메시지 붙임·unseen 0·writing·pending null', () => {
+    const next = chatReducer(speaking(), {
+      type: 'speakSucceeded',
+      message: msg(34, '대사'),
+      isNearBottom: true,
+    })
+    expect(ids(next.messages)).toEqual([31, 32, 33, 34])
+    expect(next.unseenCount).toBe(0)
+    expect(next.writing).toBeNull()
+    expect(next.pending).toBeNull()
+  })
+
+  it('TC-CH-085: T29 위쪽을 보는 중 → unseenCount += 1(T9 규칙)', () => {
+    const next = chatReducer(speaking({ unseenCount: 2 }), {
+      type: 'speakSucceeded',
+      message: msg(34),
+      isNearBottom: false,
+    })
+    expect(next.unseenCount).toBe(3)
+    expect(next.pending).toBeNull()
+  })
+
+  it('TC-CH-085: T30 speak 중이 아니면 speakSucceeded → 같은 참조', () => {
+    const idle = ready()
+    const sending = ready({ writing: SEND })
+    for (const s of [idle, sending])
+      expect(chatReducer(s, { type: 'speakSucceeded', message: msg(34), isNearBottom: true })).toBe(
+        s,
+      )
+  })
+
+  it('TC-CH-085: T31 speakFailed → writing null, pending = 그 캐릭터 실패 + error / T32 아니면 같은 참조', () => {
+    const next = chatReducer(speaking(), { type: 'speakFailed', error: LLM })
+    expect(next.writing).toBeNull()
+    expect(next.pending).toEqual({ character: 'sebastian', status: 'failed', error: LLM })
+    expect(ids(next.messages)).toEqual([31, 32, 33])
+    const idle = ready()
+    expect(chatReducer(idle, { type: 'speakFailed', error: LLM })).toBe(idle)
+  })
+
+  it('TC-CH-085: T33 speakDiscarded → writing·pending null / T34 아니면 같은 참조', () => {
+    const next = chatReducer(speaking(), { type: 'speakDiscarded' })
+    expect(next.writing).toBeNull()
+    expect(next.pending).toBeNull()
+    const withFailed = ready({ pending: FAILED_CIEL })
+    expect(chatReducer(withFailed, { type: 'speakDiscarded' })).toBe(withFailed)
+  })
+
+  it('TC-CH-085: 실패 pending 은 유저 전송 성공(T9)·수정(T17)에도 그대로 남는다', () => {
+    const before = ready({ pending: FAILED_SEB })
+    expect(
+      chatReducer(before, { type: 'messagesAppended', messages: [msg(34)], isNearBottom: true })
+        .pending,
+    ).toBe(FAILED_SEB)
+    expect(chatReducer(before, { type: 'messageReplaced', message: msg(32, '새') }).pending).toBe(
+      FAILED_SEB,
+    )
+  })
+})
+
+describe('S3 canSpeak · isRegenerateTarget (R-CHAT-005 · R-CHAT-007 · R-MSG-006)', () => {
+  it('TC-CH-085: canSpeak = canSend && editingId === null(DC-10)', () => {
+    expect(canSpeak(ready())).toBe(true)
+    expect(canSpeak(ready({ pending: FAILED_SEB }))).toBe(true)
+    expect(canSpeak(ready({ editingId: 32 }))).toBe(false)
+    expect(canSend(ready({ editingId: 32 }))).toBe(true)
+    expect(canSpeak(speaking())).toBe(false)
+    expect(canSpeak(ready({ writing: REGEN33 }))).toBe(false)
+    // 잠금 표 send·edit·delete 행(TK-03)
+    expect(canSpeak(ready({ writing: SEND }))).toBe(false)
+    expect(canSpeak(ready({ writing: EDIT32 }))).toBe(false)
+    expect(canSpeak(ready({ writing: DEL32 }))).toBe(false)
+    expect(canSpeak(ready({ writing: DEL32, pending: FAILED_SEB }))).toBe(false)
+    expect(canSpeak(initialChatState)).toBe(false)
+  })
+
+  it('TC-CH-085: isRegenerateTarget 5경계 — 마지막 캐릭터 line만 true', () => {
+    const userLast = ready({
+      messages: [msg(31), { ...msg(32), speaker: 'user', authorName: '미샤' }],
+    })
+    const oocLast = ready({
+      messages: [msg(31), { ...msg(32), speaker: 'sebastian', kind: 'ooc' }],
+    })
+    const empty = ready({ messages: [], hasMore: false })
+    expect(isRegenerateTarget(ready(), 33)).toBe(true)
+    expect(isRegenerateTarget(ready(), 32)).toBe(false)
+    expect(isRegenerateTarget(userLast, 32)).toBe(false)
+    expect(isRegenerateTarget(oocLast, 32)).toBe(false)
+    expect(isRegenerateTarget(empty, 33)).toBe(false)
+    expect(isRegenerateTarget(ready({ pending: FAILED_SEB }), 33)).toBe(true)
+  })
+})
+
 describe('chatReducer T1~T8 (R-CHAT-003)', () => {
-  it('TC-CH-015: 초기값은 { loading, null, [], false, false, null, 0, null, null }', () => {
+  it('TC-CH-015: 초기값은 { loading, null, [], false, false, null, 0, null, null, null }(S3 pending 포함, Q-05)', () => {
     expect(initialChatState).toEqual({
       phase: 'loading',
       error: null,
@@ -195,6 +373,7 @@ describe('chatReducer T1~T8 (R-CHAT-003)', () => {
       unseenCount: 0,
       writing: null,
       editingId: null,
+      pending: null,
     })
   })
 
