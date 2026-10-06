@@ -42,6 +42,7 @@
 ### 2-2. 문서 동기화 잔여(`/doc-sync` 또는 개별 위임) — `doc/state.json` `todo_docsync`
 - 스킬 문구 갱신(메인 세션 배치): server-design-strategy §3 에러코드명·§6 어댑터 인터페이스·429 재시도·§7.2 요약 위치·§7.5·§8 / server-rules AppError 예시 / ui-design-strategy §6.3·§7(D-16). 근거는 llm.md 「메인 세션 보고 사항」4·generate.md D-16.
 - messages.md S3-R1(내부 id 노출 문구)·S3-R2(Number(id) → 10진 규칙) · api.md §4.12·§15.10 결정 4건 "사용자 승인 2026-10-06" 마킹 · index.md 머리말.
+- CR 후보: chat — 인라인 편집기 열린 채 재작성(regenerate) 진행 중 저장 버튼이 활성으로 보이고 클릭은 거절됨(S3부터, S3d 검증 중 관찰 2026-10-06) → S3d의 isSaveLocked를 재작성에도 적용 검토(ui-debug, 보강).
 - CR 후보: chat S2 F-CH-23(메시지 삭제로 방이 비면 포커스 시점) → S3의 F-CH-41 방식으로 통일 검토(ui-debug, 보강 모드).
 
 ## 3. 결정 대기 (확정사항 §9 + 이번 세션 추가)
@@ -49,12 +50,13 @@
 |---|---|---|
 | 1 | 버튼 허용 등급 | 5 (지인 셋팅 중, 확정 시 `wrangler.toml [vars] TOKEN_MIN_LEVEL`만 변경) |
 | 3 | 캐릭터 프롬프트 | JSON 임시 문구 적용됨(`server/characters/*.json`). 사용자·지인이 내용 교체 → 재배포 |
-| 4 | Gemini 키·모델 | 키는 지인 발급 대기. 모델 gemini-2.5-flash. **generationConfig 미설정** — 실키로 수동 확인(llm.md §8.1) 뒤 필요 시 요구 승격 |
+| 4 | Gemini 키·모델 | 키는 로컬 `server/.dev.vars`에 입력됨(2026-10-06, 사용자). **`gemini-2.5-flash`는 Google이 신규 사용자에게 막음(404)** — 로컬은 `.dev.vars`의 `LLM_MODEL=gemini-3.1-pro-preview`로 시험 중(종단 speak 201). 운영 모델명(Pro vs 3.8-flash)과 단가(`LLM_PRICE_*`)는 **지인 결정 후 wrangler.toml [vars] 갱신**(server-implementer, 배포 전 필수). generationConfig 미설정 |
 | 8 | Cloudflare 계정·배포 | 지인 계정, 우리가 직접 셋팅·배포(접근 방식·플랜 미정) |
 | 9 | 줄바꿈 정책 | `.gitattributes`(`* text=auto eol=lf`) 추가 여부 — prettier 23파일 지적 해소용 |
 | 10 | 스크린샷 추적 | `.gitignore`에서 `doc/300_검증/screenshots/` 제외를 풀지 여부(현재는 로컬만) |
 
 ## 4. 꼭 지킬 것
+- **문서 편집 스크립트 사고 재발 방지(2026-10-06)**: api.md 꼬리 325줄이 `indexOf`가 -1인데도 `slice`한 스크립트로 잘려 커밋됐다. 에이전트가 Bash node/python로 문서를 고칠 때는 앵커 미발견 시 반드시 중단(throw)하고, 고친 뒤 헤딩 수·줄 수를 전후 비교해 증거로 남긴다. 위임문에 이 조건을 적는다. 복원 재료는 세션 jsonl(subagents/*.jsonl)의 Edit 본문·Read 결과.
 - 아보카도 본체·그누보드 코어는 건드리지 않는다. 저쪽이 하는 수정은 테마 파일 안의 주소 한 줄 + 토큰 몇 줄뿐이다.
 - 메인 화면 대사창(캐릭터 옆 말풍선) 연동 **안 함**.
 - 설정·비밀값 읽기는 `server/src/env.ts`에서만. 비밀값 실값은 `server/.dev.vars`(로컬)·Cloudflare Secrets(운영)에만. 로그에는 제공사 상태 코드·분류만(R-LLM-005 개정).

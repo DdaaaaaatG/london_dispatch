@@ -1,6 +1,6 @@
 # messages 모듈 설계
 
-- 상태: S1 확정(구현 동기화) · S2 초안 · S3 초안(§2.3·§4.2·§4.3·§8.2) · S3b 초안(§4.2 예산 게이트·§8.3) · S3c 구현 완료(§4.4·§8.4) · 최종 갱신: 2026-10-06
+- 상태: S1 확정(구현 동기화) · S2 초안 · S3 초안(§2.3·§4.2·§4.3·§8.2) · S3b 초안(§4.2 예산 게이트·§8.3) · S3c 구현 완료(§4.4·§8.4) · **S3d 초안(§12 speak `'auto'` — 앞 절과 다르면 §12가 우선)** · 최종 갱신: 2026-10-06
 - 묶음: S1 = R-MSG-001(히스토리 페이지). S2 = R-MSG-002(유저 발화·지시 저장) · R-MSG-004(수정) · R-MSG-005(삭제) · R-MSG-008(권한). S3 = R-MSG-003·006·007(speak·regenerate·방당 잠금) · R-ROOM-005(재작성 갱신) · R-NFR-001·003 · R-MEM-002(훅 자리만, S3 no-op). S3b = R-LLM-007 🔒 월 예산 게이트(speak·regenerate 잠금 전 `llm.ensureBudget()` — 사용량 누적은 llm 안, [llm.md](llm.md) §12).
 - 관련 문서: [db.md](db.md)(`messages` 저장소), [rooms.md](rooms.md)(`updated_at` 갱신 규칙), [auth.md](auth.md)(`Principal`·쓰기 미들웨어), [index.md](index.md)(서비스 컨테이너·에러 핸들러), [llm.md](llm.md)(S3 프롬프트·제공사·재시도).
 
@@ -611,10 +611,194 @@ INSERT INTO messages (room_id, speaker, kind, text, author_mb_id, author_name, c
 | D-MSG-23 | 선택 deps + 시드 기본값 | 필수 deps | 기존 직접 생성 테스트 10여 곳 무수정. 배선은 SRV-T-256이 보장 |
 | D-MSG-24 | 잠금 뒤 `Promise.all`로 병렬 읽기 | 잠금 전 읽기 · 직렬 | 02 §3 "잠금 뒤 요약·히스토리와 함께". 잠금 전에 읽으면 409로 끝날 요청도 읽고, 잠금 대기 중 저장된 값을 놓칠 수 있다 |
 
+## 12. S3d — speak `'auto'` 자동 화자 선택 (R-MSG-009 🔒 · R-MSG-003 🔒 개정 · R-NFR-001 🔒 개정)
+
+- 상태: 초안(2026-10-06, 승인 ① 반영). 근거 `doc/200_설계/architecture/s3d-02-전반설계.md` §2~§4, 인계패킷 §1.
+- **이 절이 앞 절보다 우선한다.** 대체 대상: §2.3 speak 실패 조건 ①(허용값), §4.2 ①·④·⑥(선택 단계 삽입·로그 필드). 버튼 경로(`'sebastian'`·`'ciel'`)의 동작·로그는 그대로다.
+
+비유: 전송 버튼은 "다음 배우 아무나"라고 적은 쪽지다. 무대 감독(서버)이 대본 끝 몇 줄을 보고 받을 배우를 먼저 정한 뒤, 그 배우에게 평소 대본을 그대로 준다. 무대(방)는 한 번에 한 공연만 하므로 잠금은 버튼과 같은 것을 쓴다.
+
+### 12.1 목적
+
+| 요구ID | 이 모듈 몫 |
+|---|---|
+| R-MSG-009 🔒 | `'auto'`면 잠금 안에서 화자 1명을 골라 1턴 생성·저장. 잠금·월 상한·레이트리밋·에러는 speak와 같다. 응답 `speaker` = 고른 캐릭터 |
+| R-MSG-003 🔒 개정 | 허용값 `'sebastian' \| 'ciel' \| 'auto'` |
+| R-NFR-001 🔒 개정 | 선택 포함 70초. LLM 단계 66초를 선택과 발화가 나눠 쓴다(조립은 [llm.md](llm.md) §13.7) |
+| R-LLM-008 | 선택 호출·파싱·기본 화자는 llm 몫. 이 모듈은 결과만 받는다([llm.md](llm.md) §13) |
+| R-MSG-007 🔒 · R-LLM-007 🔒 | 상속. 잠금 1회·예산 게이트 1회가 선택과 발화를 함께 덮는다 |
+| R-AUTH-004 🔒 개정 | 유저 메시지 응답 `authorName` 고정은 [db.md](db.md) §12 투영. 이 모듈 코드 변경 없음 |
+
+### 12.2 공개 API (시그니처 불변 — 입력 타입만 넓어짐)
+
+```ts
+// server/src/messages/generate.ts
+import type { SpeakBody, SpeakTarget } from '@shared/types'
+// contract-implementer 가 추가: SpeakTarget = CharacterId | 'auto' · SpeakBody = { character: SpeakTarget }
+
+/** = @shared/types SpeakBody (S3d: character 가 SpeakTarget) */
+export type SpeakInput = SpeakBody
+
+export type GenerateOps = {
+  /** 캐릭터 1턴 생성·저장. 'auto' 면 서버가 화자를 고른다. 반환 speaker 는 늘 CharacterId */
+  speak: (roomId: string, input: SpeakInput, background: Background) => Promise<Message>
+  regenerate: (messageId: number) => Promise<Message>   // 변경 없음
+}
+
+// ---- 모듈 내부(export 안 함) ----
+/** 'auto' 허용 판정. 대소문자·공백 변형은 거절 */
+const isSpeakTarget = (v: unknown): v is SpeakTarget => v === 'auto' || isCharacterId(v)
+
+/** 이번 차례 캐릭터. selected 'request' = 버튼 */
+type ResolvedSpeaker = {
+  readonly character: CharacterId
+  readonly selected: 'request' | 'model' | 'fallback'
+  /** 선택 단계에 쓴 ms. 버튼은 0. llm.complete 의 spentMs 로 넘긴다 */
+  readonly spentMs: number
+}
+
+/** 'auto' 만 llm.selectSpeaker 를 부른다. throw 하지 않는다(선택 실패는 기본 화자) */
+const resolveSpeaker = async (
+  llm: Llm,
+  roomId: string,
+  target: SpeakTarget,
+  history: readonly Message[],
+  settings: PromptSettings,
+): Promise<ResolvedSpeaker>
+```
+
+| 이름 | 인자 | 반환 | 실패 조건(판정 순서) | 요구ID |
+|---|---|---|---|---|
+| `speak` | `roomId, { character: SpeakTarget }, background` | `Promise<Message>` (`speaker` = 요청 캐릭터 또는 고른 캐릭터) | ① `character`가 `'sebastian'`·`'ciel'`·`'auto'` 아님(`'Auto'`·`''`·`null`·생략·`'user'`) → `VALIDATION_ERROR`(400, DB·LLM 전) ② `CONFIG_INVALID`(500) ③ `LLM_BUDGET_EXCEEDED`(429, 잠금·LLM 0회) ④ 방 없음 `NOT_FOUND`(404) / 잠금 중 `SPEAK_IN_PROGRESS`(409) — 선택 호출 0회 ⑤ (`'auto'`) 선택 실패는 **에러 아님** → 기본 화자 ⑥ 발화 `LLM_FAILED`·`LLM_EMPTY`(502, 저장 0) ⑦ 저장 시 방 없음 `NOT_FOUND` | R-MSG-003·007·009 · R-NFR-001 · R-LLM-007 |
+
+- 검증 문구: `CHARACTER_INVALID_MESSAGE`를 `'캐릭터는 sebastian·ciel·auto 중 하나여야 합니다.'`로 바꾼다. SRV-T-194는 코드만 단언한다(`codeOf`) — 무수정. 라우트 zod가 먼저 400을 내므로 이 문구는 서비스 직접 호출에서만 보인다.
+- **새 에러 코드·서비스 메서드·deps·env 키·마이그레이션 0건.** `GenerateDeps`·`MessagesDeps`·`MessagesService` 불변.
+- `speak` 본문이 50줄을 넘지 않게 `resolveSpeaker`를 분리한다(golden-principles §1).
+
+| 항목 | 버튼(`'sebastian'`·`'ciel'`) | `'auto'` |
+|---|---|---|
+| 캐릭터 | 요청값 | 잠금 안에서 `llm.selectSpeaker` 결과(실패면 기본 화자) |
+| 컨텍스트 읽기 | `pageDesc(roomId, contextMessages)` 1회 | 같은 1회. 선택과 발화가 같은 `history`를 쓴다(선택 프롬프트는 끝 12개만 — llm 몫) |
+| AI 호출 | 1~2회 | 2~3회(선택 1 + 발화 1~2) |
+| 예산 게이트 | 잠금 전 1회 | 같은 1회 |
+| 저장 | `speaker` = 요청 캐릭터, `author_*` NULL | `speaker` = 고른 캐릭터, `author_*` NULL. `'auto'` 흔적은 D1·응답에 없다 |
+| 재작성 | 같은 캐릭터 | 같은 캐릭터. 선택을 다시 하지 않는다(R-MSG-006 불변) |
+| 레이트리밋 | 라우트 `rateLimitWrites` 1회 | 같은 1회. 화면의 전송 1회 = `/user` 1 + `speak` 1 = **2회**(같은 분당 버킷, [auth.md](auth.md) §2.5) |
+| 로그 | `speak_done{roomId, messageId, character, ms}` (변경 없음) | `speak_done{roomId, messageId, character, auto: true, selected: 'model'\|'fallback', ms}` + 기본 화자면 `speaker_select_fallback{roomId, reason}`(warn) |
+
+### 12.3 흐름
+
+```
+POST /api/rooms/:id/speak { character: 'auto' }   [requireToken · rateLimitWrites — /user 와 같은 버킷]
+  └ speak(roomId, { character: 'auto' }, background)
+       ① isSpeakTarget ─ 아님 → VALIDATION_ERROR                (라우트 zod 가 먼저 400)
+       ② llm = deps.llm() ─ CONFIG_INVALID                      (잠금 전)
+       ③ await llm.ensureBudget() ─ 429 LLM_BUDGET_EXCEEDED     (잠금 0 · 선택 0 · 발화 0)
+       ④ withSpeakLock(roomId) ─ 'missing' 404 / 'busy' 409     (선택 0)
+          try {
+            [rowsDesc, summary, settings] = Promise.all(pageDesc ∥ getSummary ∥ loadPromptSettings)   (기존과 같음)
+            history = rowsDesc 뒤집기(오래된→새)
+            ⑤ pick = await resolveSpeaker(llm, roomId, 'auto', history, settings)
+                 └ llm.selectSpeaker({ history, profiles, common })   ≤ 8초 · 재시도 없음 · usage 누적 · throw 없음
+                   choice.source === 'fallback' → logger.warn('speaker_select_fallback', { roomId, reason })
+                 → { character: choice.speaker, selected: choice.source, spentMs: choice.ms }
+            ⑥ prompt = buildSpeakPrompt({ character: pick.character, summary, history }, settings.profiles, settings.common)
+               raw = await llm.complete(prompt, { spentMs: pick.spentMs })   ── 남은 예산(보통 ≥ 58초) · 재시도 1 · usage 누적 · 502
+               text = postprocessLine(raw)
+            ⑦ saved = db.messages.insert({ speaker: pick.character, kind: 'line', authorMbId: null, authorName: null }, now())
+          } finally { releaseQuietly(roomId, untilMs) }
+       ⑧ afterSpeak 있으면 waitUntil(기존과 같음)
+       ⑨ logger.info('speak_done', { roomId, messageId, character: pick.character, auto: true, selected: pick.selected, ms })
+  ◀ 201 Message (speaker = 고른 캐릭터)
+
+버튼: ⑤ 에서 pick = { character: target, selected: 'request', spentMs: 0 }, 선택 호출 0회. ⑨ 는 기존 필드만 남긴다.
+```
+
+| 시간(R-NFR-001 🔒 70초) | 상한 |
+|---|---|
+| D1(잠금·읽기 3종·저장·해제) | 약 4초 여유(기존 가정 그대로) |
+| 선택 | `min(8초, llmTimeoutMs)` + usage 누적 1왕복 |
+| 발화 | `66초 − spentMs` 안에서 1차 + (조건부) 1초 대기 + 2차 |
+| 최악 | 선택 8초 타임아웃 + 발화 58초 타임아웃(재시도 생략) = 66초 → 전체 70초 |
+
+### 12.4 동시성
+
+- **선택은 잠금 안에서 한다.** 잠금 밖에서 고르면 같은 방 `'auto'` 두 건이 둘 다 선택 호출(비용)을 쓴 뒤 하나가 409가 된다. 잠금 안이면 진 쪽은 AI 0회로 409다. 또 선택이 본 기록과 발화가 본 기록이 같아진다.
+- 잠금 만료 90초 > 70초 상한은 그대로 성립한다. `'auto'`·버튼·regenerate가 같은 `rooms.speaking_until`을 쓴다(R-MSG-007).
+- 프로세스 메모리 상태 없음. `resolveSpeaker`는 지역 값만 쓴다.
+
+### 12.5 에러
+
+새 코드 없음. 선택 단계의 모든 실패(timeout·network·http_429·http_4xx·http_5xx·blocked·bad_response·응답 파싱 불가)는 llm 안에서 기본 화자로 바뀌고 이 모듈에는 성공으로 온다. 발화 실패는 §5 표 그대로(502). 저장 전 실패라 유저 메시지만 남고, 화면은 `'auto'` 재호출로 다시 시도한다.
+
+### 12.6 설정(env) · DB
+
+- 읽는 env 키 변경 없음. 선택 상수(8초·12개)는 llm 코드 상수([llm.md](llm.md) §13.2).
+- 스키마·마이그레이션 없음. 기존 `rooms.speaking_until`·`messages`·`llm_usage`만 쓴다.
+
+### 12.7 테스트 (`server/test/messages-generate.test.ts`에 추가 — D1 + FakeProvider + 가짜 시계)
+
+FakeProvider 각본의 0번째는 선택 호출, 1번째부터 발화 호출이다.
+
+| 테스트ID | 이름 | 입력 | 기대 | 요구 |
+|---|---|---|---|---|
+| SRV-T-270 | `speak_auto_saves_model_choice_ciel` | 기록(시엘 1 · 유저 1 — 기본 화자라면 세바스찬), 각본 `[{text:'ciel'}, {text:'대사'}]` | 201 `speaker 'ciel'`(기본 화자와 다름 = 모델 선택 증명), `fake.calls` 2건, `calls[0].timeoutMs === 8000`, `calls[1].system`이 `buildSpeakPrompt({character:'ciel',…})`와 같다, `speak_done.auto === true`·`selected 'model'` | R-MSG-009 · R-LLM-008 |
+| SRV-T-271 | `speak_auto_accepts_korean_choice_sebastian` | 기록(세바스찬 1 · 유저 1 — 기본 화자라면 시엘), 각본 `['세바스찬.', '대사']` | 201 `speaker 'sebastian'`, `selected 'model'`, warn 로그 0건 | R-MSG-009 · R-LLM-008 |
+| SRV-T-272 | `speak_auto_falls_back_on_unparsable_choice` | 기록 끝 캐릭터 = 세바스찬, 각본 `['모르겠다', '대사']` | `speaker 'ciel'`, warn `speaker_select_fallback{roomId, reason:'unparsable'}` 1건, 로그 어디에도 `모르겠다`·유저 본문 없음 | R-LLM-008 · R-NFR-004 |
+| SRV-T-273 | `speak_auto_falls_back_after_select_timeout_then_speaks` | 유저 메시지만 있는 방, 각본 0번 = 가짜 시계 +8000 후 `LlmError('timeout')`, 1번 = `'대사'` | 201 `speaker 'sebastian'`, `fake.calls` 2건(선택 재시도 없음), `reason 'timeout'` | R-LLM-008 · R-MSG-009 |
+| SRV-T-274 | `speak_auto_records_usage_for_both_calls_and_gate_blocks_before_select` | meter 주입. ⓐ 정상 `'auto'` ⓑ 누적을 예산 이상으로 만든 뒤 `'auto'` | ⓐ `llm_usage` 누적 = `FAKE_USAGE` 2회분 ⓑ `LLM_BUDGET_EXCEEDED`, `fake.calls` 0, 잠금 0 | R-LLM-007 · R-MSG-009 |
+| SRV-T-275 | `speak_auto_shares_speak_lock` | ⓐ 잠금 중인 방에 `'auto'` ⓑ 같은 방 `'auto'` ∥ `'sebastian'` 동시 | ⓐ `SPEAK_IN_PROGRESS`, `fake.calls` 0 ⓑ 정확히 1건 409, 성공 1건 | R-MSG-007 · R-MSG-009 |
+| SRV-T-276 | `speak_auto_finishes_within_66s_llm_budget` | 가짜 시계. ⓐ 선택 +8000 timeout, 발화 1차 `input.timeoutMs`만큼 +후 timeout ⓑ 선택 +8000 timeout, 발화 1차 +1000 `network`, 2차 성공 | ⓐ `LLM_FAILED`, `calls[1].timeoutMs === 58000`, 2차 없음, 경과 ≤ 70000, 잠금 해제 ⓑ 201, `calls[2].timeoutMs === 56000` | R-NFR-001 · R-LLM-008 |
+| SRV-T-277 | `speak_auto_then_regenerate_keeps_character_without_select` | `'auto'`로 `'ciel'` 저장 → 그 메시지 regenerate | regenerate 호출 1건(선택 없음), system = 시엘 프롬프트, `speaker 'ciel'` | R-MSG-006 · R-MSG-009 |
+| SRV-T-278 | `speak_rejects_invalid_targets_before_llm_and_db` | `'Auto'`·`''`·`null`·`undefined`·`'user'`·`' auto'` | 모두 `VALIDATION_ERROR`, `fake.calls` 0, 잠금 0 | R-MSG-003 |
+
+**기존 테스트 영향(이 모듈 소관).**
+
+| 파일 | TC | 바뀌는 단언 | 이유 |
+|---|---|---|---|
+| `server/test/messages.test.ts` | SRV-T-140 | `authorName: '시엘 팬텀하이브'` → `USER_DISPLAY_NAME` | [db.md](db.md) §12 투영 |
+| `server/test/messages.test.ts` | SRV-T-142 | 이름을 `addUserMessage_stores_displayName_but_returns_fixed_name`으로 바꾼다. 응답 `authorName === USER_DISPLAY_NAME`, D1 `SELECT author_name` = `author.displayName`(두 작성자) | R-AUTH-004 개정 |
+| `server/test/routes-write.test.ts` | API-T-061(301~322행) | 응답 `authorName` 두 곳 → `USER_DISPLAY_NAME`. 닉네임 경우는 D1 `author_name = '테스터'`를 직접 SELECT로 단언 | 같음. 02 §6에 따라 server-implementer가 고친다 |
+| `server/test/messages-generate.test.ts` | SRV-T-191~209 · 225~230 · 256~258 | 무수정 | 버튼 경로·로그 필드 불변 |
+
+**contract 쪽 요청(`server/test/routes-generate.test.ts` — contract-implementer 소유).** ① `'auto'` 201·응답 `speaker`가 두 캐릭터 중 하나 ② `'Auto'`·`''` 400 ③ **레이트리밋 공유**: 한도 2로 `/user` 201 → `speak 'auto'` 201 → 다음 `/user`가 `429 RATE_LIMITED`(전송 1회 = 2회 소모 증명).
+
+### 12.8 contract 요구 명세
+
+| 노출 | 입력 | 출력 | 에러 | 이유 |
+|---|---|---|---|---|
+| `speak` (E9 `POST /api/rooms/:id/speak` 확장) | `{ character: SpeakTarget }` | `201 Message`, `speaker`는 `CharacterId`만 | 기존 E9와 같음. 새 코드 0 | R-MSG-009. 가장 가까운 기존 엔드포인트 확장(02 §2 Z) |
+
+- zod: `character` = `z.enum(['sebastian', 'ciel', 'auto'])`. 대소문자 변형·빈 문자열·`null` 400.
+- api.md §4.12의 AI 호출 횟수 "1~2회(`'auto'`는 2~3회)"와 시간 내역 "선택 최대 8초"는 §12.3 표를 따른다.
+
+### 12.9 요구 추적
+
+| 요구ID | 반영 절 | 테스트ID | 상태 |
+|---|---|---|---|
+| R-MSG-009 🔒 | §12.2·§12.3 | SRV-T-270~277 · routes-generate(contract) | ✅(설계) |
+| R-MSG-003 🔒 개정 | §12.2 ① | SRV-T-278 · routes-generate 400 | ✅(설계) |
+| R-NFR-001 🔒 개정 | §12.3 시간표 | SRV-T-276 | ✅(설계) |
+| R-MSG-007 🔒 (상속) | §12.4 | SRV-T-275 | ✅(설계) |
+| R-LLM-007 🔒 (상속) | §12.2 ③ | SRV-T-274 | ✅(설계) |
+| R-AUTH-004 🔒 개정 (응답) | [db.md](db.md) §12 | SRV-T-140·142 개정 · API-T-061 개정 | ✅(설계) |
+
+### 12.10 설계 결정
+
+| # | 결정 | 대안 | 채택 근거 |
+|---|---|---|---|
+| D-MSG-25 | 선택을 잠금 안, 읽기 3종 뒤에 한다 | 잠금 전 선택 | 409로 끝날 요청이 AI를 쓰지 않는다. 선택과 발화가 같은 기록을 본다 |
+| D-MSG-26 | `selectSpeaker`가 throw하지 않고 기본 화자를 돌려준다 | messages가 try/catch로 기본 화자 | 기본 화자 규칙·실패 분류가 llm 한 곳에 모인다. messages는 분기 1개만 |
+| D-MSG-27 | 버튼 경로 `speak_done` 필드를 그대로 둔다 | 모든 경로에 `auto`·`selected` | 기존 로그 단언 무수정(수용 기준 "기존 테스트 무수정") |
+| D-MSG-28 | 예산 게이트는 요청당 1회 | 선택 뒤 발화 전에 한 번 더 | 기존 "재시도는 게이트 1회" 규칙과 같다. 선택 1회(약 1.7원)로 한도를 넘어도 같은 요청의 발화는 끝낸다. 다음 요청부터 429 |
+
+- 확인 필요 없음. 요구 밖 기능(저장만 전송·두 캐릭터 연속·자동 여부 저장)은 만들지 않는다.
+
 ## 변경 이력
 
 | 날짜 | 내용 |
 |---|---|
+| 2026-10-06 | S3d 설계(§12): speak `SpeakTarget`(`'auto'`) 처리 — 잠금 안 `llm.selectSpeaker` → 고른 캐릭터로 기존 생성 경로, `resolveSpeaker` 내부 함수, 검증 문구, 로그 `speak_done.auto·selected`·`speaker_select_fallback`, 66초 분배, SRV-T-270~278, 기존 SRV-T-140·142·API-T-061 개정, contract 테스트 요청(레이트리밋 공유), D-MSG-25~28. 공개 시그니처 불변 |
 | 2026-10-05 | S1 초안 작성 |
 | 2026-10-06 | S3 설계: §2.3 예정 시그니처를 본문으로 승격(speak `author` 인자 제거, regenerate `background` 제거), `MessagesDeps`에 `logger`·`contextMessages`·`llm`·`afterSpeak?`, `generate.ts` 추가, §4.2 흐름·§4.3 경합, §5 S3 에러, §8.2 SRV-T-191~209, §9·§10 갱신, D-MSG-12~19 |
 | 2026-10-06 | S3b 설계: §4.2 speak ②b·regenerate ③b 예산 게이트(`llm.ensureBudget()`), §4.3 경합 2행, §5 `LLM_BUDGET_EXCEEDED`, §8.3 SRV-T-225~230, §9 에러 목록, §10 R-LLM-007·R-NFR-003, D-MSG-20·21 |

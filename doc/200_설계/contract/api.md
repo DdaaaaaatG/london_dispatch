@@ -1,6 +1,8 @@
 # API 계약 (api.md)
 
-- 상태: **초안 v0.5** · 최종 갱신 2026-10-06 · 소유 contract-designer
+- 상태: **초안 v0.6** · 최종 갱신 2026-10-06 · 소유 contract-designer
+- (v0.6) **S3d 상세 확정**(구현 전) = 고정 명칭 「어떠한 의지」 + 전송 시 자동 응답. 새 엔드포인트·에러 코드 0. E9 speak 본문 `character`에 `'auto'` 추가(`SpeakTarget`, §4.13·§5.2) · 유저 메시지 응답 `authorName` = `USER_DISPLAY_NAME`(서버 투영, §2.3·§4.3·§4.9·§4.10·§5.5) · 생성 공통 AI 호출 수·시간 내역(§4.12) · §6.1 S3d 카운트 · §11.15 · §12.5 · §13.5 · §14.17·§14.18 · §15.13 · 「ui 인계 메모」 S3d · 「contract-implementer 인계 목록」 S3d. handoff 불변. 입력: `requirements.md` R-MSG-003·009 · R-AUTH-004 · R-CHAT-002·006·014 · R-LLM-003·008 · R-NFR-001(2026-10-06 S3d 개정), `doc/200_설계/architecture/s3d-02-전반설계.md` §1·§2·§4·§5, `s3d-03-인계패킷.md` §0·§1·§2.
+- (v0.6 복구) S3c 커밋(0be2f4c)의 §12.4 교체 스크립트가 §13~§16·「ui 인계 메모」·「contract-implementer 인계 목록」을 잘라 냈다. S3·S3b분은 git `11125c2` 원문으로, S3c분(§13.4 · §14.14~§14.16 · §15.12 · §16 · 인계 메모·목록 S3c)은 메인 세션이 s3c-contract-designer 편집 기록으로 재조립한 원문(`.claude/reports/api-v05-recovered-tail.md`)으로 되살렸다. 배치는 절 번호·묶음 순(S3·S3b → S3c → S3d)이다.
 - (v0.5) **S3c 상세 확정**(구현 전) = 캐릭터 설정(갠홈 주인 전용) — 설정 엔드포인트 예외·주인 판정 규약(§2.7) · 에러 코드 15종째 `OWNER_ONLY` 403(§3.2) · `GET /api/settings/characters`(E15, §4.15) · `PUT /api/settings/characters`(E16, §4.16) · 설정 타입 4종·`shared/src/settings.ts` 전문(§5.8) · 내보내기 파일 형식·가져오기 매핑(§16). 엔드포인트 14 → 16개. 토큰 형식·handoff 불변. 입력: `requirements.md` §11-1 R-SET-001~012 · R-API-001·002 · R-AUTH-003(2026-10-06 개정), `doc/200_설계/architecture/s3c-02-전반설계.md` §2.1·§4·§6, `s3c-03-인계패킷.md` §0·§1.3·§2.
 - 묶음: **S1 상세 확정**(구현 완료) = `GET /api/health` · `GET /api/rooms` · `GET /api/rooms/:id/messages` · `GET /embed`. **S2 상세 확정**(구현 전) = 토큰 규약(§2) · `POST /api/rooms` · `PATCH`·`DELETE /api/rooms/:id` · `POST /api/rooms/:id/user` · `PATCH`·`DELETE /api/messages/:id` · 쓰기 레이트리밋(§6). **S3 상세 확정**(구현 전, v0.4) = 생성 공통 규칙(§4.12) · `POST /api/rooms/:id/speak`(E9, §4.13) · `POST /api/messages/:id/regenerate`(E12, §4.14). **S3b 상세 확정**(구현 전, v0.4.1) = 월 AI 비용 상한(R-LLM-007 🔒) — 에러 코드 14종째 `LLM_BUDGET_EXCEEDED`(§3.2) · 429 두 종류 구분(§3.4) · E9·E12 판정 순서(§4.12~§4.14) · 레이트리밋 카운트(§6.1). 엔드포인트·타입·경로 추가 없음. 나머지(S4 memory)는 §4.0 표에 행만 두고 S4에서 상세를 정한다.
 - 이 문서가 단일 소스다: **api.md → `shared/src/*` → `server/src/routes/*` → `ui/src/api/*` → `doc/handoff/*`(S5)**. 넷이 어긋나면 contract 결함이다(확정사항 §3).
@@ -184,7 +186,7 @@ type TokenPayload = {
 
 - 응답 문구는 실패 단계와 무관하게 코드별 기본 문구 하나다(§3.2). 어느 단계에서 실패했는지 응답에 싣지 않는다.
 - 만료가 등급보다 먼저다. 만료된 저등급 토큰은 `TOKEN_INVALID`다.
-- 통과하면 서버는 `Principal { mbId, nick, chName, level, displayName }`을 만든다. `displayName = chName ?? nick`(R-AUTH-004)이고 유저 메시지의 `authorName`이 된다. `mbId`는 저장만 하고 응답에 내지 않는다(§4.3, db.md D-DB-5).
+- 통과하면 서버는 `Principal { mbId, nick, chName, level, displayName }`을 만든다. `displayName = chName ?? nick`(R-AUTH-004)이고 유저 메시지의 D1 `author_name`에 **저장만** 한다(감사용). (v0.6, S3d) 응답 `authorName`에는 쓰지 않는다 — 유저 메시지 `authorName`은 항상 `USER_DISPLAY_NAME`(「어떠한 의지」, §5.5)이고 서버 행 변환 한 곳에서 투영한다(R-AUTH-004 2026-10-06 개정). `mbId`도 저장만 하고 응답에 내지 않는다(§4.3, db.md D-DB-5).
 
 ### 2.4 화면 보관·전환 (S2 확정 — R-API-003 🔒 · R-CHAT-009 🔒 · R-CHAT-011)
 
@@ -496,14 +498,15 @@ V7  eyJtYl9pZCI6InRlc3RlcjAxIiwibmljayI6Ilx1ZDE0Y1x1YzJhNFx1ZDEzMCIsImNoX25hbWUi
   "messages": [
     { "id": 41, "roomId": "00000000-0000-4000-8000-000000000001", "speaker": "sebastian", "kind": "line", "text": "도련님, 홍차를 준비해 두었습니다. (41)", "authorName": null, "createdAt": 1767228060000 },
     { "id": 42, "roomId": "00000000-0000-4000-8000-000000000001", "speaker": "ciel", "kind": "line", "text": "늦었군, 세바스찬. 오늘 일정부터 말해. (42)", "authorName": null, "createdAt": 1767228120000 },
-    { "id": 43, "roomId": "00000000-0000-4000-8000-000000000001", "speaker": "user", "kind": "line", "text": "창밖으로 안개가 한층 짙어진다. (43)", "authorName": "시드 유저", "createdAt": 1767228180000 },
-    { "id": 44, "roomId": "00000000-0000-4000-8000-000000000001", "speaker": "user", "kind": "ooc", "text": "분위기를 조금 더 어둡게 이어 가 줘. (44)", "authorName": "시드 유저", "createdAt": 1767228240000 }
+    { "id": 43, "roomId": "00000000-0000-4000-8000-000000000001", "speaker": "user", "kind": "line", "text": "창밖으로 안개가 한층 짙어진다. (43)", "authorName": "어떠한 의지", "createdAt": 1767228180000 },
+    { "id": 44, "roomId": "00000000-0000-4000-8000-000000000001", "speaker": "user", "kind": "ooc", "text": "분위기를 조금 더 어둡게 이어 가 줘. (44)", "authorName": "어떠한 의지", "createdAt": 1767228240000 }
   ],
   "hasMore": true
 }
 ```
 
 - 응답에 `authorMbId`(그누보드 로그인 id)는 **없다**(db.md D-DB-5, 공개 응답 노출 방지).
+- (v0.6, S3d — R-AUTH-004 · R-CHAT-002) `authorName` 값 규칙: `speaker === 'user'`(`kind` `line`·`ooc` 모두)이면 **항상 `USER_DISPLAY_NAME`**(`"어떠한 의지"`, §5.5), 캐릭터 메시지는 `null`. D1 `author_name`에 저장된 실명은 응답에 없다. S3d 이전에 쌓인 메시지도 같은 규칙으로 나간다(서버 `db/messages.ts` `toMessage` 투영 — db.md S3d 절). 타입은 그대로 `string | null`이다. 이 규칙은 `Message`를 돌려주는 모든 엔드포인트(E7·E8·E9·E10·E12)에 같다.
 
 ### 4.4 `GET /embed` (E1) — server 진입점 소유
 
@@ -632,14 +635,15 @@ V7  eyJtYl9pZCI6InRlc3RlcjAxIiwibmljayI6Ilx1ZDE0Y1x1YzJhNFx1ZDEzMCIsImNoX25hbWUi
 | 토큰 | ○ |
 | 경로 | `id: string`(방 id, §4.5) |
 | 본문 | `UserMessageBody` = `{ text: string, ooc: boolean }`. **`ooc`는 필수**다(기본값 없음 — 화면의 OOC 토글 값을 항상 보낸다) |
-| 성공 | `201` · `Message`. `speaker: 'user'`, `kind: ooc ? 'ooc' : 'line'`, `text`는 앞뒤 trim(중간 줄바꿈 유지), `authorName` = 토큰의 표시 이름(`ch_name`이 비어 있지 않으면 `ch_name`, 아니면 `nick` — R-AUTH-004), `createdAt` = 서버 시각 |
+| 성공 | `201` · `Message`. `speaker: 'user'`, `kind: ooc ? 'ooc' : 'line'`, `text`는 앞뒤 trim(중간 줄바꿈 유지), (v0.6) `authorName` = **`USER_DISPLAY_NAME`(「어떠한 의지」) 고정**(누가 보냈든 같다 — R-AUTH-004 · R-CHAT-002 S3d 개정). 토큰의 표시 이름(`ch_name`이 비어 있지 않으면 `ch_name`, 아니면 `nick`)은 D1 `author_name`에 저장만 하고 응답하지 않는다. `createdAt` = 서버 시각 |
 | 에러 | 공통 + 아래 |
 | 검사 순서 | 본문 규칙(DB 전) → 방 존재 |
 | 부수 효과 | `messages` 1행(작성자 `mb_id`는 저장만 하고 응답하지 않는다) + 방 `updatedAt` = 서버 시각(같은 batch, R-ROOM-005). **AI를 호출하지 않는다**(R-MSG-002) |
 | 레이트리밋 | 1회 |
 | server | `messages.addUserMessage(roomId: string, input: UserMessageInput, author: MessageAuthor): Promise<Message>` — `author`는 `getPrincipal(c)` |
-| 요구ID | R-MSG-002 · R-AUTH-004 · R-ROOM-005 · R-CHAT-004 · R-CHAT-006 |
-| 테스트 | API-T-050 ~ 053 · 061 · 062 |
+| 요구ID | R-MSG-002 · R-AUTH-004 · R-ROOM-005 · R-CHAT-004 · R-CHAT-006 · (v0.6) R-CHAT-002 |
+| 테스트 | API-T-050 ~ 053 · 061 · 062(v0.6 갱신 — §14.17) · (v0.6) 108 |
+| 이어지는 호출 (v0.6) | 화면은 이 응답이 `201`이면 곧바로 E9 `speak(roomId, { character: 'auto' })`를 부른다(R-CHAT-006 · R-CHAT-014). **이 엔드포인트 자체는 여전히 AI를 호출하지 않는다**(R-MSG-002 🔒 불변). 저장과 생성은 별도 요청 2건이고 레이트리밋도 2회다(§6.1 S3d 행) |
 
 | 코드 | status | message | 조건 |
 |---|---|---|---|
@@ -652,8 +656,10 @@ V7  eyJtYl9pZCI6InRlc3RlcjAxIiwibmljayI6Ilx1ZDE0Y1x1YzJhNFx1ZDEzMCIsImNoX25hbWUi
 ```
 
 ```json
-{ "id": 71, "roomId": "00000000-0000-4000-8000-000000000001", "speaker": "user", "kind": "ooc", "text": "둘이 체스를 둔다.", "authorName": "시엘 팬텀하이브", "createdAt": 1767230000000 }
+{ "id": 71, "roomId": "00000000-0000-4000-8000-000000000001", "speaker": "user", "kind": "ooc", "text": "둘이 체스를 둔다.", "authorName": "어떠한 의지", "createdAt": 1767230000000 }
 ```
+
+- 위 요청을 토큰 `ch_name: "시엘 팬텀하이브"`로 보내도, `ch_name: null`·`nick: "테스터"`로 보내도 응답 `authorName`은 같다. 두 경우의 차이는 D1 `author_name`(각각 `시엘 팬텀하이브`·`테스터`)에만 남는다.
 
 ### 4.10 `PATCH /api/messages/:id` (E10) — 메시지 수정
 
@@ -686,6 +692,7 @@ V7  eyJtYl9pZCI6InRlc3RlcjAxIiwibmljayI6Ilx1ZDE0Y1x1YzJhNFx1ZDEzMCIsImNoX25hbWUi
 ```
 
 - "수정됨" 표시 필드는 요구가 없어 두지 않는다(§13).
+- (v0.6) 유저 메시지를 고쳐도 응답 `authorName`은 `USER_DISPLAY_NAME`이다(§4.3 값 규칙). 수정은 D1 `author_name`도 바꾸지 않는다.
 
 ### 4.11 `DELETE /api/messages/:id` (E11) — 메시지 삭제
 
@@ -717,7 +724,7 @@ AI가 대사를 만드는 두 쓰기다. 주방에 화구가 방마다 하나뿐
 | 동시 1건 (R-MSG-007 🔒 · R-NFR-003 🔒) | 같은 방의 speak·regenerate는 **하나의 잠금**(`rooms.speaking_until`, 만료 90초)을 나눠 쓴다. 이미 생성 중이면 `409 SPEAK_IN_PROGRESS`. 다른 방끼리는 막지 않는다. 유저 발화·수정·삭제(E8·E10·E11)와 방 삭제(E6)는 잠금을 보지 않는다 |
 | 잠금 해제 | 서버가 성공·실패와 무관하게 응답 전에 푼다. 해제 실패나 연결 끊김으로 남은 잠금은 최대 90초 뒤 저절로 풀린다(messages.md §4.3). 그동안 그 방의 생성 요청은 `409`다 |
 | 레이트리밋 | 요청 1건 = 1회. 쓰기 6종과 **같은 분당 한도**를 나눠 쓴다. 인증 통과 뒤 세므로 `400`·`404`·`409`·`500 CONFIG_INVALID`·`502`·(v0.4.1) `429 LLM_BUDGET_EXCEEDED`로 끝나도 1회다. `401`·`403`은 세지 않는다(§6.1 S3 행) |
-| AI 호출 | 요청당 제공사 호출 1~2회(1회 재시도, R-LLM-005). 래퍼는 자동 재시도하지 않는다. 「재시도」는 사용자가 누르는 새 요청이다(R-CHAT-005) |
+| AI 호출 | 요청당 제공사 호출 1~2회(1회 재시도, R-LLM-005). (v0.6) E9 `'auto'`는 2~3회 — 화자 선택 1회(최대 8초, 재시도 없음) + 발화 1~2회. 「시간 상한」 행의 LLM 단계 66초는 선택·발화를 합친 값이고 70초 상한은 그대로다(R-NFR-001 🔒 · R-LLM-008). 선택 호출 사용량도 월 비용 누적에 더한다(R-LLM-007). 래퍼는 자동 재시도하지 않는다. 「재시도」는 사용자가 누르는 새 요청이다(R-CHAT-005) |
 | 월 비용 상한 (R-LLM-007 🔒, v0.4.1) | 서버가 제공사 응답의 토큰 사용량 × 단가 × 환율로 **추정 원화**를 월(KST) 단위로 누적한다. 누적이 `LLM_MONTHLY_BUDGET_KRW`(기본 100000) 이상이면 이 두 엔드포인트만 **키 확인 다음·잠금 선점 전·제공사 호출 전**에 `429 LLM_BUDGET_EXCEEDED`로 거절한다. 다음 달 1일 00:00 KST에 저절로 풀린다. 읽기·다른 쓰기는 영향이 없다. 사용량·예산을 보는 엔드포인트는 없고 health에도 싣지 않는다(R-API-001). 성공 응답 모양은 바뀌지 않는다 |
 | 응답 메시지 | 기존 `Message` 그대로. `speaker`는 `'sebastian'`·`'ciel'`, `kind: 'line'`, `authorName: null`. 누가 눌렀는지는 저장·응답하지 않는다(messages.md D-MSG-12). 이름·아바타는 화면이 `CHARACTERS[speaker]`로 그린다(R-LLM-002, §5.5) |
 | `text` | 제공사 응답의 후처리 결과(앞머리 이름표 제거·양끝 공백·연속 빈 줄 정리, R-LLM-004). 최대 2000자(코드 포인트, llm.md D-LLM-9). 빈 결과면 `502 LLM_EMPTY` |
@@ -745,17 +752,18 @@ AI가 대사를 만드는 두 쓰기다. 주방에 화구가 방마다 하나뿐
 |---|---|
 | 토큰 | ○ |
 | 경로 | `id: string`(방 id, §4.5 `roomIdParam`) |
-| 본문 | `SpeakBody` = `{ character: CharacterId }`(`'sebastian' \| 'ciel'`). 필수. 모르는 키는 버린다 |
-| 성공 | `201` · `Message`. `speaker = character`, `kind: 'line'`, `authorName: null`, `text` = 후처리 결과, `createdAt` = **저장 시각**(생성이 끝난 시각이지 요청 시각이 아니다). 저장 순서대로 id가 붙어 히스토리 끝에 온다 |
-| 직전 발화자 | 무관. 같은 캐릭터가 연속으로 말해도 된다(R-MSG-003) |
-| 컨텍스트 | 서버가 그 방의 최근 메시지(`CONTEXT_MESSAGES`개, 기본 40)와 장기기억 요약을 읽어 프롬프트를 만든다. 화면은 대화 내용을 보내지 않는다 |
-| 에러 | §4.5 공통 + §4.12 공통 + 아래 |
-| 부수 효과 | `messages` 1행 + 방 `updatedAt` = 저장 시각(같은 batch, R-ROOM-005). 잠금 선점·해제(`updatedAt`은 바꾸지 않는다). 제공사 호출 1~2회. 실패면 아무것도 저장하지 않는다 |
-| 레이트리밋 | 1회 |
-| 소요 | 최대 70초(§4.12) |
-| server | `messages.speak(roomId: string, input: SpeakInput, background: Background): Promise<Message>` — `SpeakInput = SpeakBody`, 라우트가 `background = { waitUntil: task => c.executionCtx.waitUntil(task) }`를 넘긴다(messages.md §2.3) |
-| 요구ID | R-MSG-003 · R-MSG-007 · R-ROOM-005 · R-NFR-001 · R-NFR-003 · R-LLM-002 · R-LLM-004 · R-LLM-005 · R-CHAT-005 · (v0.4.1) R-LLM-007 |
-| 테스트 | API-T-050 ~ 053(쓰기 표에 추가) · 070 ~ 077 · 084 · (v0.4.1) 085 · 086 · 088 ~ 090 |
+| 본문 | `SpeakBody` = `{ character: SpeakTarget }` — (v0.6) `SpeakTarget = CharacterId \| 'auto'` = `'sebastian' \| 'ciel' \| 'auto'`(§5.2). 필수. 모르는 키는 버린다. 값은 소문자 그대로만 받는다 |
+| 성공 | `201` · `Message`. `speaker` = 캐릭터를 지정했으면 `character`, (v0.6) `'auto'`면 **서버가 고른 캐릭터**(`'sebastian'`·`'ciel'` 중 하나 — 응답 어디에도 `'auto'`는 나오지 않는다). `kind: 'line'`, `authorName: null`, `text` = 후처리 결과, `createdAt` = **저장 시각**(생성이 끝난 시각이지 요청 시각이 아니다). 저장 순서대로 id가 붙어 히스토리 끝에 온다 |
+| `'auto'` (v0.6) | 서버가 최근 대화를 보고 세바스찬·시엘 중 **정확히 1명**을 고른 뒤, 그 캐릭터를 지정한 요청과 **같은 발화 프롬프트**로 1턴 생성·저장한다(R-MSG-009 🔒 · 2단계 R-LLM-008). 선택 호출이 실패·타임아웃·파싱 불가여도 요청은 실패하지 않고 기본 화자(컨텍스트 안 마지막 캐릭터 발화자의 상대, 없으면 `sebastian`)로 이어 간다. 유저 발화 뒤든 지시(OOC) 뒤든 같다. 자동 여부는 D1·응답에 남지 않는다 — 응답만으로는 버튼 생성과 구별되지 않고 구별할 필요도 없다. 그 대사의 재작성(E12)은 저장된 `speaker`로 다시 쓴다(R-MSG-006 불변) |
+| 직전 발화자 | 무관. 같은 캐릭터가 연속으로 말해도 된다(R-MSG-003). (v0.6) `'auto'`의 기본 화자 규칙만 직전 캐릭터 발화자를 본다 |
+| 컨텍스트 | 서버가 그 방의 최근 메시지(`CONTEXT_MESSAGES`개, 기본 40)와 장기기억 요약을 읽어 프롬프트를 만든다. 화면은 대화 내용을 보내지 않는다. 프롬프트의 유저 줄은 `[어떠한 의지] …`이고 저장 실명은 쓰지 않는다(R-LLM-003 S3d 개정, server 소관) |
+| 에러 | §4.5 공통 + §4.12 공통 + 아래. (v0.6) `'auto'`도 **같은 표**를 쓴다 — 새 코드·새 status 없음(R-API-002 불변) |
+| 부수 효과 | `messages` 1행 + 방 `updatedAt` = 저장 시각(같은 batch, R-ROOM-005). 잠금 선점·해제(`updatedAt`은 바꾸지 않는다). 제공사 호출 1~2회, (v0.6) `'auto'`는 2~3회(선택 1 + 발화 1~2) — 선택 호출 사용량도 월 비용 누적에 더한다(R-LLM-007). 실패면 아무것도 저장하지 않는다 |
+| 레이트리밋 | 1회(`'auto'`도 1회). (v0.6) 화면의 **전송 1회 = E8 1회 + E9 `'auto'` 1회 = 2회**를 같은 분당 한도에서 쓴다. 기본 20/분이면 전송은 최대 10/분이다(§6.1 규칙 그대로, S3d로 바뀌는 규칙 없음) |
+| 소요 | 최대 70초(§4.12). (v0.6) `'auto'`의 선택 호출(최대 8초)은 LLM 단계 66초 안에 들어간다 — 상한 불변(R-NFR-001 🔒) |
+| server | `messages.speak(roomId: string, input: SpeakInput, background: Background): Promise<Message>` — `SpeakInput = SpeakBody`(v0.6 `character: SpeakTarget`). 반환 `speaker`는 늘 `CharacterId`다. 라우트가 `background = { waitUntil: task => c.executionCtx.waitUntil(task) }`를 넘긴다(messages.md §2.3). 서비스 이름·인자 개수는 S3d에서 바뀌지 않는다 |
+| 요구ID | R-MSG-003 · R-MSG-007 · R-ROOM-005 · R-NFR-001 · R-NFR-003 · R-LLM-002 · R-LLM-004 · R-LLM-005 · R-CHAT-005 · (v0.4.1) R-LLM-007 · (v0.6) R-MSG-009 · R-LLM-008 · R-CHAT-006 · R-CHAT-014 |
+| 테스트 | API-T-050 ~ 053(쓰기 표에 추가) · 070 ~ 077 · 084 · (v0.4.1) 085 · 086 · 088 ~ 090 · (v0.6) 109 ~ 111 |
 
 판정 순서(server 설계 고정 — messages.md §4.2. 앞 단계에서 실패하면 뒤 단계는 보지 않는다):
 
@@ -767,8 +775,20 @@ AI가 대사를 만드는 두 쓰기다. 주방에 화구가 방마다 하나뿐
 | 4 | LLM 설정(`LLM_API_KEY`) | `500 CONFIG_INVALID` |
 | 4b | (S3b) 월 비용 상한 — D1 읽기 1행. 잠금·제공사 호출 0회 | `429 LLM_BUDGET_EXCEEDED` |
 | 5 | 방 존재 · 잠금 선점(한 batch) | `404 NOT_FOUND` / `409 SPEAK_IN_PROGRESS` |
-| 6 | 제공사 호출 · 후처리 | `502 LLM_FAILED` / `502 LLM_EMPTY` |
+| 5b | (v0.6, `'auto'`만) 화자 선택 호출 — 최대 8초·재시도 없음·최근 기록 12개. 실패·타임아웃·차단·파싱 불가면 기본 화자 | **없음**(요청을 실패시키지 않는다, R-LLM-008) |
+| 6 | 제공사 호출 · 후처리(`'auto'`면 5b에서 정한 캐릭터, 남은 예산 안에서 기존 재시도) | `502 LLM_FAILED` / `502 LLM_EMPTY` |
 | 7 | 저장(생성 중 방이 삭제됐으면 저장하지 않는다) | `404 NOT_FOUND` |
+
+- (v0.6) `'auto'`의 판정 1~5는 캐릭터 지정과 **같은 순서·같은 결과**다. 그래서 예산 초과면 선택 호출도 0회(`429 LLM_BUDGET_EXCEEDED`), 같은 방이 생성 중이면 선택 전에 `409 SPEAK_IN_PROGRESS`다. 선택은 잠금을 잡은 뒤에만 한다.
+- (v0.6) `'auto'` 요청·응답 예시(선택 결과가 시엘인 경우):
+
+```json
+{ "character": "auto" }
+```
+
+```json
+{ "id": 73, "roomId": "00000000-0000-4000-8000-000000000001", "speaker": "ciel", "kind": "line", "text": "체스라면 사양하지 않겠다. 네가 먼저 둬라.", "authorName": null, "createdAt": 1767230015000 }
+```
 
 - 그래서 없는 방에 잘못된 `character`를 보내면 `400`이고, 키가 없는 서버에 없는 방으로 보내면 `500 CONFIG_INVALID`다.
 - (v0.4.1) 예산 초과 중에는 없는 방이나 잠긴 방으로 보내도 `429 LLM_BUDGET_EXCEEDED`다(방 존재 확인·잠금 선점이 한 batch라 게이트 뒤에 있다). 잘못된 `character`는 여전히 `400`, 키 없는 서버는 여전히 `500 CONFIG_INVALID`다.
@@ -777,7 +797,7 @@ AI가 대사를 만드는 두 쓰기다. 주방에 화구가 방마다 하나뿐
 
 | 코드 | status | message | 조건 |
 |---|---|---|---|
-| `VALIDATION_ERROR` | 400 | `요청 형식이 올바르지 않습니다.` | `character` 없음 · 두 값이 아닌 문자열(`'Sebastian'`·`'meirin'`·`''` 포함) · 문자열이 아님(`1`·`null`) · 본문 JSON 깨짐 · `Content-Type`이 JSON 아님 |
+| `VALIDATION_ERROR` | 400 | `요청 형식이 올바르지 않습니다.` | `character` 없음 · (v0.6) 세 값(`sebastian`·`ciel`·`auto`)이 아닌 문자열(`'Sebastian'`·`'meirin'`·`''`·`'Auto'`·`'AUTO'`·`' auto'` 포함 — 대소문자·공백을 고쳐 주지 않는다) · 문자열이 아님(`1`·`null`·`true`) · 본문 JSON 깨짐 · `Content-Type`이 JSON 아님 |
 | `NOT_FOUND` | 404 | `방을 찾을 수 없습니다.` | 없는 방(삭제된 방 포함) · 생성 중 방이 삭제됨(고아 메시지 없음) |
 | `LLM_BUDGET_EXCEEDED` (v0.4.1) | 429 | 기본 문구 | 판정 4b. 저장 없음. `retryAfterSec`·`Retry-After`는 §4.12 공통 |
 
@@ -1120,9 +1140,12 @@ export type ApiErrorBody = {
 S3 추가분(v0.4 — `shared/src/types.ts`의 `EditMessageBody` 다음):
 
 ```ts
-/** POST /api/rooms/:id/speak 본문 (R-MSG-003). 두 값 밖이면 400 VALIDATION_ERROR (S3) */
+/** speak 대상 (R-MSG-003 · R-MSG-009, v0.6 S3d). 'auto' = 서버가 세바스찬·시엘 중 1명을 고른다. 응답 speaker 는 늘 CharacterId */
+export type SpeakTarget = CharacterId | 'auto'
+
+/** POST /api/rooms/:id/speak 본문 (R-MSG-003). 세 값 밖이면 400 VALIDATION_ERROR (S3, v0.6 'auto' 추가) */
 export type SpeakBody = {
-  character: CharacterId
+  character: SpeakTarget
 }
 ```
 
@@ -1130,8 +1153,14 @@ export type SpeakBody = {
 { "character": "ciel" }
 ```
 
+```json
+{ "character": "auto" }
+```
+
 - (S3) 추가는 `SpeakBody` 하나다. E12는 본문이 없어 타입이 없다. 두 엔드포인트 응답은 기존 `Message`다(새 응답 타입 없음).
 - `CharacterId`를 그대로 쓴다. 캐릭터 문자열 유니온을 새로 만들지 않는다.
+- (v0.6, S3d) 추가는 `SpeakTarget` 하나이고 `SpeakBody.character`의 타입이 `CharacterId` → `SpeakTarget`(값 1개 추가)로 넓어진다. `SpeakTarget`은 `SpeakBody` 바로 위에 둔다. `CharacterId`·`Speaker`·`Message`는 그대로다 — `'auto'`는 요청에만 있고 저장·응답 `speaker`에는 없다. 화면 상태(`PendingSpeak` 등)도 이 타입을 import한다(ui 설계 몫, 같은 뜻의 다른 이름을 만들지 않는다).
+- (v0.6, S3d) `Message.authorName` 문서주석을 `/** 유저 메시지면 항상 USER_DISPLAY_NAME(「어떠한 의지」 — 서버 투영, R-AUTH-004 S3d). 캐릭터 메시지는 null */`로 바꾼다. 타입 `string | null`은 그대로다. 위 전문 초안의 옛 주석("작성자 표시 이름")은 이 줄이 대체한다.
 
 JSON 예시(열거·nullable):
 
@@ -1140,7 +1169,7 @@ JSON 예시(열거·nullable):
 ```
 
 ```json
-{ "id": 8, "roomId": "00000000-0000-4000-8000-000000000002", "speaker": "user", "kind": "ooc", "text": "둘이 체스를 둔다.", "authorName": "미샤", "createdAt": 1767226800000 }
+{ "id": 8, "roomId": "00000000-0000-4000-8000-000000000002", "speaker": "user", "kind": "ooc", "text": "둘이 체스를 둔다.", "authorName": "어떠한 의지", "createdAt": 1767226800000 }
 ```
 
 ### 5.3 `shared/src/errors.ts` 전문 초안
@@ -1332,6 +1361,21 @@ export const CHARACTERS: { readonly [K in CharacterId]: CharacterMeta & { readon
 - 말풍선 이름표는 `shortName`을 쓴다(화면 구성안의 "시엘"·"세바스찬"). 전체 이름 `name`은 그대로 유지한다.
 - 버튼의 접근성 레이블 문구는 화면 `labels.ts` 몫이다. 버튼에 보이는 이름은 `shortName`을 쓸 수 있다.
 - S3 `server/src/llm/characters.ts`가 대조하는 값은 `name`뿐이다. `shortName`은 표시 전용이라 server JSON에 두지 않는다.
+
+(v0.6, S3d) 추가분 — `CHARACTERS` 다음:
+
+```ts
+/**
+ * 유저 메시지 고정 표시 이름 (R-AUTH-004 · R-CHAT-002, S3d 사용자 지정 2026-10-06)
+ * server: 응답 authorName 투영(db/messages.ts toMessage)·프롬프트 유저 줄 라벨. ui: authorName 이 비었을 때의 대체 표시
+ * 작성자 실명(ch_name ?? nick)은 D1 author_name 에만 저장한다. 설정 화면에서 바꾸지 않는다
+ */
+export const USER_DISPLAY_NAME = '어떠한 의지'
+```
+
+- 위치는 이 파일이다. server(투영·프롬프트)와 ui(대체 표시)가 함께 쓰는 speaker → 표시 이름의 단일 소스이기 때문이다(s3d-02 §1). ui 전용 `labels.ts`에 두지 않는다.
+- `const` 선언이라 타입이 리터럴 `'어떠한 의지'`로 좁혀진다. 같은 문자열을 소스 다른 곳에 다시 쓰지 않는다(테스트 기대값만 예외).
+- **화면은 응답 `authorName`을 그대로 표시한다.** 유저 말풍선에서 `authorName`을 버리고 상수로 바꿔 그리지 않는다(서버 투영이 정본). 상수는 `authorName`이 `null`·빈 문자열일 때 옛 '이름 없음' 자리를 대신하는 대체 표시에만 쓴다.
 
 ### 5.6 스키마 방식 (확정)
 
@@ -1775,6 +1819,9 @@ export const checkCharacterSettings = (value: unknown): SettingsCheckResult => {
 | v0.5 보정 | 2026-10-06 | server `settings.md`·`auth.md` §12·`env.md` S3c·`db.md` §7.6 대조(시그니처·정규화·에러 매핑 불일치 0건). 메인 세션 결정 5건 반영: `WORLD_FIELD_SPEC.label` `'공통 세계관'` → `'세계관'`(400 문구 `공통 · 세계관은 …`), 나머지 4건 승인 확정. §4.16 본문 상한 설명 보정, §14.14·§14.15 문구 기대값, §15.12 대조 결과·결정 표·남은 불일치(settings.md 쪽 M1~M6), 「ui 인계 메모」 S3c 라벨 행 | 비파괴(구현 전 라벨·문구 변경, 이름 변경 없음) | 아니오 |
 | v0.5 보정 2 | 2026-10-06 | ui-design-checker 지적 2건 반영(메인 세션 결정). ① "무시한 항목" = 출처에 값이 있으나 형이 달라 쓸 수 없는 위치만, 출처에 없는 키·매핑 없는 필드·`null`·E.No.S 빈 값은 "없음", 계수는 후보 만들기 한 곳(§16.2 분류 표·§16.3). ② 가져오기는 파일이 준 후보 필드만 검사(저장값 위에 후보를 덮어 `checkCharacterSettings`), 초안 전체 검사는 저장 버튼 활성 조건에서만(§16.2). §16.3 가져오기 단위 테스트 기대값 6행 추가, §5.8.4 쓰는 곳 표·§10 R-SET-008 행·§15.12 결정 6·7 | 비파괴(구현 전 화면 규칙 보정. API·shared 이름·서버 영향 없음) | 아니오 |
 | v0.5 구현 | 2026-10-06 | S3c 구현 완료(routes E15·E16 · `validate` `toMessage` · ui/api `getCharacterSettings`·`saveCharacterSettings` · `client` `'PUT'`). 테스트 API-T-091~103 · API-T-UI-024~027. 계약 내용 변경 없음 | 변경 없음 | 아니오 |
+| v0.6 | 2026-10-06 | S3d 상세 확정(R-MSG-003·R-AUTH-004·R-CHAT-002·R-CHAT-006·R-NFR-001 개정, R-MSG-009·R-LLM-008·R-CHAT-014 신규). E9 본문 `SpeakTarget`(`'auto'` 추가, §4.13·§5.2), 유저 메시지 `authorName` = `USER_DISPLAY_NAME` 서버 투영(§2.3·§4.3·§4.9·§4.10·§5.5), §4.12 AI 호출 2~3회, §11.15 · §12.5 · §13.5 · §14.17 · §14.18 · §15.13 · 인계 2종 S3d. 엔드포인트·에러 코드·경로·env·마이그레이션 0 | 추가(`'auto'` 값 추가 = 비파괴) + `authorName` **값 규칙 변경**(타입·키 불변, 소비자는 우리 화면 1개이고 server와 동시 배포 — 비파괴로 분류, 근거 §13.5) | 아니오(토큰·`?t=`·임베드 주소·handoff 불변) |
+| v0.6 복구 | 2026-10-06 | 0be2f4c에서 지워진 §13~§15·「ui 인계 메모」·「contract-implementer 인계 목록」(S3·S3b분)을 git `11125c2` 원문 그대로 되살렸다 | 변경 없음(문서 복구) | 아니오 |
+| v0.6 | 2026-10-06 | S3c 유실분 복원(0be2f4c 절단, 메인 세션 재조립). §13.4 · §14.14~§14.16 · §15.12 · §16(16.1~16.4) · 「ui 인계 메모」 S3c · 「contract-implementer 인계 목록」 S3c를 `.claude/reports/api-v05-recovered-tail.md` 원문 그대로 병합하고 자리표시 7곳을 지웠다. 복원본의 S3·S3b 앵커 줄은 이미 있는 한 벌만 남겼다. §12.4는 contract-implementer 실물 대조표 유지 | 변경 없음(문서 복원) | 아니오 |
 
 ---
 
@@ -1853,6 +1900,15 @@ export const checkCharacterSettings = (value: unknown): SettingsCheckResult => {
 | R-AUTH-005 (S3c) | E16도 쓰기 공용 분당 한도, `OWNER_ONLY`는 세지 않음, E15는 세지 않음 | §6.1 · §4.16 | 확장 | 추가 | API-T-093 · 102 | 계약 확정(S3c) |
 | R-AUTH-006 🔒 (S3c) | 설정 응답·403 본문에 `mbId`·주인 목록·토큰 없음 | §2.7 · §4.15 | 확장 | 추가 | API-T-093 · 094 | 계약 확정(S3c) |
 | R-API-003 🔒 · R-API-004 · R-API-007 · R-API-008 (S3c) | 설정 래퍼도 Bearer 헤더만 · camelCase·epoch ms·`null` · 라우트 30줄 이내 · 경로 리터럴은 `endpoints.ts`만 | §2.7 · §5.8 · §11.12 · §11.13 | 확장 | 추가 | API-T-UI-024 · 027, 리뷰 grep(§14.16) | 계약 확정(S3c) |
+| R-MSG-003 🔒 (S3d 개정) | `SpeakBody.character: SpeakTarget`(`'sebastian' \| 'ciel' \| 'auto'`), 세 값 밖 `400` | §4.13 · §5.2 · §11.15 | 확장 | 추가 | API-T-110 | 계약 확정(S3d, 구현 전) |
+| R-MSG-009 🔒 (S3d 신규) | `'auto'` → `201 Message`, `speaker` = 고른 `CharacterId`, 잠금·월 상한·레이트리밋·에러 표 공유, 판정 5b | §4.12 · §4.13 | 확장 | 추가 | API-T-109 · 111 | 계약 확정(S3d) |
+| R-LLM-008 (S3d 신규) | 선택 실패는 계약상 에러 없음(판정 5b), AI 호출 2~3회, 66초 안. 선택 로직은 server 몫 | §4.12 · §4.13 | 확장 | 추가 | server `llm-select.test.ts` | 계약 확정(S3d) |
+| R-AUTH-004 🔒 (S3d 개정) | 유저 메시지 `authorName` = `USER_DISPLAY_NAME`, 실명은 D1 `author_name` 저장만, E7·E8·E10 모두 | §2.3 · §4.3 · §4.9 · §4.10 · §5.5 | 확장 | 비파괴(값 규칙 변경, §13.5) | API-T-062(갱신) · 108 · 112 | 계약 확정(S3d) |
+| R-CHAT-002 🔒 (S3d 개정) | 화면은 `authorName`을 그대로 표시, `USER_DISPLAY_NAME`은 대체 표시에만 | §5.5 · 「ui 인계 메모」 S3d | 확장 | 비파괴 | API-T-UI-029, 화면 TC | 계약 확정(S3d) |
+| R-CHAT-006 🔒 · R-CHAT-014 🔒 (S3d) | 전송 = `appendUser` `201` → `speak(roomId, { character: 'auto' })`. E8은 AI 0회 그대로(R-MSG-002) | §4.9 · §4.13 · §11.15 · 「ui 인계 메모」 S3d | 확장 | 추가 | API-T-UI-028, 화면 TC | 계약 확정(S3d) |
+| R-NFR-001 🔒 (S3d 개정) | `'auto'`도 70초, 선택 8초는 LLM 단계 66초 안 | §4.12 · §4.13 | 확장 | 추가 | server fake timer | 계약 확정(S3d) |
+| R-API-001 🔒 · R-API-002 🔒 (S3d 확인) | 엔드포인트 16개·에러 코드 15종 그대로 | §4.0 · §3.2 | 변경 없음 | — | API-T-040 · 042 무수정 통과 | 확인(S3d) |
+| R-API-004 (S3d) | `'auto'`는 문자열 리터럴 유니온, `authorName`은 `string \| null` 유지 | §5.1 · §5.2 | 확장 | 추가 | tsc | 확인(S3d) |
 
 ---
 
@@ -2738,6 +2794,54 @@ export { getCharacterSettings, saveCharacterSettings } from './settings'
 5. ui-implementer: App 주인 판정·rooms ⚙·설정 화면·`state/settings.ts`·`state/settingsFile.ts`(ui 설계 몫).
 6. 증거: `npx vitest run --project shared` · `--project server` · `--project ui` 결과와 세 워크스페이스 `tsc --noEmit` exit 0.
 
+### 11.15 S3d routes · ui/api 설계 (v0.6 — 엔드포인트·래퍼 추가 없음)
+
+| 파일 | 변경 | 근거 |
+|---|---|---|
+| `shared/src/types.ts` | `SpeakTarget` 추가, `SpeakBody.character: SpeakTarget`, `Message.authorName` 주석 | §5.2 |
+| `shared/src/characters.ts` | `USER_DISPLAY_NAME` 추가 | §5.5 |
+| `server/src/routes/schemas.ts` | `speakBody`를 세 값 열거로 | 아래 |
+| `server/src/routes/messages.ts` | **변경 없음.** `const body: SpeakBody = c.req.valid('json')`가 그대로 넓어진 타입을 받는다 | — |
+| `ui/src/api/messages.ts` | `speak` 시그니처 그대로(`body: SpeakBody`), 문서주석만 | 아래 |
+| `ui/src/api/client.ts` · `index.ts` · `endpoints.ts` · `errors.ts` | 변경 없음 | — |
+
+routes `schemas.ts`:
+
+```ts
+/** speak 대상 — SpeakTarget 과 같은 집합 (api.md §4.13 · §5.2, v0.6 'auto') */
+const SPEAK_TARGETS = ['sebastian', 'ciel', 'auto'] as const satisfies readonly SpeakTarget[]
+
+/** POST /api/rooms/:id/speak 본문. 세 값 밖은 400 — 대소문자·공백을 고쳐 주지 않는다 */
+export const speakBody = z.object({ character: z.enum(SPEAK_TARGETS) })
+```
+
+- `speakBody`만 바꾼다. 기존 `CHARACTER_IDS` 상수는 다른 곳에서 쓰지 않으면 지우고, 쓰면 그대로 둔다(contract-implementer가 grep으로 확인).
+- zod 출력 타입이 `SpeakTarget`과 같아서 핸들러 대입이 그대로 컴파일된다. `satisfies`는 값이 shared에 없으면 잡지만 shared에 값이 늘어난 것은 못 잡는다. 그래서 API-T-110이 세 값 통과와 그 밖 거절을 직접 본다.
+- §5.6 표 「생성 본문(S3)」 행의 `z.enum(CHARACTER_IDS)`는 이 절이 대체한다.
+
+ui/api `messages.ts`:
+
+```ts
+/** [계약] api.md §4.13 · [요구] R-MSG-003 · R-MSG-009 · R-CHAT-005 · R-CHAT-014 — 1턴 생성(201 Message). character 'auto' = 서버가 화자를 고르고 응답 speaker 가 고른 캐릭터. 최대 70초, 타임아웃 없음 */
+export const speak = (roomId: string, body: SpeakBody): Promise<Result<Message>> =>
+  request<Message>(endpoints.roomSpeak(roomId), {
+    method: 'POST',
+    body: { character: body.character },
+    auth: true,
+  })
+```
+
+- **함수 이름은 `speak` 그대로다.** 새 이름(`speakAs` 등)을 만들지 않는다. 화면은 `speak(roomId, { character: 'auto' })`로 부른다(s3d-03 §3).
+- 래퍼는 `authorName`을 치환하지 않는다. 받은 `Message`를 그대로 돌려준다.
+
+구현 순서:
+
+1. contract-implementer(4단계): shared `types.ts`·`characters.ts` + API-T-112. server·ui가 import하므로 먼저다.
+2. server-implementer(5단계): `toMessage` 투영 · `llm/select.ts` · generate `'auto'` 분기.
+3. contract-implementer(6단계): `schemas.ts` + routes 테스트 API-T-062 갱신·108·110(1 뒤면 된다)·109·111(2 뒤 — 서버 분기가 있어야 201).
+4. contract-implementer(6단계): ui/api 주석 + API-T-UI-028·029.
+5. 증거: 세 워크스페이스 `npx tsc --noEmit` exit 0, `npx vitest run --project shared`·`--project server`·`--project ui ui/src/api` 결과.
+
 ---
 
 ## 12. 4자 대조표 (S1)
@@ -2818,3 +2922,869 @@ export { getCharacterSettings, saveCharacterSettings } from './settings'
 
 실행 증거(2026-10-06): `npx tsc --noEmit -p server` exit 0 · `-p ui`의 `ui/src/api` 오류 0건 · `vitest run --project server` 18파일 318/318(305 + API-T-091~103 13건) · `vitest run --project ui ui/src/api` 2파일 27/27(API-T-UI-024~027 4건 포함). ui 전체의 실패 17건은 ui-implementer 미구현 화면(`OwnerGate`·`settings/`)용 선작성 테스트다.
 
+### 12.5 4자 대조표 (S3d — 설계 기준, 구현 후 contract-implementer가 실물 파일:줄로 다시 채운다)
+
+| 계약 항목 | api.md | shared | routes | ui/api | 판정 |
+|---|---|---|---|---|---|
+| E9 본문 `SpeakTarget` 세 값 | §4.13 · §5.2 | `types.ts` `SpeakTarget` · `SpeakBody` | `schemas.ts` `SPEAK_TARGETS` · `speakBody` | `messages.ts` `speak(roomId, body: SpeakBody)` | 미구현 |
+| `'auto'` → `201`, `speaker` = `CharacterId` | §4.13 | `Message.speaker: Speaker` 불변 | `messages.ts` 핸들러 불변(서비스 반환 그대로) | 변경 없음 | 미구현(API-T-109) |
+| 세 값 밖 `400` | §4.13 | — | zod enum | — | 미구현(API-T-110) |
+| 잠금·예산·레이트리밋 공유 | §4.12 · §4.13 | — | 미들웨어 순서 불변 | — | 미구현(API-T-111) |
+| `USER_DISPLAY_NAME` | §5.5 | `characters.ts` | routes 무관(server `toMessage`가 import) | 래퍼는 쓰지 않음(화면이 import) | 미구현(API-T-112) |
+| 유저 `authorName` 투영 | §2.3 · §4.3 · §4.9 · §4.10 | 주석만 | 라우트 변경 없음(서비스 결과 그대로) | 치환 없음 | 미구현(API-T-062·108, UI-029) |
+| 엔드포인트 16 · 에러 15 불변 | §4.0 · §3.2 | `PATHS` · `ERROR_CODES` 불변 | — | — | 미구현(API-T-040·042 무수정) |
+
+
+---
+
+## 13. 호환성 분류
+
+S1은 처음 만드는 계약이라 **전부 「추가」**다. ui·갠홈 영향은 없다.
+
+이후 묶음에서 바뀔 수 있는 자리:
+
+| 자리 | 예상 변경 | 분류 | 대비 |
+|---|---|---|---|
+| `GET /api/rooms` 응답이 배열 그대로 | 방 목록 페이지네이션·부가 정보가 요구되면 응답 형태 변경 | **파괴** | 요구가 생기면 기존 경로 형태는 유지하고 쿼리 추가로 해결하는 쪽을 먼저 검토(§15.4) |
+| `Message` | S2 수정 기능에 "수정됨" 표시 등이 요구되면 선택 필드 추가 | 추가 | 화면은 모르는 필드를 무시한다 |
+| `MessagesPage` | 커서 필드 추가 | 추가 | — |
+| `ERROR_MESSAGES` 문구 | S2~S4 착수 시 다듬기 | 비파괴 | 화면 표시는 `labels.ts`라 영향 없음 |
+| `PATHS`·`endpoints` | S2~S4 키 추가 | 추가 | 기존 키는 바꾸지 않는다 |
+| `ui/src/api/client.ts` `request` | S2에서 method·body·토큰 옵션 추가 | 추가(api 폴더 내부) | 화면은 `request`를 쓰지 않는다 |
+| `limit` 기본·최대(30·100) | 값 변경 | 완화는 비파괴, 강화는 파괴 | server 상수가 단일 소스 |
+| 토큰 형식(S2 확정 후) | payload·서명·`?t=` 이름 변경 | **파괴 + 저쪽 PHP 재적용** | §8 |
+| `CHARACTERS.*.name` | 표시명 변경 | 비파괴(표시만) | S3부터는 `server/characters/*.json` name도 함께 바꾼다 |
+
+### 13.1 S2 변경 분류 (v0.3)
+
+| 변경 | 분류 | 영향 받는 곳 | 비고 |
+|---|---|---|---|
+| 엔드포인트 E4·E5·E6·E8·E10·E11 상세 확정 | 추가 | 없음(이전에는 `404`) | §4.0 집합은 S1부터 같다(R-API-001) |
+| `PATHS.room` · `roomUser` · `message`, `endpoints.room/roomUser/message` | 추가 | 없음(기존 키 그대로) | shared 테스트 API-T-042의 "PATHS 값 4개" 기대를 7개로 고친다(테스트 갱신, 소비자 영향 없음) |
+| `CreateRoomBody` · `RenameRoomBody` · `UserMessageBody` · `EditMessageBody` | 추가 | 없음 | |
+| `ApiErrorBody.error.retryAfterSec?` | 추가(선택 필드) = **비파괴** | 없음. 기존 소비자는 모르는 키를 무시한다 | routes 테스트 `expectContractError`가 "키 정확히 2개"를 검사하므로 `RATE_LIMITED`만 3개로 허용하도록 고친다(테스트 갱신) |
+| `ApiError.retryAfterSec?`(ui) | 추가(선택 필드) | 없음 | 화면은 아직 쓰지 않는다 |
+| `request(path)` → `request(path, options?)` | 추가(선택 인자) | api 폴더 내부만. 기존 호출 그대로 동작 | 화면은 `request`를 쓰지 않는다 |
+| `204` 정규화 규칙 | 추가 | 없음(기존 엔드포인트는 204를 내지 않는다) | |
+| `configureClient` · `isAuthFailure` | 추가 | 없음 | `configureClient`를 부르지 않으면 getter가 `null`이라 S1 동작과 같다 |
+| 토큰 형식·payload·`?t=` 확정 | 추가(처음 확정) | 저쪽 PHP — **아직 전달 전**이라 재적용 없음 | 이후 바꾸면 **파괴 + 저쪽 PHP 재적용**(§8) |
+| `ERROR_CODES`·status·문구 | 변경 없음 | — | 13종 그대로 |
+| `shared/src/limits.ts` 신규(v0.3.1) | 추가 | 없음(새 파일). server rooms·messages의 모듈 상수는 shared 재노출로 바뀐다(값 같음, S2-R4) | 상한 값을 바꾸면 화면·서버가 함께 바뀐다. 완화는 비파괴, 강화는 기존 데이터·화면 입력에 대해 파괴 |
+
+- **파괴 변경 0건.** S1 엔드포인트(E1·E2·E3·E7)의 요청·응답·에러는 바뀌지 않았다. `GET /api/rooms/:id`는 여전히 `404`다(API-T-013).
+- 이후 바뀔 수 있는 자리: 확정사항 §9-5(권한 "누구나")가 "작성자만"·"관리자만"으로 바뀌면 E5·E6·E10·E11에 `403` 계열 조건이 생긴다. 새 코드가 필요하면 13종 밖이라 R-API-002 개정이 필요하다(파괴는 아니지만 화면 안내 추가).
+
+### 13.2 S3 변경 분류 (v0.4)
+
+| 변경 | 분류 | 영향 받는 곳 | 비고 |
+|---|---|---|---|
+| E9·E12 상세 확정 | 추가 | 없음(이전에는 `404`) | §4.0 집합은 S1부터 같다(R-API-001) |
+| `PATHS.roomSpeak` · `messageRegenerate`, `endpoints` 빌더 2개 | 추가 | 없음(기존 키 그대로) | API-T-042의 "PATHS 값 7개"를 9개로 고친다(테스트 갱신) |
+| `SpeakBody` | 추가 | 없음 | |
+| ui/api `speak` · `regenerate` | 추가 | 없음(화면은 S3에서 처음 쓴다) | |
+| `ERROR_CODES`·status·문구 | 변경 없음 | — | S3 5코드 문구는 v0.1 그대로 확정 |
+| `client.ts` | 변경 없음 | — | 타임아웃을 넣지 않는다 |
+| routes 쓰기 표 6개 → 8개 | 테스트 갱신 | `server/test/routes-write.test.ts` | 소비자 영향 없음 |
+
+- **파괴 변경 0건.** 기존 엔드포인트(E1~E8·E10·E11)의 요청·응답·에러·레이트리밋 한도 값은 바뀌지 않았다. speak·regenerate가 같은 분당 한도를 나눠 쓰므로 한 사람이 쓸 수 있는 다른 쓰기 횟수는 그만큼 준다.
+- 저쪽 재적용 없음. 토큰·`?t=`·임베드 주소는 그대로다.
+- 이후 바뀔 수 있는 자리: 생성 진행 상태·스트리밍이 요구되면 새 엔드포인트가 필요하다(R-API-001 개정). `Message`에 "생성 중" 같은 필드를 넣지 않는다.
+
+### 13.3 S3b 변경 분류 (v0.4.1)
+
+| 변경 | 분류 | 영향 받는 곳 | 비고 |
+|---|---|---|---|
+| 에러 코드 `LLM_BUDGET_EXCEEDED` 추가 | 추가(비파괴) | 옛 화면 번들은 `INTERNAL`로 정규화(§3.1) | 같은 Worker 배포라 새로 고치면 해소 |
+| `retryAfterSec`가 붙는 코드 1개 확대(서버 본문) | 추가(선택 필드) | 없음 — ui/api는 이 코드의 값을 버린다 | |
+| E9·E12 새 실패 경로(429) | 추가 | 기존 응답 불변 | 예산 미만이면 동작이 S3와 같다 |
+| `shared/test/errors.test.ts` 13 → 14 | 테스트 갱신 | API-T-040 | |
+| `expectContractError` 3키 허용 코드 확대 | 테스트 갱신 | `server/test/routes-write.test.ts` · `routes-generate.test.ts` | 소비자 영향 없음 |
+
+- **파괴 변경 0건.** 엔드포인트·경로·요청·성공 응답·기존 13종의 status·문구·레이트리밋 한도 값은 바뀌지 않았다.
+- 저쪽 재적용 없음. 토큰·`?t=`·임베드 주소는 그대로다. handoff는 S5에 안내 단락만 더한다(§8).
+
+### 13.4 S3c 변경 분류 (v0.5)
+
+| 변경 | 분류 | 영향 받는 곳 | 비고 |
+|---|---|---|---|
+| E15 · E16 신설(R-API-001 개정) | 추가 | 없음(이전에는 `404`) | 기존 14개 엔드포인트의 요청·응답·에러·레이트리밋 불변 |
+| 에러 코드 `OWNER_ONLY` 추가(R-API-002 개정) | 추가(비파괴) | 옛 화면 번들은 `INTERNAL`로 정규화(§3.4). 옛 번들에는 설정 호출이 없어 실제로 받을 일이 없다 | `AUTH_FAILURE_CODES` 불변 — 기존 화면의 읽기 전용 전환 규칙이 바뀌지 않는다 |
+| R-AUTH-003 예외(설정 GET 토큰 필요) | 추가 | 없음(새 경로에만 적용) | 기존 읽기 3종은 계속 토큰 불필요·헤더 무시 |
+| 타입 4종 · `PATHS.characterSettings` · `endpoints.characterSettings` | 추가 | 없음(기존 키·타입 그대로) | API-T-042 "PATHS 값 9개" → 10개(테스트 갱신) |
+| 신규 `shared/src/settings.ts` | 추가 | 없음 | `limits.ts`·`characters.ts` 불변 |
+| routes `validate(target, schema, toMessage?)` | 추가(선택 인자) | routes 내부. 기존 호출은 기본 문구 그대로 | |
+| ui/api `RequestOptions.method`에 `'PUT'` | 추가(api 폴더 내부) | 없음 | 화면은 `request`를 쓰지 않는다 |
+| `shared/test/errors.test.ts` 14 → 15 | 테스트 갱신 | API-T-040 | |
+
+- **파괴 변경 0건.** 엔드포인트 14개·에러 코드 14종의 status·문구·토큰 규칙·레이트리밋 한도 값은 바뀌지 않았다. E16이 쓰기 공용 분당 한도를 나눠 쓰므로 주인이 설정을 자주 저장하면 그 분의 다른 쓰기 횟수가 그만큼 준다.
+- **토큰 형식·handoff 불변.** payload·서명·`?t=`·임베드 주소·PHP 조각이 그대로라 저쪽 재적용이 없다(R-AUTH-001 개정 없음, §2.7). `doc/handoff/**`는 이번에 고치지 않는다.
+- 이후 바뀔 수 있는 자리:
+  - 설정 필드를 더하면 E16 본문이 strict·키 필수라 **옛 화면 번들의 PUT이 `400`**이 된다(파괴). 같은 Worker로 함께 배포되므로 새로 고치면 풀린다. 내보내기 파일은 가져오기가 없는 키를 현 초안 값으로 채우므로(§16.2) `formatVersion`을 올리지 않아도 된다. 키 이름을 바꾸거나 형을 바꿀 때만 `formatVersion`을 올린다.
+  - 상한 완화는 비파괴, 강화는 저장된 값·내보낸 파일에 대해 파괴다(저장 행 재검증 실패 → 시드 대체).
+  - 낙관적 잠금(`baseVersion` + `409`)이 요구되면 선택 필드 추가 + 새 에러 코드(R-API-002 개정)가 필요하다.
+
+### 13.5 S3d 변경 분류 (v0.6)
+
+| 변경 | 분류 | 영향 받는 곳 | 비고 |
+|---|---|---|---|
+| `SpeakBody.character`에 `'auto'` 추가(`SpeakTarget`) | 추가(비파괴) | 없음 — 옛 화면 번들은 `'auto'`를 보내지 않고, 두 캐릭터 값의 동작은 그대로다 | 요청 쪽 열거 확장이라 소비자가 받는 값이 늘지 않는다 |
+| `'auto'` 응답 | 추가 | 없음 — 응답 `speaker`는 기존 두 값 안 | `Speaker` 타입 불변 |
+| 유저 메시지 `authorName` 값 규칙(실명 → 「어떠한 의지」) | **값 의미 변경 — 비파괴로 분류** | 우리 화면 1개. 이 필드를 문자열 그대로 표시만 한다(분기·파싱 없음). 타입·키·nullable 불변 | 근거 ① 소비자가 server와 같은 Worker로 함께 배포돼 호환 창이 없다 ② 화면은 값을 해석하지 않는다 ③ 저쪽(갠홈)은 이 응답을 읽지 않는다. 옛 메시지도 바뀐다(사용자 결정 Q6) |
+| `USER_DISPLAY_NAME` | 추가 | 없음 | 새 export |
+| E9 `'auto'` AI 호출 2~3회 | 추가(비용·시간 성질) | 월 비용 상한에 더 빨리 닿을 수 있다 | 70초 상한 불변 |
+| 전송 1회 = E8 + E9로 레이트리밋 2회 | 화면 사용 방식 변화 | 한 사람의 분당 전송이 최대 10회(기본 20/분) | 한도 값·규칙 불변 |
+| `routes-write.test.ts` 유저 `authorName` 단언 | 테스트 갱신 | API-T-062 | 소비자 영향 없음 |
+
+- **파괴 변경 0건.** 엔드포인트·경로·에러 코드·status·문구·레이트리밋 한도는 그대로다.
+- 파괴로 볼 여지가 있는 것은 `authorName` 값 변경 하나다. 화면이 실명을 기대해 분기하면 파괴지만, s3d-03 §3 기준 ui는 이 값을 표시와 대체 이름에만 쓴다(Bubble · MessageMenuSheet).
+- **handoff 변경 없음.** 토큰 payload·서명·`?t=`·임베드 주소가 그대로라 `doc/handoff/*` 갱신도 저쪽 PHP 재적용도 없다. 토큰의 `ch_name`·`nick`은 계속 필요하다(D1 저장용).
+
+
+---
+
+## 14. 테스트 계획
+
+### 14.1 routes — `server/test/routes/*.test.ts`
+
+- 실행: `@cloudflare/vitest-pool-workers`(workerd, D1 바인딩, 마이그레이션 적용 — db.md §8).
+- 앱: `const app = createApp({ routes: apiRoutes, now: () => 1_700_000_000_000 })`. 호출: `app.request(path, init, testEnv, createExecutionContext())`.
+- `testEnv`: `cloudflare:test`의 `env`를 펼치고 필요한 키만 바꾼다(index.md §8 방식). `ASSETS`는 index.md 픽스처의 가짜 Fetcher를 쓴다.
+- 데이터: 직접 `INSERT`로 넣는다. 메시지 id는 INSERT 결과에서 얻고 절대값을 가정하지 않는다.
+- 공용 단언 `expectContractError(res, code)`: status가 `ERROR_STATUS[code]`이고, 본문 키가 정확히 `error` 하나이며, `error` 키가 정확히 `code`·`message`이고, `message`가 비어 있지 않음을 확인한다(R-API-002). 모든 에러 테스트가 이 단언을 쓴다.
+
+| 테스트ID | 이름 | 입력 | 기대 | 요구 |
+|---|---|---|---|---|
+| API-T-001 | `health_returns_ok_and_version` | `GET /api/health` | 200, 본문 키가 정확히 `ok`·`version`, `ok === true`, `version`이 빈 문자열 아님 | R-API-005 |
+| API-T-002 | `health_ok_even_if_db_unusable` | `DB`를 모든 `prepare`가 throw하는 가짜로 교체 | 200(DB 미접근) | R-API-005 |
+| API-T-003 | `health_returns_CONFIG_INVALID_when_secret_missing` | `TOKEN_SECRET` 제거 | `expectContractError(res, 'CONFIG_INVALID')`, 본문에 키 이름 없음 | R-ENV-003 · R-API-002 |
+| API-T-004 | `api_responses_carry_csp_without_x_frame_options` | `GET /api/rooms` | `Content-Security-Policy: frame-ancestors http://london-gossip.my https://london-gossip.my`, `X-Frame-Options` 없음 | R-API-006 |
+| API-T-005 | `embed_is_not_shadowed_by_api_routes` | `GET /embed?t=x`(실제 `apiRoutes` 장착) | 가짜 `ASSETS`가 `/`를 받고 200 | R-API-006 · R-API-001 |
+| API-T-010 | `rooms_returns_empty_array` | 빈 DB | 200 `[]` | R-ROOM-001 |
+| API-T-011 | `rooms_sorted_desc_with_contract_fields` | `updated_at` 100·300·200, 메시지 0·2·5 | 300·200·100 순, 각 항목 키가 정확히 `id,title,createdAt,updatedAt,messageCount`, 시각·개수가 number | R-ROOM-001 · R-API-004 |
+| API-T-012 | `rooms_ignores_authorization_header` | `Authorization: Bearer garbage` | 200, API-T-011과 같은 본문 | R-AUTH-003 |
+| API-T-013 | `single_room_get_does_not_exist` | `GET /api/rooms/<존재하는 id>` | `expectContractError(res, 'NOT_FOUND')` | R-API-001 |
+| API-T-014 | `rooms_hides_db_failure_as_INTERNAL` | `prepare`가 `Error('SENTINEL_DB')`를 throw하는 `DB` | `expectContractError(res, 'INTERNAL')`, 본문에 `SENTINEL_DB`·`stack` 없음 | R-API-002 · R-NFR-004 |
+| API-T-020 | `messages_first_page_defaults_to_30_ascending` | 70건 방, 쿼리 없음 | 200, 30건, id 오름차순, 최신 30건, `hasMore === true` | R-MSG-001 |
+| API-T-021 | `messages_three_pages_via_before_cursor` | 70건, `before = messages[0].id`로 2회 더 | 30·30·10건, `hasMore` true·true·false, 쪽 사이 중복·누락 없음 | R-MSG-001 · R-CHAT-003 |
+| API-T-022 | `messages_accepts_limit_bounds_and_empty_values` | `limit=1` · `limit=100` · `?before=&limit=` | 1건 · 70건(전부) · 쿼리 없음과 같은 결과 | R-MSG-001 |
+| API-T-023 | `messages_item_shape_has_no_authorMbId` | 캐릭터·유저 line·유저 ooc 각 1건 | 키가 정확히 `id,roomId,speaker,kind,text,authorName,createdAt`, `id`·`createdAt` number, 캐릭터 `authorName === null` | R-API-004 · R-MSG-001 |
+| API-T-024 | `messages_ignores_authorization_header` | `Authorization: Bearer garbage` | 200 | R-AUTH-003 |
+| API-T-030 | `messages_rejects_invalid_limit` | `limit` = `0` · `101` · `1.5` · `abc` | 각 `expectContractError(res, 'VALIDATION_ERROR')`, message = `불러올 개수(limit)는 1~100 사이의 정수여야 합니다.` | R-MSG-001 · R-API-004 |
+| API-T-031 | `messages_rejects_invalid_before` | `before` = `0` · `-1` · `abc` · `9007199254740992` | 각 400 `VALIDATION_ERROR`, message = `기준 메시지 번호(before)가 올바르지 않습니다.` | R-MSG-001 · R-API-004 |
+| API-T-032 | `messages_rejects_repeated_query_key` | `?limit=1&limit=2` | 400 `VALIDATION_ERROR`, message = `요청 형식이 올바르지 않습니다.` | R-API-004 |
+| API-T-033 | `messages_unknown_room_returns_NOT_FOUND` | 없는 id(`before` 유무 둘 다) | `expectContractError(res, 'NOT_FOUND')`, message = `방을 찾을 수 없습니다.` | R-MSG-001 |
+| API-T-034 | `messages_validates_before_room_lookup` | 없는 id + `limit=0` | 400 `VALIDATION_ERROR`(404 아님) | R-MSG-001 |
+
+- 정상 경로는 12건이다(001·002·004·005·010·011·012·020~024). 에러 경로는 8개 테스트에 입력 15건이다(030·031은 입력 4개씩, 033은 2개). 에러 입력 수가 정상 경로 수보다 많다(스킬 §10).
+
+### 14.2 shared — `shared/test/*.test.ts`
+
+| 테스트ID | 이름 | 기대 | 요구 |
+|---|---|---|---|
+| API-T-040 | `error_table_matches_contract` | `ERROR_CODES` 집합이 R-API-002 13종과 같음, 모든 코드에 `ERROR_STATUS`·`ERROR_MESSAGES`가 있음, status가 §3.2 표와 같음, 문구가 비어 있지 않음 | R-API-002 |
+| API-T-041 | `isErrorCode_accepts_only_contract_codes` | `'NOT_FOUND'` true · `'NETWORK'`·`'not_found'`·`1`·`undefined` false | R-API-002 |
+| API-T-042 | `endpoints_build_paths_and_queries` | `PATHS` 값 4개, `roomMessages('a b/c')` → `/api/rooms/a%20b%2Fc/messages`, `{ before: 41 }` → `?before=41`, `{ before: 41, limit: 30 }` → `?before=41&limit=30`, `{}`·`{ limit: undefined }` → 물음표 없음 | R-API-001 · R-API-008 |
+| API-T-043 | `characters_meta_matches_contract` | 키가 정확히 `sebastian`·`ciel`, 각 `id`가 키와 같음, `name`이 확정사항 §1 전체 이름, `shortName`이 `세바스찬`·`시엘`, `avatar === '/embed/img/{id}.png'` | R-LLM-002 · R-CHAT-002 |
+| API-T-044 | `no_path_literals_outside_shared`(리뷰 grep) | §14.4 경로 리터럴 grep 결과 0건 | R-API-008 |
+
+### 14.3 ui/api — `ui/src/api/__tests__/*.test.ts` (`vi.stubGlobal('fetch', …)`)
+
+| 테스트ID | 이름 | 기대 | 요구 |
+|---|---|---|---|
+| API-T-UI-001 | `request_returns_ok_value_on_2xx_json` | 200 JSON → `{ ok: true, value }` | R-API-002 |
+| API-T-UI-002 | `request_passes_contract_error_body_through` | 404 `{ error: { code: 'NOT_FOUND', message: '방을 찾을 수 없습니다.' } }` → 같은 `code`·`message` | R-API-002 |
+| API-T-UI-003 | `request_maps_fetch_failure_to_NETWORK` | `fetch`가 reject / 동기 throw → `{ code: 'NETWORK', message: '서버에 연결할 수 없습니다.' }` | R-API-002 |
+| API-T-UI-004 | `request_maps_non_contract_error_body_to_INTERNAL` | 502 HTML 본문 → `INTERNAL` + `ERROR_MESSAGES.INTERNAL` | R-API-002 |
+| API-T-UI-005 | `request_handles_unknown_code_and_missing_message` | 모르는 code → `INTERNAL`. `{ code: 'RATE_LIMITED' }`(message 없음) → `ERROR_MESSAGES.RATE_LIMITED` | R-API-002 |
+| API-T-UI-006 | `request_maps_non_json_success_to_INTERNAL` | 200 + 본문 `'not json'` → `INTERNAL` | R-API-002 |
+| API-T-UI-007 | `listRooms_calls_GET_api_rooms_without_auth` | URL `/api/rooms`, method `GET`, `Authorization` 헤더 없음 | R-ROOM-001 · R-AUTH-003 |
+| API-T-UI-008 | `listMessages_builds_path_and_query` | `('r1')` → `/api/rooms/r1/messages`, `('r1', { before: 41 })` → `…?before=41`, `('a b', { limit: 10 })` → `/api/rooms/a%20b/messages?limit=10` | R-MSG-001 · R-API-008 |
+| API-T-UI-009 | `getHealth_calls_GET_api_health` | URL `/api/health` | R-API-005 |
+| API-T-UI-010 | `wrappers_never_reject` | `fetch` throw · `json()` throw · 500 등 모든 경우에 `await`가 reject하지 않음 | R-API-002 |
+
+### 14.4 리뷰·수동
+
+- 라우트 핸들러 30줄 이내, try/catch·`c.env` 설정 키·`c.json({ error … })` 직접 생성 0건(R-API-007·R-ENV-001·R-API-002).
+- `fetch(` 사용이 `ui/src/api/` 밖에서 0건이어야 한다(경계). 경로 리터럴은 `shared/src/endpoints.ts` 밖에서 0건이어야 한다(API-T-044, R-API-008).
+
+```bash
+grep -rn "fetch(" ui/src --include=*.ts --include=*.tsx | grep -v "^ui/src/api/"
+grep -rnE "[\"'\`]/(api|embed)" server/src/routes ui/src/api
+```
+- 시드 적용 후 `curl -i http://localhost:3000/api/rooms/00000000-0000-4000-8000-000000000001/messages`가 30건·오름차순·`hasMore: true`, `authorMbId` 없음.
+
+### 14.5 S2 routes — `server/test/routes.test.ts` (API-T-050 ~ 066)
+
+준비:
+
+- 토큰: server가 만드는 `server/test/token.ts`의 `signTestToken(payload, 'test-secret')`(vitest 바인딩 `TOKEN_SECRET`과 같은 값, auth.md §3·§9.1). 기본 payload는 `{ mb_id: 'writer_a', nick: '테스터', ch_name: '시엘 팬텀하이브', level: 5, exp: NOW / 1000 + 43200 }`이고 테스트마다 필요한 키만 바꾼다.
+- 시각: 기존 `NOW = 1_700_000_000_000` 그대로. 분 창 시작이 `1_699_999_980_000`이라 `retryAfterSec`는 항상 **40**이다.
+- 설정: `TOKEN_MIN_LEVEL`·`RATE_LIMIT_PER_MIN`은 기본값(5·20)을 쓰고, 한도 테스트만 `baseEnv({ RATE_LIMIT_PER_MIN: '2' })`처럼 바꾼다. `resetDb`가 `rate_limits`도 비운다(이미 구현됨).
+- `WRITES` 표: 6개 엔드포인트의 `{ method, path, body }`를 시드 방·메시지로 채워 050~053이 같은 표를 돈다.
+- `expectContractError(res, code)` 갱신: `RATE_LIMITED`만 `error` 키가 정확히 `code`·`message`·`retryAfterSec`이고 `Retry-After` 헤더가 같은 값이다. 나머지 코드는 S1처럼 정확히 `code`·`message`다.
+
+| 테스트ID | 이름 | 입력 | 기대 | 요구 |
+|---|---|---|---|---|
+| API-T-050 | `writes_require_token_on_all_six_endpoints` | `WRITES` 6개, `Authorization` 없음 | 전부 `expectContractError(res, 'TOKEN_REQUIRED')`. 방 수·메시지 본문 불변 | R-AUTH-003(라우트 표 전건 대조) |
+| API-T-051 | `writes_ignore_query_cookie_and_non_bearer_token` | `POST /api/rooms`에 유효 토큰을 `?t=`로만 · `Cookie: t=`로만 · `Authorization: Basic <t>` · `Authorization: Bearer ` | 전부 401 `TOKEN_REQUIRED` | R-AUTH-003 · R-API-003 |
+| API-T-052 | `writes_reject_forged_or_expired_token` | `WRITES` 6개 × SECRET `wrong-secret` 토큰. 추가로 `exp = NOW / 1000`(경계) · `level: "5"`(문자열) | 전부 401 `TOKEN_INVALID`, message = 기본 문구(단계 정보 없음) | R-AUTH-001 · R-AUTH-002 |
+| API-T-053 | `writes_reject_low_level_with_LEVEL_TOO_LOW` | `WRITES` 6개 × `level: 4`. 추가로 만료된 `level: 4` | 6개 403 `LEVEL_TOO_LOW`. 만료+저등급은 401 `TOKEN_INVALID`(만료 우선) | R-AUTH-002 |
+| API-T-054 | `writes_rate_limited_on_21st_request` | 같은 토큰으로 `POST /api/rooms` 21회, 이어서 다른 `mb_id`로 1회 | 1~20번째 201, 21번째 `expectContractError(res, 'RATE_LIMITED')` + `retryAfterSec === 40` + `Retry-After: 40`, 방 20개. 다른 `mb_id`는 201 | R-AUTH-005 · R-NFR-003 · R-API-002 |
+| API-T-055 | `auth_precedes_validation_and_failed_writes_are_counted` | 한도 2. ① 토큰 없이 `{}` ② 위조 토큰 3회 ③ 유효 토큰으로 `{}` 2회 ④ 유효 토큰으로 정상 본문 | ① 401(400 아님) ② 401 ×3(세지 않음) ③ 400 ×2(셈) ④ 429 | R-AUTH-003 · R-AUTH-005 |
+| API-T-056 | `reads_stay_open_and_do_not_count` | 한도 1. 쓰기 1회(201) 뒤 `GET /api/rooms`·`GET …/messages`를 헤더 없음·위조 토큰·유효 토큰으로 | 읽기 전부 200. `rate_limits.count` = 1 그대로 | R-AUTH-003 |
+| API-T-057 | `create_room_returns_201_summary` | `{ title: '  안개 낀 런던  ' }` · `{ title: 'x', foo: 1 }` | 201. 키가 정확히 `id,title,createdAt,updatedAt,messageCount`, `title === '안개 낀 런던'`, `id`가 UUID v4, `createdAt === updatedAt === NOW`, `messageCount === 0`. `GET /api/rooms` 첫 항목과 같음. 모르는 키는 무시하고 201 | R-ROOM-002 · R-API-004 |
+| API-T-058 | `create_room_rejects_bad_title_or_body` | 제목 `''`·`'   '`·61자·이모지 61개 / 통과 60자·이모지 60개 / 본문 `{}`·`{ title: 1 }`·깨진 JSON·`Content-Type` 없는 JSON | 제목 위반 400 `방 제목은 1~60자로 입력해 주세요.`, 통과 201, 형식 위반 400 `요청 형식이 올바르지 않습니다.` | R-ROOM-002 · R-API-004 |
+| API-T-059 | `rename_room_keeps_updatedAt_and_validates` | 메시지 2개·`updated_at` 100인 방 → `{ title: '새 이름' }` / 61자 / 없는 id / 없는 id + 61자 | 200 `title` 변경·`updatedAt === 100`·`messageCount === 2`, 목록 순서 불변 / 400 / 404 `방을 찾을 수 없습니다.` / 400 | R-ROOM-003 · R-ROOM-005 |
+| API-T-060 | `delete_room_returns_204_and_cascades` | 메시지 3개 방 삭제, 같은 방 다시 삭제 | 204·본문 빈 문자열. 이어 `GET …/messages` 404, 목록에서 빠짐, 두 번째 삭제 404 | R-ROOM-004 · R-DB-003 |
+| API-T-061 | `append_user_returns_201_message` | `{ text: ' 안녕 ', ooc: false }` · `ooc: true` · `ch_name: ''` 토큰 | 201. 키가 정확히 `id,roomId,speaker,kind,text,authorName,createdAt`(`authorMbId` 없음), `speaker 'user'`, `kind` `line`/`ooc`, `text '안녕'`, `authorName` `'시엘 팬텀하이브'` / nick `'테스터'`, `createdAt === NOW`. 방 `updatedAt === NOW`, DB `author_mb_id === 'writer_a'` | R-MSG-002 · R-AUTH-004 · R-ROOM-005 · R-AUTH-006 |
+| API-T-062 | `append_user_rejects_bad_body_or_room` | `text` `''`·`'  \n '`·2001자 / `{ text: 'x' }`·`{ text: 'x', ooc: 'true' }`·`{ text: 1, ooc: false }` / 없는 방 | 400 `메시지는 1~2000자로 입력해 주세요.` / 400 기본 문구 / 404 `방을 찾을 수 없습니다.`. 메시지 0건 추가 | R-MSG-002 |
+| API-T-063 | `edit_message_returns_200_and_keeps_meta` | 유저 메시지·캐릭터 메시지에 `{ text: ' 고침 ' }` | 200, `text '고침'`, `speaker`·`kind`·`authorName`·`createdAt` 그대로, 방 `updatedAt === NOW` | R-MSG-004 · R-ROOM-005 |
+| API-T-064 | `message_id_and_text_errors` | PATCH·DELETE에 id `abc`·`0`·`1.5`·`0x10`·`1e1`·없는 큰 수 / 있는 id에 2001자 / `abc` + 빈 본문 | 404 `메시지를 찾을 수 없습니다.` / 400 / 404(id 판정이 먼저) | R-MSG-004 · R-MSG-005 |
+| API-T-065 | `delete_message_returns_204` | 메시지 3개 중 가운데 삭제, 같은 id 다시 삭제 | 204, 페이지에 2건, 방 `updatedAt === NOW`, 두 번째 404 | R-MSG-005 · R-ROOM-005 |
+| API-T-066 | `other_mb_id_can_modify_rooms_and_messages` | `writer_a`가 방·유저 메시지 생성 → `writer_b` 토큰으로 방 이름 변경·메시지 수정·메시지 삭제·방 삭제 | 200 · 200 · 204 · 204 | R-ROOM-003 · R-ROOM-004 · R-MSG-008 |
+
+- 정상 경로 9개(054 일부·056·057·059 일부·060·061·063·065·066)보다 에러 입력이 많다(050~053만 27건).
+
+### 14.6 S2 shared — `shared/test/*.test.ts`
+
+| 테스트ID | 이름 | 기대 | 요구 |
+|---|---|---|---|
+| API-T-042(갱신) | `endpoints_build_paths_and_queries` | `PATHS` 값 **7개**. 나머지 기대는 S1 그대로 | R-API-001 · R-API-008 |
+| API-T-045 | `endpoints_build_write_paths` | `PATHS.room === '/api/rooms/:id'`, `roomUser === '/api/rooms/:id/user'`, `message === '/api/messages/:id'`. `room('a b/c')` → `/api/rooms/a%20b%2Fc`, `roomUser('r1')` → `/api/rooms/r1/user`, `message(41)` → `/api/messages/41` | R-API-001 · R-API-008 |
+| API-T-046 | `limits_match_requirements_and_count_code_points` (v0.3.1) | 상수 `60`·`2000`·`4000`. `countCodePoints`: `''` → 0, `'abc'` → 3, `'한글'` → 2, `'😀'` → 1(`.length`는 2), `'👨‍👩‍👧'` → 5, 이모지 60개 → 60. `normalizeText`: `'  a \n b \n'` → `'a \n b'`(중간 유지), `'　x　'` → `'x'`, `'   '` → `''` | R-ROOM-002 · R-MSG-002 · R-MSG-004 · R-MEM-001 |
+
+### 14.7 S2 ui/api — `ui/src/api/api.test.ts` (`vi.stubGlobal('fetch', …)`, 각 테스트 전에 `configureClient({ getToken: () => null })`)
+
+| 테스트ID | 이름 | 기대 | 요구 |
+|---|---|---|---|
+| API-T-UI-011 | `write_wrappers_send_method_url_body_and_bearer` | getter `'tok'`. `createRoom({ title: 't' })` POST `/api/rooms` 본문 `{"title":"t"}` · `renameRoom('a b', …)` PATCH `/api/rooms/a%20b` · `deleteRoom('r1')` DELETE `/api/rooms/r1`(본문·`Content-Type` 없음) · `appendUser('r1', { text: 'x', ooc: true })` POST `/api/rooms/r1/user` · `editMessage(41, { text: 'y' })` PATCH `/api/messages/41` · `deleteMessage(41)` DELETE `/api/messages/41`. 6개 모두 `Authorization: Bearer tok`, 본문이 있으면 `Content-Type: application/json` | R-API-003 · R-CHAT-009 · R-ROOMS-002 · R-CHAT-006 · R-CHAT-007 |
+| API-T-UI-012 | `read_wrappers_never_send_authorization` | getter `'tok'`인데 `listRooms`·`listMessages`·`getHealth`에 `Authorization`·`Content-Type` 없음, method GET | R-AUTH-003 · R-API-003 |
+| API-T-UI-013 | `write_without_token_sends_no_authorization` | getter `null` · `''` 각각 `createRoom` → 헤더 없음. 서버 401 `TOKEN_REQUIRED` 본문을 그대로 `Result.error`로 | R-API-003 |
+| API-T-UI-014 | `rate_limited_carries_retryAfterSec` | 429 `{ error: { code: 'RATE_LIMITED', message, retryAfterSec: 40 } }` → `error.retryAfterSec === 40`. 값이 `0`·`'40'`·`1.5`·없음이면 키 없음(`'retryAfterSec' in error === false`). `NOT_FOUND`에 붙어 오면 버림 | R-AUTH-005 · R-CHAT-011 |
+| API-T-UI-015 | `delete_wrappers_map_204_to_ok_undefined` | 204 본문 없음 → `{ ok: true, value: undefined }`, `json()` 미호출. 201 빈 본문(`createRoom`)은 S1 규칙대로 `INTERNAL` | R-ROOM-004 · R-MSG-005 · R-API-002 |
+| API-T-UI-016 | `isAuthFailure_matches_three_auth_codes` | `TOKEN_REQUIRED`·`TOKEN_INVALID`·`LEVEL_TOO_LOW` → true. `RATE_LIMITED`·`VALIDATION_ERROR`·`NOT_FOUND`·`NETWORK`·`INTERNAL` → false | R-CHAT-011 |
+| API-T-UI-017 | `write_wrappers_send_contract_keys_only_and_never_reject` | `createRoom({ title: 't', extra: 1 } as CreateRoomBody)` → 본문 `{"title":"t"}`. `appendUser`도 `text`·`ooc`만. 6개 쓰기 래퍼가 `fetch` throw·500 HTML에서도 reject하지 않음(`NETWORK`·`INTERNAL`) | R-API-002 · R-API-004 |
+| API-T-UI-018 | `token_never_persisted_or_sent_in_query`(리뷰 grep) | §14.8의 grep 결과 0건 | R-API-003 · R-CHAT-009 · R-AUTH-006 |
+
+### 14.8 S2 리뷰·수동
+
+```bash
+# 토큰 저장 금지 (API-T-UI-018) — token.ts 는 ui 구현 후 대상에 포함
+grep -rnE "localStorage|sessionStorage|document\.cookie|indexedDB" ui/src/api ui/src/state/token.ts
+# API 호출에 ?t= 금지
+grep -rn "?t=" ui/src/api
+# 인증 미들웨어 전역 적용·principal 직접 읽기 금지
+grep -rnE "\.use\(|get\('principal'\)" server/src/routes
+```
+
+- 라우트 핸들러 30줄 이내, 쓰기 핸들러 6개 모두 `requireToken`·`rateLimitWrites`가 `validate` 앞(R-API-007, API-T-050이 자동 대조).
+- 수동: `wrangler dev`에서 토큰 없이 `curl -i -X POST http://localhost:3000/api/rooms -H 'content-type: application/json' -d '{"title":"x"}'` → 401 `TOKEN_REQUIRED`. 로컬 SECRET으로 만든 토큰으로 21회 → 21번째 `429`·`Retry-After`.
+
+### 14.9 S3 routes — `server/test/routes-generate.test.ts` (API-T-070 ~ 084)
+
+준비:
+
+- 앱·토큰·시각은 §14.5와 같다(`signTestToken`, `NOW`). 성공 경로는 `testEnv`에 `LLM_PROVIDER: 'fake'`를 넣는다. 각본 없는 `FakeProvider`는 `FAKE_DEFAULT_TEXT`를 돌려준다(llm.md §2).
+- `502` 경로는 `LLM_PROVIDER: 'google'` + 테스트용 가짜 키 문자열(실값 아님)로 두고 `vi.stubGlobal('fetch', …)`로 제공사 응답을 흉내 낸다. `GeminiProvider`의 기본 `fetchFn`은 전역 `fetch`이고 요청마다 새로 만든다(llm.md §2.2). 재시도 없는 실패(HTTP 400)·차단(`promptFeedback.blockReason`)·이름표만 있는 텍스트(후처리 뒤 빈 결과)를 쓴다. 재시도가 걸리는 5xx·타임아웃은 server 테스트(SRV-T-198·208)에 맡긴다. 이 방식이 workerd에서 막히면 §15.9 S3-R3.
+- 잠금 상태는 `UPDATE rooms SET speaking_until = ?`로 직접 만든다. 동시 요청 경합은 server SRV-T-199가 맡는다.
+- `expectContractError`는 §14.5 그대로다.
+
+| 테스트ID | 이름 | 입력 | 기대 | 요구 |
+|---|---|---|---|---|
+| API-T-070 | `speak_returns_201_character_message` | 시드 방, `{ character: 'sebastian' }` · `{ character: 'ciel', foo: 1 }` | 201. 키가 정확히 `id,roomId,speaker,kind,text,authorName,createdAt`, `speaker` = 보낸 값, `kind 'line'`, `authorName null`, `text` 비어 있지 않음, `createdAt === NOW`. 방 `updatedAt === NOW`, `speaking_until` NULL, DB `author_mb_id` NULL. 모르는 키 무시 | R-MSG-003 · R-ROOM-005 · R-LLM-002 |
+| API-T-071 | `speak_allows_same_character_twice` | `ciel` 2회 연속 | 둘 다 201, 두 번째 id가 더 큼, 히스토리 마지막 2건이 `ciel` | R-MSG-003 |
+| API-T-072 | `speak_rejects_bad_character` | `{}` · `'meirin'` · `'Sebastian'` · `''` · `1` · `null` · 깨진 JSON · `Content-Type` 없음 | 전부 400 `VALIDATION_ERROR` `요청 형식이 올바르지 않습니다.`, 메시지 0건 추가 | R-MSG-003 · R-API-002 |
+| API-T-073 | `speak_checks_validation_then_config_then_room` | ① 없는 방 + `'meirin'` ② `google`·키 없음 + 없는 방 ③ `fake` + 없는 방 | ① 400 ② 500 `CONFIG_INVALID`(본문에 키 이름 없음) ③ 404 `방을 찾을 수 없습니다.` | R-ENV-003 · R-API-002 |
+| API-T-074 | `config_invalid_only_on_generate_paths` | `google`·키 없음에서 `GET /api/rooms` · `POST …/user` · speak · regenerate(마지막 캐릭터 메시지) | 200 · 201 · 500 `CONFIG_INVALID` · 500 `CONFIG_INVALID` | R-ENV-003 |
+| API-T-075 | `generate_returns_409_while_locked` | `speaking_until = NOW + 1`인 방에 speak · 그 방 마지막 캐릭터 메시지 regenerate · 그 방 마지막이 아닌 캐릭터 메시지 regenerate / `speaking_until = NOW`(만료 경계) speak | 409 `SPEAK_IN_PROGRESS` ×3(마지막 아님도 `SPEAK_IN_PROGRESS`), 메시지 불변 / 201 | R-MSG-007 · R-NFR-003 |
+| API-T-076 | `speak_maps_provider_failures_to_502` | 제공사 HTTP 400 · 차단 응답 · 이름표만 있는 텍스트 | 502 `LLM_FAILED` · 502 `LLM_EMPTY` · 502 `LLM_EMPTY`, message = 기본 문구, 본문에 `gemini`·`google`·HTTP 상태·`blockReason` 없음. 메시지 0건, 방 `updatedAt` 불변, `speaking_until` NULL | R-LLM-004 · R-LLM-005 · R-NFR-004 |
+| API-T-077 | `failed_generates_count_toward_rate_limit` | 한도 2. 같은 토큰으로 ① speak 502 ② 잠긴 방 speak 409 ③ 정상 speak | ① 502 ② 409 ③ 429(앞 두 건이 셌다) | R-AUTH-005 · R-NFR-003 |
+| API-T-078 | `regenerate_returns_200_and_keeps_meta` | 유저 발화 → 세바스찬(마지막, `created_at` 500). 본문 없음 / 본문 `{"x":1}` / 깨진 JSON 본문 | 전부 200. `id`·`roomId`·`speaker`·`kind`·`authorName`·`createdAt(500)` 그대로, `text` 바뀜, 방 `updatedAt === NOW`, 메시지 수 불변 | R-MSG-006 · R-ROOM-005 |
+| API-T-079 | `regenerate_rejects_user_message` | 마지막 유저 `line` · 마지막 유저 `ooc` · 마지막이 아닌 유저 메시지 | 전부 400 `NOT_CHARACTER_MESSAGE`, 기본 문구 | R-MSG-006 |
+| API-T-080 | `regenerate_rejects_non_last_character_message` | 세바스찬 → 유저 발화, 세바스찬 id | 409 `NOT_LAST_MESSAGE`, 원문 불변, `speaking_until` NULL | R-MSG-006 |
+| API-T-081 | `regenerate_checks_target_then_config` | `google`·키 없음에서 ① 유저 메시지 ② 없는 id ③ 마지막 캐릭터 메시지 | ① 400 `NOT_CHARACTER_MESSAGE` ② 404 ③ 500 `CONFIG_INVALID` | R-MSG-006 · R-ENV-003 |
+| API-T-082 | `regenerate_message_id_errors` | id `abc`·`0`·`1.5`·`0x10`·`1e1`·없는 큰 수 | 전부 404 `메시지를 찾을 수 없습니다.` | R-MSG-006 · R-API-004 |
+| API-T-083 | `regenerate_failure_keeps_text` | 제공사 HTTP 400 | 502 `LLM_FAILED`, 원문 불변, 방 `updatedAt` 불변, `speaking_until` NULL | R-LLM-005 · R-MSG-007 · R-ROOM-005 |
+| API-T-084 | `generate_paths_reject_other_methods` | `GET`·`PUT /api/rooms/:id/speak`, `GET /api/messages/:id/regenerate` | 전부 404 `NOT_FOUND` | R-API-001 |
+
+- (갱신) API-T-050 ~ 053: 쓰기 표에 E9(`{ character: 'sebastian' }`)·E12(시드의 마지막 캐릭터 메시지)를 더해 8개를 돈다. 인증이 먼저라 제공사는 불리지 않는다. 테스트 이름의 "six"는 "all"로 바꾼다.
+- 정상 경로 3개(070·071·078)보다 에러 입력이 많다(072만 8건).
+
+### 14.10 S3 shared — `shared/test/*.test.ts`
+
+| 테스트ID | 이름 | 기대 | 요구 |
+|---|---|---|---|
+| API-T-042(갱신) | `endpoints_build_paths_and_queries` | `PATHS` 값 **9개**. 나머지 기대는 S1·S2 그대로 | R-API-001 · R-API-008 |
+| API-T-047 | `endpoints_build_generate_paths` | `PATHS.roomSpeak === '/api/rooms/:id/speak'`, `messageRegenerate === '/api/messages/:id/regenerate'`. `roomSpeak('a b/c')` → `/api/rooms/a%20b%2Fc/speak`, `messageRegenerate(72)` → `/api/messages/72/regenerate` | R-API-001 · R-API-008 |
+
+### 14.11 S3 ui/api — `ui/src/api/api.test.ts` (§14.7 준비 그대로)
+
+| 테스트ID | 이름 | 기대 | 요구 |
+|---|---|---|---|
+| API-T-UI-019 | `generate_wrappers_send_method_url_body_and_bearer` | getter `'tok'`. `speak('r1', { character: 'ciel' })` POST `/api/rooms/r1/speak` 본문 `{"character":"ciel"}` + `Content-Type: application/json` · `speak('a b', …)` → `/api/rooms/a%20b/speak` · `regenerate(72)` POST `/api/messages/72/regenerate` 본문·`Content-Type` 없음. 모두 `Authorization: Bearer tok`. `speak('r1', { character: 'ciel', extra: 1 } as SpeakBody)` → 본문 `{"character":"ciel"}` | R-MSG-003 · R-MSG-006 · R-API-003 · R-CHAT-005 · R-CHAT-007 |
+| API-T-UI-020 | `generate_wrappers_pass_s3_codes_and_never_reject` | 409 `SPEAK_IN_PROGRESS` · 409 `NOT_LAST_MESSAGE` · 400 `NOT_CHARACTER_MESSAGE` · 502 `LLM_FAILED` · 502 `LLM_EMPTY` · 500 `CONFIG_INVALID` 본문 → 같은 `code`·`message`, `isAuthFailure` 6개 모두 false. `fetch` throw → `NETWORK`, 502 HTML → `INTERNAL`. 어느 경우도 reject 없음 | R-API-002 · R-CHAT-011 |
+| API-T-UI-021 | `generate_wrappers_set_no_timeout`(단위 + 리뷰 grep) | 두 래퍼의 `fetch` 두 번째 인자에 `signal` 키 없음. `grep -nE "AbortController\|AbortSignal\|setTimeout" ui/src/api --include=*.ts`(테스트 파일 제외) 0건 | R-NFR-001 |
+
+### 14.12 S3b routes — `server/test/routes-generate.test.ts` (API-T-085 ~ 090)
+
+준비:
+
+- §14.9 준비 그대로(`LLM_PROVIDER: 'fake'`, `NOW = 1_700_000_000_000`). `NOW`는 KST `2023-11-15 07:13:20`이라 월 키는 `'2023-11'`이고, `retryAfterSec`는 `2023-12-01 00:00 KST`(= `2023-11-30T15:00:00Z`)까지라 항상 **1356400**이다.
+- 예산 초과 상태는 server `helpers.ts`의 `insertUsage('2023-11', 100000)`(db.md §2.4 · 기본 예산 100000)로 만든다. 직전 허용은 `insertUsage('2023-11', 99999.9)`.
+- `expectContractError(res, code)` 갱신(두 벌 모두): `RATE_LIMITED`·`LLM_BUDGET_EXCEEDED`만 `error` 키가 정확히 `code`·`message`·`retryAfterSec`이고 `Retry-After` 헤더가 같은 값이다. 값 검사는 코드별(`RATE_LIMITED` → 40, `LLM_BUDGET_EXCEEDED` → 1356400). 나머지 코드는 그대로 두 키다.
+
+| 테스트ID | 이름 | 입력 | 기대 | 요구 |
+|---|---|---|---|---|
+| API-T-085 | `speak_returns_429_budget_exceeded_with_retry_after` | 초과 시드, speak `sebastian` / 직전 시드(99999.9), speak | `expectContractError(res, 'LLM_BUDGET_EXCEEDED')`, message = 요구 원문, `retryAfterSec === 1356400`, `Retry-After: 1356400`, CSP 있음, 본문에 누적액·예산 키 없음. 메시지 0건 추가, 방 `updatedAt` 불변, `speaking_until` NULL, `llm_usage` `calls` 불변(제공사 0회) / 201 | R-LLM-007 · R-API-002 |
+| API-T-086 | `speak_budget_gate_order` | 초과 시드에서 ① `'meirin'` ② `google`·키 없음 + 시드 방 ③ 없는 방 ④ `speaking_until = NOW + 1`인 방 | ① 400 `VALIDATION_ERROR` ② 500 `CONFIG_INVALID` ③ 429 `LLM_BUDGET_EXCEEDED`(404 아님) ④ 429 `LLM_BUDGET_EXCEEDED`(409 아님) | R-LLM-007 · R-MSG-007 |
+| API-T-087 | `regenerate_budget_gate_order_and_keeps_text` | 초과 시드에서 ① 없는 id ② 유저 메시지 ③ 마지막 캐릭터 메시지 ④ 마지막이 아닌 캐릭터 메시지 ⑤ `google`·키 없음 + 마지막 캐릭터 메시지 | ① 404 ② 400 `NOT_CHARACTER_MESSAGE` ③ 429 `LLM_BUDGET_EXCEEDED`, 원문·방 `updatedAt` 불변, `speaking_until` NULL ④ 429(409 `NOT_LAST_MESSAGE` 아님) ⑤ 500 `CONFIG_INVALID` | R-LLM-007 · R-MSG-006 |
+| API-T-088 | `budget_exceeded_only_on_generate_paths` | 초과 시드에서 `GET /api/health` · `GET /api/rooms` · `GET …/messages` · `POST /api/rooms` · `POST …/user` · `PATCH /api/messages/:id` · `DELETE /api/messages/:id` | 200 · 200 · 200 · 201 · 201 · 200 · 204. health 본문 키는 S1과 같다(사용량·예산 키 없음) | R-LLM-007 · R-API-001 |
+| API-T-089 | `budget_rejections_count_toward_rate_limit` | `RATE_LIMIT_PER_MIN: '2'`, 초과 시드. 같은 토큰으로 speak 3회 | 429 `LLM_BUDGET_EXCEEDED` · 429 `LLM_BUDGET_EXCEEDED` · 429 `RATE_LIMITED`(`retryAfterSec` 40). 같은 429를 `code`로 구분 | R-NFR-003 · R-AUTH-005 · R-LLM-007 |
+| API-T-090 | `budget_uses_current_kst_month_only` | 지난달 행만 `insertUsage('2023-10', 100000)` | speak 201 | R-LLM-007 |
+
+- 정상 경로 2건(085 후반 · 090)보다 에러 입력이 많다(086·087만 9건).
+- 월 경계 정각·윤년·12월 넘김은 server SRV-T-210·211·214가 맡는다(라우트에서 시계를 바꾸지 않는다).
+
+### 14.13 S3b shared · ui/api
+
+| 테스트ID | 파일 | 이름 | 기대 | 요구 |
+|---|---|---|---|---|
+| API-T-040(갱신) | `shared/test/errors.test.ts` | `error_table_matches_contract` | 기대 표에 `LLM_BUDGET_EXCEEDED: 429` 추가, `toHaveLength(14)`, 설명 "계약 14종" | R-API-002 |
+| API-T-048 | `shared/test/errors.test.ts` | `errors_include_budget_exceeded` | `ERROR_CODES.indexOf('LLM_BUDGET_EXCEEDED') === ERROR_CODES.indexOf('LLM_EMPTY') + 1`, `ERROR_STATUS` 429, `ERROR_MESSAGES` = 요구 원문, `isErrorCode('LLM_BUDGET_EXCEEDED') === true` | R-API-002 · R-LLM-007 |
+| API-T-UI-022 | `ui/src/api/api.test.ts` | `budget_exceeded_passes_code_and_drops_retryAfterSec` | `speak`·`regenerate`에 429 `{ error: { code: 'LLM_BUDGET_EXCEEDED', message, retryAfterSec: 1356400 } }` → `ok: false`, 같은 `code`·`message`, `'retryAfterSec' in error === false`, `isAuthFailure` false, reject 없음. `message`가 빈 문자열이면 `ERROR_MESSAGES.LLM_BUDGET_EXCEEDED` | R-API-002 · R-CHAT-011 · R-LLM-007 |
+| API-T-UI-023 | `ui/src/api/api.test.ts` | `two_429_codes_are_distinguished_by_code` | 같은 status 429에 `RATE_LIMITED`+`40` → `retryAfterSec === 40`, `LLM_BUDGET_EXCEEDED`+`40` → 키 없음. 두 `error.code`가 다르다 | R-CHAT-011 · R-AUTH-005 |
+
+### 14.14 S3c routes — `server/test/routes-settings.test.ts` (API-T-091 ~ 103)
+
+준비:
+
+- §14.9 준비 그대로(`NOW = 1_700_000_000_000`, `signTestToken`, env 덮어쓰기 방식). 추가 바인딩 `OWNER_MB_IDS: 'owner01'`(테스트 자리표시자 — 실제 회원 ID 금지).
+- 토큰 3종: 주인 `mb_id 'owner01'`·통과 등급, 비주인 `mb_id 'member01'`·통과 등급, 등급 미달 주인 `mb_id 'owner01'`·`TOKEN_MIN_LEVEL - 1`.
+- 유효 본문은 `shared/test/settings-vectors.ts`의 `validSettings()`(§14.15)로 만든다. D1 `character_settings`는 server 0003 마이그레이션이 만든다.
+- `expectContractError(res, code)`는 S3b 판 그대로 쓴다(`OWNER_ONLY`·`VALIDATION_ERROR`는 `code`·`message` 두 키).
+
+| 테스트ID | 이름 | 입력 | 기대 | 요구 |
+|---|---|---|---|---|
+| API-T-091 | `settings_require_token` | GET·PUT 각각 ① 헤더 없음 ② `Bearer garbage` ③ 헤더 없이 `?t=<주인 토큰>` ④ 헤더 없이 깨진 JSON PUT | ① 401 `TOKEN_REQUIRED` ② 401 `TOKEN_INVALID` ③ 401 `TOKEN_REQUIRED` ④ 401(400 아님) | R-AUTH-003 · R-SET-004 |
+| API-T-092 | `settings_level_checked_before_owner` | 등급 미달 주인 토큰으로 GET·PUT | 403 `LEVEL_TOO_LOW`(`OWNER_ONLY` 아님) | R-AUTH-002 · R-SET-001 |
+| API-T-093 | `settings_non_owner_gets_owner_only` | ① 비주인 GET·PUT ② `OWNER_MB_IDS: ''`에서 주인 토큰 GET ③ `RATE_LIMIT_PER_MIN: '1'`에서 비주인 PUT 3회 | ① 403 `OWNER_ONLY`, message = 기본 문구, 응답 문자열에 `owner01`·`member01` 없음 ② 403 `OWNER_ONLY` ③ 403 × 3(429 없음), D1 행 없음 | R-SET-001 · R-AUTH-006 · R-AUTH-005 |
+| API-T-094 | `settings_get_returns_seed_when_never_saved` | 빈 D1, 주인 GET | 200, 키 정확히 `settings`·`version`·`updatedAt`·`isDefault`, `isDefault true`·`version 0`·`updatedAt null`, `checkCharacterSettings(body.settings).ok`, 캐릭터 키 `sebastian`·`ciel`, 각 11키. 응답 문자열에 `owner01`·`updatedBy`·`mbId`·`outputRules` 없음 | R-SET-004 · R-SET-003 · R-AUTH-006 |
+| API-T-095 | `settings_put_replaces_and_normalizes` | 주인 PUT(앞뒤 공백 값, `sampleDialogue: ['  a ', '', '   ']`) → GET → 두 번째 PUT | 200, `settings` = `checkCharacterSettings(input).value`, `version 1`, `updatedAt === NOW`, `isDefault false` / GET이 같은 값 / 두 번째 `version 2` | R-SET-005 · R-SET-003 |
+| API-T-096 | `settings_put_rejects_unknown_keys` | ① `sebastian.apiKey` ② `characters.meirin` ③ `settings.outputRules` ④ 봉투에 `extra: 1` + 유효 `settings` | ①~③ 400 `VALIDATION_ERROR`, 문구 = §4.16 표(`세바스찬 · 알 수 없는 항목이 있습니다.` / `공통 · 알 수 없는 캐릭터가 있습니다.` / `공통 · 알 수 없는 항목이 있습니다.`), 문구에 `apiKey` 없음, D1 불변 ④ 200 | R-SET-002 · R-SET-008 |
+| API-T-097 | `settings_put_limits_by_code_points` | ① `ciel.speech` 800자 / 801자 ② 이모지 800개(UTF-16 1600) ③ `sebastian.sampleDialogue` 10개 / 11개 ④ `ciel.rules` 항목 200자 / 201자 ⑤ `world` 2000자 / 2001자 | 상한은 200, 상한+1은 400과 문구(`시엘 · 말투는 1~800자여야 합니다.` · `세바스찬 · 샘플 대사는 10개 이하여야 합니다.` · `시엘 · 규칙·금기는 한 줄에 200자 이하여야 합니다.` · `공통 · 세계관은 1~2000자여야 합니다.`) ② 200 | R-SET-002 · R-SET-005 |
+| API-T-098 | `settings_put_rejects_empty_required_and_bad_types` | ① `world: '   '` ② `sebastian.persona: ''` ③ `ciel.speech` 키 없음 ④ `ciel.rules: 'a'` ⑤ `characters.ciel` 없음 | 400 각각 `공통 · 세계관은 1~2000자여야 합니다.` · `세바스찬 · 성격·배경은 1~1500자여야 합니다.` · `시엘 · 말투 값의 형식이 올바르지 않습니다.` · `시엘 · 규칙·금기 값의 형식이 올바르지 않습니다.` · `시엘 · 설정 형식이 올바르지 않습니다.` | R-SET-002 |
+| API-T-099 | `settings_put_reports_first_violation_only` | `world` 빈 값 + `ciel.speech` 801자 + `ciel.apiKey` | 400, message = `공통 · 세계관은 1~2000자여야 합니다.` 하나. `error` 키 `code`·`message` 둘 | R-SET-005 · R-API-002 |
+| API-T-100 | `settings_put_body_over_128kb` | ① 유효 JSON + 공백 패딩으로 131073바이트 ② 131072바이트 이하 유효 본문 ③ `RATE_LIMIT_PER_MIN: '1'`에서 ① 다음 유효 PUT | ① 400 `VALIDATION_ERROR` `공통 · 설정 본문은 128KB 이하여야 합니다.`(413 아님), D1 불변 ② 200 ③ 429 `RATE_LIMITED`(① 이 1회 소모) | R-SET-005 · R-AUTH-005 |
+| API-T-101 | `settings_put_malformed_body` | ① 깨진 JSON ② `Content-Type: text/plain` ③ `{}` ④ `{ "settings": null }` | ① 400 기본 문구 ②③④ 400 `공통 · 설정 형식이 올바르지 않습니다.` | R-API-004 · R-SET-005 |
+| API-T-102 | `settings_put_rate_limited_get_not` | `RATE_LIMIT_PER_MIN: '2'`: ① 주인 PUT 3회 ② 주인 GET 3회 ③ (새 분 창) PUT · `POST /api/rooms` · PUT | ① 200 · 200 · 429 `RATE_LIMITED`(`retryAfterSec` 40) ② 200 × 3 ③ 200 · 201 · 429(쓰기 공용 한도) | R-AUTH-005 · R-SET-004 · R-SET-005 |
+| API-T-103 | `settings_unregistered_routes_404` | 주인 토큰으로 `POST`·`PATCH`·`DELETE /api/settings/characters`, `GET /api/settings`, `GET /api/settings/characters/sebastian` | 404 `NOT_FOUND` | R-API-001 |
+
+- 정상 경로 3건(094·095·097 일부)보다 에러 입력이 많다(091~093·096~101만 30건 이상).
+- 저장 직후 speak 프롬프트 반영·행 훼손 시 시드 대체·로그 grep은 server SRV-T가 맡는다(s3c-03 §1.4).
+
+### 14.15 S3c shared — `shared/test/*.test.ts`
+
+| 테스트ID | 파일 | 이름 | 기대 | 요구 |
+|---|---|---|---|---|
+| API-T-040(갱신) | `errors.test.ts` | `error_table_matches_contract` | 기대 표에 `OWNER_ONLY: 403`, `toHaveLength(15)`, 설명 "계약 15종" | R-API-002 |
+| API-T-049 | `errors.test.ts` | `errors_include_owner_only` | `indexOf('OWNER_ONLY') === indexOf('CONFIG_INVALID') + 1`, 바로 다음이 `INTERNAL`, `ERROR_STATUS` 403, 문구 = §3.2, `isErrorCode('OWNER_ONLY')` true | R-API-002 · R-SET-001 |
+| API-T-042(갱신) | `endpoints.test.ts` | `endpoints_build_paths_and_queries` | `PATHS` 값 10개 | R-API-001 · R-API-008 |
+| API-T-104 | `endpoints.test.ts` | `endpoints_build_settings_path` | `PATHS.characterSettings === '/api/settings/characters'`, `endpoints.characterSettings()` 같은 값 | R-API-001 · R-SET-004 |
+| API-T-105 | 신규 `settings.test.ts` | `settings_specs_match_contract` | `CHARACTER_FIELD_KEYS` 11개·중복 없음·`Object.keys(CHARACTER_FIELD_SPECS)`와 같은 순서, 라벨·상한·필수가 s3c-02 §2.1 표와 같음(예외 1건: `WORLD_FIELD_SPEC.label === '세계관'`, §15.12 결정 2. 필수는 `persona`·`speech` + `WORLD_FIELD_SPEC`), `SETTINGS_CHARACTER_IDS`와 `Object.keys(CHARACTERS)` 집합 같음, 상수 4개 값(`'london-dispatch/character-settings'` · 1 · 131072 · 5242880) | R-SET-002 · R-SET-005 · R-SET-007 · R-SET-008 |
+| API-T-106 | `settings.test.ts` | `check_accepts_boundaries_and_normalizes` | 벡터 `accept` 전부 `ok`. 값은 trim·목록 빈 항목 제거, 이모지 800개 통과, 입력 객체를 바꾸지 않는다 | R-SET-002 |
+| API-T-107 | `settings.test.ts` | `check_rejects_with_contract_messages` | 벡터 `reject` 전부 `ok: false`, `issue.path`·`issue.message`가 §4.16 표와 정확히 같다(13행 전부 + 첫 위반 순서 + 라벨 12개의 은/는) | R-SET-002 · R-SET-005 |
+
+- 벡터 파일 `shared/test/settings-vectors.ts`: `validSettings(): CharacterSettings`와 `SETTINGS_VECTORS: { name; input; expect: { ok: true } | { ok: false; path; message } }[]`. server 스키마 테스트(SRV-T, server-designer 번호)가 같은 파일을 상대 경로로 import해 zod 통과 여부가 `expect.ok`와 같은지 본다(s3c-03 §2.3). workerd 풀에서 import가 막히면 server 쪽 사본을 두고 리뷰로 동일성을 본다.
+
+### 14.16 S3c ui/api — `ui/src/api/api.test.ts` (§14.7 준비 그대로)
+
+| 테스트ID | 이름 | 기대 | 요구 |
+|---|---|---|---|
+| API-T-UI-024 | `get_character_settings_sends_token_get` | `configureClient({ getToken: () => 'tok' })` → `fetch`가 `GET /api/settings/characters`, `Authorization: Bearer tok`, 본문·`Content-Type` 없음. 200 본문 → `ok: true`, `value` 그대로 | R-SET-004 · R-API-003 |
+| API-T-UI-025 | `save_character_settings_sends_put_body` | `PUT` 같은 경로, `Content-Type: application/json`, `JSON.parse(body)` 키 정확히 `['settings']`, `Authorization` 있음. 200 → `value` 그대로 | R-SET-005 · R-API-003 |
+| API-T-UI-026 | `owner_only_is_not_auth_failure` | 두 래퍼에 403 `OWNER_ONLY` → `ok: false`, `code`·`message` 그대로, `isAuthFailure(error) === false`. 같은 래퍼에 401 `TOKEN_INVALID` → `isAuthFailure` true(판정만 돌려준다). reject 없음. `message`가 빈 문자열이면 `ERROR_MESSAGES.OWNER_ONLY` | R-SET-010 · R-API-002 |
+| API-T-UI-027 | `settings_wrappers_without_token` | getter가 `null` → `Authorization` 없음, 서버 401 `TOKEN_REQUIRED`를 그대로 돌려준다 | R-AUTH-003 · R-API-003 |
+
+리뷰 grep(S3c):
+
+```bash
+# 경로 리터럴은 shared/src/endpoints.ts 에만
+grep -rn "/api/settings" shared/src server/src ui/src --include=*.ts --include=*.tsx | grep -v "shared/src/endpoints.ts"
+# 화면 코드의 fetch 0건, 토큰 저장 0건(§14.8 그대로)
+# AUTH_FAILURE_CODES 에 OWNER_ONLY 없음
+grep -n "OWNER_ONLY" ui/src/api/client.ts
+```
+
+- 첫 grep과 셋째 grep은 결과가 0줄이어야 한다.
+
+### 14.17 S3d routes — `server/test/routes-write.test.ts` · `routes-generate.test.ts` (API-T-062 갱신 · 108 ~ 111)
+
+준비: §14.9 준비 그대로(`LLM_PROVIDER: 'fake'`, `NOW = 1_700_000_000_000`, `RATE_LIMIT_PER_MIN` 기본). 기대 상수는 `@shared/characters`의 `USER_DISPLAY_NAME`을 import하고, 실명 기대값만 리터럴로 쓴다.
+
+| 테스트ID | 이름 | 입력 | 기대 | 요구 |
+|---|---|---|---|---|
+| API-T-062(갱신) | (기존 이름 유지) | E8을 `ch_name: '시엘 팬텀하이브'` 토큰 / `ch_name: null`·`nick: '테스터'` 토큰으로 | 두 응답 `authorName === USER_DISPLAY_NAME`. D1 직접 SELECT `author_name`은 `'시엘 팬텀하이브'` / `'테스터'`. 응답 본문 문자열에 실명 0회 | R-AUTH-004 |
+| API-T-108 | `user_author_name_is_projected_everywhere` | D1에 `author_name = '시드 유저'`인 유저 행(line·ooc 각 1)을 직접 넣은 방에 `GET …/messages` · 그 행에 `PATCH /api/messages/:id` | 유저 행 `authorName === USER_DISPLAY_NAME`, 캐릭터 행 `null`. 응답 본문에 `'시드 유저'` 0회. PATCH 응답도 같고 D1 `author_name`은 그대로 | R-AUTH-004 · R-CHAT-002 |
+| API-T-109 | `speak_auto_returns_201_with_character_speaker` | `{ character: 'auto' }` | `201`, `speaker`는 `'sebastian'`·`'ciel'` 중 하나, `kind 'line'`, `authorName null`, 응답 JSON 문자열에 `"auto"` 0회. D1 새 행의 `speaker`가 응답과 같고 메시지 1건 증가 | R-MSG-009 · R-MSG-003 |
+| API-T-110 | `speak_rejects_invalid_targets` | `'Auto'` · `'AUTO'` · `' auto'` · `''` · `null` · `true` · `character` 없음 | 모두 `400 VALIDATION_ERROR` 기본 문구, 저장 0건. 같은 표에서 `'sebastian'`·`'ciel'`·`'auto'`는 `201` | R-MSG-003 · R-API-002 |
+| API-T-111 | `speak_auto_shares_lock_budget_rate_limit` | ① `speaking_until = NOW + 1` 방에 `'auto'` ② 예산 초과 시드(§14.12)에서 `'auto'` ③ `RATE_LIMIT_PER_MIN: '2'`로 E8 1회 → E9 `'auto'` 1회 → E9 `'auto'` 1회 | ① `409 SPEAK_IN_PROGRESS` ② `429 LLM_BUDGET_EXCEEDED`, `llm_usage.calls` 불변(선택 호출도 0회) ③ `201` · `201` · `429 RATE_LIMITED`(`retryAfterSec` 40) | R-MSG-009 · R-MSG-007 · R-LLM-007 · R-AUTH-005 |
+
+- `'auto'` 201이 fake 제공사에서 결정적이어야 한다. 선택 응답을 파싱하지 못해도 기본 화자로 끝나므로 각본 없이도 `201`이다. **어느 캐릭터가 골라지는지는 이 표가 보지 않는다**(server `llm-select.test.ts` 몫).
+- 정상 2건(109 · 110 후반)보다 에러 입력이 많다(110 7건 · 111 3건).
+
+### 14.18 S3d shared · ui/api
+
+| 테스트ID | 파일 | 이름 | 기대 | 요구 |
+|---|---|---|---|---|
+| API-T-112 | `shared/test/characters.test.ts`(없으면 신규) | `user_display_name_is_fixed_constant` | `USER_DISPLAY_NAME === '어떠한 의지'`, `CHARACTERS`의 `name`·`shortName` 어느 것과도 다르다 | R-AUTH-004 · R-CHAT-002 |
+| API-T-UI-028 | `ui/src/api/api.test.ts` | `speak_auto_sends_auto_body` | `speak('r1', { character: 'auto' })` → `POST /api/rooms/r1/speak`, 본문 정확히 `{"character":"auto"}`, `Authorization: Bearer` 있음. 201 `speaker: 'ciel'` 응답 → `ok: true`, `value.speaker === 'ciel'` | R-MSG-009 · R-CHAT-014 |
+| API-T-UI-029 | `ui/src/api/api.test.ts` | `author_name_passes_through_unchanged` | `listMessages`·`appendUser` 응답의 `authorName: '어떠한 의지'`·`null`이 값 그대로 나온다(래퍼가 치환하지 않는다) | R-CHAT-002 |
+
+- 타입 확인: `SpeakBody`에 `'auto'` 대입이 컴파일되고 `'Auto'` 대입은 `tsc` 오류다(`// @ts-expect-error` 한 줄, API-T-UI-028 안).
+
+
+---
+
+## 15. server 의존 · 변경 요청 · 확인 필요
+
+### 15.1 사용하는 server 함수·타입 (모두 server 설계에 있음)
+
+| 사용처 | server 쪽 | 출처 |
+|---|---|---|
+| `health.ts` | `Services.getHealth(): HealthStatus` | index.md §2.3 |
+| `rooms.ts` | `RoomsService.listRooms(): Promise<RoomSummary[]>` | rooms.md §2.1 |
+| `messages.ts` | `MessagesService.listMessages(roomId: string, query: MessagePageQuery): Promise<MessagePage>` | messages.md §2.1 |
+| `validate.ts` | `AppError(code: ErrorCode, status: AppErrorStatus, message: string)` | index.md §2.4 |
+| 모든 라우트 | `type AppEnv`(`Variables.services`) | index.md §2.3 |
+| 테스트 | `createApp({ routes, logSink?, now? })` | index.md §2.2 |
+
+- env 바인딩·설정 추가: **없음**(`ALLOWED_FRAME_ANCESTORS`·`DB`·`ASSETS`는 이미 R-ENV-002에 있다).
+
+### 15.2 server 설계 변경 요청 (막는 것 없음 — 권고 3건)
+
+| # | 대상 | 요청 | 이유 |
+|---|---|---|---|
+| R1 | db.md §2.1 · messages.md §2.1 · index.md §2.3 | 계약 타입을 server에서 다시 정의하지 말고 `@shared/types`에서 import해 재노출한다. 대상: `Speaker`·`MessageKind`·`RoomSummary`·`Message`(db), `MessagePage`→`MessagesPage`·`MessagePageQuery`→`MessagesQuery`(messages), `HealthStatus`→`HealthResponse`(services). 서버 내부 이름을 유지하려면 `export type MessagePage = MessagesPage`처럼 별칭으로 둔다 | 지금도 구조가 같아 tsc는 통과한다. 하지만 같은 모양을 두 곳에서 정의하면 한쪽만 바뀔 여지가 남는다. 라우트의 대입 검사(§5.6)가 안전망이다 |
+| R2 | index.md §2.4 `AppError` | status 인자를 받지 않고 `ERROR_STATUS[code]`로 정하거나, 최소한 server 테스트에서 `status === ERROR_STATUS[code]`를 검사한다. `AppErrorStatus`는 shared `ErrorStatus`로 대체할 수 있다 | §3.1 "코드 1개 = status 1개". 지금 시그니처는 다른 status를 넣을 수 있다 |
+| R3 | index.md §5.1 · env.md §5 | `CONFIG_INVALID`·`INTERNAL`·`VALIDATION_ERROR`(HTTPException 400) 응답 문구를 `ERROR_MESSAGES`에서 가져온다 | 문구가 이미 같으니 상수로 묶으면 단일 소스가 된다. `notFound` 문구(`요청한 주소를 찾을 수 없습니다.`)는 상황 문구라 그대로 둔다 |
+
+### 15.3 스킬·에이전트 문구와 다른 결정 (요구가 우선, 메인 세션이 문구 갱신 필요)
+
+| 문서 | 옛 문구 | 이 계약(근거) |
+|---|---|---|
+| contract-design-strategy §3 · §7 | 페이지 `{ items, nextBefore }`, 기본 40 | `{ messages, hasMore }`, 기본 30(R-MSG-001) |
+| contract-design-strategy §3 · §4.1 · §4.2 | `VALIDATION_FAILED` · `AUTH_REQUIRED` · `TOKEN_EXPIRED` · `ROOM_NOT_FOUND` · `LLM_TIMEOUT` 등 | R-API-002 13종(만료는 `TOKEN_INVALID`, 없음은 `NOT_FOUND`) |
+| contract-design-strategy §4.1 | payload `{ mbId, nick, chName, level, exp }` | `{ mb_id, nick, ch_name, level, exp }`(R-AUTH-001) |
+| contract-design-strategy §7 | `/api/*`에는 `frame-ancestors 'none'` | 모든 응답에 같은 허용 출처(R-API-006, index.md §3.1) |
+| contract-design-strategy §9 | routes에 `embed.ts`, `app.onError`는 routes/index.ts | `/embed`·`onError`는 server 진입점(index.md D-IDX-6, §9.1) |
+| contract-designer 에이전트 본문 | 시각은 ISO 8601 문자열 | epoch ms(R-API-004, R-DB-001) |
+| 위임문 | ui/api `ApiError` **클래스**로 정규화 | `ApiError`는 **타입**, 래퍼는 `Result<T>` 반환·throw 금지(ts-rules 에러 처리, contract-design-strategy §11) |
+
+### 15.4 확인 필요: 결정 완료 (v0.2, 2026-10-05 메인 세션 결정)
+
+| # | 결정 | 반영 절 |
+|---|---|---|
+| 1 | R-LLM-002를 개정해 `CharacterMeta`에 `shortName`(세바스찬 / 시엘)을 추가한다. `name`은 전체 이름을 유지한다 | §5.5 · §10 · §12 · §14.2 |
+| 2 | R-CHAT-009는 S2로 이동했다. S1 화면은 항상 읽기 전용이다. 토큰 보관은 `ui/src/state/token.ts`, `client.ts`는 getter 주입으로 헤더만 붙인다(S2 상세 예정) | §2.1 · §2.2 · §11.3 |
+| 3 | `GET /api/rooms` 응답은 배열 그대로 유지한다(방 목록 페이지네이션 요구 없음) | 변경 없음 |
+| 4 | 요구 추적표는 §10 위치를 유지한다 | 변경 없음 |
+
+아래는 v0.1 당시 질문 원문이다(기록용).
+
+1. **캐릭터 표시명.** 확정사항 §1과 위임문대로 `name`은 전체 이름(`세바스찬 미카엘리스`·`시엘 팬텀하이브`)이다. 화면 구성안은 말풍선에 짧은 이름(`시엘`·`세바스찬`)을 그린다. 짧은 이름이 필요하면 R-LLM-002의 표시 메타에 필드를 추가하는 요구 개정이 필요하다. 그전까지 화면은 `name`을 그대로 쓴다.
+2. **R-CHAT-009 묶음과 토큰 보관 위치.** requirements.md §0은 CHAT-009를 S1에, rtm.md는 S2(`ui/src/state/token`)에 둔다. ui-design-strategy는 `ui/src/api/client.ts` 보관을 말한다. 이 계약은 S1에서 토큰을 다루지 않는다고 가정했다. 그러면 S1 화면은 언제나 읽기 전용이고, 쓰기 UI가 아직 없으니 R-CHAT-008은 자연히 충족된다. 보관 위치는 S2에서 정해야 한다.
+3. **`GET /api/rooms` 응답 형태.** 위임문대로 배열 그대로 둔다. 방 목록에 페이지네이션이나 부가 정보가 요구되면 응답 형태 변경(파괴)이 된다. 지금 `{ rooms: [...] }`로 감싸면 그 위험이 없다. 다만 위임문과 다르므로 바꾸려면 결정이 필요하다.
+4. **절 배치.** 위임문은 요구 추적표를 끝에 두라고 했다. 스킬 §13의 고정 절 번호에 따라 §10에 두었고, 구현 설계는 §11~§15 부록으로 붙였다.
+
+### 15.5 S2에서 쓰는 server 함수·타입 (모두 server S2 설계에 있음, 구현 전)
+
+| 사용처 | server 쪽 | 출처 |
+|---|---|---|
+| 쓰기 라우트 6개 | `requireToken: MiddlewareHandler<AppEnv>` · `rateLimitWrites: MiddlewareHandler<AppEnv>` (`server/src/auth`) | auth.md §2 · §9.1 |
+| E8 | `getPrincipal(c: Context<AppEnv>): Principal` | auth.md §2 |
+| E4 | `RoomsService.createRoom(input: RoomTitleInput): Promise<RoomSummary>` | rooms.md §2 |
+| E5 | `RoomsService.renameRoom(id: string, input: RoomTitleInput): Promise<RoomSummary>` | rooms.md §2 |
+| E6 | `RoomsService.deleteRoom(id: string): Promise<void>` | rooms.md §2 |
+| E8 | `MessagesService.addUserMessage(roomId: string, input: UserMessageInput, author: MessageAuthor): Promise<Message>` | messages.md §2 |
+| E10 | `MessagesService.editMessage(messageId: number, input: MessageTextInput): Promise<Message>` | messages.md §2 |
+| E11 | `MessagesService.deleteMessage(messageId: number): Promise<void>` | messages.md §2 |
+| `RATE_LIMITED` 응답 | `AppError(code, message?, { retryAfterSec })` → onError가 본문 `error.retryAfterSec` + `Retry-After` | index.md §2.4 · §5.1 |
+| 라우트 테스트 | `signTestToken(payload, secret)`(`server/test/token.ts`) | auth.md §3 |
+
+- env 바인딩·설정 추가: **없음.** `TOKEN_SECRET`(Secrets)·`TOKEN_MIN_LEVEL`·`RATE_LIMIT_PER_MIN`(`wrangler.toml [vars]`)은 이미 있다.
+
+### 15.6 server 설계 변경 요청 (S2 — 막는 것 없음, 권고·문구 정리)
+
+| # | 대상 | 요청 | 이유 |
+|---|---|---|---|
+| S2-R1 | messages.md §9 "메시지 경로 `:id`는 라우트가 `Number(문자열)`로만 바꿔 넘긴다" | 문구를 "10진 숫자 문자열만 `Number()`, 그 밖은 `NaN`"(§4.5 `messageIdParam`)으로 맞춘다. **서비스 변경 없음**(`isMessageId(NaN)` → `NOT_FOUND` 그대로) | `Number('0x10') = 16`·`Number('1e1') = 10`이라 한 메시지에 여러 URL이 생긴다. 라우트 변환은 contract 소관이라 계약에서 좁혔다 |
+| S2-R2 | index.md §2.4 `toErrorBody` | 반환 타입을 `@shared/types`의 `ApiErrorBody`로 둔다(`import type`) | `retryAfterSec` 위치·이름이 바뀌면 server가 컴파일에서 바로 알게 한다(auth.md §9.2·index.md §9 "contract가 다르게 정하면 맞춘다"에 대한 답: **위치는 `error.retryAfterSec`, 이름 그대로**) |
+| S2-R3 | rooms.md §9 · messages.md §9의 "contract가 정한다" 항목 | 결정값을 반영한다: 성공 status 생성 `201`·변경 `200`·삭제 `204`(본문 없음), `ooc`는 필수(기본값 없음) | 문서 간 미결 표시 정리 |
+| S2-R4 (v0.3.1) | rooms.md §2·§2.1 · messages.md §2·§2.2 | rooms·messages 서비스가 `@shared/limits`를 쓴다. `normalizeTitle`·`normalizeMessageText`는 `normalizeText`·`countCodePoints`·`ROOM_TITLE_MAX`·`MESSAGE_TEXT_MAX`로 판정하고, 모듈의 `ROOM_TITLE_MAX`·`MESSAGE_TEXT_MAX`는 새로 정의하지 않고 shared에서 재노출한다(S4 memory는 `MEMORY_SUMMARY_MAX`) | 화면과 서버가 같은 상수·같은 세기 함수를 써서 길이 판정이 어긋나지 않게 한다(메인 세션 승인, 2026-10-05) |
+
+### 15.7 확인 필요 (S2)
+
+계약이 정한 것(되돌리려면 알려 달라, 지금은 막지 않음):
+
+1. **`TOKEN_REQUIRED`도 읽기 전용 전환**(§2.4). R-CHAT-011은 `TOKEN_INVALID`·`LEVEL_TOO_LOW` 두 개만 적었다. 쓰기 UI가 보이는데 서버가 토큰 없음으로 답하는 경우도 같은 처리로 닫았다.
+2. **삭제 성공은 `204` 본문 없음.** `{ ok: true }` 대신 택했다. 요구에 없는 필드를 만들지 않고, 화면은 `Result<void>`만 본다.
+3. **`ooc`는 필수.** 기본값 `false`를 두면 같은 요청에 두 표기가 생긴다.
+4. **`?t=`는 URL에서 지우지 않는다**(R-CHAT-009가 요구하지 않음).
+
+사용자 확인이 남은 기본값(확정사항 §9, 값이 바뀌어도 계약 구조는 같다):
+
+- §9-1 `TOKEN_MIN_LEVEL` = 5 · §9-2 표시 이름(`ch_name` 우선) · §9-5 이름 변경·삭제·메시지 수정·삭제 권한 "등급 통과자 누구나" · §9-6 분당 20회.
+
+### 15.8 S3에서 쓰는 server 함수·타입 (모두 server S3 설계에 있음, 구현 전)
+
+| 사용처 | server 쪽 | 출처 |
+|---|---|---|
+| E9 | `MessagesService.speak(roomId: string, input: SpeakInput, background: Background): Promise<Message>` — `SpeakInput = SpeakBody` | messages.md §2.3 |
+| E9 | `type Background = { waitUntil: (task: Promise<unknown>) => void }` | messages.md §2.3 |
+| E12 | `MessagesService.regenerate(messageId: number): Promise<Message>` | messages.md §2.3 |
+| E9 · E12 | `requireToken` · `rateLimitWrites`(S2 그대로) | auth.md §9.1 |
+| 라우트 테스트 | `FAKE_DEFAULT_TEXT`(`server/src/llm`) · `signTestToken`(`server/test/token.ts`) | llm.md §2 · auth.md §3 |
+
+- env 바인딩·설정 추가: **없음.** `LLM_PROVIDER`·`LLM_MODEL`·`LLM_TIMEOUT_MS`·`CONTEXT_MESSAGES`(`wrangler.toml [vars]`)와 `LLM_API_KEY`(Secrets)는 server 설계에 이미 있다(llm.md §6). 라우트는 이 값을 읽지 않는다.
+
+### 15.9 server 설계와 어긋나 보이는 점·변경 요청 (S3 — 막는 것 없음, 고치지 않고 보고)
+
+| # | 대상 | 내용 | 요청 |
+|---|---|---|---|
+| S3-R1 | messages.md §5 `VALIDATION_ERROR` 행 `캐릭터는 sebastian 또는 ciel 중 하나여야 합니다.` | 라우트 zod `enum`이 먼저 거르므로 HTTP 응답으로는 이 문구가 나가지 않는다. 계약 응답은 기본 문구 `요청 형식이 올바르지 않습니다.`다(§4.13). 이 문구는 내부 id(`sebastian`)를 사용자 문장에 드러내기도 한다 | messages.md §5 해당 행에 "HTTP로는 닿지 않음(라우트 zod 선검사)"을 적는다. 문구를 남긴다면 내부 id 없는 문장을 권고 |
+| S3-R2 | messages.md §9 `messages.regenerate(Number(id))` · llm.md 인계 표 "`messageIdParam`의 `Number()` 변환 결과" | 실제 라우트 변환은 10진 숫자 문자열만 `Number()`, 그 밖은 `NaN`이다(§4.5). 서비스 변경 없음 | 문구 정리(S2-R1과 같은 건) |
+| S3-R3 | 라우트 테스트의 `502` 주입 | 서비스 컨테이너가 요청마다 env로 provider를 만들어, 라우트 테스트가 `FakeProvider` 각본을 넣을 길이 없다. §14.9는 `google` + 전역 `fetch` 대체로 우회한다 | 우회가 workerd에서 막히면 그때 `createApp`에 테스트 전용 llm 주입 옵션을 server에 요청한다. 지금은 요청하지 않는다 |
+| S3-R4 | R-NFR-001 70초 | 서버 상한 70초는 D1 왕복 합 4초 가정 위에 있다(llm.md §4.2, 메인 세션 보고 사항 1-③) | 실측 뒤 4초를 넘으면 `LLM_BUDGET_MS` 조정(server 몫). 화면 타임아웃이 없어 계약 문구는 그대로다 |
+
+### 15.10 확인 필요 (S3)
+
+계약이 정한 것(되돌리려면 알려 달라, 지금은 막지 않음):
+
+1. **실패한 생성도 레이트리밋 1회.** `409`·`502`·`500 CONFIG_INVALID`로 끝나도 센다(§6.1 S3 행). `502` 뒤 「재시도」를 연타하면 분당 20회에서 막힌다.
+2. **화면 요청 타임아웃 없음.** 서버 70초 종결에 의존한다. 화면 쪽 시간 제한 안내가 필요하면 ui 요구로 올린다(두면 75초 이상).
+3. **E12 본문은 깨진 JSON이어도 무시하고 진행한다**(본문을 읽지 않는다).
+4. **E9 `character` 오류 문구는 기본 문구**(`요청 형식이 올바르지 않습니다.`)다. 화면은 버튼 두 개로만 값을 보내므로 사용자에게 보일 일이 없다.
+
+사용자 확인이 남은 server 쪽 사항(계약 구조는 같다): R-MSG-006 "마지막" 판정을 잠금 시점 1회로 하는 것(생성 중 유저 발화가 붙어도 교체된다 — messages.md §4.3 확인 필요).
+
+### 15.11 S3b server 의존 · 어긋난 점 · 확인 필요 (v0.4.1)
+
+사용하는 server 함수·타입(모두 server S3b 설계에 있음, 구현 전 — routes는 직접 부르지 않는다):
+
+| 항목 | 시그니처·형태 | 근거 |
+|---|---|---|
+| 예산 게이트 | `Llm.ensureBudget(): Promise<void>` — messages `speak`·`regenerate`가 `deps.llm()` 다음 줄에서 부른다 | llm.md §12.2·§12.7, messages.md §4.2 |
+| 거절 에러 | `new AppError('LLM_BUDGET_EXCEEDED', undefined, { retryAfterSec })` | llm.md §12.10 |
+| 응답 변환 | 기존 `onError`/`errorResponse`(본문 `error.retryAfterSec` + `Retry-After`) | index.md §2.4 · §5.1 · SRV-T-233 |
+| 설정 | `[vars]` 4키 `LLM_MONTHLY_BUDGET_KRW`·`LLM_PRICE_INPUT_USD_PER_M`·`LLM_PRICE_OUTPUT_USD_PER_M`·`KRW_PER_USD`(비밀값 아님) | env.md §3.1 · llm.md §6 |
+| 테스트 시드 | `helpers.ts` `insertUsage(month, estKrw, calls = 1)` | db.md §6 파일 표 |
+
+server 설계 변경 요청: **없음.** 판정 순서·문구·`retryAfterSec` 계산이 계약과 같다. 표기 차이만 있다 — llm.md 「contract 인계」 S3b 절은 판정 순서를 에러 묶음 번호(speak 2b, regenerate 3b)로 적고, 이 문서는 §4.13·§4.14 판정 표 번호(4b·5b)로 적는다. 순서 자체는 같다.
+
+확인 필요(계약이 정한 것 — 되돌리려면 알려 달라, 지금은 막지 않음):
+
+1. **ui/api가 `LLM_BUDGET_EXCEEDED`의 `retryAfterSec`를 버린다**(§3.4). 화면에 "N월 1일에 풀립니다" 같은 해제 날짜를 보이려면 ui 요구로 올려야 한다.
+2. **「재시도」는 눌러도 같은 429이고 레이트리밋 1회를 쓴다**(사전 확정 2 · §6.1 S3b 행). 연타하면 `RATE_LIMITED`로 바뀐다.
+3. **handoff 안내 단락의 위치·수신자**는 S5에서 정한다. 비용 설정을 고치는 사람은 Cloudflare·Gemini 키 소유자(지인)이고 갠홈 운영자와 다를 수 있다.
+
+### 15.12 S3c server 의존 · 통보 · 현황 · 확인 필요 (v0.5)
+
+사용하는 server 함수·타입(s3c-03 §1.3 전제, 모두 구현 전):
+
+| 사용처 | server 쪽 | 출처 |
+|---|---|---|
+| E15 · E16 | `requireOwner: MiddlewareHandler<AppEnv>` — `server/src/auth/index.ts`에서 export, `requireToken` 뒤, 아니면 `AppError('OWNER_ONLY')` | s3c-03 §1.3 · auth.md(S3c) |
+| E15 | `SettingsService.get(): Promise<CharacterSettingsResponse>` | s3c-03 §1.3 · settings.md |
+| E16 | `SettingsService.put(settings: CharacterSettings, by: Principal): Promise<CharacterSettingsResponse>` | 같음 |
+| E16 스키마 | `characterSettingsSchema`(zod) — `server/src/settings/index.ts`에서 export | 같음 |
+| 서비스 접근 | `Services.settings`(`c.get('services').settings`) | s3c-03 §1.2 · index.md |
+| 기존 | `requireToken` · `rateLimitWrites` · `getPrincipal` · `Principal` · `AppError` | auth.md §9.1 · index.md §2.4 |
+
+- `AuthService.isOwner`는 routes가 직접 부르지 않는다. env 바인딩 추가는 server 몫 `OWNER_MB_IDS` 하나이고 contract가 더하는 설정은 없다.
+
+server에 통보할 것(s3c-03 §1.3 **시그니처와 어긋나는 것은 없다.** 아래는 시그니처 밖에서 계약이 정한 값이다):
+
+| # | 대상 | 계약이 정한 것 | 이유 |
+|---|---|---|---|
+| N1 | `settings/schema.ts` zod | 상한·필수는 `@shared/settings`(`WORLD_FIELD_SPEC`·`CHARACTER_FIELD_SPECS`)에서 import. 길이는 `countCodePoints(normalizeText(v))`(zod `.max()` 금지). 목록은 항목 trim → 빈 항목 제거 → 개수 → 항목 길이. strict 3단(본체·`characters`·캐릭터), 두 캐릭터·11필드 키 필수(선택 필드도 키는 있어야 함) | 화면 사전 검사·서버 판정이 같은 벡터에서 같아야 한다(s3c-03 §2.3) |
+| N2 | 같은 스키마 | 출력 타입이 shared `CharacterSettings`에 대입 가능해야 한다(routes가 `const body: PutCharacterSettingsBody = c.req.valid('json')`로 대조) | tsc 대조(§5.8.5) |
+| N3 | 400 문구 | 문구는 routes가 shared `checkCharacterSettings`에서 만든다. zod에 한국어 문구를 둘 필요가 없다. `put`이 라우트를 거치지 않는 호출을 위해 다시 검증한다면 문구도 같은 함수에서 가져온다 | 문구 단일 소스(§4.16) |
+| N4 | `settings.put` 정규화 | 결과가 `checkCharacterSettings(input).value`와 같아야 한다(같은 함수 사용 권고). 응답 `settings`가 이 값이다 | API-T-095 |
+| N5 | `settings.get` | 시드 대체는 "행 없음 · 재검증 실패"만. D1 읽기가 throw하면 `500 INTERNAL`(§4.15) | 장애를 시드로 숨기지 않는다 |
+| N6 | `requireOwner` | D1에 접근하지 않고, 403 본문은 기본 문구만(목록·`mbId` 없음). `rateLimitWrites`보다 앞에 붙는 것을 전제로 계약이 "`OWNER_ONLY`는 세지 않음"을 약속했다 | §2.7 · §6.1 |
+| N7 | `version` | 재검증 실패 행 위에 저장하면 응답 version = 그 행 version + 1(s3c-02 §3 UPSERT 그대로). 계약은 "단조 증가"만 약속한다 | §4.16 |
+
+현황 메모(v0.5 작성 시점, 2026-10-06):
+
+- S3c 4자는 **전부 없다.** `shared/src/errors.ts`는 14종(`OWNER_ONLY` 없음), `PATHS` 값 9개, `shared/src/settings.ts` 없음, routes에 `settings.ts` 없음, `validate.ts`는 2인자, `ui/src/api/client.ts` `method`는 `'GET' | 'POST' | 'PATCH' | 'DELETE'`다.
+- server 쪽 `server/src/settings/`·`requireOwner`·`Services.settings` 소스도 없다(설계만 있음).
+
+settings.md 대조 결과(v0.5 보정, 2026-10-06 — `server/settings.md` · `auth.md` §12 · `env.md` S3c 델타 · `db.md` §7.6):
+
+| 항목 | 계약 | server 설계 | 판정 |
+|---|---|---|---|
+| `SettingsService` `get`·`put`·`loadForPrompt` 시그니처 | §4.15 · §4.16 · 이 절 | settings.md §2 그대로(`loadForPrompt` 반환형에 llm 별칭 `PromptSettings`만 붙음, 구조 같음) | 일치 |
+| `characterSettingsSchema` 위치·이름·재노출 | §5.8.5 · §11.12 | settings.md §2·§3(`schema.ts`, `settings/index.ts` 재노출) | 일치 |
+| `requireOwner` 위치·순서·I/O 없음 | §2.7 · N6 | auth.md §12.1·§12.2(`requireToken` 뒤·`rateLimitWrites` 앞, 대소문자 정확 일치, 동기 판정) | 일치 |
+| `OWNER_ONLY` 403·기본 문구만·`owner_denied` info | §3.2 · §2.7 | auth.md §12.3 | 일치 |
+| 정규화(trim · 목록 trim → 빈 항목 제거 → 개수 → 항목 길이, 순서·중복 유지) | §4.16 · §5.8.4 · N4 | settings.md §2.3 | 일치 |
+| 시드 대체(행 없음·재검증 실패 → `version 0`·`null`·`true`), D1 throw → `INTERNAL` | §4.15 · N5 | settings.md §2.4·§5 | 일치 |
+| version 단조 증가(훼손 행 위 저장 = 그 행 + 1) | §4.16 · N7 | settings.md §2.4 · db.md §7.6 | 일치 |
+| 본문 128KB → 400 · 비주인 레이트리밋 미소모 | §4.16 · §6.1 | settings.md §9 · auth.md D-AUTH-17 | 일치 |
+| 에러 매핑(`VALIDATION_ERROR`·`OWNER_ONLY`·`INTERNAL`·`CONFIG_INVALID`) | §4.15 · §4.16 | settings.md §5·§9 · env.md S3c(형식 위반 → `CONFIG_INVALID`) | 일치 |
+| 로그 3종·본문 미기록 | §4.16 부수 효과 | settings.md §5.2 | 일치 |
+
+- **server 내부, 계약 영향 없음:** `assertOwner`(auth.md §12.1) · `PromptSettings`(llm 별칭) · `parseCharacterSettings`·`firstSettingsIssue`(서비스 재검증·로그 경로용) · 0003 `json` CHECK 상한 200000(db.md §7.6, s3c-02 초안 100000에서 올림) · `OWNER_MB_IDS` 파싱 상세(env.md S3c).
+- **server 400 문구는 §4.16 참조, 서버 zod는 판정만 한다.** (확정 — 2026-10-06 메인 세션 결정) 라우트 경유 400 문구는 routes `settingsIssueMessage`(= shared `checkCharacterSettings`)가 만든다. `put`을 라우트 없이 부른 경우의 400 문구도 같은 shared 함수에서 가져온다.
+
+남은 불일치(전부 settings.md 쪽 문구·이름이다. server-designer가 고치는 중이고 계약은 바꾸지 않는다):
+
+| # | settings.md 위치 | 지금 적힌 것 | 계약 기준 |
+|---|---|---|---|
+| M1 | §5.1 문구 표 · SRV-T-243·244 | 자체 문구(`최대 10개까지 넣을 수 있습니다` · `{이름}의 각 줄은` · `{이름} 형식이…` · 모르는 키·세 번째 id·캐릭터 누락은 범위 접두 없는 `설정 형식이 올바르지 않습니다.`) | §4.16 표 13행(범위 접두 항상 있음) |
+| M2 | §9 라우트 규약 · §5 표 · D-SET-6 | 라우트가 `firstSettingsIssue(error, ['settings'])`로 400 문구를 만든다 | routes `settingsIssueMessage`(shared 함수, §11.12) |
+| M3 | §9 라우트 규약 | 봉투 `z.strictObject({ settings })` | 봉투는 `z.object` — 바깥 모르는 키는 버린다(§4.16, 결정 4) |
+| M4 | §2.2 가칭 명세 | `CHARACTER_SETTING_FIELDS`(배열, `key` 포함) · `WORLD_FIELD` · `issue.path` 문자열 | `CHARACTER_FIELD_SPECS`(키별 객체) + `CHARACTER_FIELD_KEYS`(순서) · `WORLD_FIELD_SPEC` · `SettingsIssue.path: readonly string[]`(§5.8.4) |
+| M5 | §2.2 화면 이름 표 | `world` 화면 이름 `공통 세계관` | `세계관`(결정 2) |
+| M6 (권고) | §2 · §3 server 타입 `SettingsIssue { path: string }` | shared `SettingsIssue`와 이름이 같고 모양이 다르다 | server 내부 타입 이름을 바꾸거나(예: `SchemaIssue`) shared 타입을 쓴다. 한 파일에서 둘을 import하면 충돌한다 |
+- `hono/body-limit`(hono 4.13.13)은 `Content-Length`가 있으면 그 값으로, 없으면 스트림을 세어 `onError(c)`를 부른다. `onError`에서 throw하면 server `onError`가 받는다. `@hono/zod-validator` 0.9.1 훅은 실패 때도 `result.data`에 원래 입력을 준다 — `settingsIssueMessage`가 이것을 쓴다.
+
+v0.5 확인 필요 5건은 모두 결정됐다.
+
+결정 완료(2026-10-06 메인 세션 결정, 출처 `doc/state.json` decisions):
+
+| # | 항목 | 결정 | 반영 |
+|---|---|---|---|
+| 1 | 필드 11개 키 전부 필수, 선택 필드는 `''`·`[]` | 승인 | §4.16 · §5.8.1 |
+| 2 | 공통 탭 400 문구에 "공통"이 두 번 나옴 | `world` 필드의 **화면 이름을 `세계관`**으로 한다. 문구는 `공통 · 세계관은 …`. 탭 이름("공통 세계관")은 화면 `labels.ts` 몫이라 그대로다. s3c-02 §2.1 표(화면 이름 `공통 세계관`)는 system-architect 소유라 고치지 않았고, 이 결정이 그 칸보다 우선한다 | §4.16 문구 표 · §5.8.4 `WORLD_FIELD_SPEC.label` · §14.14 · §14.15 · 「ui 인계 메모」 S3c |
+| 3 | 내보내기 `exportedAt` ISO 8601 문자열(epoch ms 규칙 예외) | 승인 | §16.1 |
+| 4 | PUT 봉투 바깥 모르는 키 버림, `settings` 안만 strict | 승인 | §4.16 · §11.12 |
+| 5 | E.No.S 매핑에서 문자열·문자열 배열 둘 다 수용 | 승인 | §16.3 |
+| 6 | 가져오기 "무시한 항목" 정의(ui-design-checker 지적, v0.5 보정 2) | 출처에 값이 있으나 형이 달라 쓸 수 없는 위치만 센다. 출처에 없는 키·매핑 없는 필드(`persona`·`relationships`·`rules`)·`null`·E.No.S 빈 값은 "없음"이고 세지 않는다. 계수는 후보 만들기 단계 한 곳에서만 한다 | §16.2 · §16.3 |
+| 7 | 가져오기 검사 범위(ui-design-checker 지적, v0.5 보정 2) | 파일이 준 후보 필드만 각 spec으로 검사하고, 상한 초과면 가져오기를 거부한다. 초안 전체 검사는 저장 버튼 활성 조건에서만 한다. 파일과 무관한 기존 초안 오류는 가져오기를 막지 않는다 | §16.2 · §5.8.4 쓰는 곳 표 |
+
+남은 확인(막지 않음): 설정 상한을 `limits.ts`가 아니라 `settings.ts`에 둔 것(§5.7 메모). E.No.S 실물 백업 파일 1개로 §16.3 키 이름을 확인하면 좋다.
+
+### 15.13 S3d server 의존 · 어긋난 점 (v0.6)
+
+사용하는 server 함수·타입(routes는 `speak`만 직접 부른다):
+
+| 항목 | 시그니처·형태 | 근거 |
+|---|---|---|
+| speak | `messages.speak(roomId: string, input: SpeakInput, background: Background): Promise<Message>`, `SpeakInput = SpeakBody`(`character: SpeakTarget`). 반환 `speaker`는 늘 `CharacterId` | s3d-03 §1 · messages.md S3d |
+| 투영 | `db/messages.ts` `toMessage` — `speaker === 'user'`면 `authorName = USER_DISPLAY_NAME`, 그 밖 `null`. `author_name` 열은 저장만 | s3d-03 §1 · db.md S3d |
+| 화자 선택 | `llm/select.ts` `buildSelectPrompt` · `parseSpeakerChoice` · `fallbackSpeaker` — routes·ui는 부르지 않는다 | llm.md S3d |
+
+server 변경 요구 명세: **없음.** 새 서비스 메서드·에러 코드·env 키·마이그레이션이 0이고 시그니처가 s3d-03 §1과 같다.
+
+server-designer에게 알릴 점(막지 않음):
+
+1. s3d-03 §1은 `messages.speak(roomId, input: SpeakBody, background)`로 적었다. 현 코드는 `SpeakInput = SpeakBody` 별칭이라 같은 뜻이다. 별칭을 유지한다.
+2. 서비스의 `isCharacterId` 재검사(§5.6 · §15.9 S3-R1)는 `'auto'` 분기 **뒤**에 두어야 한다. 앞에 있으면 `'auto'`가 서비스에서 거절된다.
+3. 라우트 테스트 API-T-109는 fake 제공사에서 각본 없이 `201`을 기대한다. 선택 응답 파싱 불가 → 기본 화자 경로가 fake 기본 응답에서도 성립해야 한다.
+4. API-T-111②는 예산 초과면 선택 호출도 0회(`llm_usage.calls` 불변)라고 본다. 예산 게이트가 선택 호출보다 앞이어야 한다(s3d-02 §4 순서와 같다).
+
+---
+
+## 16. 부록 — 캐릭터 설정 파일 형식 · 가져오기 매핑 (S3c — R-SET-007 🔒 · R-SET-008)
+
+서버 엔드포인트가 없는 화면 쪽 규칙이다. 구현은 ui `state/settingsFile.ts`(ui 설계 몫)이고 형식·매핑·금지 규칙의 정본은 이 절이다. 상수는 `shared/src/settings.ts`(§5.8.4)에 있다.
+
+### 16.1 내보내기 파일 형식
+
+```json
+{
+  "format": "london-dispatch/character-settings",
+  "formatVersion": 1,
+  "exportedAt": "2026-10-06T14:20:00.000Z",
+  "settings": { "world": "…", "characters": { "sebastian": { "sourceMaterial": "…", "…": "…" }, "ciel": { "…": "…" } } }
+}
+```
+
+| 키 | 값 |
+|---|---|
+| `format` | `SETTINGS_FILE_FORMAT` |
+| `formatVersion` | `SETTINGS_FILE_FORMAT_VERSION`(1) |
+| `exportedAt` | 내보낸 시각, ISO 8601 UTC 문자열(`new Date().toISOString()`). 사람이 파일을 열어 읽는 용도다 |
+| `settings` | `CharacterSettings`. 응답 객체를 펼치지 않고 `world` + `SETTINGS_CHARACTER_IDS` 순서 × `CHARACTER_FIELD_KEYS` 순서로 **새로 만든다**(화이트리스트) |
+
+- 최상위 키는 정확히 위 4개다. `version`·`updatedAt`·`isDefault`·`updatedBy`·`mbId`·토큰·설정 키(`LLM_API_KEY` 등)·`outputRules`는 넣지 않는다.
+- 대상은 **마지막으로 읽거나 저장한 값**(E15·E16 응답의 `settings`)이다. 인증 만료로 저장할 수 없는 상태(stale)일 때만 현재 초안을 내보낸다(R-SET-007 · R-SET-011).
+- 직렬화는 `JSON.stringify(file, null, 2)`, UTF-8, MIME `application/json`. 파일명은 `london-dispatch-characters-YYYYMMDD-HHmm.json`(브라우저 현지 시각)이다.
+- 전달 수단은 둘이고 내용은 같은 문자열이다: Blob 다운로드(`URL.createObjectURL` + `a.download`)와 복사용 읽기 전용 텍스트 영역. iframe `sandbox`가 다운로드를 막아도 복사로 내보낼 수 있다(§8 TODO).
+
+### 16.2 가져오기 판별·병합
+
+| 순서 | 입력 | 판별 | 처리 |
+|---|---|---|---|
+| 0 | 파일 크기 | `> SETTINGS_IMPORT_MAX_BYTES`(5MB) | 읽지 않고 거부. 붙여넣기 텍스트도 같은 상한(UTF-8 바이트) |
+| 1 | `JSON.parse` 실패 · 최상위가 객체가 아님 | — | 거부(알 수 없는 파일 형식) |
+| 2 | 자체 형식 | `format === SETTINGS_FILE_FORMAT` | `formatVersion !== SETTINGS_FILE_FORMAT_VERSION`이면 거부(버전). 같으면 `settings`를 매핑 없이 후보로 쓴다 |
+| 3 | E.No.S 백업 | 최상위 `DB` 객체에 `worlds` 배열 | §16.3 매핑. `SETTINGS`·`DB.chats`는 열지 않는다 |
+| 4 | E.No.S world 단독 | 최상위 `characters` 배열 + `description` 문자열 | §16.3 매핑(그 파일 자체가 world) |
+| 5 | 그 밖 | — | 거부 — `알 수 없는 파일 형식입니다.` |
+
+- **후보 만들기(계수는 여기 한 곳).** 판별한 파일에서 화이트리스트 위치(`world`, `characters.{sebastian|ciel}.{CHARACTER_FIELD_KEYS}`)만 읽는다. 그 밖의 키는 읽지 않는다. 위치마다 아래 셋 중 하나로 나눈다(v0.5 보정 2).
+
+| 분류 | 조건 | 처리 | 무시한 항목 수 |
+|---|---|---|---|
+| 후보 | 값이 있고 형이 맞다. 글 필드는 문자열, 목록 필드는 문자열 배열이다. E.No.S는 §16.3 변환을 거친 값이다 | 초안에 덮을 값 | 세지 않음 |
+| 무시 | 값이 있으나(`undefined`·`null`이 아님) 형이 달라 쓸 수 없다. 예: 글 필드에 객체, 목록 필드에 숫자가 섞인 배열 | 현 초안 값 유지 | **1건** |
+| 없음 | 키가 없다, 값이 `undefined`·`null`이다, E.No.S에 출처가 없는 우리 필드다(`persona`·`relationships`·`rules`), 대응 캐릭터가 없다, E.No.S 출처가 trim 뒤 빈 값이다 | 현 초안 값 유지 | 세지 않음 |
+
+- "무시한 항목" 수는 **후보 만들기 단계에서만** 센다. 검사·덮기 단계는 다시 세지 않는다. 그래서 E.No.S 가져오기에서 매핑이 없는 필드는 매번 "없음"이고 요약에 무시로 잡히지 않는다.
+- **후보 검사(파일이 준 후보 필드만).** 마지막으로 읽거나 저장한 값(E15·E16 응답 `settings`, 서버가 검증해 언제나 통과하는 값)을 기준으로 삼는다. 그 위에 후보만 덮은 객체를 `checkCharacterSettings`로 검사한다. 기준이 통과하는 값이므로 위반은 반드시 후보 필드에서 나온다. 결과는 각 후보 필드를 그 spec(형·필수·상한·개수)으로 검사한 것과 같고 문구는 §4.16 표 그대로다. 실패하면 초안을 바꾸지 않고 가져오기 전체를 거부한다. `issue.message`로 어느 필드인지 알리고, 상한을 넘은 값을 잘라 넣지 않는다(R-SET-008, s3c-02 Q5).
+- **덮기.** 검사를 통과하면 결과 `value`에서 후보 위치의 값(정규화된 값)만 꺼내 현 초안에 덮는다. 후보가 아닌 위치는 초안 값을 그대로 둔다.
+- **초안 전체 검사는 가져오기에서 하지 않는다.** 파일과 무관한 기존 초안 오류(미저장 입력의 상한 초과 등)는 가져오기를 막지 않는다. 초안 전체 사전 검사는 저장 버튼 활성 조건(「ui 인계 메모」 S3c 사전 검사 행)에서 그대로 한다. 가져온 뒤에도 기존 오류가 남아 있으면 저장 버튼은 비활성이다.
+- **저장하지 않는다.** 가져오기는 초안만 바꾸고, 저장은 사용자가 「저장」(E16)을 눌러야 한다. 「변경 되돌리기」로 취소할 수 있다.
+- 결과 요약은 반영한 범위(후보가 1개 이상인 세바스찬·시엘·공통)와 무시한 항목 수를 알린다. 후보가 0개면 초안을 바꾸지 않고 그 사실을 알린다. 문구는 화면 `labels.ts` 몫이다.
+- 옛 `formatVersion` 1 파일에 나중에 더한 필드가 없으면 그 위치는 "없음"이라 초안 값이 남는다. 그래서 필드 추가만으로는 `formatVersion`을 올리지 않는다(§13.4).
+
+### 16.3 E.No.S 매핑표 (읽는 키 = 아래 표뿐)
+
+world 고르기: 백업은 `DB.worlds`를 앞에서부터 보고, `characters` 배열에 `name`이 shortName(`세바스찬` · `시엘`)을 포함하는 항목이 있는 **첫 world**를 고른다. 없으면 거부한다. world 단독 파일은 그 world를 쓰고, 맞는 캐릭터가 없으면 `world`만 반영한다. 캐릭터는 그 world의 `characters`에서 `name`에 shortName이 들어간 **첫 항목**이다.
+
+| 우리 필드 | E.No.S 출처 | 변환 |
+|---|---|---|
+| `world` | `world.description` | 문자열이면 그대로 |
+| `sourceMaterial` | `source_material` | 문자열 |
+| `age` | `age` | 문자열. 숫자면 `String()` |
+| `gender` | `gender` | 문자열 |
+| `role` | `job` | 문자열 |
+| `persona` | (없음) | 현 초안 유지 |
+| `personalityTags` | `personality_tags` | 문자열이면 그대로, 문자열 배열이면 `', '`로 잇는다 |
+| `appearance` | `appearance_desc` + `hair_style` + `eyes` + `accessories` | 넷 중 문자열만 trim, 빈 것 제외, 이 순서로 `'\n'`으로 잇는다 |
+| `relationships` | (없음) | 현 초안 유지 |
+| `speech` | `voice` | 문자열 |
+| `sampleDialogue` | `sample_dialogue` | 문자열이면 줄(`\r?\n`)로 나눠 trim·빈 줄 제거, 문자열 배열이면 그대로 |
+| `rules` | (없음) | 현 초안 유지 |
+
+- 분류는 §16.2 표를 따른다(v0.5 보정 2). 출처 키가 없거나 값이 `null`이거나 trim 뒤 빈 값이면 "없음"이다. 값이 있으나 위 표가 받는 형(문자열, 표가 허용한 문자열 배열, `age`의 숫자)이 아니면 "무시" 1건이다.
+- `persona`·`relationships`·`rules`는 E.No.S에 출처가 없어 늘 "없음"이고 세지 않는다. 대응 캐릭터가 없으면 그 캐릭터의 11필드가 모두 "없음"이다.
+- `appearance`는 출처 4개를 각각 나눈다. 형이 다른 출처 1개가 무시 1건이다. 쓸 수 있는 출처가 하나도 없으면 `appearance`는 "없음"이다. `sampleDialogue`·`personalityTags`의 배열 출처에 문자열이 아닌 항목이 하나라도 있으면 그 출처가 무시 1건이다.
+- world·캐릭터를 고르는 데 쓰는 판별 키(`DB.worlds`·`characters`·`name`)는 매핑 출처가 아니므로 세지 않는다.
+
+가져오기 단위 테스트 기대값(ui `state/settingsFile.ts` — 기존 벡터 5종에 더한다, v0.5 보정 2):
+
+| 벡터 | 기대 |
+|---|---|
+| E.No.S 백업, 매핑 출처가 모두 문자열 | 무시 0. `persona`·`relationships`·`rules`는 초안 값 그대로 |
+| E.No.S 백업, `age: 13` · `gender: {}` · `sample_dialogue: ['a', 1]` | `age` 후보 `'13'`, 무시 2(`gender`·`sample_dialogue`), 두 필드 초안 값 유지 |
+| E.No.S 백업, `voice: ''` · `job: null` | 둘 다 "없음", 무시 0, 초안 값 유지 |
+| 자체 형식, `characters.ciel.speech` 801자 | 가져오기 거부, 메시지 `시엘 · 말투는 1~800자여야 합니다.`, 초안 불변 |
+| 자체 형식, `characters.sebastian.rules: 'a'`(문자열) | `rules`만 무시 1, 나머지 후보 반영 |
+| world 단독 파일(`description`만 유효) + 현 초안 `sebastian.appearance` 801자(미저장 입력) | 가져오기 성공(`world`만 덮음), 무시 0. 이어서 초안 전체 사전 검사는 `세바스찬 · 외형은 800자 이하여야 합니다.`로 실패해 저장 버튼 비활성 |
+- **읽지 않는다:** `SETTINGS`(키 저장소), `DB.chats`, 성인용 필드 8종, 신체 치수, `entries`, `lorebook`, 그리고 위 표에 없는 모든 키.
+
+### 16.4 비밀값 금지 규칙 (R-SET-007 · R-SET-008 · R-NFR-004)
+
+| 단계 | 규칙 | 확인 |
+|---|---|---|
+| 서버 응답 | E15·E16 응답은 `settings`·`version`·`updatedAt`·`isDefault`뿐이다 | API-T-094 |
+| 내보내기 | 화이트리스트로 새 객체를 만든다. 출력 키 집합 = 최상위 4개 + `world` + 2명 × 11필드 | ui 단위: 키 집합 일치, 출력 문자열에 `apiKey`·`API_KEY`·`SECRET`·`token` 0건 |
+| 가져오기 | 화이트리스트로만 읽는다. `SETTINGS`를 열지 않는다. 파일 내용을 `console`·로그에 남기지 않는다 | ui 단위 벡터 5종(자체 · E.No.S 백업 · world 단독 · 잘못된 형식 · `SETTINGS`에 `apiKey`가 있는 파일 → 초안에 키 0) |
+| 서버 저장 | strict가 모르는 키를 거부한다(마지막 방어). 400 문구에 키 이름을 싣지 않는다 | API-T-096 |
+| 로그 | 설정 본문·필드 값을 남기지 않는다 | server SRV-T(R-SET-012) |
+
+---
+
+## 「ui 인계 메모」 (S3 · S3b — 화면이 계약에서 알아야 할 것만)
+
+| 주제 | 계약 |
+|---|---|
+| 호출 | 캐릭터 버튼 → `speak(roomId, { character })`, 메뉴 재작성 → `regenerate(messageId)`. 둘 다 `@/api`에서 import한다. 성공 값은 `Message`다 |
+| 소요 상한 | 두 호출 모두 **최대 70초**(보통 수 초). 래퍼에 타임아웃이 없어 서버가 끝낼 때까지 기다린다. 화면이 자체 타이머로 실패 처리하지 않는다. 서버가 저장했는데 화면이 실패로 보면 「재시도」가 대사를 하나 더 만든다 |
+| 성공 반영 | speak `201` → 새 메시지를 끝에 붙인다(S2 `messagesAppended`와 같은 흐름). regenerate `200` → 같은 `id`의 메시지를 통째로 바꾼다(`text`만 다르다, `messageReplaced`와 같은 흐름) |
+| `SPEAK_IN_PROGRESS` (409) | 이 방에서 다른 생성(다른 탭·다른 사람)이 진행 중이다. **잠시 후 다시 누르면 될 수 있다.** 생성은 최대 70초, 남은 잠금은 최대 90초다 |
+| `NOT_LAST_MESSAGE` (409) | 대상이 이제 마지막 메시지가 아니다. **다시 눌러도 안 된다.** 재작성 메뉴 항목은 "캐릭터 메시지이고 마지막"일 때만 보인다(R-CHAT-007). 화면 목록 기준으로 숨겨도 그사이 다른 사람이 글을 쓰면 서버가 이 코드로 거절한다. 받으면 최신 메시지를 다시 반영하는 것을 권장한다(ui 판단) |
+| `NOT_CHARACTER_MESSAGE` (400) | 유저 메시지에 재작성을 요청했다. 메뉴를 캐릭터 메시지에만 보이면 나오지 않는다(나오면 화면 결함) |
+| `LLM_FAILED` · `LLM_EMPTY` (502) | AI가 대사를 만들지 못했다. 저장된 것이 없다(regenerate는 원래 대사 유지). **「재시도」 버튼**으로 같은 호출을 다시 하면 된다(R-CHAT-005). 두 코드의 화면 처리는 같아도 된다 |
+| `CONFIG_INVALID` (500) | 서버에 AI 설정이 없다. 재시도해도 안 된다. **관리자 안내**를 띄운다(`ERROR_MESSAGES.CONFIG_INVALID`). 읽기·유저 발화는 계속 된다 |
+| `NOT_FOUND` (404) | speak: 방이 사라졌다(생성 중 삭제 포함). regenerate: 대상 메시지가 사라졌다 |
+| `RATE_LIMITED` (429) | S2와 같다(`retryAfterSec`). 실패한 생성도 1회로 센다 |
+| `LLM_BUDGET_EXCEEDED` (429, S3b) | 이번 달 AI 사용 한도(서버 전체 공용)에 닿았다. 저장된 것이 없다(regenerate는 원래 대사 유지). **실패 말풍선 + 한도 문구**를 띄운다(`labels.ts`가 `code`로, 폴백 `ERROR_MESSAGES.LLM_BUDGET_EXCEEDED`). 「재시도」는 남겨도 되지만 다음 달 1일 00:00 KST 전까지는 같은 429이고 누를 때마다 레이트리밋 1회를 쓴다. **카운트다운·자동 재시도를 만들지 않는다** — 래퍼는 이 코드에 `retryAfterSec`를 싣지 않는다(§3.4). `RATE_LIMITED`와 status가 같으므로 **`code`로 구분**한다. 읽기 전용 전환 대상이 아니다(`isAuthFailure` false). 읽기·유저 발화·수정·삭제는 계속 된다 |
+| 인증 3코드 (401·403) | S2와 같다. `isAuthFailure`면 읽기 전용으로 전환한다 |
+| `NETWORK` · `INTERNAL` | 연결이 끊겼거나 서버 오류다. **speak는 서버에서 저장됐을 수도 있다**(응답만 못 받은 경우). 「재시도」 전에 최신 페이지를 다시 읽으면 중복을 피할 수 있다(ui 판단) |
+| 표시 | 응답 `speaker`로 `CHARACTERS[speaker]`의 `shortName`·`avatar`를 그린다. `authorName`은 `null`이다 |
+| 문구 | 화면 문구는 `labels.ts`가 `code`로 정한다. 서버 `message`는 폴백이다(§3.1) |
+
+---
+
+## 「ui 인계 메모」 S3c (v0.5 — 설정 화면·주인 판정)
+
+| 주제 | 계약 |
+|---|---|
+| 호출 | 주인 판정·설정 화면 열기 → `getCharacterSettings()`, 저장 → `saveCharacterSettings(settings)`. 둘 다 `@/api`에서 import한다. 성공 값은 `CharacterSettingsResponse`다 |
+| 주인 판정 | 토큰이 있을 때 App이 1회 `getCharacterSettings()`. `ok`면 `isOwner = true`, 그 밖은 모두 `false`. **판정 결과로 `revokeWrite`·`onAuthFailure`를 부르지 않는다**, 토스트도 없다(R-SET-010). 본문은 버린다 |
+| `OWNER_ONLY` (403) | 설정 화면을 열거나 저장하다 받으면 안내 후 rooms로 가고 `isOwner = false`. 읽기 전용 전환 대상이 아니다(`isAuthFailure` false) |
+| 인증 3코드 (설정 화면 안) | 여는 중이면 S2 규칙대로 전환 후 rooms. 저장 중이면 전환하되 **초안을 남기고** 저장 비활성·내보내기 허용(stale, R-SET-011) |
+| `VALIDATION_ERROR` (400) | `message`가 §4.16 표의 첫 위반 1건이다. 이 코드는 `labels.ts` 고정 문구 대신 `message`를 그대로 보여도 된다(계약 문구). 사전 검사를 통과한 초안이면 정상적으로는 나오지 않는다 |
+| `RATE_LIMITED` (429) | S2와 같다. 저장 1회 = 1회 소모. 판정 GET은 세지 않는다 |
+| 사전 검사 | `checkCharacterSettings(draft)` — `issue.path`로 탭·필드를 찾고 `issue.message`를 보인다. 저장 버튼 활성 = dirty && 검사 통과 && !saving && !stale |
+| 글자 수 | `countCodePoints(normalizeText(v))` / `max`(`WORLD_FIELD_SPEC`·`CHARACTER_FIELD_SPECS`). 목록 필드는 "한 줄에 하나" — 줄 나눔 뒤 trim·빈 줄 제거한 개수 / `maxItems`, 줄마다 `itemMax` |
+| 저장 성공 | 응답 `settings`로 초안·기준값을 함께 바꾼다(서버가 정규화했다). `version`·`updatedAt`은 하단 줄 표시용이다. `isDefault`(= `version 0`)면 "기본값 사용 중" |
+| 화면 이름 | 필드 라벨은 `CHARACTER_FIELD_SPECS[key].label`·`WORLD_FIELD_SPEC.label`을 쓴다(서버 400 문구와 같은 이름). `world` 필드 라벨은 `세계관`이고, 탭 이름("공통 세계관")은 `labels.ts` 몫이다(§15.12 결정 2) |
+| 내보내기·가져오기 | §16 전부. 상수는 `@shared/settings` |
+
+---
+
+## 「ui 인계 메모」 (S3d — v0.6, 화면이 계약에서 알아야 할 것만)
+
+| 주제 | 계약 |
+|---|---|
+| 전송 | `appendUser(roomId, { text, ooc })`가 `201`이면 곧바로 `speak(roomId, { character: 'auto' })`. `appendUser` 실패면 `speak` 0회. 둘 다 `@/api`에서 import한다 |
+| `'auto'` 결과 | `201 Message`. `speaker`가 서버가 고른 캐릭터(`'sebastian'`·`'ciel'`)다. 결과 말풍선 자리는 이 값으로 정한다(세바스찬 왼쪽·시엘 오른쪽). 응답에 `'auto'`나 선택 근거는 없다 |
+| 에러 | 캐릭터 버튼 `speak`와 같은 표(§4.12 · §4.13 · S3·S3b 메모). 새 코드 없음. `409`·`429`·`500`·`502` → 실패 표시 + 「재시도」 = `speak(roomId, { character: 'auto' })` 재호출(선택부터 다시). `401`·`403` → `isAuthFailure`로 읽기 전용 전환. `404` → 방이 사라짐 |
+| 저장된 유저 메시지 | 자동 응답이 실패해도 유저 메시지는 이미 저장돼 있다(`appendUser` 결과). 실패가 유저 메시지를 지우지 않는다 |
+| 레이트리밋 | 전송 1회 = 2회 소모. `appendUser`는 성공하고 이어진 `speak`가 `RATE_LIMITED`일 수 있다 |
+| 소요 | 최대 70초(선택 포함). 래퍼에 타임아웃이 없다 |
+| `authorName` | 유저 메시지는 서버가 항상 「어떠한 의지」로 준다. **값을 그대로 표시한다.** `USER_DISPLAY_NAME`(`@shared/characters`)은 `authorName`이 `null`·빈 문자열일 때의 대체 표시에만 쓴다 |
+| 타입 | 화면 상태의 생성 대상은 `SpeakTarget`(`@shared/types`)이다. 같은 뜻의 화면 전용 타입을 만들지 않는다 |
+| 재작성 | 자동으로 고른 대사도 `regenerate(messageId)` 그대로다(저장된 캐릭터로 다시 쓴다) |
+
+---
+
+## 「contract-implementer 인계 목록」 (S3b — v0.4.1)
+
+| 순서 | 파일 | 식별자 | 할 일 | 테스트 |
+|---|---|---|---|---|
+| 1 | `shared/src/errors.ts` | `ERROR_CODES` · `ERROR_STATUS` · `ERROR_MESSAGES` | `LLM_BUDGET_EXCEEDED`를 `LLM_EMPTY` 다음에 추가, 429, 요구 원문 문구(§5.3) | API-T-040(갱신) · 048 |
+| 1 | `shared/src/types.ts` | `ApiErrorBody.error.retryAfterSec?` | 문서주석만 두 코드로(§5.2). 타입 불변 | tsc |
+| 3 | `server/test/routes-write.test.ts` · `server/test/routes-generate.test.ts` | `expectContractError` | 3키 허용을 `RATE_LIMITED`·`LLM_BUDGET_EXCEEDED`로, 값은 코드별(40 / 1356400)(§14.12) | 기존 전부 회귀 |
+| 3 | `server/test/routes-generate.test.ts` | — | API-T-085 ~ 090 추가(server S3b 구현 뒤 — `insertUsage`·`llm_usage` 필요) | API-T-085 ~ 090 |
+| 4 | `ui/src/api/api.test.ts` | `toRetryAfter`(변경 없음) | API-T-UI-022 · 023 추가 | API-T-UI-022 · 023 |
+| — | `server/src/routes/*` · `ui/src/api/*.ts` | — | **소스 변경 없음.** 바꾸면 계약 위반 | 리뷰: `git diff --stat server/src/routes ui/src/api` 에 `*.test.ts` 외 0건 |
+| 끝 | `doc/200_설계/contract/api.md` | §12.3 | 구현 후 실물 기준으로 대조표를 다시 채우고 §9에 "v0.4.1 구현" 행 | — |
+
+---
+
+## 「contract-implementer 인계 목록」 (S3c — v0.5)
+
+| 순서 | 파일 | 식별자 | 할 일 | 테스트 |
+|---|---|---|---|---|
+| 4a | `shared/src/errors.ts` · `shared/test/errors.test.ts` | `ERROR_CODES` · `ERROR_STATUS` · `ERROR_MESSAGES` | `OWNER_ONLY` 403·문구, `CONFIG_INVALID` 다음(§5.8.2) | API-T-040(갱신) · 049 |
+| 4b | `shared/src/types.ts` | `CharacterSettingFields` · `CharacterSettings` · `CharacterSettingsResponse` · `PutCharacterSettingsBody` | §5.8.1 그대로 | tsc |
+| 4c | 신규 `shared/src/settings.ts` · `shared/test/settings.test.ts` · `shared/test/settings-vectors.ts` | §5.8.4 전 식별자 | 전문 그대로. 벡터는 §4.16 표 13행 + 경계값(상한·상한+1·이모지·빈 필수·모르는 키·3번째 id) | API-T-105 ~ 107 |
+| 4d | `shared/src/limits.ts` | — | **변경 없음** | — |
+| 4e | `shared/src/endpoints.ts` · `shared/test/endpoints.test.ts` | `PATHS.characterSettings` · `endpoints.characterSettings` | §5.8.3 | API-T-042(갱신) · 104 |
+| 6a | `server/src/routes/validate.ts` | `validate` | 선택 인자 `toMessage`(§11.12) | 기존 routes 테스트 회귀 |
+| 6a | `server/src/routes/schemas.ts` | `putCharacterSettingsBody` · `settingsIssueMessage` · `SETTINGS_BODY_TOO_LARGE` | §11.12 | API-T-096 ~ 101 |
+| 6a | 신규 `server/src/routes/settings.ts` · `routes/index.ts` · 신규 `server/test/routes-settings.test.ts` | `settingsRoutes` | §11.12. server 5단계(`requireOwner`·`characterSettingsSchema`·`services.settings`) 뒤 | API-T-091 ~ 103 |
+| 6b | `ui/src/api/client.ts` | `RequestOptions` | `method`에 `'PUT'`, `auth` 주석. `AUTH_FAILURE_CODES` 불변 | 기존 ui/api 회귀 |
+| 6c | 신규 `ui/src/api/settings.ts` · `ui/src/api/index.ts` · `ui/src/api/api.test.ts` | `getCharacterSettings` · `saveCharacterSettings` | §11.13 | API-T-UI-024 ~ 027 |
+| 끝 | `doc/200_설계/contract/api.md` | §12.4 · §9 | 구현 후 실물로 대조표를 다시 채우고 §9에 "v0.5 구현" 행 | 리뷰 grep(§14.16) |
+
+---
+
+## 「contract-implementer 인계 목록」 (S3d — v0.6)
+
+| 순서 | 파일 | 식별자 | 할 일 | 테스트 |
+|---|---|---|---|---|
+| 4 | `shared/src/types.ts` | `SpeakTarget` · `SpeakBody` · `Message.authorName` 주석 | §5.2 | tsc · API-T-UI-028 |
+| 4 | `shared/src/characters.ts` | `USER_DISPLAY_NAME` | §5.5 | API-T-112 |
+| 6 | `server/src/routes/schemas.ts` | `SPEAK_TARGETS` · `speakBody` | §11.15 | API-T-110 |
+| 6 | `server/test/routes-write.test.ts` | API-T-062 · 108 | 유저 `authorName` 기대값 → `USER_DISPLAY_NAME`, D1 `author_name` 실명은 직접 SELECT(§14.17) | API-T-062 · 108 |
+| 6 | `server/test/routes-generate.test.ts` | — | API-T-109 ~ 111 추가(109·111은 server 5단계 뒤) | API-T-109 ~ 111 |
+| 6 | `ui/src/api/messages.ts` | `speak` 문서주석 | §11.15. 시그니처 변경 없음 | API-T-UI-028 · 029 |
+| — | `server/src/routes/messages.ts` · `ui/src/api/client.ts` | — | **소스 변경 없음** | 리뷰 diff |
+| 끝 | `doc/200_설계/contract/api.md` | §12.5 | 구현 후 실물 기준으로 다시 채우고 §9에 "v0.6 구현" 행 | — |

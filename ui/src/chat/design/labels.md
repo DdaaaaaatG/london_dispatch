@@ -14,7 +14,7 @@
 | `loading` · `empty` · `loadError` · `retry` | `대화를 불러오는 중` · `아직 대화가 없습니다` · `대화를 불러오지 못했습니다` · `다시 시도` | 첫 로드 StateView · 「다시 시도」 |
 | `olderLoading` · `olderError` | `이전 대화 불러오는 중` · `이전 대화를 불러오지 못했습니다` | B0 |
 | `oocPrefix` · `oocDecor` | `[지시]` · `—` | OOC 말풍선·메뉴 머리 |
-| `unknownAuthor` | `이름 없음` | 유저 `authorName === null` |
+| ~~`unknownAuthor`~~ | ~~`이름 없음`~~ **삭제(S3d, CR-002)** — 대체 표시는 `userAuthorLabel(authorName)` → `USER_DISPLAY_NAME`. S3d 새 키 `autoPendingStatus`·`autoRetryAriaLabel`과 함수 `userAuthorLabel`은 `design/auto.md` §6(§8.1.3) | — |
 | `newMessages` · `newMessagesAriaLabel` | `새 메시지` · `새 메시지 보기, 맨 아래로 이동` | B1 |
 | `readOnlyNotice` | `열람 전용 - 대화 참여는 등급 회원만` | D |
 

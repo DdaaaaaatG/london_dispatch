@@ -6,12 +6,13 @@
 |---|---|
 | 화면 | chat · 폴더 `ui/src/chat/` |
 | 목적 | 고른 방의 히스토리를 메신저 말풍선으로 보여 준다. 위로 올리면 더 오래된 대화를 이어 붙이고 읽던 자리를 지킨다. 등급 통과 회원은 대사·지시를 적어 저장하고, 말풍선을 고치거나 지우고, 방 이름을 바꾸거나 방을 지운다. 토큰이 없으면 쓰기 UI 없이 열람 안내 한 줄만 둔다 |
-| 요구 | `ui/src/chat/requirements.md` v1.7(확정) |
-| 구성안 | `doc/200_설계/architecture/ui-layout-01-rooms-chat.md` §2(C1) · §2-1 · §2-2 · §2-4 — **수용, 구조 변경 없음** |
-| 계약 | `doc/200_설계/contract/api.md` **v0.4.1**(S3b: §3.2 14종 · §3.4 429 구분) §2.4 · §3.2 · §3.4 · §4.3 · §4.5·§4.7~§4.14 · §5.2 `SpeakBody` · §5.5 · §11.6 · §11.9 · 「ui 인계 메모」 — 확정 |
+| 요구 | `ui/src/chat/requirements.md` **v1.9**(확정, S3d 동결) |
+| 구성안 | `doc/200_설계/architecture/ui-layout-01-rooms-chat.md` §2(C1) · §2-1 · §2-2 · §2-4 · (S3d) `ui-layout-03-chat-auto.md` §1~§5 — **수용, 구조 변경 없음**(§7 구조 제안 2건 미채택) |
+| 계약 | `doc/200_설계/contract/api.md` **v0.6**(S3d: §4.9 `authorName` 고정 · §4.13 `'auto'` · §5.2 `SpeakTarget` · §5.5 `USER_DISPLAY_NAME` · §11.15 · 「ui 인계 메모」 S3d) + v0.4.1까지의 §2.4 · §3.2 · §3.4 · §4.3 · §4.5·§4.7~§4.14 · §11.6 · §11.9 · 「ui 인계 메모」 S3·S3b — 확정 |
+| S3d 델타 | **`design/auto.md`**(절 표기 `AU`): 상태 T35·T36 · `SpeakTarget` · PendingBubble 중립 변형 · 유저 작성자 표기 · F-CH-17·31·32 개정 · F-CH-42~44 · 잠금·끼어들기 0회 · 파이프라인 · 문구 · 접근성·읽기 전용 · 결정 D-17~22 · TC 영향·TC-CH-098~109. **다른 분할 문서의 S3 서술과 겹치면 AU가 우선**한다 |
 | 묶음 | S1 · S2 구현 완료 + **S3 상세**: R-CHAT-004(캐릭터 버튼 2) · 005(speak · 임시/실패 말풍선 · 재시도) · 007(재작성) · 011(S3 코드) · 003(speak 트리거) · 002(임시 말풍선 배치) · 013(S3 요소). S4는 §14 |
 | 레이아웃 확정 상태 | **확정**(읽기 전용 판 · 토큰 있음 판 · S3 생성 중/실패/재작성 중 조각). 장기기억 항목(S4)만 **미렌더 자리** |
-| 문서 분할 | 40KB 한계로 분할: **`design/layout.md`**(§0 토큰 있음 판·시트 ASCII = 옛 §2.2, v1.7.1 이전) · `design/components.md`(로컬 컴포넌트·useAutoScroll·스타일) · `design/functions.md`(리듀서·스크롤 계산·상태·기능) · `design/a11y.md`(접근성) · `design/tc.md`(예정 TC 목록, v1.4 분리) · **`design/labels.md`**(§8.1~§8.3 문구·라벨, v1.7 이전) · **`design/generate.md`**(S3 speak·재작성 흐름 = 옛 §6.8·§6.9, 생성 실패 문구 = 옛 §8.4, 결정 D-11~15·A-6, 한계 L-1~3 = 옛 §13.1, v1.7 신규) · **`design/decisions.md`**(§11.2 결정·가정·S1 소급 델타 · §13 contract 변경 요청, v1.7 이전). RTM은 이 문서 §15. 절 표기 `L` = labels.md, `G` = generate.md, `D` = decisions.md |
+| 문서 분할 | 40KB 한계로 분할: **`design/layout.md`**(§0 토큰 있음 판·시트 ASCII = 옛 §2.2, v1.7.1 이전) · `design/components.md`(로컬 컴포넌트·useAutoScroll·스타일) · `design/functions.md`(리듀서·스크롤 계산·상태·기능) · `design/a11y.md`(접근성) · `design/tc.md`(예정 TC 목록, v1.4 분리) · **`design/labels.md`**(§8.1~§8.3 문구·라벨, v1.7 이전) · **`design/generate.md`**(S3 speak·재작성 흐름 = 옛 §6.8·§6.9, 생성 실패 문구 = 옛 §8.4, 결정 D-11~15·A-6, 한계 L-1~3 = 옛 §13.1, v1.7 신규) · **`design/decisions.md`**(§11.2 결정·가정·S1 소급 델타 · §13 contract 변경 요청, v1.7 이전). RTM 본문은 **`design/rtm.md`**(v1.9.1, 실측 42,204바이트로 한계 초과 — 메인 세션 지시로 이전. 이 문서 §15는 참조 한 줄). 절 표기 `L` = labels.md, `G` = generate.md, `D` = decisions.md |
 | 공용 요소 | `App`·`viewer`·`token`·`limits`·`TopBar`·`Button`·`IconButton`·`StateView`·`TextInput`·`TextArea`·`Toggle`·`BottomSheet`·`ConfirmDialog`·`PromptSheet`·`Toast`·`useToast`·`useLongPress`·`cx`·`formatDate`·`storage`의 단일 정의는 `ui/src/rooms/design/components.md` §1. chat은 인용만 한다 |
 
 비유: 히스토리는 아래로 길게 이어지는 두루마리다. 처음에는 가장 최근 30줄만 펼친다. 위 끝에 닿으면 더 오래된 30줄을 위에 이어 붙이는데, 읽던 줄이 밀려나지 않도록 붙인 길이만큼 두루마리를 내려 준다. 출입증이 있는 회원은 두루마리 끝에 직접 한 줄을 적을 수 있고, 적은 줄은 접수 창구(서버)가 받아 준 뒤에야 두루마리에 붙는다.
@@ -30,6 +31,7 @@
 | v1.7 | 2026-10-06 | **S3 상세**(§14 자리 → 본문): 캐릭터 버튼 `SpeakButtons` · 임시/실패 말풍선 `PendingBubble`(별도 컴포넌트) · 재작성 항목 · 재작성 중 표시. 리듀서 `pending` 필드 · 액션 4종(`speakStarted`·`speakSucceeded`·`speakFailed`·`speakDiscarded`) · T13~T16·T25 개정 · T27~T34 · `isRegenerateTarget`. F-CH-31~40. §6.8·§6.9 파이프라인, §7 E9·E12, §8.1.2·§8.4 문구, §10 S3 행 "렌더", §11.2 D-11~D-15, §13 L-1, §15 RTM S3 행. `useAutoScroll` `tailKey` 옵션. tc.md TC-CH-066~092. 계약 인용 v0.4. **40KB 분할**: §8 표 본문 → `design/labels.md`, §6.8·§6.9·§8.4·§11.2 D-11~15·A-6·§13.1 → `design/generate.md`(신규), 이 문서에는 요약·절 대응표와 RTM만. 2차(44.7KB 실측): §11.2 전체·§13 → `design/decisions.md`(신규) | 구축 S3 · 메인 세션 지적(56KB · 44.7KB) |
 | v1.7.1 | 2026-10-06 | **구현 동기화**: F-CH-41을 카운터 state로(functions.md·generate.md D-15) · PendingBubble 본문 `div.body.bodyBox`(components.md §2.12·§4) · 말풍선 메뉴 높이 실측 약 247px ±16px(components.md §0·§2.8) · 재작성 중 흐림은 수동 확인 유지(a11y.md·tc.md TC-CH-092) | S3 구현·테스트 보고(ui 452/452) |
 | v1.8 | 2026-10-06 | **S3b**(R-LLM-007 🔒 · R-API-002 14종): `LLM_BUDGET_EXCEEDED`(429) 화면 처리 — speak 실패 말풍선 + 「재시도」, 재작성 warning 토스트, 카운트다운·자동 재시도·해제 날짜 없음, 전환 없음, `RATE_LIMITED`와 `code`로 구분(G §3 · L §8.1.2 비고). 새 UI·labels 키 없음. TC-CH-096·097. 계약 인용 api.md v0.4.1 | 구축 S3b |
+| v1.9 | 2026-10-06 | **S3d(CR-002, 보강)**: R-CHAT-014 🔒 신규 · R-CHAT-006 🔒·002 🔒 개정. 신규 분할 `design/auto.md`(전체 델타). 주 문서는 머리 표 · §6.3 · §7 E8·E9 행 · §15 RTM만 갱신. components.md §2.2·§2.8 작성자 표기, functions.md §1.1 포인터, labels.md `unknownAuthor` 폐기, scenarios.md 변경 대기열 Q-08. 계약 인용 v0.6 | 사용자 결정 승인 ① 2026-10-06 · s3d-02 §5·§6 · 인계 패킷 §3 |
 
 ---
 
@@ -174,18 +176,9 @@ ChatScreen 마운트(layout effect) → saveLastRoomId(room.id) → ‹ 포커�
 hasMore=false → 더 요청하지 않는다
 ```
 
-### 6.3 새 메시지 = 전송 성공 (R-CHAT-003 · 006, S2)
+### 6.3 새 메시지 = 전송 성공 → 자동 응답 (R-CHAT-003 · 006 🔒 · 014 🔒, S2 → S3d 개정)
 
-```
-입력 → 전송(클릭 · Enter, IME 조합 중 제외) → canSend && 1~2000자
- → writeStarted(send): 전송 비활성, 입력 readOnly, 하단 바 aria-busy
- → appendUser(room.id, { text, ooc })        // Bearer 헤더는 래퍼, AI 호출 없음
- ├ 201 → isNearBottom 측정 → messagesAppended([msg]) → writeFinished → 입력 비움(OOC 유지) → 입력 포커스
- │        ├ 맨 아래 근처 → lastId 증가 감지 → 맨 아래로
- │        └ 위쪽을 보는 중 → unseenCount+1, B1 「새 메시지」
- │        말풍선 작성자명 = 응답 authorName(R-AUTH-004)
- └ 실패 → writeFinished → 입력 유지 → handleWriteFailure(§6.6)
-```
+→ `design/auto.md` §5(전체 흐름) · §4(잠금·끼어들기 0회). S2 흐름의 `messagesAppended` + `writeFinished`는 S3d에서 **`sendSucceeded`(T35) 한 액션**으로 바뀌고, 팻말을 내리지 않은 채 `speak(room.id, { character: 'auto' })`로 이어진다. 저장 실패면 S2 그대로(입력 유지 · handleWriteFailure §6.6 · speak 0회). 유저 말풍선 작성자 줄 = 응답 `authorName` 그대로(AU §2.2).
 
 ### 6.4 말풍선 메뉴 · 수정 · 삭제 (R-CHAT-007, S2)
 
@@ -257,19 +250,19 @@ api.md **v0.4**를 **인용**한다. 쓰기 래퍼는 전부 `Authorization: Bea
 |---|---|---|---|---|---|---|
 | `GET /api/rooms/:id/messages` (§4.3, E7) 첫 페이지 | `listMessages(room.id)` | `MessagesPage = { messages: Message[]; hasMore: boolean }`. `Message = { id: number; roomId: string; speaker: 'sebastian'\|'ciel'\|'user'; kind: 'line'\|'ooc'; text: string; authorName: string \| null; createdAt: number }` | `listMessages(roomId, query?): Promise<Result<MessagesPage>>` | F-CH-03 | ✕ | StateView error · §8.2 |
 | 같은 엔드포인트 이전 페이지 | `{ before: messages[0].id }` | 같음 | 같음 | F-CH-05 | ✕ | B0 |
-| `POST /api/rooms/:id/user` (§4.9, E8) | `UserMessageBody = { text: string; ooc: boolean }`(ooc 필수, 토글 값) | `201` `Message`(`speaker: 'user'`, `kind`, `authorName` = 토큰 표시 이름) | `appendUser(roomId: string, body: UserMessageBody): Promise<Result<Message>>` | F-CH-17 | ○ | E 토스트 §8.3 |
+| `POST /api/rooms/:id/user` (§4.9, E8) | `UserMessageBody = { text: string; ooc: boolean }`(ooc 필수, 토글 값) | `201` `Message`(`speaker: 'user'`, `kind`, `authorName` = (v0.6) **`USER_DISPLAY_NAME` 고정** — 실명은 응답에 없다) | `appendUser(roomId: string, body: UserMessageBody): Promise<Result<Message>>` | F-CH-17(S3d: 성공이면 이어서 E9 `'auto'`) | ○ | E 토스트 §8.3 · speak 0회 |
 | `PATCH /api/messages/:id` (§4.10, E10) | `EditMessageBody = { text: string }` | `200` `Message`(`text`만 바뀜) | `editMessage(messageId: number, body: EditMessageBody): Promise<Result<Message>>` | F-CH-20 | ○ | E 토스트, 편집기 유지 |
 | `DELETE /api/messages/:id` (§4.11, E11) | 없음 | `204` → `Result<void>`(`value: undefined`) | `deleteMessage(messageId: number): Promise<Result<void>>` | F-CH-23 | ○ | 시트 닫고 E 토스트. `NOT_FOUND` = 제거 |
 | `PATCH /api/rooms/:id` (§4.7, E5) | `RenameRoomBody = { title: string }` | `200` `RoomSummary`(`updatedAt` 그대로) | `renameRoom(roomId: string, body: RenameRoomBody): Promise<Result<RoomSummary>>` | F-CH-26 | ○ | PromptSheet 안 문구(인증 실패만 토스트) |
 | `DELETE /api/rooms/:id` (§4.8, E6) | 없음 | `204` → `Result<void>` | `deleteRoom(roomId: string): Promise<Result<void>>` | F-CH-27 | ○ | 시트 닫고 E 토스트. `NOT_FOUND` = 성공처럼 목록 복귀 |
-| `POST /api/rooms/:id/speak` (§4.13, E9, S3) | `SpeakBody = { character: CharacterId }`(`'sebastian' \| 'ciel'`, 필수) | `201` `Message`(`speaker = character`, `kind: 'line'`, `authorName: null`, `createdAt` = 저장 시각) | `speak(roomId: string, body: SpeakBody): Promise<Result<Message>>` | F-CH-31 | ○ | 실패 말풍선 §8.4(인증 = 전환 · `NOT_FOUND` = 목록 복귀) |
+| `POST /api/rooms/:id/speak` (§4.13, E9, S3 · S3d) | `SpeakBody = { character: SpeakTarget }`(v0.6 `'sebastian' \| 'ciel' \| 'auto'`, 필수). 캐릭터 버튼 = 캐릭터 값 · 전송 뒤 자동 응답·중립 「재시도」 = `'auto'` | `201` `Message`(`speaker` = 지정 캐릭터 또는 **서버가 고른 캐릭터** — `'auto'`는 응답에 없다, `kind: 'line'`, `authorName: null`, `createdAt` = 저장 시각) | `speak(roomId: string, body: SpeakBody): Promise<Result<Message>>`(래퍼 추가 없음) | F-CH-31 · F-CH-42 | ○ | 실패 말풍선 §8.4 — `'auto'`면 중립 실패(AU §2.1)(인증 = 전환 · `NOT_FOUND` = 목록 복귀) |
 | `POST /api/messages/:id/regenerate` (§4.14, E12, S3) | 본문 없음 | `200` `Message`(`text`만 바뀜) | `regenerate(messageId: number): Promise<Result<Message>>` | F-CH-34 | ○ | E 토스트 §8.4 · `NOT_LAST_MESSAGE` = 토스트 + 첫 페이지 재조회 · `NOT_FOUND` = 제거 |
 | (엔드포인트 아님) | — | `isAuthFailure(error): boolean` · `ApiError.retryAfterSec?: number` | `@/api` | F-CH-16 | — | — |
 | (엔드포인트 아님) 캐릭터 메타 | — | `CHARACTERS[speaker]: { id; name; shortName; avatar }` | `@shared/characters` | Bubble · MessageMenuSheet | — | — |
 
 - 쓰기 6종 공통 코드(api.md §4.5): `CONFIG_INVALID`·`TOKEN_REQUIRED`·`TOKEN_INVALID`·`LEVEL_TOO_LOW`·`RATE_LIMITED`(+`retryAfterSec`)·`VALIDATION_ERROR`·`INTERNAL` + 클라이언트 `NETWORK`. 엔드포인트별 `NOT_FOUND`(방·메시지). 화면이 길이를 먼저 막으므로 `VALIDATION_ERROR`는 정상 경로에서 나오지 않는다.
 - 래퍼는 본문을 계약 키로 다시 만든다(여분 키 없음). 화면은 trim하지 않는다(서버 몫).
-- 테스트는 `vi.mock('@/api')`(또는 `@/api/messages`·`@/api/rooms`)로 래퍼를 모킹한다. `fetch`를 모킹하지 않는다. 전송 TC는 `appendUser` 외 쓰기·speak 경로 호출이 0회임을 단언한다(R-CHAT-006 "AI 호출 없음").
+- 테스트는 `vi.mock('@/api')`(또는 `@/api/messages`·`@/api/rooms`)로 래퍼를 모킹한다. `fetch`를 모킹하지 않는다. 전송 TC는 (S3d) `appendUser` 1회 → `speak(room.id, { character: 'auto' })` 1회, 그 밖 쓰기·`regenerate`·캐릭터 값 speak 0회를 단언한다(R-CHAT-006 🔒 개정 · TC-CH-098, 옛 "AI 호출 없음" 단언 TC-CH-088은 폐기 — AU §9.1).
 - (S3) 생성 2종 공통(api.md §4.12): 래퍼 타임아웃·자동 재시도 없음(서버 70초 종결, R-NFR-001) · 같은 방 동시 1건(`409 SPEAK_IN_PROGRESS`, R-MSG-007) · 실패해도 레이트리밋 1회 · `502`·`409`·`400`·`500`이면 저장 없음. 화면은 api.md 「ui 인계 메모」 표를 `design/generate.md` §1~§3으로 옮겼다. `speak`·`regenerate`는 `@/api`에서만 import한다.
 - 미확정 계약 없음. 권고 CR-C-2(`design/decisions.md` §13).
 
@@ -363,30 +356,4 @@ v1.7에서 40KB 한계로 표 본문을 분할 문서로 옮겼다. 절 번호�
 
 ## 15. RTM (요구 추적 매트릭스)
 
-상태: ✅ = 가리킨 절에 실체 있음. `후속(Sn)` = 이번 묶음 범위 밖, §14에 자리만. 절 표기: `C` = components.md, `F` = functions.md, `A` = a11y.md, `L` = labels.md, `G` = generate.md, `D` = decisions.md(v1.7), `Y` = layout.md(v1.7.1). 잠금 표는 `G §6`(v1.7.1, 옛 functions.md §4.3). TC 상세는 `design/tc.md`.
-
-| 요구ID | 설계 절 | api 계약 | 예정 TC | 상태 |
-|---|---|---|---|---|
-| R-CHAT-001 🔒 | §2.1 · Y §0 A · §3.1 · C §2.0·§2.9·§2.10 · F F-CH-01·10·24~28 · §6.5 · L §8.1·§8.1.1 · §10 · A | api.md §4.7 · §4.8 | TC-CH-001 · 002 · 003 · 031 · 047 · 048 · 049 · 050 · 055 · 056 · 057 · 064 · 065 | ✅(‹·제목·생성일·⋯·이름 변경·방 삭제) / 후속(S4: 장기기억 항목) |
-| R-CHAT-002 🔒 (CR-001 개정) | §2.1 B · §11.1 · C §2.1·§2.2(4변형) · C §2.7 · F F-CH-03·11·15 · L §8.1 · C §4 | api.md §4.3 · §5.5 | TC-CH-004~010 · 030 · 028(4종 스크린샷) · (S3 임시·실패 말풍선 배치: C §2.12) 069 · 092 | ✅ |
-| R-CHAT-003 🔒 | C §2.1·§2.3·§2.4·§3(S3 `tailKey`) · F §1·§2 · F F-CH-03~09·11~14·17·31·40 · §6.2·§6.3 · G §1 | api.md §4.3 · §4.13 | TC-CH-004 · 005 · 006 · 011~020 · 029 · 038 · 072 · 078 · 091 | ✅(새 메시지 트리거 = S2 전송 · S3 speak) |
-| R-CHAT-004 🔒 | Y §0 C · C §2.6·§2.11 · F F-CH-01·17·31 · G §6 잠금 표 · L §8.1.1·§8.1.2 · §10 · A | api.md §4.9 · §4.13 | TC-CH-021 · 031 · 032 · 034 · 035 · 058 · 059 · 066 · 067 · 068 · 070 | ✅(OOC 토글·입력 1~2000·전송 · S3 캐릭터 버튼 2) |
-| R-CHAT-005 🔒 | Y §0 · G §0·§1·§3·§4·§5 · C §2.11·§2.12 · F §1(`pending`, T27~T34) · F F-CH-31·32·33·37·38·39·40 · L §8.1.2 · §10 · A | api.md §4.12 · §4.13 · §11.9 | TC-CH-068 · 069 · 070 · 071 · 073 · 074 · 075 · 077 · 078 · 085 · 087 · 089 · 090 · 092 · 093 · 094 · 095 | ✅(버튼 → speak · "…" 임시 말풍선 · 두 버튼·전송 잠금 · 성공 교체 · 실패 문구 + 재시도) |
-| R-CHAT-006 🔒 | §6.3 · C §2.6 · F §1.1 T9·T13·T15 · F F-CH-17 · §7 | api.md §4.9 | TC-CH-032 · 033 · 035 · 036 · 037 · 038 · 053 · 063 | ✅ |
-| R-CHAT-007 🔒 | Y §0 · §6.4 · C §2.1·§2.2·§2.7·§2.8·§2.10 · F §1.1 T17~T24 · F F-CH-18~23 · L §8.1.1·§8.1.2 · §10 · A | api.md §4.10 · §4.11 | TC-CH-022 · 039~046 · 053 · 054 · 055 · 056 · 060 · 063 · (S3) 079 · 080 · 081 · 082 · 083 · 084 · 085 · 095 | ✅(수정·삭제 · S3 재작성: G §2·§3 · C §2.2·§2.8·§2.10 · F F-CH-34·35·36 · api.md §4.14) |
-| R-CHAT-008 🔒 | §10 · F F-CH-01·29·39 · C §2.5 | — | TC-CH-003 · 021 · 022 · 023 · 031 · 051 · (S3) 067 · 076 | ✅ |
-| R-CHAT-009 🔒 | §10 · rooms C §1.10 · rooms F F-RM-12·20 · §7 | api.md §2.4 · §11.6 | TC-CH-051 · 062 · TC-RM-028 · 030 | ✅ |
-| R-API-003 🔒 (참조) | R-CHAT-009 행으로 닫힘(헤더 부착은 래퍼, 화면은 메모리 보관만) | api.md §2.2 · §2.4 | R-CHAT-009와 같음 | ✅ |
-| R-CHAT-010 | rooms C §1.7 · F §3 · F F-CH-02·09 · §6.1 | — (localStorage) | TC-CH-024 · 025 · 026 | ✅ |
-| R-CHAT-011 | §6.6 · L §8.3 · F F-CH-16·23·26·27·29 · §10 · rooms F F-RM-12·22 | api.md §2.4 · §3.2 · §3.4 | TC-CH-037 · 044 · 046 · 049 · 050 · 051 · 052 · (S3) 073 · 074 · 076 · 081 · 082 · 083 · 084 · 086 · (S3b) 096 · 097 | ✅(S2 코드: 인증 3종·RATE_LIMITED · S3 코드: SPEAK_IN_PROGRESS·LLM_FAILED·LLM_EMPTY·CONFIG_INVALID·NOT_LAST_MESSAGE·NOT_CHARACTER_MESSAGE — G §1·§2·§3 · F F-CH-16·31·34·37) |
-| R-MSG-003·006·007 🔒 (데이터, S3) | §7 E9·E12 · F F-CH-31·34 · F `isRegenerateTarget` | api.md §4.12~§4.14 | TC-CH-068 · 074 · 079 · 080 · 082 | ✅ |
-| R-NFR-001 🔒 (화면 쪽, S3) | F §3(화면 타이머 없음) · G §4 A-6 · G §5 L-3 | api.md §4.12 「화면 타임아웃」 | TC-CH-070(80초 경과 후에도 임시 말풍선 유지) | ✅ |
-| R-CHAT-012 🔒 | §14 | E13·E14(S4) | (S4) | 후속(S4) |
-| R-CHAT-013 🔒 | §2.3 · A · C §4 · L §8 aria-label | — | TC-CH-027 · 028 · 031 · 061 · (S3) 066 · 089 · 092 | ✅(읽기 전용 판·쓰기 판·S3 조각) |
-| R-LLM-002 🔒 (표시 메타) | C §2.2·§2.8 · §7 | api.md §5.5 | TC-CH-007 · 040 | ✅ |
-| R-MSG-001 🔒 (데이터) | §7 · F §1.2 `nextBefore` | api.md §4.3 | TC-CH-004 · 011 | ✅ |
-| R-MSG-002·004·005 🔒 (데이터) | §7 · F F-CH-17·20·23 | api.md §4.9~§4.11 | TC-CH-033 · 043 · 045 | ✅ |
-| R-ROOM-003·004 🔒 (데이터) | §7 · F F-CH-26·27 | api.md §4.7 · §4.8 | TC-CH-048 · 050 | ✅ |
-| R-AUTH-004 (표시) | C §2.2 user · F F-CH-17 | api.md §4.9 `authorName` | TC-CH-033 | ✅ |
-| R-NFR-004 🔒 (화면 쪽) | §10 · rooms C §1.7·§1.10 | api.md §2.1 · §2.4 | TC-CH-024 · 025 · 062 | ✅ |
-| R-ROOMS-004 (기록·삭제 시점) | F F-CH-02·10·27 · §6.7 | — | TC-CH-002 · 024 · 050 | ✅ |
+→ `design/rtm.md`(v1.9에서 40KB 한계로 이전 — 전 요구ID 25행, R-CHAT-014 🔒 행 포함, 미완 행 없음 · 후속은 R-CHAT-012 S4 하나).

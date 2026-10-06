@@ -104,3 +104,16 @@
 | `regenerate` | `disabled` | `disabled` | `disabled` | **가능** | 안 열림 · ⋯ `disabled` |
 | `send` | `disabled` | `disabled` | `disabled` | `readOnly`(S2 그대로) | 안 열림 · ⋯ `disabled` |
 | `edit`·`delete` | `disabled` | `disabled` | `disabled` | 가능 | 안 열림 · ⋯ `disabled` |
+| (S3d) `send` → `speak`+`'auto'`(전송 뒤 자동 응답, T35로 끊김 없이 이어짐) | `disabled` | (중립 임시 — 버튼 없음) | `disabled` | 저장 중 `readOnly` → 생성 중 **가능** | 안 열림 · ⋯ `disabled` |
+| (S3d) `null` + 중립 실패 | 활성(누르면 중립 실패가 그 캐릭터 임시 말풍선으로 바뀜) | 활성(`'auto'` 재호출) | 내용 있으면 활성(저장 201이면 중립 실패를 새 중립 "…"로 교체) | 가능 | 열림 |
+
+**편집 저장 열(S3d — 인라인 수정이 열려 있을 때 InlineEditor 버튼).** 위 표의 행마다:
+
+| 진행 중 `writing` | 편집 저장 버튼 | 편집 취소 버튼 · 편집 입력 | 근거 prop |
+|---|---|---|---|
+| `null` | 내용 유효·바뀜이면 활성 | 활성 | — |
+| `edit`(그 편집 저장 중) | `disabled` | `disabled`(S2 `isSaving`) | `isEditSaving` |
+| `speak`(캐릭터·`'auto'` 모두) | **`disabled`** + 숨은 안내 `응답을 만드는 중에는 저장할 수 없습니다` | **활성** | **`isEditSaveLocked`**(S3d, auto.md §2.3) |
+| `send` · `delete` · `regenerate` | 버튼은 활성으로 보이나 눌러도 `begin`이 거절(S2·S3 그대로, 변경 없음) | 활성 | — |
+
+- (S3d) 잠금 판정 식은 바뀌지 않는다. `'auto'` 행 근거·끼어들기 0회 조건은 `design/auto.md` §4. 전송 뒤 자동 응답 중 인라인 수정 규칙은 auto.md §8 D-17.

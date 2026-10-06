@@ -1,6 +1,6 @@
 # db 모듈 설계
 
-- 상태: S1 확정(구현 동기화) · S2 초안 · S3 초안(§2.3·§3.5) · S3b 초안(§2.4·§3.6·§7.5) · S3c 구현 완료(§2.5·§3.7·§7.6·§8.1) · 최종 갱신: 2026-10-06
+- 상태: S1 확정(구현 동기화) · S2 초안 · S3 초안(§2.3·§3.5) · S3b 초안(§2.4·§3.6·§7.5) · S3c 구현 완료(§2.5·§3.7·§7.6·§8.1) · **S3d 초안(§12 유저 표시명 투영 — §3.4보다 우선)** · 최종 갱신: 2026-10-06
 - 묶음: S1 = 스키마(4테이블 전부)·마이그레이션 `0001_init.sql`·읽기 함수. S2 = 방 생성·이름 변경·연쇄 삭제, 메시지 추가·수정·삭제, 레이트리밋 카운터(§2.1의 "S2" 표시). S3 = speak 잠금 선점·해제, 메시지 단건 조회, 장기기억 summary 읽기(§2.3 — **마이그레이션 없음**). S4용은 §2.2에 예정 시그니처만. S3b = 월 AI 사용량 누적 `llm_usage`(§2.4 — **마이그레이션 `0002_llm_usage.sql`**, R-LLM-007 🔒).
 - 관련 문서: [env.md](env.md)(`DB` 바인딩), [index.md](index.md)(`createDb` 호출 지점), [rooms.md](rooms.md), [messages.md](messages.md), [auth.md](auth.md)(레이트리밋).
 
@@ -811,10 +811,92 @@ db는 contract에 직접 노출되지 않는다. contract가 알아야 할 데�
 | D-DB-24 | `json` 길이 상한 200000 | 02 초안 100000 | §7.6 제약 근거. 정상 PUT이 CHECK에 걸리지 않게 128KB 본문보다 넉넉히 |
 | D-DB-25 | `get`이 `updated_by`를 읽지 않는다 | 응답·로그에 포함 | 요구에 쓰임이 없다. 회원 ID 노출을 최소로(R-AUTH-006) |
 
+## 12. S3d — 유저 표시명 투영 (R-AUTH-004 🔒 개정 · R-CHAT-002 🔒 개정)
+
+- 상태: 초안(2026-10-06, 승인 ① 반영). 근거 `doc/200_설계/architecture/s3d-02-전반설계.md` §1(대안 B), 인계패킷 §1.
+- **이 절이 §3.4(행 ↔ 도메인 변환)보다 우선한다.**
+
+비유: 출석부(D1)에는 실명을 그대로 적고, 무대 자막(응답)에는 누가 적었든 「어떠한 의지」를 띄운다. 자막 담당은 한 명(`toMessage`)뿐이라 규칙이 한 곳에 있다.
+
+### 12.1 공개 API (시그니처 불변 — 값 규칙만 변경)
+
+```ts
+// server/src/db/messages.ts
+import { USER_DISPLAY_NAME } from '@shared/characters'   // contract-implementer 가 추가(값 '어떠한 의지')
+
+/** 행(snake_case)을 도메인 객체로 변환.
+ *  S3d: authorName 은 저장값(author_name)을 쓰지 않는다 — 유저 메시지면 USER_DISPLAY_NAME, 캐릭터 메시지면 null */
+export const toMessage = (row: MessageRow): Message => {
+  const speaker = toSpeaker(row.speaker)
+  return {
+    id: row.id,
+    roomId: row.room_id,
+    speaker,
+    kind: toKind(row.kind),
+    text: row.text,
+    authorName: speaker === 'user' ? USER_DISPLAY_NAME : null,
+    createdAt: row.created_at,
+  }
+}
+```
+
+| 이름 | 인자 | 반환 | 실패 조건 | 요구ID |
+|---|---|---|---|---|
+| `toMessage` | `MessageRow` | `Message` — `authorName` = `speaker === 'user' ? USER_DISPLAY_NAME : null` | 기존과 같음(`speaker`·`kind` 좁히기 실패 → `INTERNAL`) | R-AUTH-004 · R-CHAT-002 |
+| `MessagesRepo.insert` | 기존 | 기존 | 기존 | R-AUTH-004(저장: `NewMessage.authorName` → `author_name` 그대로) |
+
+- **읽기 경로 4개가 모두 `toMessage`를 지난다**: `pageDesc`(`.map(toMessage)`), `insert`·`updateText`의 `RETURNING`(`firstMessage`), `getById`. 따라서 GET 목록·`/user` 201·수정 200·speak 201 응답이 모두 투영된다. 이미 쌓인 실명 행도 다음 조회부터 바뀐다(Q6, 마이그레이션 없음).
+- **저장은 바뀌지 않는다.** `insert`는 `NewMessage.authorName`(= `Principal.displayName`)을 `author_name`에 그대로 쓴다. 실명은 운영자의 D1 직접 조회로만 본다.
+- SQL 상수 불변. `SELECT`는 `author_name`을 계속 읽는다(`MessageRow` 타입·S1 열 단언 유지). 응답에 쓰지 않는 열이라 다음 정리 때 빼도 된다(D-DB-S3d-2).
+- 캐릭터 행은 원래 `author_name` NULL이다. 손으로 넣은 비정상 행(캐릭터인데 이름 있음)도 응답은 null이다.
+- 의존: db → shared(`@shared/characters`). shared는 최하위 계층이라 방향 위반이 아니다(db/types.ts가 이미 `@shared/types`를 쓴다).
+- 프롬프트는 이제 `authorName`을 받지 않는다([llm.md](llm.md) §13.3). 실명이 D1 밖으로 나가는 경로가 없다.
+
+### 12.2 내부 구조 · 동시성 · 에러 · env · 마이그레이션
+
+- 파일: `server/src/db/messages.ts`의 `toMessage` 1곳. 상태·상수 추가 없음(상수는 shared).
+- 동시성·에러: 변경 없음. 순수 변환이다.
+- env: 없음. 마이그레이션: **없음**(스키마 불변, 저장값 불변).
+
+### 12.3 테스트
+
+| 테스트ID | 파일 | 이름 | 입력 | 기대 | 요구 |
+|---|---|---|---|---|---|
+| SRV-T-269 | `server/test/db.test.ts` | `toMessage_projects_user_authorName_to_fixed_name_on_all_read_paths` | 유저 행(`author_name '닉'`) · 유저 행(`author_name NULL`) · 캐릭터 행을 직접 INSERT → `pageDesc`·`getById`·`insert`(유저, `authorName '닉'`)·`updateText`(유저 행) | 유저 4경로 모두 `authorName === USER_DISPLAY_NAME`, 캐릭터 `null`. 같은 행의 `SELECT author_name`은 `'닉'`(NULL 행은 NULL) 그대로 | R-AUTH-004 · R-CHAT-002 |
+
+**기존 테스트 영향.**
+
+| 파일 | TC | 영향 |
+|---|---|---|
+| `server/test/db.test.ts` | SRV-T-029 · SRV-T-124 · S1 열 단언 | 무수정(`insertLine`은 sebastian 행 → null 유지, 124는 `authorName`을 단언하지 않음) |
+| `server/test/messages.test.ts` | SRV-T-140 · 142 | 개정 필요 — [messages.md](messages.md) §12.7 |
+| `server/test/routes-write.test.ts` | API-T-061 | 개정 필요 — [messages.md](messages.md) §12.7 |
+| `server/test/routes.test.ts` | API-T-023 | 무수정(`messages[0]`은 캐릭터 행). 유저 행 `authorName` 단언 추가는 contract 판단 |
+| `server/test/messages-page.test.ts` | — | 무수정(DB 없는 순수 페이지 테스트) |
+
+### 12.4 contract 요구 명세
+
+- 응답 `Message.authorName` 값 규칙: 유저 메시지 = `USER_DISPLAY_NAME`(항상 문자열), 캐릭터 메시지 = `null`. 타입(`string | null`)은 그대로다. api.md §4.3·4.9·4.10 예시를 `"authorName": "어떠한 의지"`로 맞춰 달라.
+
+### 12.5 요구 추적
+
+| 요구ID | 반영 절 | 테스트ID | 상태 |
+|---|---|---|---|
+| R-AUTH-004 🔒 개정 | §12.1 | SRV-T-269 · SRV-T-142 개정 · API-T-061 개정 | ✅(설계) |
+| R-CHAT-002 🔒 개정 (서버 몫) | §12.1 | SRV-T-269 | ✅(설계) |
+
+### 12.6 설계 결정
+
+| # | 결정 | 대안 | 채택 근거 |
+|---|---|---|---|
+| D-DB-S3d-1 | 투영 위치 = `toMessage` 한 곳 | 라우트 직렬화 · 화면 상수 · 저장부터 상수 | 02 §1 대안 B. 모든 읽기 경로가 이미 이 함수를 지난다. 저장값(감사 정보)을 지키고 공개 GET에 실명이 남지 않는다 |
+| D-DB-S3d-2 | `SELECT`에서 `author_name`을 빼지 않는다 | 열 제거 | SQL 상수·S1 열 단언 무수정. 변경 범위 최소 |
+
 ## 변경 이력
 
 | 날짜 | 내용 |
 |---|---|
+| 2026-10-06 | S3d 설계(§12): `toMessage` 투영 — 유저 메시지 `authorName` = shared `USER_DISPLAY_NAME`, 캐릭터 null, 저장 `author_name`은 실명 유지. SQL·스키마·마이그레이션 불변. SRV-T-269, 기존 테스트 영향표, D-DB-S3d-1·2 |
 | 2026-10-05 | S1 초안 작성 |
 | 2026-10-05 | S1 구현 동기화(상태 확정): 도메인 타입은 `@shared/types` 재노출, `toMessage`는 파일 export(index 미노출), `AppError(code, message?)` 시그니처, vitest 0.22 `cloudflareTest` 설정, `test/helpers.ts`. S2 설계: §2.1 S2 함수 8종·`NewMessage`·`RateLimitsRepo`, §3.2 SQL, §3.3 batch 구성, §7.4 인덱스 영향 없음, D-DB-8~12. 기존 §2.2의 S2 예정 시그니처(`rename`·`insertStmt`·`findById`·`updateTextStmt`·`deleteStmt`)는 위 함수로 대체 |
 | 2026-10-06 | S3 설계: §2.3(`acquireSpeakLock`·`releaseSpeakLock`·`getById`·`MemoryRepo.getSummary`·`Db.memory`), §3.5 SQL·batch 해석, §4.2 speak·regenerate 비용, SRV-T-187~190, D-DB-13~17. 마이그레이션 없음 |

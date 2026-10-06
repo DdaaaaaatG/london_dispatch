@@ -1,6 +1,6 @@
 # auth 모듈 설계
 
-- 상태: 초안 · S3c 구현 완료(§12 주인 판정) · 최종 갱신: 2026-10-06
+- 상태: 초안 · S3c 구현 완료(§12 주인 판정) · **S3d 초안(§13 displayName 저장 전용)** · 최종 갱신: 2026-10-06
 - 묶음: S2(토큰 + 쓰기). 이 문서의 공개 API는 전부 S2에서 구현한다.
 - 관련 문서: [env.md](env.md)(`tokenSecret`·`tokenMinLevel`·`rateLimitPerMin`), [db.md](db.md)(`rateLimits` 저장소), [index.md](index.md)(서비스 컨테이너·`AppEnv.Variables.principal`·onError의 `retryAfterSec`), [rooms.md](rooms.md)·[messages.md](messages.md)(쓰기 서비스 — 이 모듈의 미들웨어 뒤에서 호출된다).
 
@@ -571,10 +571,46 @@ GET /api/settings/characters · PUT /api/settings/characters        (routes = co
 
 파급: `auth/index.ts` 재노출에 `requireOwner` 추가. `AuthService`에 메서드 2개 추가 — `AuthService`를 가짜 객체로 만드는 테스트가 있으면 두 메서드를 넣는다. 컨테이너 배선은 [index.md](index.md) §2.3.1.
 
+## 13. S3d — `displayName`은 저장 전용 (R-AUTH-004 🔒 개정)
+
+- 상태: 초안(2026-10-06, 승인 ① 반영). **이 절이 §2.3의 `displayName` 용도 설명보다 우선한다.** auth 코드 변경 없음.
+
+비유: 출입증에 적힌 이름은 출석부에 옮겨 적을 때만 쓴다. 무대 자막과 대본에는 쓰지 않는다.
+
+```ts
+// server/src/auth — Principal 시그니처 불변
+export type Principal = {
+  readonly mbId: string
+  readonly nick: string
+  readonly chName: string | null
+  readonly level: number
+  /** 저장 이름 = chName 이 비어 있지 않으면 chName, 아니면 nick (R-AUTH-004).
+   *  S3d: messages.addUserMessage 가 D1 author_name 에 저장할 때만 쓴다.
+   *  응답(authorName 은 db toMessage 가 USER_DISPLAY_NAME 으로 투영)·프롬프트(PromptMessage 에 이름 없음)·로그에는 쓰지 않는다 */
+  readonly displayName: string
+}
+```
+
+| 사용처(Grep `displayName`, 2026-10-06) | 용도 | S3d 뒤 |
+|---|---|---|
+| `server/src/messages/service.ts` 90행 `authorName: author.displayName` | `NewMessage.authorName` → D1 `author_name` | 그대로(유일한 소비처) |
+| 응답 `Message.authorName` | 이전: 저장값 그대로 | 유저 메시지 = 「어떠한 의지」 고정([db.md](db.md) §12) |
+| 프롬프트 유저 줄 | 이전: `[유저 {authorName}]` | `[어떠한 의지]`, 이름 입력 없음([llm.md](llm.md) §13.3) |
+| 로그 | 원래 미기록 | 그대로 미기록 |
+
+- 실패 코드·검증 순서·레이트리밋·토큰 형식 불변. env·마이그레이션 없음.
+- 테스트: auth 쪽 `displayName` 도출 테스트(`ch_name` 우선·빈 값이면 `nick`)는 "저장 두 경우" 수용 기준으로 그대로 유효하다. 응답 고정·D1 실명은 [messages.md](messages.md) §12.7(SRV-T-142 개정)·[db.md](db.md) §12.3(SRV-T-269)이 맡는다.
+- 레이트리밋(§2.5): 화면의 전송 1회는 `/user`와 `speak 'auto'` 두 요청이라 같은 분당 버킷에서 2회를 쓴다. 키·한도는 그대로다(기본 20/분 → 전송 최대 10/분). 공유 증명 테스트는 contract의 routes-generate에 요청했다([messages.md](messages.md) §12.7).
+
+| 요구ID | 반영 | 상태 |
+|---|---|---|
+| R-AUTH-004 🔒 개정 | §13 · [db.md](db.md) §12 | ✅(설계) |
+
 ## 변경 이력
 
 | 날짜 | 내용 |
 |---|---|
+| 2026-10-06 | S3d(§13): `Principal.displayName`은 D1 `author_name` 저장 전용으로 명시(응답·프롬프트·로그 미사용). 사용처 표, 전송 1회 = 레이트리밋 2회 메모. 코드·시그니처 변경 없음 |
 | 2026-10-05 | 신규 작성(S2). 교차 벡터 V1~V8 산출(테스트 SECRET) |
 | 2026-10-06 | S3c 설계: §12 주인 판정 — `isOwner`(순수)·`assertOwner`(로그 `owner_denied`·`OWNER_ONLY` 403)·`requireOwner` 미들웨어, `AuthDeps.config.ownerMbIds`(선택, 기본 `[]`), SRV-T-236~238, D-AUTH-15~18 |
 | 2026-10-06 | api.md v0.5 대조: §12.2 D1 미접근(N6)·본문 상한 단계, §12.3 `OWNER_ONLY` 문구 확정(§5.8.2), §12.5 SRV-T-237 변형 ⑥(레이트리밋 미소모), §12.6 E16 미들웨어 줄 |

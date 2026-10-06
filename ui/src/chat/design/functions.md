@@ -109,6 +109,7 @@ export const chatReducer = (state: ChatState, action: ChatAction): ChatState
 | T34 | `speakDiscarded` | 아니면 | 그대로 |
 
 - T1·T2·T3은 `initialChatState`를 펼치므로 `pending`도 null이 된다. 실패 말풍선이 떠 있는 채 재로드(F-CH-23 마지막 삭제 · F-CH-36 `NOT_LAST_MESSAGE`)가 일어나면 실패 말풍선은 사라진다(의도 — 서버에 저장된 것이 없다).
+- **(S3d, CR-002)** `SpeakTarget`(`'auto'`) 타입 확장 · T27·T31 `'auto'` 해석 · 신규 **T35·T36 `sendSucceeded`** · `speakingCharacterOf` · F-CH-17·31·32 개정 · F-CH-42~44는 `design/auto.md` §1·§3이 정본이다. 아래 문장의 "유저 전송 성공에도 남는다"는 S3d에서 전송만 예외(T35가 중립 "…"로 교체).
 - 실패 말풍선(`status==='failed'`)은 유저 전송·수정·삭제·재작성 성공에도 그대로 목록 끝에 남는다. 「재시도」 결과도 목록 끝에 붙으므로 자리가 맞다. 없어지는 경우는 T27(새 생성) · T1~T3(재로드) · T25(전환) · 화면 언마운트(‹ 뒤로 · 방 전환)뿐이다.
 
 ### 1.2 같은 파일의 순수 함수
