@@ -7,6 +7,7 @@ coverage/
 # 로그·환경·비밀값
 *.log
 .dev.log
+.dev-ui.log
 .env
 .env.*
 .dev.vars

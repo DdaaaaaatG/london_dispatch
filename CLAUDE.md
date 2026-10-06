@@ -26,13 +26,13 @@
 ```
 shared/src/     types.ts · errors.ts · endpoints.ts   (contract 타입 단일 소스의 코드판)
 server/         wrangler.toml · .dev.vars.example · migrations/*.sql
-server/src/     index.ts(Hono 앱, fetch/scheduled) · env.ts · db/ auth/ rooms/ messages/ memory/ llm/ · routes/(contract 소유)
-ui/src/         main.tsx · api/(contract 소유) · rooms/ · chat/ · components/ · state/ · styles/
+server/src/     index.ts(Hono 앱, fetch/scheduled) · env.ts · db/ auth/ rooms/ messages/ memory/ llm/ settings/ · routes/(contract 소유)
+ui/src/         main.tsx · api/(contract 소유) · rooms/ · chat/ · settings/(주인 전용) · components/ · state/ · styles/
 doc/            000_프로젝트_확정사항.md · 100_요구조건/ · 200_설계/{server,contract,architecture}/ · 300_검증/ · handoff/
 .claude/        agents/ skills/ commands/ hooks/ scripts/ rules/ reports/ agent-memory/
 ```
 
-- 화면은 둘뿐이다: `ui/src/rooms/`(방 목록), `ui/src/chat/`(대화). 각 화면 폴더에 `requirements.md`, `design.md`, `manual.md`, `test/scenarios.md`, `test/change-requests.md`(CR 대장), 소스.
+- 화면은 셋이다: `ui/src/rooms/`(방 목록), `ui/src/chat/`(대화), `ui/src/settings/`(캐릭터 설정, 갠홈 주인 전용 — S3c). 각 화면 폴더에 `requirements.md`, `design.md`, `manual.md`, `test/scenarios.md`, `test/change-requests.md`(CR 대장), 소스.
 - 설정·비밀값 읽기는 `server/src/env.ts`에서만(Workers `env` 바인딩을 `parseEnv`로 파싱해 값으로 전달). 다른 파일의 `process.env`·`import.meta.env`는 훅이 차단한다.
 
 ## 3. 계층 위상과 경계
@@ -121,7 +121,7 @@ ui (React, iframe)  →  contract (api.md · shared/ · routes/ · ui/src/api/ �
 - 방 여러 개. 메시지 수정·재작성·삭제. 방 단위 장기기억(요약).
 - 보기는 누구나. 쓰기는 갠홈 등급 N 이상 — 갠홈 PHP가 HMAC 토큰을 `?t=`로 발급, 서버가 검증. 토큰 없으면 읽기 전용 화면(쓰기 UI 미렌더).
 - 화면 폭 390px. 저쪽 패널 안 iframe. `frame-ancestors`로 갠홈만 허용.
-- 메인 화면 대사창 연동 안 함. 관리 화면 없음(캐릭터 설정은 코드 상수).
+- 메인 화면 대사창 연동 안 함. 관리 화면은 **캐릭터 설정 화면 하나**만(갠홈 주인 전용 — 토큰 `mbId`가 `OWNER_MB_IDS`에 있을 때. 설정은 D1 저장, `server/characters/*.json`은 기본값 시드). 그 밖의 관리 화면은 없다.
 
 ## 10. 참조 원본
 
