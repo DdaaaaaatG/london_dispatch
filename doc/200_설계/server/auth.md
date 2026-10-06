@@ -1,6 +1,6 @@
 # auth 모듈 설계
 
-- 상태: 초안 · S3c 구현 완료(§12 주인 판정) · **S3d 초안(§13 displayName 저장 전용)** · 최종 갱신: 2026-10-06
+- 상태: 초안 · S3c 구현 완료(§12 주인 판정) · **S3d 구현 완료(2026-10-06, SRV-T-261~278 · §13 displayName 저장 전용)** · 최종 갱신: 2026-10-06
 - 묶음: S2(토큰 + 쓰기). 이 문서의 공개 API는 전부 S2에서 구현한다.
 - 관련 문서: [env.md](env.md)(`tokenSecret`·`tokenMinLevel`·`rateLimitPerMin`), [db.md](db.md)(`rateLimits` 저장소), [index.md](index.md)(서비스 컨테이너·`AppEnv.Variables.principal`·onError의 `retryAfterSec`), [rooms.md](rooms.md)·[messages.md](messages.md)(쓰기 서비스 — 이 모듈의 미들웨어 뒤에서 호출된다).
 
@@ -573,7 +573,7 @@ GET /api/settings/characters · PUT /api/settings/characters        (routes = co
 
 ## 13. S3d — `displayName`은 저장 전용 (R-AUTH-004 🔒 개정)
 
-- 상태: 초안(2026-10-06, 승인 ① 반영). **이 절이 §2.3의 `displayName` 용도 설명보다 우선한다.** auth 코드 변경 없음.
+- 상태: 구현 완료(2026-10-06, server 336/336, SRV-T-261~278) · 설계 승인 ① 반영. **이 절이 §2.3의 `displayName` 용도 설명보다 우선한다.** auth 코드 변경 없음.
 
 비유: 출입증에 적힌 이름은 출석부에 옮겨 적을 때만 쓴다. 무대 자막과 대본에는 쓰지 않는다.
 

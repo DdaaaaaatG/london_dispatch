@@ -1,6 +1,6 @@
 # llm 모듈 설계
 
-- 상태: 초안 · S3b 초안(§12) · S3c 구현 완료(§3.4·§7.3·§8.2·§10.1·§11.1) · **S3d 초안(§13 화자 선택·유저 라벨 고정 — 앞 절과 다르면 §13이 우선)** · 최종 갱신: 2026-10-06
+- 상태: 초안 · S3b 초안(§12) · S3c 구현 완료(§3.4·§7.3·§8.2·§10.1·§11.1) · **S3d 구현 완료(2026-10-06, server 343/343, SRV-T-261~281 · §13 화자 선택·유저 라벨 고정 — 앞 절과 다르면 §13이 우선 · R-LLM-008 개정(이름 지목·선택 15초) 설계 반영)** · 최종 갱신: 2026-10-06
 - 묶음: **S3**(AI 발화). R-LLM-001~006 · R-ENV-003(키 누락 시점) · R-NFR-001(70초 종결). S4 요약(R-MEM-002)은 이 모듈의 `Llm.complete`를 재사용한다(요약 프롬프트·후처리는 S4 memory 설계). **S3b**(월 비용 상한) = R-LLM-007 🔒 · R-API-002 개정(14종째 `LLM_BUDGET_EXCEEDED`) — §12. 응답마다 사용량을 누적하고 speak·regenerate 앞에 예산 게이트를 둔다. S4 요약 호출도 같은 누적 경로(`Llm.complete`)를 탄다.
 - 입력: `doc/000_프로젝트_확정사항.md` §2·§3·§4·§5.2~5.5·§9-3a·§9-4, `doc/100_요구조건/requirements.md`(R-LLM·R-MSG·R-ENV·R-MEM·R-NFR), `rtm.md` S3 행, [env.md](env.md)·[db.md](db.md)·[messages.md](messages.md)·[index.md](index.md)·[auth.md](auth.md), `server/src/{env,app-error,services,app,logger}.ts`, `shared/src/{characters,errors,types,limits}.ts`, api.md §3·§4.0, `doc/state.json` decisions.
 - 관련 문서: [messages.md](messages.md) §2.3·§4.2(speak·regenerate가 이 모듈을 부르는 흐름), [db.md](db.md) §2.3(잠금·조회 함수), [env.md](env.md)(LLM 키 4종).
@@ -1389,16 +1389,16 @@ handoff 메모(contract-designer가 S5 `doc/handoff/`로 옮길 단락):
 
 ## 13. S3d — 화자 선택 · 고정 유저 라벨 (R-LLM-008 · R-LLM-003 🔒 개정 · R-LLM-006 · R-LLM-007 🔒 · R-NFR-001 🔒 개정)
 
-- 상태: 초안(2026-10-06, 승인 ① 반영). 근거 `doc/200_설계/architecture/s3d-02-전반설계.md` §1·§3·§4, 인계패킷 §1.
+- 상태: 구현 완료(2026-10-06, server 343/343, SRV-T-261~281) · 설계 승인 ① 반영 · **R-LLM-008 개정(이름 지목·선택 15초, 2026-10-06 사용자 승인) 반영 — 구현 완료**. 근거 `doc/200_설계/architecture/s3d-02-전반설계.md` §1·§3·§4, 인계패킷 §1.
 - **이 절이 앞 절보다 우선한다.** 대체 대상: §1 R-LLM-003 행의 `[유저 {author_name}]`, §2.4 `PromptMessage`, §2.7 `Llm.complete`·`withRetry`·`planRetryTimeout` 행, §7.1의 유저 줄 라벨·G5·GUARD 3번째 줄·스냅샷의 `[유저 메이린]` 줄, §8 SRV-T-168·170·171 기대값.
 
-비유: 배우를 정하는 쪽지(선택 호출)는 짧고 빨리 돌아야 한다. 8초 안에 답이 없거나 알아볼 수 없으면 무대 감독이 "방금 말하지 않은 배우"를 내보낸다. 쪽지가 실패해도 공연(발화)은 멈추지 않는다.
+비유: 배우를 정하는 쪽지(선택 호출)는 짧고 빨리 돌아야 한다. 15초 안에 답이 없거나 알아볼 수 없으면 무대 감독이 "방금 말하지 않은 배우"를 내보낸다. 쪽지가 실패해도 공연(발화)은 멈추지 않는다. 대사에 배우 이름이 딱 한 명만 불렸으면 쪽지 없이 그 배우가 나간다.
 
 ### 13.1 목적
 
 | 요구ID | 이 절 |
 |---|---|
-| R-LLM-008 | 선택 프롬프트(§13.4)·파싱(§13.5)·기본 화자(§13.5)·1회 시도 8초·재시도 없음·실패해도 요청 성공(§13.6) |
+| R-LLM-008 (2026-10-06 개정) | ① 이름 지목 규칙(§13.5a — 선택 호출 없음) ② 선택 프롬프트(§13.4)·파싱(§13.5)·기본 화자(§13.5)·1회 시도 15초·재시도 없음·발화와 같은 모델·실패해도 요청 성공(§13.6) |
 | R-LLM-003 🔒 개정 | 유저 줄 `[어떠한 의지] {text}`. `PromptMessage`에서 `authorName` 제거 — 이름 주입 경로 소멸(§13.3) |
 | R-LLM-006 | GUARD 3번째 줄 라벨 변경. 선택 프롬프트도 같은 구분자·GUARD 3줄 |
 | R-LLM-007 🔒 | 선택 호출 usage도 같은 `attemptOnce` 경로로 누적(§13.8) |
@@ -1415,7 +1415,7 @@ import type { PromptMessage } from './prompt'
 import type { LlmFailReason, Prompt } from './provider'
 
 /** R-LLM-008: 선택 호출 상한(ms). 재시도 없음. 실제 값 = min(이 값, llmTimeoutMs) */
-export const SELECT_TIMEOUT_MS = 8_000
+export const SELECT_TIMEOUT_MS = 15_000   // 2026-10-06 개정: 8초 → 15초(§13.7 실측 메모)
 /** R-LLM-008: 선택 프롬프트에 넣는 최근 메시지 수. 요약은 넣지 않는다 */
 export const SELECT_HISTORY_MESSAGES = 12
 
@@ -1427,10 +1427,10 @@ export type SelectPromptInput = {
 export type SelectFallbackReason = LlmFailReason | 'unparsable'
 export type SpeakerChoice = {
   readonly speaker: CharacterId
-  readonly source: 'model' | 'fallback'
-  /** source 'model' 이면 null */
+  readonly source: 'mention' | 'model' | 'fallback'
+  /** source 'mention'·'model' 이면 null */
   readonly reason: SelectFallbackReason | null
-  /** 선택 단계 소요(ms, usage 누적 포함). 발화의 spentMs 로 넘긴다 */
+  /** 선택 단계 소요(ms, usage 누적 포함). 지목이면 0. 발화의 spentMs 로 넘긴다 */
   readonly ms: number
 }
 
@@ -1443,6 +1443,8 @@ export const buildSelectPrompt = (
 export const parseSpeakerChoice = (raw: string): CharacterId | null
 /** 기록 안 마지막 캐릭터 발화자의 상대. 캐릭터 발화가 없으면 'sebastian' */
 export const fallbackSpeaker = (history: readonly Pick<PromptMessage, 'speaker'>[]): CharacterId
+/** R-LLM-008 ①(2026-10-06): 마지막 유저 메시지(line·ooc)에 shortName 「세바스찬」·「시엘」 중 정확히 한쪽만 있으면 그 id, 아니면 null(§13.5a) */
+export const mentionedSpeaker = (history: readonly Pick<PromptMessage, 'speaker' | 'text'>[]): CharacterId | null
 
 // server/src/llm/client.ts (델타)
 export type CompleteOptions = {
@@ -1456,7 +1458,7 @@ export type SelectSpeakerInput = SelectPromptInput & {
 export type Llm = {
   complete: (prompt: Prompt, options?: CompleteOptions) => Promise<string>
   ensureBudget: () => Promise<void>
-  /** S3d. 1회 시도(≤ SELECT_TIMEOUT_MS, 재시도 없음), usage 누적. throw 하지 않는다 — 실패는 fallbackSpeaker */
+  /** S3d. 이름 지목이면 제공사 호출 0회(usage 0). 아니면 1회 시도(≤ SELECT_TIMEOUT_MS, 재시도 없음), usage 누적. throw 하지 않는다 — 실패는 fallbackSpeaker */
   selectSpeaker: (input: SelectSpeakerInput) => Promise<SpeakerChoice>
 }
 /** budgetMs 기본값 = LLM_BUDGET_MS(기존 호출 무수정) */
@@ -1481,9 +1483,10 @@ export type PromptMessage = Pick<Message, 'speaker' | 'kind' | 'text'>   // auth
 | `buildSelectPrompt` | `SelectPromptInput, profiles?, common?` | `Prompt` | — | R-LLM-008 · R-LLM-006 |
 | `parseSpeakerChoice` | `raw` | `CharacterId \| null` | — | R-LLM-008 |
 | `fallbackSpeaker` | `history` | `CharacterId` | — | R-LLM-008 |
+| `mentionedSpeaker` (2026-10-06) | `history` | `CharacterId \| null` | — | R-LLM-008 ① |
 | `withRetry` · `planRetryTimeout` | 기존 + `budgetMs?` | 기존 | 기존 | R-NFR-001 |
 
-- `index.ts` 재노출 추가: `buildSelectPrompt`·`parseSpeakerChoice`·`fallbackSpeaker`·`SELECT_TIMEOUT_MS`·`SELECT_HISTORY_MESSAGES`, 타입 `SelectPromptInput`·`SelectFallbackReason`·`SpeakerChoice`·`CompleteOptions`·`SelectSpeakerInput`. `LlmError`는 여전히 내보내지 않는다(`LlmFailReason`은 타입만 따라 나간다).
+- `index.ts` 재노출 추가: `buildSelectPrompt`·`parseSpeakerChoice`·`fallbackSpeaker`·`mentionedSpeaker`·`SELECT_TIMEOUT_MS`·`SELECT_HISTORY_MESSAGES`, 타입 `SelectPromptInput`·`SelectFallbackReason`·`SpeakerChoice`·`CompleteOptions`·`SelectSpeakerInput`. `LlmError`는 여전히 내보내지 않는다(`LlmFailReason`은 타입만 따라 나간다).
 - **`Llm`에 필수 메서드 추가 파급**: `Llm`을 만드는 곳은 `createLlm`뿐이다(S3b 기준 `server/test`의 직접 구현 0건 — 구현 시 Grep `complete:`로 재확인). 컨테이너 배선 변화 없음([index.md](index.md) §12).
 
 ### 13.3 유저 라벨 고정 (R-LLM-003 🔒 개정 · R-LLM-006)
@@ -1545,13 +1548,41 @@ export type PromptMessage = Pick<Message, 'speaker' | 'kind' | 'text'>   // auth
 | F2 | 세바스찬 · 시엘 · 유저(지시) | `'sebastian'` |
 | F3 | 유저만 / 빈 배열 | `'sebastian'` |
 
+### 13.5a 이름 지목 규칙 (R-LLM-008 ① — 2026-10-06 사용자 지정 개정)
+
+비유: 대사에 배우 이름이 딱 한 명만 불렸으면 감독은 쪽지를 돌리지 않고 그 배우를 내보낸다.
+
+`mentionedSpeaker(history)`: ① 기록 끝에서부터 첫 `speaker === 'user'` 메시지(line·ooc 모두)를 찾는다. 없으면 null ② 그 `text`를 `normalize('NFC')` ③ `CHARACTERS[id].shortName`(「세바스찬」·「시엘」)이 들어 있는지 각각 본다 ④ 정확히 한쪽만이면 그 id, 둘 다·둘 다 없음이면 null → 모델 선택(§13.6)으로 간다.
+
+- 한글 shortName만 본다. 영문 `sebastian`·`ciel`이나 「도련님」 같은 호칭은 지목이 아니다(모델 선택에 맡긴다).
+- "마지막 유저 글" = 기록 전체에서 마지막으로 나온 유저 메시지다. 맨 끝이 캐릭터 발화여도 그 앞 유저 글을 본다(승인 2026-10-06). 캐릭터 메시지·요약·더 앞의 유저 글은 보지 않는다.
+- 결과 `SpeakerChoice { speaker, source: 'mention', reason: null, ms: 0 }`. 제공사 호출 0회, `meter.record` 0회, 로그 `speaker_select{ provider, result: 'mention', character, ms: 0 }`(info, reason·outChars·본문 없음). messages의 `speaker_select_fallback` warn은 나오지 않는다.
+- 포함 판정이라 다른 낱말 안의 「시엘」도 맞는다. 이 방의 인물 범위에서 수용한다(D-LLM-29).
+
+| 벡터 | 기록(오래된→새) | 기대 |
+|---|---|---|
+| M1 | 유저 `세바스찬, 차를 내와` | `'sebastian'` |
+| M2 | 유저 `  시엘은 어디 갔지?  ` | `'ciel'` |
+| M3 | 유저 `세바스찬과 시엘이 마주 본다` | `null`(둘 다 → 모델 선택) |
+| M4 | 유저 `창밖으로 안개가 짙어진다` | `null`(이름 없음 → 모델 선택) |
+| M5 | 유저(지시) `시엘이 짜증 난 듯 반응해 줘` | `'ciel'`(지시도 지목) |
+| M6 | 빈 기록 | `null` |
+| M7 | 시엘 `세바스찬`(캐릭터 글만) | `null`(캐릭터 글은 보지 않는다) |
+| M8 | 유저 `시엘` · 세바스찬 `세바스찬 본인` | `'ciel'`(맨 끝이 캐릭터 발화여도 그 앞 유저 글) |
+| M9 | 유저 `시엘` · 유저 `세바스찬` | `'sebastian'`(마지막 유저 글만 본다) |
+
+- 표는 SRV-T-279(`server/test/llm-select.test.ts`)의 실물 단언 9개와 1:1이다. 영문 미적용 규칙은 위 규칙 문장으로만 둔다(전용 단언 없음).
+
 ### 13.6 선택 호출 흐름 (`client.ts`)
 
 ```
 selectSpeaker({ history, profiles, common })
   start = now()
+  id = mentionedSpeaker(history)                           ── R-LLM-008 ①: 지목이면 여기서 끝(제공사 호출 0 · usage 0)
+  id !== null → logger.info('speaker_select', { provider, result: 'mention', character: id, ms: 0 })
+               return { speaker: id, source: 'mention', reason: null, ms: 0 }
   prompt = buildSelectPrompt({ history }, profiles, common)
-  t = min(SELECT_TIMEOUT_MS, timeoutMs)                    ── 보통 8000
+  t = min(SELECT_TIMEOUT_MS, timeoutMs)                    ── 보통 15000
   try   out = await attemptOnce(prompt, t)                 ── 기존 attemptOnce: usage 누적(성공·차단·형식 불일치 응답)
   catch e → reason = asLlmError(e).reason                 ── timeout·network·http_429·http_4xx·http_5xx·bad_response·blocked
   else   id = parseSpeakerChoice(out.text); id === null → reason = 'unparsable'
@@ -1568,18 +1599,23 @@ selectSpeaker({ history, profiles, common })
 
 | 단계 | 상한 |
 |---|---|
-| 선택 | `min(8초, llmTimeoutMs)` + usage 누적 D1 1왕복 → `choice.ms` |
+| 지목 | 0초(제공사 호출 없음) → `choice.ms` 0 → `spentMs` 0, 발화 1차 `min(llmTimeoutMs, 66초)` |
+| 선택 | `min(15초, llmTimeoutMs)` + usage 누적 D1 1왕복 → `choice.ms` |
 | 발화 예산 | `budgetMs = LLM_BUDGET_MS − spentMs`. `budgetMs < MIN_RETRY_TIMEOUT_MS`면 호출 없이 `LLM_FAILED`(`llm_failed{budget: true, attempts: 0}`) — 실제로는 도달하지 않는 방어 |
-| 발화 1차 | `min(llmTimeoutMs, budgetMs)` → 선택 8초면 58초 |
+| 발화 1차 | `min(llmTimeoutMs, budgetMs)` → 선택 15초면 51초 |
 | 발화 2차 | `planRetryTimeout(timeoutMs, elapsed, budgetMs)` — 남은 예산 − 1초가 2초 이상일 때만 |
-| 최악 | 8 + 58 = 66초. D1 여유 4초 → 70초 |
+| 최악 | 15 + 51 = 66초. D1 여유 4초 → 70초 |
 
 - `withRetry` 1차 타임아웃을 `Math.min(timeoutMs, budgetMs)`로, `planRetryTimeout`의 `LLM_BUDGET_MS`를 `budgetMs`로 바꾼다. 기본값이 `LLM_BUDGET_MS`라 `spentMs` 없는 호출(버튼·regenerate·S4 요약)과 기존 SRV-T-180~184·208은 그대로다.
+- 구현 메모(2026-10-06): 예산 부족(`66초 − spentMs`가 2초 미만)은 `complete` 안에서 `LlmError`(reason `timeout`)를 던져 기존 `llm_failed` 경로를 탄다. 결과는 `LLM_FAILED`·`budget: true`·`attempts: 0`으로 설계와 같다.
+- 실측 메모(2026-10-06, 사용자 제공): 발화와 같은 모델(Pro)의 선택 응답이 한가한 시간대에 3.7초·생각 토큰 119개였다. 느린 시간대에는 8초를 넘는 경우가 관찰됐다. 그래서 선택 타임아웃을 8초에서 15초로 올렸다(R-LLM-008 개정). 최악 15 + 51 = 66초라 70초 상한은 그대로다.
+- **모델은 그대로다(사용자 지정 🔒).** 선택 호출에 가벼운 모델이나 thinkingConfig를 쓰지 않는다.
 
 ### 13.8 비용 누적 (R-LLM-007 🔒)
 
 - 선택은 `attemptOnce`를 쓰므로 응답 usage가 발화와 같은 `meter.record`로 누적된다. 실패 응답에 usage가 있으면 그것도 누적한다.
 - 예산 게이트는 요청당 1회(messages ③). 선택이 한도를 넘겨도 같은 요청의 발화는 계속한다(D-MSG-28).
+- 이름 지목 경로는 제공사를 부르지 않아 사용량 0이다(`meter.record` 0회).
 - 추정(실측 아님): 선택 1회 약 1.7원 · 전송 1회 약 6원(02 §3).
 
 ### 13.9 테스트
@@ -1592,14 +1628,16 @@ selectSpeaker({ history, profiles, common })
 | SRV-T-262 | `fallbackSpeaker_vectors_F1_to_F3` | §13.5 표 | R-LLM-008 |
 | SRV-T-263 | `buildSelectPrompt_snapshot_with_and_without_role` | 시드 설정 스냅샷 1 · role 빈 설정에서 ` — ` 생략 1 | R-LLM-008 |
 | SRV-T-264 | `buildSelectPrompt_keeps_history_in_block_last_12_without_summary_or_names` | 기록 15개 → 끝 12개만·순서 유지, 구분자 1쌍, `system`에 기록 0회, `[대화 기록 취급]` 3줄 = 발화 프롬프트와 같음, role의 `<<` defang, `Message` 값의 `authorName` 감시 문자열 0회 | R-LLM-006 · R-LLM-008 |
+| SRV-T-279 | `mentionedSpeaker_vectors_M1_to_M6` | §13.5a 표 M1~M9(실물 단언 9개) — 파일 `llm-select.test.ts` | R-LLM-008 ① |
 
 `server/test/llm-client.test.ts`에 추가:
 
 | 테스트ID | 이름 | 기대 | 요구 |
 |---|---|---|---|
-| SRV-T-265 | `selectSpeaker_single_attempt_with_8s_timeout_and_usage` | 각본 `'ciel'` → `{speaker:'ciel', source:'model', reason:null}`, `calls[0].timeoutMs === 8000`, meter 기록 1회. `timeoutMs 3000` 설정이면 3000 | R-LLM-008 · R-LLM-007 |
+| SRV-T-265 | `selectSpeaker_single_attempt_with_8s_timeout_and_usage` | 각본 `'ciel'` → `{speaker:'ciel', source:'model', reason:null}`, `calls[0].timeoutMs === 15000`, meter 기록 1회. `timeoutMs 3000` 설정이면 3000 | R-LLM-008 · R-LLM-007 |
 | SRV-T-266 | `selectSpeaker_falls_back_without_retry_and_never_throws` | 각본 `timeout`·`network`·`http_5xx`·`http_429`·`blocked`(usage 포함)·`'모르겠다'` 각각 → `source 'fallback'`·해당 `reason`, 각 호출 1회, usage 있는 실패는 누적, `speaker_select` 로그에 원문 없음 | R-LLM-008 |
-| SRV-T-267 | `complete_spentMs_shrinks_budget` | `spentMs 8000` → 1차 `timeoutMs` 58000, 1차 +1000 network 뒤 2차 56000 · `spentMs 65000` → 호출 0회 `LLM_FAILED` · 옵션 생략 → 기존과 같은 값 | R-NFR-001 |
+| SRV-T-267 | `complete_spentMs_shrinks_budget` | `spentMs 8000` → 1차 `timeoutMs` 58000, 1차 +1000 network 뒤 2차 56000(입력값 시험이라 선택 상한과 무관 — 실물 유지) · `spentMs 65000` → 호출 0회 `LLM_FAILED` · 옵션 생략 → 기존과 같은 값 | R-NFR-001 |
+| SRV-T-280 | `selectSpeaker_mention_skips_provider_and_usage` — 파일 `llm-client.test.ts` | 마지막 유저 글 `시엘, 이리 와` → `{speaker:'ciel', source:'mention', reason:null}`, `fake.calls` 0, meter 기록 0, 로그 `speaker_select{provider, result:'mention', character:'ciel', ms:0}`(reason·outChars·본문 없음). SRV-T-265·266의 기록은 마지막 유저 글에 이름을 넣지 않는다 | R-LLM-008 ① · R-LLM-007 |
 
 `server/test/llm-prompt.test.ts`에 추가:
 
@@ -1620,17 +1658,17 @@ selectSpeaker({ history, profiles, common })
 
 `llm-client.test.ts`·`llm-gemini.test.ts`·`llm-usage.test.ts`는 무수정(기본값 유지). S3c R-SET-006 "빈 필드면 기존 스냅샷 무수정 통과"는 GUARD·라벨 변경분만큼 의도적으로 깨진다(02 §6).
 
-수동(실제 Gemini, `.dev.vars` 로컬): ① "세바스찬, 차를 내와" 입력 후 전송 → 세바스찬 ② "도련님, 오늘 일정은?"(시엘을 부름) → 시엘 ③ `wrangler tail`에서 `speaker_select.ms`가 8초 아래, 대부분 `result 'model'`인지 본다.
+수동(실제 Gemini, `.dev.vars` 로컬): ① "세바스찬, 차를 내와" 입력 후 전송 → 세바스찬(`result 'mention'`, 선택 호출 0) ② "도련님, 오늘 일정은?"(시엘을 부름) → 시엘 ③ `wrangler tail`에서 `result 'model'`의 `speaker_select.ms`가 15초 아래인지, 이름을 부른 글에서 `result 'mention'`인지 본다.
 
 ### 13.10 contract 요구 명세
 
-- shared `USER_DISPLAY_NAME`(`characters.ts`)·`SpeakTarget`(`types.ts`)을 import만 한다(contract-implementer가 먼저 추가). 엔드포인트·에러 코드 추가 없음. api.md §4.12 시간 내역에 "선택 최대 8초(재시도 없음) + 발화 남은 예산"을 적어 달라.
+- shared `USER_DISPLAY_NAME`(`characters.ts`)·`SpeakTarget`(`types.ts`)을 import만 한다(contract-implementer가 먼저 추가). 엔드포인트·에러 코드 추가 없음. api.md §4.12 시간 내역에 "선택 최대 15초(재시도 없음, 이름 지목이면 0회) + 발화 남은 예산"을 적어 달라.
 
 ### 13.11 요구 추적
 
 | 요구ID | 반영 절 | 테스트ID | 상태 |
 |---|---|---|---|
-| R-LLM-008 | §13.2·§13.4~§13.6 | SRV-T-261~266 · SRV-T-270~273(messages) | ✅(설계) |
+| R-LLM-008 (개정) | §13.2·§13.4~§13.7 | SRV-T-261~266·279·280 · SRV-T-270~273·281(messages) | ✅(설계) |
 | R-LLM-003 🔒 개정 | §13.3 | SRV-T-167·168·171 개정 · SRV-T-268 | ✅(설계) |
 | R-LLM-006 | §13.3·§13.4 | SRV-T-170 개정 · SRV-T-264 | ✅(설계) |
 | R-LLM-007 🔒 | §13.8 | SRV-T-265·266 · SRV-T-274(messages) | ✅(설계) |
@@ -1645,13 +1683,19 @@ selectSpeaker({ history, profiles, common })
 | D-LLM-26 | 남은 예산을 `CompleteOptions.spentMs`로 넘긴다 | 시작 시각 전달 · `Llm` 인스턴스에 상태 | 순수 값 전달, 전역·인스턴스 상태 없음. 기본 0이라 기존 호출 무수정 |
 | D-LLM-27 | 후보 이름은 shared 고정 표시명, 설명은 설정 `role` 한 줄 | 설정 `persona` 일부 | 짧은 입력(약 1.5천 토큰 추정). role이 비면 이름만 |
 | D-LLM-28 | GUARD_RULES·구분자·`toDataLine`을 선택 프롬프트와 공유 | 선택 전용 문구 | 주입 완화 규칙이 한 상수에서만 바뀐다 |
+| D-LLM-29 | 이름 지목은 마지막 유저 글의 한글 shortName 포함 여부만 본다. 맞으면 선택 호출을 건너뛴다 | 늘 모델 선택 · 형태소·호칭 판정 | 사용자 지정(2026-10-06). 대기·비용 0, 결과를 예측할 수 있다. 포함 판정의 오탐(다른 낱말 안의 이름)은 수용 |
+| D-LLM-30 | 선택 타임아웃 15초, 모델은 발화와 같다 🔒 | 8초 유지 · 가벼운 모델 · thinkingConfig 조정 | 사용자 지정(2026-10-06). 느린 시간대에 8초 초과가 관찰됐다(§13.7 실측 메모). 모델·생각 설정은 사용자 🔒으로 바꾸지 않는다 |
 
-확인 필요(사용자 판단 후보, 이번 설계에 넣지 않음): ① 선택 호출만 Gemini "생각(thinking)" 토큰을 끄면 대기·비용이 줄 수 있다. 어댑터 입력(`GenerateInput`, R-LLM-001)에 옵션을 더해야 하므로 실측 뒤 판단한다. ② 후보 순서(sebastian 먼저)가 선택을 한쪽으로 기울이는지 운영 로그(`speaker_select`)로 본다.
+운영 관찰(설계 변경 아님): 후보 순서(sebastian 먼저)가 모델 선택을 한쪽으로 기울이는지 `speaker_select` 로그로 본다.
 
 ## 변경 이력
 
 | 날짜 | 내용 |
 |---|---|
+| 2026-10-06 | 마감 동기화(server 343/343): 상태 줄 문구 확정, §13.5a 지목 벡터를 SRV-T-279 실물 단언 9개(M1~M9)로 교체, SRV-T-280 기대에서 실물에 없는 "이름 둘 다" 문장 삭제. 번호·파일은 실물 기준(279 `llm-select` · 280 `llm-client` · 281 `messages-generate`). 값 갱신 ID 265·270·273·276, 267은 spentMs 직접 주입이라 무수정(8000·58000·56000) |
+| 2026-10-06 | 구현 동기화(343/343, SRV-T-261~281): 지목 `ms: 0`·로그 `speaker_select{provider, result:'mention', character, ms:0}`(reason·outChars 없음), "마지막 유저 글" = 기록 전체의 마지막 유저 메시지(맨 끝이 캐릭터여도 — 승인), 벡터 M7 추가, 테스트 번호를 실물에 맞춤(279 지목 벡터 · 280 호출·사용량 0 · 281 서비스 경로) |
+| 2026-10-06 | R-LLM-008 개정(사용자 승인) 설계 반영: §13.5a 이름 지목 규칙(`mentionedSpeaker`, `source 'mention'`, 호출·사용량 0, 벡터 M1~M6), 선택 타임아웃 8초 → 15초(`SELECT_TIMEOUT_MS`), §13.6 흐름·§13.7 분배(15 + 51 = 66초)·실측 메모·모델 🔒, §13.8 지목 사용량 0, SRV-T-265·267 값 갱신, SRV-T-280·281 추가, D-LLM-29·30, 모델 관련 확인 필요 항목 삭제 |
+| 2026-10-06 | S3d 구현 완료 표기(server 336/336, SRV-T-261~278). §13.7 구현 메모 1줄: 예산 부족은 `complete` 안 `LlmError`(reason `timeout`) → 기존 `llm_failed` 경로(`LLM_FAILED`·`budget: true`·`attempts: 0`, 설계와 같음) |
 | 2026-10-06 | S3d 설계(§13): 유저 라벨 `[어떠한 의지]`·GUARD 3번째 줄·`PromptMessage.authorName` 제거·G5 폐기, `select.ts`(`buildSelectPrompt`·`parseSpeakerChoice`·`fallbackSpeaker`·상수 8초/12개), `Llm.selectSpeaker`(1회·재시도 없음·usage 누적·throw 없음·로그 `speaker_select`), `CompleteOptions.spentMs`·`withRetry`/`planRetryTimeout`의 `budgetMs?`(66초 분배), SRV-T-261~268, 기존 SRV-T-167·168·170·171·252 개정 목록, D-LLM-24~28 |
 | 2026-10-06 | S3 초안 작성(신규) |
 | 2026-10-06 | 구현 동기화: 재시도 판정을 `t2 < 2000`에서 "남은 예산 < 2000"으로 정정(§2.3·§4.2·D-LLM-3, §4.2 표에 `timeoutMs 1000` 행 추가). 테스트 파일을 `llm-{prompt,gemini,client}.test.ts` 3개로 분리 반영(§3·§8) |

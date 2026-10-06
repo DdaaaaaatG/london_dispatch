@@ -1,6 +1,6 @@
 # index(Workers 진입점·공통 기반) 설계
 
-- 상태: S1 확정(구현 동기화) · S2 초안 · S3 초안(§2.3 컨테이너 델타) · S3b 초안(§2.3 meter 배선·§2.4·§5·§6.1 델타) · S3c 구현 완료(§2.3.1 settings 배선·§3.1.2·§5.3·§6.2) · **S3d 초안(§12 배선 변화 없음)** · 최종 갱신: 2026-10-06
+- 상태: S1 확정(구현 동기화) · S2 초안 · S3 초안(§2.3 컨테이너 델타) · S3b 초안(§2.3 meter 배선·§2.4·§5·§6.1 델타) · S3c 구현 완료(§2.3.1 settings 배선·§3.1.2·§5.3·§6.2) · **S3d 구현 완료(2026-10-06, server 343/343, SRV-T-261~281 · §12 배선 변화 없음)** · 최종 갱신: 2026-10-07
 - 묶음: S1 = `fetch` 진입·Hono 앱 조립·부트스트랩·보안 헤더·공통 에러 핸들러·로거·`/embed` 서빙·health 서비스·`wrangler.toml`. S2 = 서비스 컨테이너에 `auth`·`config` 주입, `AppEnv.Variables.principal`, 인증 미들웨어의 **라우트 단위** 적용 원칙, `RATE_LIMITED`의 `retryAfterSec` 응답 변환. `scheduled` 진입은 S2에서 **추가하지 않는다**(레이트리밋 정리는 요청 경로에서 — [auth.md](auth.md) D-AUTH-7). S4(요약)에서 필요하면 추가한다.
 - 라우트(`server/src/routes/`)는 contract 소유다. 이 문서는 **라우트를 정의하지 않고**, 라우트가 쓸 타입·서비스·규약만 정한다.
 - 관련 문서: [env.md](env.md), [db.md](db.md), [auth.md](auth.md), [rooms.md](rooms.md), [messages.md](messages.md).
@@ -646,7 +646,7 @@ run_worker_first = true                     # 정적 파일 요청도 Worker 를
 
 ## 12. S3d — 배선 변화 없음 (R-MSG-009 · R-LLM-008 · R-NFR-001 🔒 개정)
 
-- 상태: 초안(2026-10-06, 승인 ① 반영). 결론: **`services.ts`·`app.ts`·`index.ts`·`wrangler.toml`·onError 변환표는 바뀌지 않는다.**
+- 상태: 구현 완료(2026-10-06, server 343/343, SRV-T-261~281) · 설계 승인 ① 반영. 결론: **`services.ts`·`app.ts`·`index.ts`·`wrangler.toml`·onError 변환표는 바뀌지 않는다.**
 
 비유: 새 배우를 들이는 게 아니라 무대 감독(speak)이 쪽지 한 장(선택 호출)을 더 쓰는 일이라, 극장 배선(컨테이너)은 그대로다.
 
@@ -665,6 +665,7 @@ run_worker_first = true                     # 정적 파일 요청도 Worker 를
 | onError·코드별 status(§5.2·§5.3) | 없음. 새 에러 코드 0 |
 | 70초 종결(R-NFR-001 🔒) | 유지. 선택 8초 + 발화가 LLM 단계 66초를 나눠 쓴다([llm.md](llm.md) §13.7). D1 여유 4초 가정 그대로 |
 | 로그 키(§3.3 규칙 적용) | 추가: `speaker_select`(info, llm — `provider·result·reason·httpStatus?·outChars?·ms`), `speaker_select_fallback`(warn, messages — `roomId·reason`). `speak_done`은 `'auto'`일 때만 `auto·selected` 필드 추가. 본문·이름·모델 원문 미기록(R-NFR-004) |
+| 로그 — 이름 지목(R-LLM-008 ①) | `speaker_select{provider, result:'mention', character, ms:0}`(info, reason·outChars 없음) · `speak_done{…, auto: true, selected: 'mention'}` · 지목이면 `speaker_select_fallback`(warn)은 남지 않는다 |
 | 마이그레이션 | 없음. 배포는 `wrangler deploy` 1회 |
 
 - 테스트: 컨테이너 배선 테스트(SRV-T-256 배선 케이스 등)는 무수정. `'auto'` 경로는 [messages.md](messages.md) §12.7·[llm.md](llm.md) §13.9가 맡는다.
@@ -678,6 +679,7 @@ run_worker_first = true                     # 정적 파일 요청도 Worker 를
 
 | 날짜 | 내용 |
 |---|---|
+| 2026-10-07 | §12 로그 키에 이름 지목 형태 1행 추가(`speaker_select` mention·`speak_done.selected 'mention'`·fallback warn 없음), 상태 줄 "구현 완료(server 343/343, SRV-T-261~281)" — 구현 실물 기준 |
 | 2026-10-06 | S3d(§12): 배선·env·라우트 등록·onError·마이그레이션 변화 없음 확인, 로그 키 `speaker_select`·`speaker_select_fallback`·`speak_done.auto·selected` 추가 기록, 70초 분배 참조 |
 | 2026-10-05 | S1 초안 작성 |
 | 2026-10-05 | S1 구현 동기화(상태 확정): `AppError(code, message?, options?)`(status는 `ERROR_STATUS`), `HealthStatus = HealthResponse`, `compatibility_date = 2026-08-15`. S2 설계: `ServiceDeps.config`·`Services.auth`·`Variables.principal?`, §3.1.1 인증 미들웨어 라우트 단위 원칙, `retryAfterSec` 변환(§2.4·§5.1), 로그 이벤트, SRV-T-160~162, D-IDX-9~11. `scheduled`는 S2에서 추가하지 않음 |

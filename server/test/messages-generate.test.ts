@@ -857,3 +857,217 @@ describe('S3c 설정 읽기', () => {
     expect(reads).toBe(2)
   })
 })
+
+// ---- S3d (SRV-T-270~278) — doc/200_설계/server/messages.md §12.7. 각본 0번째는 선택 호출 ----
+describe("speak 'auto' (S3d)", () => {
+  beforeEach(resetDb)
+
+  const insertCiel = async (roomId: string, text: string, createdAt: number): Promise<void> => {
+    await env.DB.prepare(
+      "INSERT INTO messages (room_id, speaker, kind, text, created_at) VALUES (?1, 'ciel', 'line', ?2, ?3)",
+    )
+      .bind(roomId, text, createdAt)
+      .run()
+  }
+  const SPEAK_SYSTEM = (character: 'sebastian' | 'ciel'): string =>
+    buildSpeakPrompt({ character, summary: null, history: [] }).system
+  const evt = (logs: Log[], event: string): Log[] => logs.filter(l => l.event === event)
+  const timeoutAfter =
+    (clock: { t: number }, ms: number): (() => Promise<never>) =>
+    async () => {
+      clock.t += ms
+      throw new LlmError('timeout')
+    }
+
+  it('SRV-T-270 speak_auto_saves_model_choice_ciel', async () => {
+    await insertRoom('a', 'A', 1, 100)
+    await insertCiel('a', '시엘 발화', 1)
+    await insertUser('a', '유저 발화', 2)
+    const s = setup([{ text: 'ciel' }, { text: '대사' }])
+    const m = await s.svc.speak('a', { character: 'auto' }, s.bg)
+    expect(m).toMatchObject({ speaker: 'ciel', kind: 'line', text: '대사' })
+    expect(s.fake.calls).toHaveLength(2)
+    expect(s.fake.calls[0]?.timeoutMs).toBe(15_000)
+    expect(s.fake.calls[1]?.system).toBe(SPEAK_SYSTEM('ciel'))
+    expect(evt(s.logs, 'speak_done')[0]).toMatchObject({
+      character: 'ciel',
+      auto: true,
+      selected: 'model',
+    })
+  })
+
+  it('SRV-T-271 speak_auto_accepts_korean_choice_sebastian', async () => {
+    await insertRoom('a', 'A', 1, 100)
+    await insertLine('a', '세바스찬 발화', 1)
+    await insertUser('a', '유저 발화', 2)
+    const s = setup([{ text: '세바스찬.' }, { text: '대사' }])
+    const m = await s.svc.speak('a', { character: 'auto' }, s.bg)
+    expect(m.speaker).toBe('sebastian')
+    expect(evt(s.logs, 'speak_done')[0]).toMatchObject({ selected: 'model' })
+    expect(s.logs.filter(l => l.level === 'warn')).toHaveLength(0)
+  })
+
+  it('SRV-T-272 speak_auto_falls_back_on_unparsable_choice', async () => {
+    await insertRoom('a', 'A', 1, 100)
+    await insertLine('a', '세바스찬 발화', 1)
+    await insertUser('a', '비밀_유저_본문', 2)
+    const s = setup([{ text: '모르겠다' }, { text: '대사' }])
+    const m = await s.svc.speak('a', { character: 'auto' }, s.bg)
+    expect(m.speaker).toBe('ciel')
+    const warns = evt(s.logs, 'speaker_select_fallback')
+    expect(warns).toHaveLength(1)
+    expect(warns[0]).toMatchObject({ level: 'warn', roomId: 'a', reason: 'unparsable' })
+    const all = JSON.stringify(s.logs)
+    expect(all).not.toContain('모르겠다')
+    expect(all).not.toContain('비밀_유저_본문')
+  })
+
+  it('SRV-T-273 speak_auto_falls_back_after_select_timeout_then_speaks', async () => {
+    await insertRoom('a', 'A', 1, 100)
+    await insertUser('a', '유저만', 1)
+    const holder: { s?: Setup } = {}
+    const s = setup([
+      async () => {
+        if (holder.s !== undefined) holder.s.clock.t += 15_000
+        throw new LlmError('timeout')
+      },
+      { text: '대사' },
+    ])
+    holder.s = s
+    const m = await s.svc.speak('a', { character: 'auto' }, s.bg)
+    expect(m.speaker).toBe('sebastian')
+    expect(s.fake.calls).toHaveLength(2)
+    expect(evt(s.logs, 'speaker_select_fallback')[0]).toMatchObject({ reason: 'timeout' })
+  })
+
+  it('SRV-T-274 speak_auto_records_usage_for_both_calls_and_gate_blocks_before_select', async () => {
+    await insertRoom('a', 'A', 1, 100)
+    await insertUser('a', '안녕', 1)
+    const MONTH = kstMonthKey(T0)
+    const s = setup([{ text: 'ciel' }, { text: '대사' }], { meter: true })
+    await s.svc.speak('a', { character: 'auto' }, s.bg)
+    expect(s.fake.calls).toHaveLength(2)
+    expect((await usageRow(MONTH))?.calls).toBe(2)
+
+    await env.DB.prepare('DELETE FROM llm_usage').run()
+    await insertUsage(MONTH, 100000, 7)
+    const over = setup([{ text: 'ciel' }, { text: 'x' }], { meter: true })
+    expect(await codeOf(over.svc.speak('a', { character: 'auto' }, over.bg))).toBe(
+      'LLM_BUDGET_EXCEEDED',
+    )
+    expect(over.fake.calls).toHaveLength(0)
+    expect(await lockOf('a')).toBeNull()
+  })
+
+  it('SRV-T-275 speak_auto_shares_speak_lock', async () => {
+    await insertRoom('a', 'A', 1, 100)
+    await insertRoom('b', 'B', 1, 100)
+    await env.DB.prepare('UPDATE rooms SET speaking_until = ?1 WHERE id = ?2')
+      .bind(T0 + 50_000, 'b')
+      .run()
+    const locked = setup([{ text: 'ciel' }, { text: 'x' }])
+    expect(await codeOf(locked.svc.speak('b', { character: 'auto' }, locked.bg))).toBe(
+      'SPEAK_IN_PROGRESS',
+    )
+    expect(locked.fake.calls).toHaveLength(0)
+
+    const gate = deferred()
+    const started = deferred()
+    const hold: FakeStep = async () => {
+      started.resolve()
+      await gate.promise
+      return { text: 'ciel' }
+    }
+    const s = setup([hold, { text: '대사' }, { text: '다른 대사' }])
+    const first = s.svc.speak('a', { character: 'auto' }, s.bg)
+    await started.promise
+    const second = s.svc.speak('a', { character: 'sebastian' }, s.bg)
+    expect(await codeOf(second)).toBe('SPEAK_IN_PROGRESS')
+    gate.resolve()
+    expect((await first).speaker).toBe('ciel')
+    expect(s.fake.calls).toHaveLength(2)
+  })
+
+  it('SRV-T-276 speak_auto_finishes_within_66s_llm_budget', async () => {
+    await insertRoom('a', 'A', 1, 100)
+    await insertUser('a', '안녕', 1)
+    const holderA: { s?: Setup } = {}
+    const clockOf = (): { t: number } => {
+      if (holderA.s === undefined) throw new Error('setup missing')
+      return holderA.s.clock
+    }
+    const a = setup([
+      async () => timeoutAfter(clockOf(), 15_000)(),
+      async i => timeoutAfter(clockOf(), i.timeoutMs)(),
+    ])
+    holderA.s = a
+    expect(await codeOf(a.svc.speak('a', { character: 'auto' }, a.bg))).toBe('LLM_FAILED')
+    expect(a.fake.calls).toHaveLength(2)
+    expect(a.fake.calls[1]?.timeoutMs).toBe(51_000)
+    expect(a.clock.t - T0).toBeLessThanOrEqual(70_000)
+    expect(await lockOf('a')).toBeNull()
+
+    const holderB: { s?: Setup } = {}
+    const b = setup([
+      async () => timeoutAfter(holderB.s?.clock ?? { t: 0 }, 15_000)(),
+      async () => {
+        if (holderB.s !== undefined) holderB.s.clock.t += 1000
+        throw new LlmError('network')
+      },
+      { text: '대사' },
+    ])
+    holderB.s = b
+    const m = await b.svc.speak('a', { character: 'auto' }, b.bg)
+    expect(m.text).toBe('대사')
+    expect(b.fake.calls[2]?.timeoutMs).toBe(49_000)
+  })
+
+  it('SRV-T-277 speak_auto_then_regenerate_keeps_character_without_select', async () => {
+    await insertRoom('a', 'A', 1, 100)
+    await insertUser('a', '안녕', 1)
+    const s = setup([{ text: 'ciel' }, { text: '첫 대사' }, { text: '다시' }])
+    const m = await s.svc.speak('a', { character: 'auto' }, s.bg)
+    expect(m.speaker).toBe('ciel')
+    const r = await s.svc.regenerate(m.id)
+    expect(s.fake.calls).toHaveLength(3)
+    expect(s.fake.calls[2]?.system).toBe(SPEAK_SYSTEM('ciel'))
+    expect([r.speaker, r.text]).toEqual(['ciel', '다시'])
+  })
+
+  it('SRV-T-278 speak_rejects_invalid_targets_before_llm_and_db', async () => {
+    await insertRoom('a', 'A', 1, 100)
+    const s = setup([{ text: 'x' }])
+    for (const bad of ['Auto', '', null, undefined, 'user', ' auto']) {
+      expect(await codeOf(s.svc.speak('a', { character: bad as never }, s.bg))).toBe(
+        'VALIDATION_ERROR',
+      )
+    }
+    expect(s.fake.calls).toHaveLength(0)
+    expect(await lockOf('a')).toBeNull()
+  })
+})
+
+describe("speak 'auto' 이름 지목 (R-LLM-008 개정)", () => {
+  beforeEach(resetDb)
+
+  it('SRV-T-281 speak_auto_mention_skips_select_call_and_still_speaks', async () => {
+    await insertRoom('a', 'A', 1, 100)
+    await insertLine('a', '세바스찬 발화', 1)
+    await insertUser('a', '시엘, 이쪽으로 와', 2)
+    const s = setup([{ text: '대사' }], { meter: true })
+    const m = await s.svc.speak('a', { character: 'auto' }, s.bg)
+    expect(m.speaker).toBe('ciel')
+    expect(s.fake.calls).toHaveLength(1)
+    expect((await usageRow(kstMonthKey(T0)))?.calls).toBe(1)
+    expect(s.logs.filter(l => l.event === 'speaker_select_fallback')).toHaveLength(0)
+    expect(s.logs.find(l => l.event === 'speak_done')).toMatchObject({
+      character: 'ciel',
+      auto: true,
+      selected: 'mention',
+    })
+    expect(s.logs.find(l => l.event === 'speaker_select')).toMatchObject({
+      result: 'mention',
+      character: 'ciel',
+    })
+  })
+})

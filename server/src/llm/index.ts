@@ -1,10 +1,10 @@
 /**
  * [목적] llm 모듈 공개 진입. 제공사 어댑터 뒤에 숨은 AI 발화 생성(프롬프트 조립·재시도·후처리·캐릭터 상수). 요구 R-LLM-001~006, R-ENV-003, R-NFR-001. 설계 llm.md
- * [공개 API] createProvider, createLlm, createUsageMeter(S3b), withRetry, planRetryTimeout, buildSpeakPrompt, postprocessLine, CHARACTER_PROFILES, COMMON_PROMPT, isCharacterId, parseCharacterFiles, DEFAULT_CHARACTER_SETTINGS·toPromptSettings·DEFAULT_PROMPT_SETTINGS(S3c), FakeProvider 등(아래 export)
+ * [공개 API] createProvider, createLlm, createUsageMeter(S3b), buildSelectPrompt·parseSpeakerChoice·fallbackSpeaker(S3d), withRetry, planRetryTimeout, buildSpeakPrompt, postprocessLine, CHARACTER_PROFILES, COMMON_PROMPT, isCharacterId, parseCharacterFiles, DEFAULT_CHARACTER_SETTINGS·toPromptSettings·DEFAULT_PROMPT_SETTINGS(S3c), FakeProvider 등(아래 export)
  * [비동기] Llm.complete 만 await(제공사 fetch). 1차 실패(network·timeout·5xx) 시 1초 뒤 1회 재시도, LLM 단계 ≤ 66초
  * [에러] AppError LLM_FAILED·LLM_EMPTY(502). 키 누락 CONFIG_INVALID 는 호출 전 requireLlmApiKey(env 모듈)가 낸다. LlmError 는 모듈 밖으로 나가지 않는다
  * [설정] provider·apiKey·model·timeoutMs 를 컨테이너가 Config 에서 골라 값으로 전달(바인딩 직접 읽기 없음)
- * [테스트] server/test/llm-prompt.test.ts, llm-gemini.test.ts, llm-client.test.ts (SRV-T-163~186, 250~255)
+ * [테스트] server/test/llm-prompt.test.ts, llm-gemini.test.ts, llm-client.test.ts (SRV-T-163~186, 250~255, 261~268), llm-select.test.ts
  */
 export type { LlmTurn, GenerateInput, GenerateOutput, LlmProvider, Prompt } from './provider'
 export { createProvider, type ProviderConfig } from './factory'
@@ -18,7 +18,21 @@ export {
   type Llm,
   type LlmDeps,
   type RetryClock,
+  type CompleteOptions,
+  type SelectSpeakerInput,
 } from './client'
+// S3d 화자 선택(llm.md §13)
+export {
+  buildSelectPrompt,
+  parseSpeakerChoice,
+  fallbackSpeaker,
+  mentionedSpeaker,
+  SELECT_TIMEOUT_MS,
+  SELECT_HISTORY_MESSAGES,
+  type SelectPromptInput,
+  type SelectFallbackReason,
+  type SpeakerChoice,
+} from './select'
 export { buildSpeakPrompt, type SpeakPromptInput, type PromptMessage } from './prompt'
 export { postprocessLine } from './postprocess'
 export {

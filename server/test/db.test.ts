@@ -1,6 +1,7 @@
-// SRV-T-020~031 — doc/200_설계/server/db.md §8
+// SRV-T-020~031, 269 — doc/200_설계/server/db.md §8·§12
 import { env } from 'cloudflare:test'
 import { beforeEach, describe, expect, it } from 'vitest'
+import { USER_DISPLAY_NAME } from '@shared/characters'
 import { AppError } from '../src/app-error'
 import { createDb } from '../src/db'
 import { toSpeaker } from '../src/db/types'
@@ -548,5 +549,50 @@ describe('character_settings (S3c)', () => {
     await env.DB.prepare('DELETE FROM character_settings').run()
     await insert(1, '{{', 'owner_test')
     expect((await db.characterSettings.get())?.json).toBe('{{')
+  })
+})
+
+describe('toMessage 투영 (S3d, db.md §12)', () => {
+  it('SRV-T-269 toMessage_projects_user_authorName_to_fixed_name_on_all_read_paths', async () => {
+    await insertRoom('a', 'A', 1, 100)
+    const db = createDb(env.DB)
+    const raw = async (speaker: string, name: string | null, at: number): Promise<number> => {
+      const row = await env.DB.prepare(
+        'INSERT INTO messages (room_id, speaker, kind, text, author_mb_id, author_name, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7) RETURNING id',
+      )
+        .bind('a', speaker, 'line', 't', speaker === 'user' ? 'mb_x' : null, name, at)
+        .first<{ id: number }>()
+      if (row === null) throw new Error('insert failed')
+      return row.id
+    }
+    const named = await raw('user', '닉', 1)
+    const unnamed = await raw('user', '다른닉', 2)
+    const bot = await raw('ciel', null, 3)
+    const stored = async (id: number): Promise<string | null | undefined> =>
+      (
+        await env.DB.prepare('SELECT author_name AS n FROM messages WHERE id = ?1')
+          .bind(id)
+          .first<{ n: string | null }>()
+      )?.n
+
+    const page = await db.messages.pageDesc('a', 10)
+    const byId = new Map(page.map(m => [m.id, m.authorName]))
+    expect([byId.get(named), byId.get(unnamed), byId.get(bot)]).toEqual([
+      USER_DISPLAY_NAME,
+      USER_DISPLAY_NAME,
+      null,
+    ])
+    expect((await db.messages.getById(named))?.authorName).toBe(USER_DISPLAY_NAME)
+    expect((await db.messages.getById(bot))?.authorName).toBeNull()
+    const inserted = await db.messages.insert(
+      { roomId: 'a', speaker: 'user', kind: 'line', text: 'x', authorMbId: 'mb_y', authorName: '닉' },
+      5,
+    )
+    expect(inserted?.authorName).toBe(USER_DISPLAY_NAME)
+    expect(await stored(inserted?.id ?? -1)).toBe('닉')
+    const updated = await db.messages.updateText(named, 'y', 6)
+    expect(updated?.authorName).toBe(USER_DISPLAY_NAME)
+    expect(await stored(named)).toBe('닉')
+    expect(await stored(unnamed)).toBe('다른닉')
   })
 })

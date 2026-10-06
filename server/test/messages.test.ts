@@ -1,6 +1,7 @@
 // SRV-T-066~070·140~150 — doc/200_설계/server/messages.md §8 (D1 통합)
 import { env } from 'cloudflare:test'
 import { beforeEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
+import { USER_DISPLAY_NAME } from '@shared/characters'
 import { AppError } from '../src/app-error'
 import { createDb, type Db } from '../src/db'
 import { createMessagesService } from '../src/messages'
@@ -116,7 +117,7 @@ describe('addUserMessage', () => {
       speaker: 'user',
       kind: 'line',
       text: '안녕',
-      authorName: '시엘 팬텀하이브',
+      authorName: USER_DISPLAY_NAME,
       createdAt: T2,
       roomId: 'a',
     })
@@ -134,11 +135,15 @@ describe('addUserMessage', () => {
     expect([m.kind, m.speaker]).toEqual(['ooc', 'user'])
   })
 
-  it('SRV-T-142 addUserMessage_records_displayName_as_author_name', async () => {
+  it('SRV-T-142 addUserMessage_stores_displayName_but_returns_fixed_name', async () => {
     await insertRoom('a', 'A', 1, 100)
     for (const author of [AUTHOR_A, AUTHOR_B]) {
       const m = await writer().addUserMessage('a', { text: 'x', ooc: false }, author)
-      expect(m.authorName).toBe(author.displayName)
+      expect(m.authorName).toBe(USER_DISPLAY_NAME)
+      const stored = await env.DB.prepare('SELECT author_name FROM messages WHERE id = ?1')
+        .bind(m.id)
+        .first<{ author_name: string }>()
+      expect(stored?.author_name).toBe(author.displayName)
     }
   })
 

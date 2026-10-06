@@ -1,6 +1,6 @@
 # db 모듈 설계
 
-- 상태: S1 확정(구현 동기화) · S2 초안 · S3 초안(§2.3·§3.5) · S3b 초안(§2.4·§3.6·§7.5) · S3c 구현 완료(§2.5·§3.7·§7.6·§8.1) · **S3d 초안(§12 유저 표시명 투영 — §3.4보다 우선)** · 최종 갱신: 2026-10-06
+- 상태: S1 확정(구현 동기화) · S2 초안 · S3 초안(§2.3·§3.5) · S3b 초안(§2.4·§3.6·§7.5) · S3c 구현 완료(§2.5·§3.7·§7.6·§8.1) · **S3d 구현 완료(2026-10-06, SRV-T-261~278 · §12 유저 표시명 투영 — §3.4보다 우선)** · 최종 갱신: 2026-10-06
 - 묶음: S1 = 스키마(4테이블 전부)·마이그레이션 `0001_init.sql`·읽기 함수. S2 = 방 생성·이름 변경·연쇄 삭제, 메시지 추가·수정·삭제, 레이트리밋 카운터(§2.1의 "S2" 표시). S3 = speak 잠금 선점·해제, 메시지 단건 조회, 장기기억 summary 읽기(§2.3 — **마이그레이션 없음**). S4용은 §2.2에 예정 시그니처만. S3b = 월 AI 사용량 누적 `llm_usage`(§2.4 — **마이그레이션 `0002_llm_usage.sql`**, R-LLM-007 🔒).
 - 관련 문서: [env.md](env.md)(`DB` 바인딩), [index.md](index.md)(`createDb` 호출 지점), [rooms.md](rooms.md), [messages.md](messages.md), [auth.md](auth.md)(레이트리밋).
 
@@ -813,7 +813,7 @@ db는 contract에 직접 노출되지 않는다. contract가 알아야 할 데�
 
 ## 12. S3d — 유저 표시명 투영 (R-AUTH-004 🔒 개정 · R-CHAT-002 🔒 개정)
 
-- 상태: 초안(2026-10-06, 승인 ① 반영). 근거 `doc/200_설계/architecture/s3d-02-전반설계.md` §1(대안 B), 인계패킷 §1.
+- 상태: 구현 완료(2026-10-06, server 336/336, SRV-T-261~278) · 설계 승인 ① 반영. 근거 `doc/200_설계/architecture/s3d-02-전반설계.md` §1(대안 B), 인계패킷 §1.
 - **이 절이 §3.4(행 ↔ 도메인 변환)보다 우선한다.**
 
 비유: 출석부(D1)에는 실명을 그대로 적고, 무대 자막(응답)에는 누가 적었든 「어떠한 의지」를 띄운다. 자막 담당은 한 명(`toMessage`)뿐이라 규칙이 한 곳에 있다.
@@ -862,7 +862,7 @@ export const toMessage = (row: MessageRow): Message => {
 
 | 테스트ID | 파일 | 이름 | 입력 | 기대 | 요구 |
 |---|---|---|---|---|---|
-| SRV-T-269 | `server/test/db.test.ts` | `toMessage_projects_user_authorName_to_fixed_name_on_all_read_paths` | 유저 행(`author_name '닉'`) · 유저 행(`author_name NULL`) · 캐릭터 행을 직접 INSERT → `pageDesc`·`getById`·`insert`(유저, `authorName '닉'`)·`updateText`(유저 행) | 유저 4경로 모두 `authorName === USER_DISPLAY_NAME`, 캐릭터 `null`. 같은 행의 `SELECT author_name`은 `'닉'`(NULL 행은 NULL) 그대로 | R-AUTH-004 · R-CHAT-002 |
+| SRV-T-269 | `server/test/db.test.ts` | `toMessage_projects_user_authorName_to_fixed_name_on_all_read_paths` | 이름이 다른 유저 행 두 개 · 캐릭터 행을 직접 INSERT(유저 행은 0001 제약상 `author_mb_id`·`author_name` 필수라 `author_name` NULL 유저 행은 넣을 수 없다) → `pageDesc`·`getById`·`insert`(유저, `authorName '닉'`)·`updateText`(유저 행) | 유저 4경로 모두 `authorName === USER_DISPLAY_NAME`, 캐릭터 `null`. 같은 행의 `SELECT author_name`은 저장한 실명 그대로 | R-AUTH-004 · R-CHAT-002 |
 
 **기존 테스트 영향.**
 
@@ -896,6 +896,7 @@ export const toMessage = (row: MessageRow): Message => {
 
 | 날짜 | 내용 |
 |---|---|
+| 2026-10-06 | S3d 구현 완료 표기(server 336/336, SRV-T-261~278). §12.3 SRV-T-269 입력 정정: 유저 행은 0001 제약상 `author_name` 필수라 NULL 유저 행을 넣을 수 없다 → 이름이 다른 유저 행 두 개로 바꿈(4개 읽기 경로 검증 유지) |
 | 2026-10-06 | S3d 설계(§12): `toMessage` 투영 — 유저 메시지 `authorName` = shared `USER_DISPLAY_NAME`, 캐릭터 null, 저장 `author_name`은 실명 유지. SQL·스키마·마이그레이션 불변. SRV-T-269, 기존 테스트 영향표, D-DB-S3d-1·2 |
 | 2026-10-05 | S1 초안 작성 |
 | 2026-10-05 | S1 구현 동기화(상태 확정): 도메인 타입은 `@shared/types` 재노출, `toMessage`는 파일 export(index 미노출), `AppError(code, message?)` 시그니처, vitest 0.22 `cloudflareTest` 설정, `test/helpers.ts`. S2 설계: §2.1 S2 함수 8종·`NewMessage`·`RateLimitsRepo`, §3.2 SQL, §3.3 batch 구성, §7.4 인덱스 영향 없음, D-DB-8~12. 기존 §2.2의 S2 예정 시그니처(`rename`·`insertStmt`·`findById`·`updateTextStmt`·`deleteStmt`)는 위 함수로 대체 |

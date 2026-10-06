@@ -4,10 +4,12 @@ import { AppError } from '../src/app-error'
 import {
   createLlm,
   createUsageMeter,
+  DEFAULT_PROMPT_SETTINGS,
   FAKE_USAGE,
   FakeProvider,
   LLM_BUDGET_MS,
   planRetryTimeout,
+  SELECT_TIMEOUT_MS,
   type FakeStep,
   type LlmUsage,
   type Prompt,
@@ -312,5 +314,119 @@ describe('S3b 시도별 누적·게이트 위임', () => {
     const spy = withMeter(() => [])
     await spy.llm.ensureBudget()
     expect(spy.gates()).toBe(1)
+  })
+})
+
+describe('S3d 화자 선택 · 예산 분배 (R-LLM-008·R-NFR-001)', () => {
+  const HISTORY = [
+    { speaker: 'sebastian' as const, kind: 'line' as const, text: '비밀_본문_A' },
+    { speaker: 'user' as const, kind: 'line' as const, text: '비밀_본문_B' },
+  ]
+  const selectInput = {
+    history: HISTORY,
+    profiles: DEFAULT_PROMPT_SETTINGS.profiles,
+    common: DEFAULT_PROMPT_SETTINGS.common,
+  }
+  const metered = (steps: (clock: Clock) => FakeStep[], timeoutMs = 60_000) => {
+    const clock = makeClock()
+    const provider = new FakeProvider(steps(clock))
+    const recorded: LlmUsage[] = []
+    const meter: UsageMeter = {
+      record: async u => {
+        recorded.push(u)
+      },
+      ensureBudget: async () => undefined,
+    }
+    const lines: string[] = []
+    const logger = createLogger((_l, line) => lines.push(line))
+    const llm = createLlm({
+      provider,
+      timeoutMs,
+      logger,
+      now: clock.now,
+      sleep: clock.sleep,
+      meter,
+    })
+    return { llm, provider, recorded, lines, clock }
+  }
+
+  it('SRV-T-265 selectSpeaker_single_attempt_with_15s_timeout_and_usage', async () => {
+    const a = metered(() => [{ text: 'ciel' }])
+    const choice = await a.llm.selectSpeaker(selectInput)
+    expect(choice).toMatchObject({ speaker: 'ciel', source: 'model', reason: null })
+    expect(a.provider.calls).toHaveLength(1)
+    expect(a.provider.calls[0]?.timeoutMs).toBe(SELECT_TIMEOUT_MS)
+    expect(a.recorded).toEqual([FAKE_USAGE])
+    const b = metered(() => [{ text: 'ciel' }], 3000)
+    await b.llm.selectSpeaker(selectInput)
+    expect(b.provider.calls[0]?.timeoutMs).toBe(3000)
+  })
+
+  it('SRV-T-266 selectSpeaker_falls_back_without_retry_and_never_throws', async () => {
+    const USAGE = { promptTokens: 10, outputTokens: 2, thoughtsTokens: 1 }
+    const cases: { step: FakeStep; reason: string; usage: LlmUsage[] }[] = [
+      { step: { error: new LlmError('timeout') }, reason: 'timeout', usage: [] },
+      { step: { error: new LlmError('network') }, reason: 'network', usage: [] },
+      { step: { error: new LlmError('http_5xx') }, reason: 'http_5xx', usage: [] },
+      { step: { error: new LlmError('http_429') }, reason: 'http_429', usage: [] },
+      {
+        step: { error: new LlmError('blocked', { usage: USAGE }) },
+        reason: 'blocked',
+        usage: [USAGE],
+      },
+      { step: { text: '모르겠다' }, reason: 'unparsable', usage: [FAKE_USAGE] },
+    ]
+    for (const c of cases) {
+      const t = metered(() => [c.step])
+      const choice = await t.llm.selectSpeaker(selectInput)
+      expect(choice).toMatchObject({ speaker: 'ciel', source: 'fallback', reason: c.reason })
+      expect(t.provider.calls).toHaveLength(1)
+      expect(t.recorded).toEqual(c.usage)
+      const joined = t.lines.join('|')
+      expect(joined).toContain('speaker_select')
+      expect(joined).not.toContain('모르겠다')
+      expect(joined).not.toContain('비밀_본문')
+    }
+  })
+
+  it('SRV-T-267 complete_spentMs_shrinks_budget', async () => {
+    const a = metered(c => [failAfter(c, 1000, new LlmError('network')), { text: 'ok' }])
+    expect(await a.llm.complete(PROMPT, { spentMs: 8000 })).toBe('ok')
+    expect(a.provider.calls.map(x => x.timeoutMs)).toEqual([58_000, 56_000])
+    const b = metered(() => [])
+    expect((await appError(b.llm.complete(PROMPT, { spentMs: 65_000 }))).code).toBe('LLM_FAILED')
+    expect(b.provider.calls).toHaveLength(0)
+    const c = metered(c2 => [failAfter(c2, 1000, new LlmError('network')), { text: 'ok' }])
+    await c.llm.complete(PROMPT)
+    expect(c.provider.calls.map(x => x.timeoutMs)).toEqual([60_000, 60_000])
+  })
+})
+
+describe('S3d 이름 지목 (R-LLM-008 개정)', () => {
+  it('SRV-T-280 selectSpeaker_mention_skips_provider_and_usage', async () => {
+    const clock = makeClock()
+    const provider = new FakeProvider([{ text: 'sebastian' }])
+    const recorded: LlmUsage[] = []
+    const lines: string[] = []
+    const logger = createLogger((_l, line) => lines.push(line))
+    const meter: UsageMeter = {
+      record: async u => {
+        recorded.push(u)
+      },
+      ensureBudget: async () => undefined,
+    }
+    const llm = createLlm({ provider, timeoutMs: 60_000, logger, now: clock.now, meter })
+    const choice = await llm.selectSpeaker({
+      history: [{ speaker: 'user', kind: 'ooc', text: '시엘이 말해 줘' }],
+      profiles: DEFAULT_PROMPT_SETTINGS.profiles,
+      common: DEFAULT_PROMPT_SETTINGS.common,
+    })
+    expect(choice).toEqual({ speaker: 'ciel', source: 'mention', reason: null, ms: 0 })
+    expect(provider.calls).toHaveLength(0)
+    expect(recorded).toHaveLength(0)
+    const log = lines.map(l => JSON.parse(l) as Record<string, unknown>)
+    expect(log).toHaveLength(1)
+    expect(log[0]).toMatchObject({ event: 'speaker_select', result: 'mention', character: 'ciel' })
+    expect(lines.join('')).not.toContain('말해 줘')
   })
 })

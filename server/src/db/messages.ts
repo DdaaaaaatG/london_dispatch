@@ -1,11 +1,12 @@
 /**
- * [목적] messages 테이블 접근 함수(S1 페이지 조회 + S2 쓰기: 모두 방 updated_at 갱신을 같은 batch 에 포함). author_mb_id 는 조회하지 않는다 (R-DB-005, D-DB-5). 설계 db.md §2.1
+ * [목적] messages 테이블 접근 함수(S1 페이지 조회 + S2 쓰기: 모두 방 updated_at 갱신을 같은 batch 에 포함). author_mb_id 는 조회하지 않는다 (R-DB-005, D-DB-5). S3d: 응답 authorName 은 toMessage 가 투영(저장 author_name 은 실명 유지, db.md §12). 설계 db.md §2.1
  * [공개 API] createMessagesRepo(binding) -> MessagesRepo { pageDesc, insert(S2), updateText(S2), deleteById(S2), getById(S3) }, toMessage(row)
  * [비동기] D1 prepare().bind().all() await. 쓰기는 batch(원자적, 왕복 1회)
  * [에러] D1 오류 전파. speaker·kind 좁히기 실패 → AppError INTERNAL
  * [설정] 없음
- * [테스트] server/test/db.test.ts (SRV-T-028·029, 124·125·128, 190)
+ * [테스트] server/test/db.test.ts (SRV-T-028·029, 124·125·128, 190, 269)
  */
+import { USER_DISPLAY_NAME } from '@shared/characters'
 import type { D1Database, D1Result } from '@cloudflare/workers-types'
 import {
   SQL_MESSAGES_BY_ID,
@@ -32,16 +33,19 @@ export type MessagesRepo = {
   getById: (id: number) => Promise<Message | null>
 }
 
-/** 행(snake_case)을 도메인 객체로 변환 */
-export const toMessage = (row: MessageRow): Message => ({
-  id: row.id,
-  roomId: row.room_id,
-  speaker: toSpeaker(row.speaker),
-  kind: toKind(row.kind),
-  text: row.text,
-  authorName: row.author_name,
-  createdAt: row.created_at,
-})
+/** 행(snake_case)을 도메인 객체로 변환. S3d: authorName 은 저장값(author_name)을 쓰지 않는다 — 유저면 USER_DISPLAY_NAME, 캐릭터면 null */
+export const toMessage = (row: MessageRow): Message => {
+  const speaker = toSpeaker(row.speaker)
+  return {
+    id: row.id,
+    roomId: row.room_id,
+    speaker,
+    kind: toKind(row.kind),
+    text: row.text,
+    authorName: speaker === 'user' ? USER_DISPLAY_NAME : null,
+    createdAt: row.created_at,
+  }
+}
 
 const firstMessage = (result: D1Result<MessageRow> | undefined): Message | null => {
   const row = result?.results[0]
