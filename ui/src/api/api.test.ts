@@ -344,4 +344,36 @@ describe('S3 생성 래퍼', () => {
       expect('signal' in init).toBe(false)
     }
   })
+
+  const budget429 = (retryAfterSec: number, code = 'LLM_BUDGET_EXCEEDED', message = 'm') =>
+    json({ error: { code, message, retryAfterSec } }, 429)
+
+  it('API-T-UI-022 budget_exceeded_passes_code_and_drops_retryAfterSec', async () => {
+    const calls: Array<() => Promise<unknown>> = [
+      () => speak('r1', { character: 'ciel' }),
+      () => regenerate(72),
+    ]
+    for (const call of calls) {
+      stubFetch(async () => budget429(1_356_400))
+      const result = (await call()) as { ok: boolean; error: ApiError }
+      expect(result.ok).toBe(false)
+      expect(result.error).toEqual({ code: 'LLM_BUDGET_EXCEEDED', message: 'm' })
+      expect('retryAfterSec' in result.error).toBe(false)
+      expect(isAuthFailure(result.error)).toBe(false)
+
+      stubFetch(async () => budget429(1_356_400, 'LLM_BUDGET_EXCEEDED', ''))
+      const empty = (await call()) as { ok: boolean; error: ApiError }
+      expect(empty.error.message).toBe(ERROR_MESSAGES.LLM_BUDGET_EXCEEDED)
+    }
+  })
+
+  it('API-T-UI-023 two_429_codes_are_distinguished_by_code', async () => {
+    stubFetch(async () => budget429(40, 'RATE_LIMITED'))
+    const limited = (await speak('r1', { character: 'ciel' })) as { ok: false; error: ApiError }
+    stubFetch(async () => budget429(40))
+    const budget = (await speak('r1', { character: 'ciel' })) as { ok: false; error: ApiError }
+    expect(limited.error.retryAfterSec).toBe(40)
+    expect('retryAfterSec' in budget.error).toBe(false)
+    expect(limited.error.code).not.toBe(budget.error.code)
+  })
 })

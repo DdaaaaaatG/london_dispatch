@@ -52,6 +52,8 @@
 | `regenerate` | `재작성` | 말풍선 메뉴 항목(요구 원문) |
 | `regeneratingNote` | `다시 쓰는 중…` | 재작성 중 대상 머리 줄 `role=status` |
 
+- (S3b) `LLM_BUDGET_EXCEEDED`는 **새 labels 키를 두지 않는다.** `speakErrorText`·`writeErrorText(…, 'regenerate')` 둘 다 "그 밖" 분기 `ERROR_MESSAGES[code]`로 `ERROR_MESSAGES.LLM_BUDGET_EXCEEDED`(요구 원문 `이번 달 AI 사용 한도에 닿았습니다. 다음 달에 다시 시도해 주세요.`)를 쓴다. 이 문구는 서버 응답 `message`와 같은 요구 원문이지만(api.md §3.2 — 서버는 기본 문구만 보낸다), **화면은 응답 `error.message` 필드를 읽지 않고 `code` → `ERROR_MESSAGES`로 정한다**(§8.3 규칙 유지). 래퍼가 `message`를 비워 받으면 같은 `ERROR_MESSAGES` 값으로 채우므로(API-T-UI-022) 결과 문구는 같다. 초 값(`retryAfterSec`)은 넣지 않는다(래퍼가 버린다). 표는 `design/generate.md` §3
+
 ## 8.2 오류 상세 `errorDetail(code)` (읽기, S1)
 
 | code | 문구 |

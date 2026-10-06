@@ -548,6 +548,72 @@ describe('생성 실패·재시도 (R-CHAT-005 · R-CHAT-011)', () => {
   })
 })
 
+describe('S3b 월 AI 비용 한도 초과 — speak (R-CHAT-011 · R-CHAT-005 · R-LLM-007)', () => {
+  const BUDGET_TEXT = '이번 달 AI 사용 한도에 닿았습니다. 다음 달에 다시 시도해 주세요.'
+  /** 래퍼 정규화 뒤 모양: retryAfterSec 없음(api.md §3.4 — 래퍼가 버린다). status 는 ApiError 필드가 아니라 싣지 않는다 */
+  const budgetFail: Result<never> = {
+    ok: false,
+    error: { code: 'LLM_BUDGET_EXCEEDED', message: BUDGET_TEXT },
+  }
+
+  it('TC-CH-096: LLM_BUDGET_EXCEEDED → 실패 말풍선 + 한도 문구 + 「재시도」, 토스트·숫자·카운트다운 없음, 전환 없음, 60초 뒤 자동 재시도 없음 → 「재시도」 = 같은 캐릭터 2번째 호출', async () => {
+    const { onAuthFailure } = renderChat()
+    await screen.findByRole('log')
+    const d = startSpeak(SEB)
+    await act(async () => {
+      d.resolve(budgetFail)
+    })
+    const root = lastItem().firstElementChild as HTMLElement
+    for (const c of ['pending', 'failed', 'sebastian']) expect(root.classList.contains(c)).toBe(true)
+    const alerts = screen.getAllByRole('alert')
+    expect(alerts).toHaveLength(1) // 실패 말풍선 문구 하나 — E 토스트 없음
+    expect(root.contains(alerts[0] as Node)).toBe(true)
+    expect(alerts[0]?.textContent).toContain(BUDGET_TEXT)
+    expect(root.textContent).not.toMatch(/\d/) // 초·날짜·카운트다운 숫자 없음
+    expect(btn('세바스찬 대사 재시도').disabled).toBe(false)
+    expect(within(group()).getByRole('button', { name: SEB })).toBe(btn(SEB)) // 전환 없음 — 하단 바 그대로
+    expect(btn(SEB).disabled).toBe(false)
+    expect(screen.queryByRole('note')).toBeNull()
+    expect(onAuthFailure).not.toHaveBeenCalled()
+
+    vi.useFakeTimers()
+    act(() => vi.advanceTimersByTime(60_000))
+    expect(mockedSpeak).toHaveBeenCalledTimes(1)
+    expect(root.textContent).toContain(BUDGET_TEXT) // 시간이 흘러도 문구가 바뀌지 않는다
+    vi.useRealTimers()
+
+    mockedSpeak.mockResolvedValueOnce(budgetFail)
+    fireEvent.click(btn('세바스찬 대사 재시도'))
+    await flushPending()
+    expect(mockedSpeak.mock.calls).toEqual([
+      ['r1', { character: 'sebastian' }],
+      ['r1', { character: 'sebastian' }],
+    ])
+    expect(screen.getAllByRole('alert')[0]?.textContent).toContain(BUDGET_TEXT)
+  })
+
+  it('TC-CH-096: 같은 429 RATE_LIMITED(retryAfterSec 40)와 문구가 다르다 — code 로만 구분', async () => {
+    const textAfter = async (result: Result<never>) => {
+      const view = renderChat()
+      await screen.findByRole('log')
+      const d = startSpeak(CIEL)
+      await act(async () => {
+        d.resolve(result)
+      })
+      const text = screen.getAllByRole('alert')[0]?.textContent ?? ''
+      view.unmount()
+      return text
+    }
+    const budget = await textAfter(budgetFail)
+    const rate = await textAfter(fail('RATE_LIMITED', 40))
+    expect(budget).toContain(BUDGET_TEXT)
+    expect(budget).not.toContain('초 후')
+    expect(rate).toContain('요청이 너무 많습니다. 40초 후 다시 시도해 주세요.')
+    expect(rate).not.toContain(BUDGET_TEXT)
+    expect(mockedSpeak).toHaveBeenCalledTimes(2)
+  })
+})
+
 describe('speak 인증 실패·방 사라짐 (R-CHAT-011 · R-CHAT-008 · R-ROOMS-004)', () => {
   it.each(['LEVEL_TOO_LOW', 'TOKEN_INVALID', 'TOKEN_REQUIRED'] as const)(
     'TC-CH-076: %s → 임시 말풍선·group 없음, note, 전환 토스트 1개, onAuthFailure 1회, ‹ 포커스',

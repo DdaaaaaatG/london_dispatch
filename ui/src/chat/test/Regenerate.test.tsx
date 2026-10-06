@@ -572,6 +572,33 @@ describe('다른 쓰기 대기 중 생성 잠금 — 잠금 표 edit·delete·re
   })
 })
 
+describe('S3b 월 AI 비용 한도 초과 — regenerate (R-CHAT-011 · R-CHAT-007 · R-LLM-007)', () => {
+  const BUDGET_TEXT = '이번 달 AI 사용 한도에 닿았습니다. 다음 달에 다시 시도해 주세요.'
+
+  it('TC-CH-097: LLM_BUDGET_EXCEEDED → 원 본문 유지·재작성 표시 사라짐, warning 토스트, 재조회·전환·자동 재시도 없음', async () => {
+    const { onAuthFailure } = renderChat()
+    await screen.findByRole('log')
+    const d = await startRegenerate(72)
+    await act(async () => {
+      d.resolve({ ok: false, error: { code: 'LLM_BUDGET_EXCEEDED', message: BUDGET_TEXT } })
+    })
+    expect(bubbleOf(72).textContent).toContain('분부대로 하겠습니다, 도련님.')
+    expect(bubbleOf(72).classList.contains('regenerating')).toBe(false)
+    expect(alertTexts()).toEqual([BUDGET_TEXT])
+    expect(toastOf(BUDGET_TEXT).classList.contains('warning')).toBe(true)
+    expect(toastOf(BUDGET_TEXT).classList.contains('danger')).toBe(false)
+    expect(screen.queryByRole('button', { name: /재시도/ })).toBeNull()
+    expect(screen.queryByRole('note')).toBeNull()
+    expect(screen.getByRole('group', { name: '메시지 작성' })).not.toBeNull()
+    expect(onAuthFailure).not.toHaveBeenCalled()
+
+    vi.useFakeTimers()
+    act(() => vi.advanceTimersByTime(60_000))
+    expect(mockedRegenerate.mock.calls).toEqual([[72]])
+    expect(mockedList).toHaveBeenCalledTimes(1) // 재조회 없음
+  })
+})
+
 describe('writeErrorText(…, "regenerate") (R-CHAT-011, design/generate.md §3)', () => {
   it.each([
     ['SPEAK_IN_PROGRESS', undefined, ERROR_MESSAGES.SPEAK_IN_PROGRESS],
@@ -586,6 +613,8 @@ describe('writeErrorText(…, "regenerate") (R-CHAT-011, design/generate.md §3)
     ['NETWORK', undefined, '서버에 연결할 수 없습니다.'],
     ['INTERNAL', undefined, ERROR_MESSAGES.INTERNAL],
     ['VALIDATION_ERROR', undefined, ERROR_MESSAGES.VALIDATION_ERROR],
+    // S3b TC-CH-097: 서버 message 가 아니라 code → ERROR_MESSAGES(SERVER-RAW-MESSAGE 로 확인)
+    ['LLM_BUDGET_EXCEEDED', undefined, '이번 달 AI 사용 한도에 닿았습니다. 다음 달에 다시 시도해 주세요.'],
     ['LEVEL_TOO_LOW', undefined, AUTH_TEXT.LEVEL_TOO_LOW],
     ['TOKEN_INVALID', undefined, AUTH_TEXT.TOKEN_INVALID],
     ['TOKEN_REQUIRED', undefined, AUTH_TEXT.TOKEN_REQUIRED],

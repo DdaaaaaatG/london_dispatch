@@ -63,11 +63,12 @@
 | `NOT_CHARACTER_MESSAGE` | (오지 않음) | `ERROR_MESSAGES.NOT_CHARACTER_MESSAGE` | 화면 결함(메뉴가 캐릭터에만 보이므로). 토스트만 |
 | `NOT_FOUND` | (말풍선 없음 — 방 사라짐: `onRoomGone` 목록 복귀, 토스트 없음) | `메시지를 찾을 수 없습니다. 이미 삭제되었을 수 있습니다.`(§8.3 `editMessage`와 같은 문구) | regenerate: 목록에서 제거 |
 | `RATE_LIMITED` | §8.3과 같은 문구(`retryAfterSec` 있으면 초) · ○ | §8.3과 같은 문구 | 전환 없음 |
+| `LLM_BUDGET_EXCEEDED` (429, S3b · R-LLM-007 🔒) | `ERROR_MESSAGES.LLM_BUDGET_EXCEEDED`(`이번 달 AI 사용 한도에 닿았습니다. 다음 달에 다시 시도해 주세요.`) · ○ | 같은 문구, 톤 **warning** | 저장 없음(regenerate는 원 대사 유지). 전환 없음(`isAuthFailure` false). **카운트다운·자동 재시도·해제 날짜 표시 없음** — 래퍼가 이 코드의 `retryAfterSec`를 버린다(api.md §3.4). `RATE_LIMITED`와 status가 같으므로 **`code`로만 구분**한다. 「재시도」를 눌러도 다음 달 1일 00:00 KST 전에는 같은 429이고, 연타하면 분당 한도에 걸려 `RATE_LIMITED`(초 문구)로 바뀐다 — 정상 동작, 문서화만(api.md §6.1 S3b) |
 | 인증 3종 | (말풍선 없음 — 제거 후 §8.3 전환 문구 토스트) | §8.3 전환 문구 | 읽기 전용 전환(주 문서 §6.6) |
 | `NETWORK` | `서버에 연결할 수 없습니다.` · ○ | 같은 문구 | speak는 서버에 저장됐을 수 있다(§5 L-1) |
 | 그 밖(`INTERNAL`·`VALIDATION_ERROR`) | `ERROR_MESSAGES[code]` · ○ | `ERROR_MESSAGES[code]` | — |
 
-- 톤: 토스트는 S2 `toastToneOf` 그대로(인증·`RATE_LIMITED` = warning, 그 밖 danger). 실패 말풍선은 톤 구분 없이 danger 테두리 하나.
+- 톤: 토스트는 `toastToneOf`(인증·`RATE_LIMITED` = warning, 그 밖 danger). **(S3b) `LLM_BUDGET_EXCEEDED`도 warning** — `toastToneOf`(단일 정의 rooms design F-RM-22, `ui/src/state/writeFailure.ts`)의 warning 조건에 이 코드를 더한다(승인·반영: rooms design v1.5.1 F-RM-22, 소스는 ui-implementer). 실패 말풍선은 톤 구분 없이 danger 테두리 하나.
 
 ## 4. 설계 결정·가정 (S3) — 옛 §11.2 D-11~D-15 · A-6
 

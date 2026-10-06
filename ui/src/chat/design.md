@@ -8,7 +8,7 @@
 | 목적 | 고른 방의 히스토리를 메신저 말풍선으로 보여 준다. 위로 올리면 더 오래된 대화를 이어 붙이고 읽던 자리를 지킨다. 등급 통과 회원은 대사·지시를 적어 저장하고, 말풍선을 고치거나 지우고, 방 이름을 바꾸거나 방을 지운다. 토큰이 없으면 쓰기 UI 없이 열람 안내 한 줄만 둔다 |
 | 요구 | `ui/src/chat/requirements.md` v1.7(확정) |
 | 구성안 | `doc/200_설계/architecture/ui-layout-01-rooms-chat.md` §2(C1) · §2-1 · §2-2 · §2-4 — **수용, 구조 변경 없음** |
-| 계약 | `doc/200_설계/contract/api.md` **v0.4** §2.4 · §3.2 · §3.4 · §4.3 · §4.5·§4.7~§4.14 · §5.2 `SpeakBody` · §5.5 · §11.6 · §11.9 · 「ui 인계 메모」 — 확정 |
+| 계약 | `doc/200_설계/contract/api.md` **v0.4.1**(S3b: §3.2 14종 · §3.4 429 구분) §2.4 · §3.2 · §3.4 · §4.3 · §4.5·§4.7~§4.14 · §5.2 `SpeakBody` · §5.5 · §11.6 · §11.9 · 「ui 인계 메모」 — 확정 |
 | 묶음 | S1 · S2 구현 완료 + **S3 상세**: R-CHAT-004(캐릭터 버튼 2) · 005(speak · 임시/실패 말풍선 · 재시도) · 007(재작성) · 011(S3 코드) · 003(speak 트리거) · 002(임시 말풍선 배치) · 013(S3 요소). S4는 §14 |
 | 레이아웃 확정 상태 | **확정**(읽기 전용 판 · 토큰 있음 판 · S3 생성 중/실패/재작성 중 조각). 장기기억 항목(S4)만 **미렌더 자리** |
 | 문서 분할 | 40KB 한계로 분할: **`design/layout.md`**(§0 토큰 있음 판·시트 ASCII = 옛 §2.2, v1.7.1 이전) · `design/components.md`(로컬 컴포넌트·useAutoScroll·스타일) · `design/functions.md`(리듀서·스크롤 계산·상태·기능) · `design/a11y.md`(접근성) · `design/tc.md`(예정 TC 목록, v1.4 분리) · **`design/labels.md`**(§8.1~§8.3 문구·라벨, v1.7 이전) · **`design/generate.md`**(S3 speak·재작성 흐름 = 옛 §6.8·§6.9, 생성 실패 문구 = 옛 §8.4, 결정 D-11~15·A-6, 한계 L-1~3 = 옛 §13.1, v1.7 신규) · **`design/decisions.md`**(§11.2 결정·가정·S1 소급 델타 · §13 contract 변경 요청, v1.7 이전). RTM은 이 문서 §15. 절 표기 `L` = labels.md, `G` = generate.md, `D` = decisions.md |
@@ -29,6 +29,7 @@
 | v1.6 | 2026-10-05 | **CR-001 적용** — R-CHAT-002 🔒 개정(지인 지정): 세바스찬 왼쪽 · 시엘 오른쪽 · 유저 가운데 말풍선(최대 폭 86%) · OOC 가운데 한 줄. §2.1·§2.2 ASCII, §11.1 스타일, §15 RTM R-CHAT-002 행, components.md §2.2 Bubble(4변형·클래스 키·`bubbleVariantOf`)·§2.7 InlineEditor 정렬·§2.8 `nameOf`·§4 스타일, tc.md TC-CH-007~010·033 | 사용자 🔒 요구 개정 CR-001 |
 | v1.7 | 2026-10-06 | **S3 상세**(§14 자리 → 본문): 캐릭터 버튼 `SpeakButtons` · 임시/실패 말풍선 `PendingBubble`(별도 컴포넌트) · 재작성 항목 · 재작성 중 표시. 리듀서 `pending` 필드 · 액션 4종(`speakStarted`·`speakSucceeded`·`speakFailed`·`speakDiscarded`) · T13~T16·T25 개정 · T27~T34 · `isRegenerateTarget`. F-CH-31~40. §6.8·§6.9 파이프라인, §7 E9·E12, §8.1.2·§8.4 문구, §10 S3 행 "렌더", §11.2 D-11~D-15, §13 L-1, §15 RTM S3 행. `useAutoScroll` `tailKey` 옵션. tc.md TC-CH-066~092. 계약 인용 v0.4. **40KB 분할**: §8 표 본문 → `design/labels.md`, §6.8·§6.9·§8.4·§11.2 D-11~15·A-6·§13.1 → `design/generate.md`(신규), 이 문서에는 요약·절 대응표와 RTM만. 2차(44.7KB 실측): §11.2 전체·§13 → `design/decisions.md`(신규) | 구축 S3 · 메인 세션 지적(56KB · 44.7KB) |
 | v1.7.1 | 2026-10-06 | **구현 동기화**: F-CH-41을 카운터 state로(functions.md·generate.md D-15) · PendingBubble 본문 `div.body.bodyBox`(components.md §2.12·§4) · 말풍선 메뉴 높이 실측 약 247px ±16px(components.md §0·§2.8) · 재작성 중 흐림은 수동 확인 유지(a11y.md·tc.md TC-CH-092) | S3 구현·테스트 보고(ui 452/452) |
+| v1.8 | 2026-10-06 | **S3b**(R-LLM-007 🔒 · R-API-002 14종): `LLM_BUDGET_EXCEEDED`(429) 화면 처리 — speak 실패 말풍선 + 「재시도」, 재작성 warning 토스트, 카운트다운·자동 재시도·해제 날짜 없음, 전환 없음, `RATE_LIMITED`와 `code`로 구분(G §3 · L §8.1.2 비고). 새 UI·labels 키 없음. TC-CH-096·097. 계약 인용 api.md v0.4.1 | 구축 S3b |
 
 ---
 
@@ -377,7 +378,7 @@ v1.7에서 40KB 한계로 표 본문을 분할 문서로 옮겼다. 절 번호�
 | R-CHAT-009 🔒 | §10 · rooms C §1.10 · rooms F F-RM-12·20 · §7 | api.md §2.4 · §11.6 | TC-CH-051 · 062 · TC-RM-028 · 030 | ✅ |
 | R-API-003 🔒 (참조) | R-CHAT-009 행으로 닫힘(헤더 부착은 래퍼, 화면은 메모리 보관만) | api.md §2.2 · §2.4 | R-CHAT-009와 같음 | ✅ |
 | R-CHAT-010 | rooms C §1.7 · F §3 · F F-CH-02·09 · §6.1 | — (localStorage) | TC-CH-024 · 025 · 026 | ✅ |
-| R-CHAT-011 | §6.6 · L §8.3 · F F-CH-16·23·26·27·29 · §10 · rooms F F-RM-12·22 | api.md §2.4 · §3.2 · §3.4 | TC-CH-037 · 044 · 046 · 049 · 050 · 051 · 052 · (S3) 073 · 074 · 076 · 081 · 082 · 083 · 084 · 086 | ✅(S2 코드: 인증 3종·RATE_LIMITED · S3 코드: SPEAK_IN_PROGRESS·LLM_FAILED·LLM_EMPTY·CONFIG_INVALID·NOT_LAST_MESSAGE·NOT_CHARACTER_MESSAGE — G §1·§2·§3 · F F-CH-16·31·34·37) |
+| R-CHAT-011 | §6.6 · L §8.3 · F F-CH-16·23·26·27·29 · §10 · rooms F F-RM-12·22 | api.md §2.4 · §3.2 · §3.4 | TC-CH-037 · 044 · 046 · 049 · 050 · 051 · 052 · (S3) 073 · 074 · 076 · 081 · 082 · 083 · 084 · 086 · (S3b) 096 · 097 | ✅(S2 코드: 인증 3종·RATE_LIMITED · S3 코드: SPEAK_IN_PROGRESS·LLM_FAILED·LLM_EMPTY·CONFIG_INVALID·NOT_LAST_MESSAGE·NOT_CHARACTER_MESSAGE — G §1·§2·§3 · F F-CH-16·31·34·37) |
 | R-MSG-003·006·007 🔒 (데이터, S3) | §7 E9·E12 · F F-CH-31·34 · F `isRegenerateTarget` | api.md §4.12~§4.14 | TC-CH-068 · 074 · 079 · 080 · 082 | ✅ |
 | R-NFR-001 🔒 (화면 쪽, S3) | F §3(화면 타이머 없음) · G §4 A-6 · G §5 L-3 | api.md §4.12 「화면 타임아웃」 | TC-CH-070(80초 경과 후에도 임시 말풍선 유지) | ✅ |
 | R-CHAT-012 🔒 | §14 | E13·E14(S4) | (S4) | 후속(S4) |

@@ -196,7 +196,7 @@
 ### TC-RM-029 · (S2) viewer·limits·tone · 종류: 자동 · 요구: R-ROOMS-002 · R-CHAT-008 · R-CHAT-011 · R-ROOM-002 · R-MSG-002 · 설계: C §1.8 · C §1.11 · F-RM-21·22·23 · 토큰: 무관
 - Given 순수 함수
 - When 경계값을 넣는다
-- Then ⓐ 해당 없음 ⓑ `viewerFromToken(null)`=`READ_ONLY_VIEWER`(같은 참조), `('x')`=`WRITER_VIEWER`, 두 객체 `Object.isFrozen`. `ROOM_TITLE_MAX_CHARS=60`·`MESSAGE_TEXT_MAX_CHARS=2000`. `countChars('  a😀b ')=3`·`('')=0`. `isRoomTitleValid` 0자·공백만 false · 1·60 true · 61 false(이모지 60개 true). `isMessageTextValid` 0 false · 1·2000 true · 2001 false. `toastToneOf`: `TOKEN_REQUIRED`·`TOKEN_INVALID`·`LEVEL_TOO_LOW`·`RATE_LIMITED` → `warning`, `INTERNAL`·`NETWORK`·`NOT_FOUND`·`VALIDATION_ERROR` → `danger` ⓒ api 호출 없음
+- Then ⓐ 해당 없음 ⓑ `viewerFromToken(null)`=`READ_ONLY_VIEWER`(같은 참조), `('x')`=`WRITER_VIEWER`, 두 객체 `Object.isFrozen`. `ROOM_TITLE_MAX_CHARS=60`·`MESSAGE_TEXT_MAX_CHARS=2000`. `countChars('  a😀b ')=3`·`('')=0`. `isRoomTitleValid` 0자·공백만 false · 1·60 true · 61 false(이모지 60개 true). `isMessageTextValid` 0 false · 1·2000 true · 2001 false. `toastToneOf`: `TOKEN_REQUIRED`·`TOKEN_INVALID`·`LEVEL_TOO_LOW`·`RATE_LIMITED`·(v1.5.1 S3b, F-RM-22) `LLM_BUDGET_EXCEEDED` → `warning`, `LLM_FAILED`·`SPEAK_IN_PROGRESS`·`INTERNAL`·`NETWORK`·`NOT_FOUND`·`VALIDATION_ERROR` → `danger`(톤 함수 순수 테스트는 이 TC 한 곳 — chat TC-CH-097이 근거로 인용) ⓒ api 호출 없음
 - 스펙: `ui/src/state/writeRules.test.ts`
 
 ### TC-RM-030 · (S2) 토큰 비노출(리뷰) · 종류: 수동 · 요구: R-CHAT-009 · R-NFR-004 · R-API-003 · 설계: C §1.7 · C §1.10 · §10 마지막 줄 · 토큰: 무관
@@ -409,3 +409,4 @@ ui-test-checker S2 판정 FAIL 지적 반영: TC-RM-023 재제출 2회 단언 �
 | v0.2 | 2026-10-05 | TC-RM-013 ⓑⓒ를 스펙 단언(저장소 0개·api 모킹 0회)과 맞춤. TC-RM-010 콘솔 0회 단언을 함수 5종·차단 2방식으로 확장. TC-FLOW 표기 규약(순차 `→` / `분기:`) 도입, FLOW-RM-02~06 재작성. 공통 전제에 named export·Bubble 클래스 키 명시 | ui-test-checker TK-03 ~ TK-06 |
 | v0.3 | 2026-10-05 | TC-RM-008 ⓐ를 "판정 시점 ready(판정 후 status·alert 없음)"로 재정의하고 "목록이 한 번 그려진다" 단언 제거. TC-RM-010 차단 케이스에 사전 값 주입·차단 상태 단언·해제 후 원값 확인 추가. FLOW-RM-01 문구를 "서버가 준 순서 그대로, 재정렬 없음"으로 | ui-test-conflict-checker CF-01(메인 세션 결정) · CF-04 · CF-06 |
 | v0.4 | 2026-10-05 | **S2 증분**: S2 공통 전제(토큰 주입 = `viewer` props / App은 `initToken`·`clearToken`, 쓰기 래퍼 모킹, 가짜 시계 규칙). TC-RM-018~032 추가, TC-FLOW-RM-07~09 추가, 사용자행 U-RM-07~09 연결, 「S2 이월」 절을 「추적표 — S2 추가분」으로 대체. 스펙 신규 `NewRoom.test.tsx`·`AppWrite.test.tsx`·`ui/src/state/{token,writeRules}.test.ts`·공용 부품 3종. S1 TC-RM-001~017 변경 없음 | 구축 S2, design.md v1.4 §14.1 RTM |
+| v0.4.1 | 2026-10-06 | TC-RM-029 `toastToneOf` 기대에 `LLM_BUDGET_EXCEEDED` → `warning`, `LLM_FAILED`·`SPEAK_IN_PROGRESS` → `danger` 행 추가(스펙 `writeRules.test.ts` 같은 표). rooms 화면 동작 변경 없음(방 생성은 이 코드를 받지 않는다) | rooms design v1.5.1 F-RM-22 · chat S3b TC-CH-097 |

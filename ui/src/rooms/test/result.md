@@ -41,3 +41,6 @@ R-ROOMS-001~005 모두 자동 TC 1건 이상 PASS. R-ROOMS-005(레이아웃)는 
 | MC-RM-09 | 미확인 | 캡처 없음. manual-checklist 인계 |
 
 요구ID 커버: R-ROOMS-002 자동+캡처 · R-CHAT-009·R-NFR-004·R-API-003 자동+grep. R-ROOMS-005 쓰기판 레이아웃은 부분.
+
+## S3b 갱신 (2026-10-06 16:01)
+- TC-RM-029: PASS — `writeRules.test.ts` 해당 ID 11건 ✓. `toastToneOf(LLM_BUDGET_EXCEEDED)=warning`, `LLM_FAILED`·`SPEAK_IN_PROGRESS`=danger 행 포함. ui 전체 34파일 462 통과 / 실패 0, 루트 53파일 763 통과 / 실패 0.

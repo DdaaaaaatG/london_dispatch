@@ -64,7 +64,7 @@
 | F-RM-19 | 읽기 전용 전환 effect (RoomsScreen, S2) | `viewer.canWrite` | 입력 행 정리·포커스 | `useEffect([viewer.canWrite])`: `canWrite`가 true였다가 false가 되면(이전 값 ref) `resetCreate()`(상태 초기값, `isSubmitting` 무시) → `titleRef.current?.focus()`(사라진 입력에 있던 포커스를 h1로) | 처음부터 false면 아무것도 안 함 | R-CHAT-011 · R-CHAT-008 |
 | F-RM-20 | `token.ts` 함수 (components.md §1.10, S2) | `search` | 슬롯 | components.md §1.10 | 값 없음·공백 → null | R-CHAT-009 · R-NFR-004 |
 | F-RM-21 | `viewerFromToken(token)` (components.md §1.8, S2) | 토큰 또는 null | `Viewer` | null이 아니면 `WRITER_VIEWER` | — | R-CHAT-008 · R-ROOMS-002 |
-| F-RM-22 | `toastToneOf(error: ApiError): ToastTone` (`ui/src/state/writeFailure.ts`, S2) | 실패 | `'warning' \| 'danger'` | `isAuthFailure(error) \|\| error.code === 'RATE_LIMITED'` → `'warning'`, 그 밖 → `'danger'`(ui_design_concept §3 상태 색: 토큰 만료·레이트리밋 = 주의) | — | R-CHAT-011 |
+| F-RM-22 | `toastToneOf(error: ApiError): ToastTone` (`ui/src/state/writeFailure.ts`, S2) | 실패 | `'warning' \| 'danger'` | `isAuthFailure(error) \|\| error.code === 'RATE_LIMITED' \|\| error.code === 'LLM_BUDGET_EXCEEDED'` → `'warning'`, 그 밖 → `'danger'`(ui_design_concept §3 상태 색: 토큰 만료·레이트리밋·월 AI 한도 = 주의). (v1.5.1, S3b) `LLM_BUDGET_EXCEEDED`(429, R-LLM-007)는 speak·regenerate만 내므로 사용처는 chat 재작성 토스트(chat `design/generate.md` §3)다. rooms 방 생성은 이 코드를 받지 않는다 | — | R-CHAT-011 · R-LLM-007 |
 | F-RM-23 | `countChars` · `isRoomTitleValid` (components.md §1.11, S2) | 문자열 | 수·불리언 | trim 후 코드 포인트 | — | R-ROOMS-002 |
 
 - `useCreateRoom(options: { onCreated: (room: RoomSummary) => void; onFailure: (error: ApiError) => void }) => { create, openCreate, cancelCreate, changeTitle, submitCreate, resetCreate }`. 활성 플래그는 `useRoomsLoader`와 같은 방식(`useEffect` 마운트 true·cleanup false)으로 훅 안에 둔다. 최신 콜백은 ref로 읽는다.

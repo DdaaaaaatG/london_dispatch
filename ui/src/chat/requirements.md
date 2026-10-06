@@ -5,7 +5,7 @@
 | 화면 | chat (대화) · 폴더 `ui/src/chat/` |
 | 요구 확정 상태 | **확정** |
 | 확정일 | 2026-10-05 (전체 요구 승인 ① 2026-10-05T19:06, `doc/100_요구조건/requirements.md` §11) |
-| 이번 묶음 | S1 · S2 구현 완료 · **S3(AI 발화)** — 상세 설계 대상은 R-CHAT-004(캐릭터 버튼 2)·005·007(재작성)·011(S3 코드)·003(speak 트리거)·002(임시 말풍선 배치)·013(S3 요소) |
+| 이번 묶음 | S1 · S2 · S3 구현 완료 · **S3b(월 AI 비용 상한 — 화면은 R-CHAT-011 에러 코드 1종 추가만, 새 UI 없음)** · 직전 S3(AI 발화) — 상세 설계 대상은 R-CHAT-004(캐릭터 버튼 2)·005·007(재작성)·011(S3 코드)·003(speak 트리거)·002(임시 말풍선 배치)·013(S3 요소) |
 | 소유 | ui-designer |
 
 ## 변경이력
@@ -19,6 +19,7 @@
 | v1.5 | 2026-10-05 | §1.1 참조 행 R-API-003 추가(R-CHAT-009로 닫힘). 요구 원문 변경 없음 | 메인 세션 결정 DC-10 |
 | v1.6 | 2026-10-05 | **CR-001 적용**: R-CHAT-002 🔒 개정 원문 재전사(세바스찬 왼쪽 · 시엘 오른쪽 · 유저 가운데 말풍선 · OOC 가운데 한 줄). 옛 행은 `폐기(CR-001로 대체)` 표시로 보존 | 사용자(지인 지정) 🔒 요구 개정 |
 | v1.7 | 2026-10-06 | S3 착수: 묶음 열 갱신(요구 원문 변경 없음). §1.1 참조 행 R-MSG-003·006·007·R-NFR-001 추가. §2 U-CH-09·10 S3 활성. §3 speak·regenerate 재사용(api.md v0.4 확정), 계약 인용 v0.4. §4 S3 새 라이브러리 없음 | 구축 S3 |
+| v1.8 | 2026-10-06 | S3b: R-CHAT-011 묶음 열에 S3b(`LLM_BUDGET_EXCEEDED`) 추가(요구 원문 변경 없음). §1.1 참조 행 R-LLM-007·R-API-002(14종 개정) 추가. §3 계약 인용 v0.4.1 | 구축 S3b · R-LLM-007 🔒 · R-API-002 개정(사용자 승인 2026-10-06) |
 
 ---
 
@@ -39,7 +40,7 @@
 | R-CHAT-008 | 🔒 | 토큰 없으면 하단 바·⋯ 메뉴·롱프레스 메뉴·새 방 버튼을 **렌더하지 않는다**(숨김 아님). | DOM 부재 TC. | S1 · S2(렌더 쌍) |
 | R-CHAT-009 | 🔒 | 토큰은 `?t=`에서 읽어 메모리(모듈 상태)에만 둔다. URL에서 제거하지 않아도 되나 저장은 금지. 모든 쓰기 api 호출에 헤더로 부착. | grep: localStorage에 토큰 저장 코드 0건. | **S2** — 보관 위치 `ui/src/state/token.ts`(공용 정의 rooms design) |
 | R-CHAT-010 | | 스크롤 위치·마지막 본 방은 `localStorage`(try/catch). | TC. | S1 |
-| R-CHAT-011 | | 오류 코드별 한국어 안내: `RATE_LIMITED`(잠시 후), `SPEAK_IN_PROGRESS`(생성 중), `LEVEL_TOO_LOW`·`TOKEN_INVALID`(쓰기 UI를 읽기 전용으로 전환하고 안내), `LLM_FAILED`(재시도). | TC. | S2(RATE_LIMITED·LEVEL_TOO_LOW·TOKEN_INVALID, 계약상 TOKEN_REQUIRED 포함) / **S3(SPEAK_IN_PROGRESS·LLM_FAILED, 계약상 LLM_EMPTY·CONFIG_INVALID·NOT_LAST_MESSAGE·NOT_CHARACTER_MESSAGE 포함)** |
+| R-CHAT-011 | | 오류 코드별 한국어 안내: `RATE_LIMITED`(잠시 후), `SPEAK_IN_PROGRESS`(생성 중), `LEVEL_TOO_LOW`·`TOKEN_INVALID`(쓰기 UI를 읽기 전용으로 전환하고 안내), `LLM_FAILED`(재시도). | TC. | S2(RATE_LIMITED·LEVEL_TOO_LOW·TOKEN_INVALID, 계약상 TOKEN_REQUIRED 포함) / **S3(SPEAK_IN_PROGRESS·LLM_FAILED, 계약상 LLM_EMPTY·CONFIG_INVALID·NOT_LAST_MESSAGE·NOT_CHARACTER_MESSAGE 포함)** / **S3b(계약상 LLM_BUDGET_EXCEEDED — R-LLM-007)** |
 | R-CHAT-012 | 🔒 | 장기기억 시트: `summary` 보기 · 편집(0~4000자) · 저장. ⋯ 메뉴에서 진입. | TC. | S4(후속) |
 | R-CHAT-013 | 🔒 | 390×565 안에서 그린다. 버튼에 접근성 레이블. Rosebell 토큰. | 스크린샷(읽기 전용·쓰기 2종). | S1(읽기 전용 판) · S2(쓰기 판) · **S3(캐릭터 버튼·임시/실패 말풍선·재작성 중)** |
 
@@ -59,6 +60,8 @@
 | R-MSG-006 | 🔒 | "재작성(regenerate): 대상이 캐릭터 메시지이고 **그 방의 마지막 메시지**일 때만, 같은 캐릭터로 다시 생성해 `text`를 교체. 아니면 `409 NOT_LAST_MESSAGE`. 유저 메시지는 `400 NOT_CHARACTER_MESSAGE`." — 재작성 항목 데이터(api.md §4.14) | 같은 문서 §5 | S3 |
 | R-MSG-007 | 🔒 | "speak·regenerate는 방당 동시 1건 … 선점 실패 → `409 SPEAK_IN_PROGRESS`." — 화면은 안내만 | 같은 문서 §5 | S3 |
 | R-NFR-001 | 🔒 | "speak 응답은 LLM 타임아웃 60초 + 재시도 포함 **70초 이내**에 성공 또는 실패로 끝난다." — 화면은 자체 타이머를 두지 않고 서버 종결에 의존 | 같은 문서 §12 | S3 |
+| R-LLM-007 | 🔒 | "… 누적이 `LLM_MONTHLY_BUDGET_KRW`(기본 100000)에 닿으면 speak·regenerate를 **LLM 호출 전** 거절 `429 LLM_BUDGET_EXCEEDED`("이번 달 AI 사용 한도에 닿았습니다. 다음 달에 다시 시도해 주세요."). 읽기·유저 발화·수정·삭제는 계속. 다음 달 1일 00:00 KST에 자동 해제 …" — 화면은 코드별 안내만(카운트다운·자동 재시도·해제 날짜 없음) | 같은 문서 §7 | S3b |
+| R-API-002 | 🔒 | "코드는 `shared/src/errors.ts` 단일 소스: … `LLM_BUDGET_EXCEEDED` …(14종 — 2026-10-06 R-LLM-007로 1종 추가 개정)." — 화면 문구는 `labels.ts`가 `code`로 정한다 | 같은 문서 (API) | S3b |
 | R-API-003 | 🔒 | "토큰은 `Authorization: Bearer` 헤더. 화면은 `?t=`를 읽어 메모리에만 둔다(localStorage·쿠키 금지)." — R-CHAT-009와 같은 내용이라 **R-CHAT-009로 닫힘**(v1.5, 메인 세션 결정 DC-10. RTM design.md §15 참조 행) | 같은 문서 (API) | S2 |
 
 ---
@@ -88,7 +91,7 @@
 
 ## 3. 데이터 계약 요구 명세
 
-계약의 실체는 `doc/200_설계/contract/api.md`(**v0.4**)가 소유한다.
+계약의 실체는 `doc/200_설계/contract/api.md`(**v0.4.1** — S3b: 엔드포인트·타입 추가 없음, 에러 코드 14종째 `LLM_BUDGET_EXCEEDED`와 429 두 종류 구분 §3.2·§3.4)가 소유한다.
 
 | 필요 | 메서드·경로 | 요청 | 응답 | 토큰 | 래퍼(`ui/src/api`) | 재사용/신규 | 묶음 |
 |---|---|---|---|---|---|---|---|

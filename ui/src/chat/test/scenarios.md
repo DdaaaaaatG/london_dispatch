@@ -2,7 +2,7 @@
 
 - 기준: `ui/src/chat/design.md` v1.6(CR-001 Bubble 배치, ui-designer 반영 중 — components.md §2.2 v1.6 확인)(+ `design/components.md` · `design/functions.md` · `design/a11y.md` · `design/tc.md` v1.5) / `ui/src/chat/requirements.md` v1.4 / `doc/200_설계/contract/api.md` v0.3.1 / 공용 요소 단일 정의 `ui/src/rooms/design/components.md` §1
 - **v0.6 기준(S3 증분)**: `ui/src/chat/design.md` **v1.7**(§15 RTM) + `design/tc.md` v1.7 §3 · `design/generate.md` · `design/functions.md` §1·§4.3 · `design/components.md` §0·§2.6·§2.8·§2.11·§2.12·§3 · `design/labels.md` §8.1.2 · `design/a11y.md` / `ui/src/chat/requirements.md` **v1.7** / `doc/200_설계/contract/api.md` **v0.4**(§4.12~§4.14 · §11.9 · 「ui 인계 메모」)
-- 작성일: 2026-10-05(v0.6: 2026-10-06) · 작성: ui-test-designer · 모드: **증분**(S1 TC-CH-001~030 · S2 TC-CH-031~065 보존, **S3 TC-CH-066~095 추가**) · 상태: **초안 v0.6.1(S3 검증 TK-01~10·CF-01~04 반영, 재검증 대기)** · 공용 부품 danger 톤 클래스 키 = `danger` **확정**(메인 세션 결정 TK-09)
+- 작성일: 2026-10-05(v0.6: 2026-10-06) · 작성: ui-test-designer · 모드: **증분**(S1 TC-CH-001~030 · S2 TC-CH-031~065 보존, **S3 TC-CH-066~095 추가**, **S3b TC-CH-096·097 추가**) · 상태: **초안 v0.7(S3b 월 AI 비용 한도 증분, 검증 전)** · S3b 기준: `design/generate.md` §3 `LLM_BUDGET_EXCEEDED` 행 · `design/tc.md` TC-CH-096·097 · `design/labels.md` §8.1.2 비고 · `doc/200_설계/contract/api.md` **v0.4.1** §3.2·§3.4 · rooms F-RM-22 v1.5.1(`toastToneOf`) · 공용 부품 danger 톤 클래스 키 = `danger` **확정**(메인 세션 결정 TK-09)
 - 묶음: **S1(읽기 전용 판)** + **S2(토큰 + 쓰기)** + **S3(AI 발화 speak · 재작성 regenerate)**. S1 TC의 토큰 분기는 "없음" 그대로다. S2 TC는 쓰기 UI마다 토큰 있음(TC-CH-031) ↔ 없음(TC-CH-003·021·022·023) 쌍과 전환(051·052)을 더한다. S3 TC는 캐릭터 버튼 있음(066) ↔ 없음(067·021) 쌍과 전환(076·084)을 더한다. S4(장기기억)는 「후속 이월」.
 - **S3 공통 전제(추가 — S1·S2 전제는 그대로 유지)**
   - **토큰**: 화면 단위는 `viewer=WRITER_VIEWER`(있음)·`READ_ONLY_VIEWER`(없음) props, App 통합(TC-CH-076)은 `initToken('?t=test-token')` → `clearToken()`. localStorage에 토큰을 넣지 않는다.
@@ -611,6 +611,19 @@
 - Then ⓐ 대기 중 `세바스찬 대사 생성`·`시엘 대사 생성`·`시엘 대사 재시도` 모두 disabled → 응답 뒤 모두 활성((a) 편집기 닫힘) ⓑ writing edit/delete/regenerate → null, 실패 pending 유지 ⓒ (a) `editMessage` `[[72, { text: '고친 대사' }]]` (b) `deleteMessage` `[[71]]` (c) `regenerate` `[[72]]`. 세 경우 `speak` 1회(실패 말풍선을 만든 1회) 유지
 - 스펙: `Regenerate.test.tsx` · 순수 근거 `chat.test.ts` `canSpeak`(TC-CH-085)
 
+### TC-CH-096 · (S3b) speak 월 AI 비용 한도 초과 · 종류: 자동 · 요구: R-CHAT-011 · R-CHAT-005 · R-LLM-007 · 설계: generate §3 `LLM_BUDGET_EXCEEDED` 행 · F-CH-31 ③ · F-CH-37 · labels §8.1.2 비고 · api §3.4 429 구분 · 토큰: 있음
+- Given ready 4건. `speak` → `{ ok: false, error: { code: 'LLM_BUDGET_EXCEEDED', message: '이번 달 AI 사용 한도에 닿았습니다. 다음 달에 다시 시도해 주세요.' } }`(래퍼 정규화 뒤 모양 — `retryAfterSec` 없음, `ApiError`에 `status` 필드는 없다). 대조용 `RATE_LIMITED`+`retryAfterSec: 40`(별도 마운트)
+- When (a) 세바스찬 클릭 → resolve → (가짜 시계) 60 000ms 경과 → 실제 시계로 돌린 뒤 「세바스찬 대사 재시도」 클릭(같은 한도 실패) (b) 시엘 클릭 → 한도 실패 / 다시 마운트 → 시엘 클릭 → `RATE_LIMITED` 40
+- Then ⓐ (a) 같은 자리 `pending failed sebastian` 말풍선, 화면 alert는 그 안 1개(E 토스트 없음) = `이번 달 AI 사용 한도에 닿았습니다. 다음 달에 다시 시도해 주세요.`, 말풍선 글자에 숫자 없음(초·날짜·카운트다운 없음), 「재시도」 활성, group·캐릭터 버튼 그대로, `role=note` 없음(전환 없음). 60초 뒤에도 문구 그대로 (b) 한도 문구에는 `초 후` 없음, `RATE_LIMITED` 문구는 `요청이 너무 많습니다. 40초 후 다시 시도해 주세요.`이고 한도 문구를 포함하지 않음(같은 429, `code`로만 구분) ⓑ pending failed(error = 한도). 순수: `speakErrorText(LLM_BUDGET_EXCEEDED)` = 한도 문구(message가 `SERVER-RAW-MESSAGE`여도 — code → `ERROR_MESSAGES`) ⓒ (a) 60초 경과 뒤 `speak` 1회 유지(자동 재시도 없음) → 「재시도」 뒤 `[['r1', { character: 'sebastian' }], ['r1', { character: 'sebastian' }]]`. `onAuthFailure` 0회 (b) `speak` 총 2회
+- 스펙: `SpeakFlow.test.tsx` · `PendingBubble.test.tsx`(speakErrorText 행)
+- 참고: 연타 → 분당 한도 `RATE_LIMITED` 전환은 서버 테스트(API-T-089) 소관이라 화면 TC에 넣지 않는다
+
+### TC-CH-097 · (S3b) 재작성 월 AI 비용 한도 초과 · 종류: 자동 · 요구: R-CHAT-011 · R-CHAT-007 · R-LLM-007 · 설계: generate §3 `LLM_BUDGET_EXCEEDED` 행 · §3 톤 비고 · F-CH-34 그 밖 · F-CH-16 · rooms F-RM-22 v1.5.1 · 토큰: 있음
+- Given Regenerate 픽스처, 72 재작성 대기 → `LLM_BUDGET_EXCEEDED`(같은 모양)
+- When resolve → (가짜 시계) 60 000ms 경과
+- Then ⓐ 72 원 본문 `분부대로 하겠습니다, 도련님.` 그대로, `regenerating` 없음, alert(토스트) 1개 = 한도 문구, 클래스 `warning`(`danger` 아님), `/재시도/` 버튼 없음, `role=note` 없음·group 그대로(전환 없음) ⓑ writing null. 순수: `writeErrorText(LLM_BUDGET_EXCEEDED, 'regenerate')` = 한도 문구, `toastToneOf(LLM_BUDGET_EXCEEDED)` = `warning`(`LLM_FAILED`·`SPEAK_IN_PROGRESS`는 `danger` 유지) ⓒ `regenerate` `[[72]]`(60초 뒤에도 자동 재시도 없음), `listMessages` 1회(재조회 없음), `onAuthFailure` 0회
+- 스펙: `Regenerate.test.tsx`(통합 · writeErrorText 행) · 톤 순수 근거는 rooms **TC-RM-029**(`ui/src/state/writeRules.test.ts` 기존 `toastToneOf` 표에 행 추가 — 톤 테스트는 한 곳)
+
 ## TC-FLOW
 
 S1·S2 행. **ⓒ 호출 횟수는 단계 증분으로 읽는다**: 체인 안에서 각 Step의 ⓒ 횟수는 그 Step에서 새로 생긴 호출 수이고 앞 Step 호출에 더해진다(CF-02). 표기: `A → B`는 **순차 인계**(A의 결과 상태가 B의 Given). `분기:`는 같은 지점에서 갈라지는 **대안·독립 확인**(서로 상태를 넘기지 않는다).
@@ -883,13 +896,15 @@ S1·S2 행. **ⓒ 호출 횟수는 단계 증분으로 읽는다**: 체인 안�
 | R-CHAT-007 🔒(재작성) | TC-CH-079 ~ 084 · 085 · 087 · 094 · 095 | confirm 없음 080 |
 | R-CHAT-008 🔒 | TC-CH-066 · 067 · 076 · 084 | |
 | R-CHAT-009 🔒 | TC-CH-076(b) | `getToken()` null |
-| R-CHAT-011(S3 코드) | TC-CH-073 · 074 · 076 · 081 · 082 · 083 · 084 · 086 | SPEAK_IN_PROGRESS 074·081 · LLM_FAILED 073·081 · CONFIG_INVALID 074·081 · NOT_LAST 082 · NOT_CHARACTER 081 |
+| R-CHAT-011(S3 코드 · S3b) | TC-CH-073 · 074 · 076 · 081 · 082 · 083 · 084 · 086 · **096 · 097** | SPEAK_IN_PROGRESS 074·081 · LLM_FAILED 073·081 · CONFIG_INVALID 074·081 · NOT_LAST 082 · NOT_CHARACTER 081 |
 | R-CHAT-013 🔒(S3 요소) | TC-CH-066 · 069 · 089 · 092 · 093 · MC-CH-17 | |
 | R-MSG-003 🔒(참조) | TC-CH-068 | 본문 `{ character }`뿐 |
 | R-MSG-006 🔒(참조) | TC-CH-079 · 080 | 표시 조건·인자 하나 |
 | R-MSG-007 🔒(참조) | TC-CH-070 · 074 | 화면 직렬화·409 안내 |
 | R-NFR-001 🔒(참조) | TC-CH-070 · MC-CH-18 | 화면 타임아웃 없음 |
 | R-ROOMS-004 | TC-CH-077 | 방 사라짐 → 기록 삭제 |
+| R-LLM-007 🔒(S3b 월 비용 한도 — 화면 쪽) | TC-CH-096 · 097 | 한도 판정·연타 → RATE_LIMITED는 server·contract 테스트 소관 |
+| R-CHAT-005 🔒 · R-CHAT-007 🔒(S3b 보강) | TC-CH-096(재시도 있음) · 097(원 대사 유지) | |
 
 ### 설계 항목 ↔ TC (S3)
 
@@ -900,6 +915,7 @@ S1·S2 행. **ⓒ 호출 횟수는 단계 증분으로 읽는다**: 체인 안�
 | generate §1 speak 흐름(201 · 인증 · NOT_FOUND · 그 밖 · 재시도 · 다른 캐릭터 · 뒤로) | TC-CH-071 · 076 · 077 · 073 · 074 · 075 |
 | generate §2 regenerate 흐름(200 · NOT_LAST · NOT_FOUND · 인증 · 그 밖) | TC-CH-080 · 082 · 083 · 084 · 081 |
 | generate §3 문구 표(speak 열 · regenerate 열 · 톤) | TC-CH-074 · 086 · 081 · 076 |
+| generate §3 `LLM_BUDGET_EXCEEDED` 행(S3b: 문구 · 재시도 ○ · warning · 카운트다운·자동 재시도 없음 · code로 429 구분) · 톤 비고 · labels §8.1.2 S3b 비고 · rooms F-RM-22 v1.5.1 | TC-CH-096 · 097 |
 | generate §4 D-11 · D-12 · D-13 · D-14 · D-15 · D-16 · A-6 | 069 · 073·074 · 081 · 070·094 · 082 · 074·069·080 · 070 |
 | generate §5 L-1~L-3 | 비행동 항목(한계 기록) — TC 대상 아님 |
 | F §1 S3 `MessageWrite`·`PendingSpeak`·`ChatState.pending`·액션 4종 | TC-CH-085 |
@@ -972,3 +988,5 @@ ui-test-checker S2 판정 FAIL 지적 반영: TC-CH-038 내용 높이 mock을 "�
 | v0.4 | 2026-10-05 | **S2 증분**: S2 공통 전제(토큰 주입 = `viewer` props / App은 `initToken`·`clearToken`, 쓰기 래퍼 모킹·AI 호출 없음 판정, `matchMedia` 스텁, 롱프레스·토스트 가짜 시계). TC-CH-031~065 추가(tc.md v1.5 반영: 033 단언 범위·046 재로드 맨 아래·054 메뉴 진입 막힘·064·065 App 흐름), TC-FLOW-CH-08~13 추가, 사용자행 U-CH-06~12 연결, F-CH-08 조립(038)·FLOW-CH-06 순차 체인(FLOW-CH-12) 이월 해소. 「후속 이월」을 S3·S4만 남기고 「추적표 — S2 추가분」 신설. 스펙 신규 `Composer`·`BubbleMenu`·`RoomMenu`·`AuthTransition`·공용 부품 6종, `ui/src/state/chat.test.ts` 확장. S1 TC-CH-001~030 변경 없음 | 구축 S2, design.md v1.5 · tc.md v1.5 |
 | v0.6 | 2026-10-06 | **S3 증분**: 머리말 기준 v1.7·api v0.4, S3 공통 전제(토큰·mock 목록 `speak`·`regenerate`·deferred 생성 대기·픽스처·스크롤 수치·클래스 단언). TC-CH-066~094 추가(자동 28 · 수동 1), TC-FLOW-CH-14~17, 「추적표 — S3 추가분」(대체·영향 표 · 요구 · 설계), 사용자행 U-CH-06·09·10·12 연결, 「후속 이월」 S3 행 해소, Q-05~07. 스펙 신규 `SpeakButtons`·`PendingBubble`·`SpeakFlow`·`Regenerate`·`useAutoScrollTail`, `chat.test.ts`에 `describe('S3 …')` 3블록 추가, 기존 스펙 대체·영향 조정(Composer·BubbleMenu·ChatScreen·MessageList). 확인표 v0.3(MC-CH-16~18) | 구축 S3, design.md v1.7 · tc.md v1.7 §3 |
 | v0.6.1 | 2026-10-06 | S3 검증 반영. **모순**: 083(b) 스크롤 mock으로 첫 배치 자동 이전 로드 없음 전제(CF-02) · 082·083 포커스 = ready 커밋 뒤(F-CH-41, loading 중 이동 없음·재조회 실패 시 이동 없음·0건이면 ‹, CF-01·TK-05) · 015·053 본문 10필드(CF-03) · 031 Then 구절 삭제(CF-04). **완결성**: FLOW-CH-14 순차 인계를 066 → 068(a) → 069(a)로 줄이고 나머지 `분기:`(TK-01) · FLOW-CH-16 072(b) 단계 순서로 재구성(TK-02) · 080 ⋯ disabled·메뉴 무반응, **TC-CH-095 신규**(수정 저장·삭제·재작성 대기 중 캐릭터 버튼·재시도 disabled), `canSpeak` send·edit·delete 케이스(TK-03) · 081 톤·084 warning(TK-04) · 088 OOC 켬 변형(TK-06) · 076(b) ‹ 포커스·warning·버튼 부재(TK-08) · 087 listMessages 1회·077 `.pending` 0개(TK-09) · 086 가정 표기 삭제(TK-10) · 089 F-CH-38 기억 비움 경합(부품). 자동 29 · 수동 1 | ui-test-checker TK-01~10 · ui-test-conflict-checker CF-01~04 · 설계 정정(F-CH-36·38·41, components.md `isRetryDisabled`) |
+| v0.6.2 | 2026-10-06 | 스펙 결함 2건 수정: TC-CH-089 부품(disabled 전환 **전**에 blur — jsdom 30은 disabled 요소 blur 무시) · TC-CH-079 `it.each` 행 타입을 가변 `[string, MessagesPage, number]`로(tsc). Given/When/Then 불변 | 구현 후 ui 실행 결과(메인 세션) |
+| v0.7 | 2026-10-06 | **S3b 증분**: TC-CH-096(speak 한도 초과 — 실패 말풍선·재시도·RATE_LIMITED와 문구 구분·숫자 없음·60초 뒤 자동 재시도 없음·전환 없음) · TC-CH-097(재작성 한도 초과 — 원문 유지·warning 토스트·재조회·전환·자동 재시도 없음). 순수 행 추가(speakErrorText · writeErrorText regenerate · toastToneOf). 추적표 R-CHAT-011·R-LLM-007·설계 행 갱신. 자동 31 · 수동 1 | S3b, generate.md §3 · tc.md 096·097 · api.md v0.4.1 |

@@ -5,6 +5,8 @@
 import { type ApiError, isAuthFailure } from '@/api'
 import type { ToastTone } from '@/components/ui/Toast'
 
-/** 인증 실패 또는 RATE_LIMITED 면 warning, 그 밖은 danger */
+/** 인증 실패·RATE_LIMITED·LLM_BUDGET_EXCEEDED(R-LLM-007) 면 warning, 그 밖은 danger */
 export const toastToneOf = (error: ApiError): ToastTone =>
-  isAuthFailure(error) || error.code === 'RATE_LIMITED' ? 'warning' : 'danger'
+  isAuthFailure(error) || error.code === 'RATE_LIMITED' || error.code === 'LLM_BUDGET_EXCEEDED'
+    ? 'warning'
+    : 'danger'

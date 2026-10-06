@@ -62,11 +62,13 @@ describe('toastToneOf (R-CHAT-011)', () => {
     ['TOKEN_INVALID', 'warning'],
     ['LEVEL_TOO_LOW', 'warning'],
     ['RATE_LIMITED', 'warning'],
+    ['LLM_BUDGET_EXCEEDED', 'warning'], // v1.5.1 S3b(rooms F-RM-22) — chat TC-CH-097 근거
+    ['LLM_FAILED', 'danger'],
+    ['SPEAK_IN_PROGRESS', 'danger'],
     ['INTERNAL', 'danger'],
     ['NETWORK', 'danger'],
     ['NOT_FOUND', 'danger'],
     ['VALIDATION_ERROR', 'danger'],
   ] as const)('TC-RM-029: toastToneOf(%s) = %s', (code: ApiErrorCode, tone) => {
     expect(toastToneOf({ code, message: 'x' })).toBe(tone)
-  })
-})
+  })})

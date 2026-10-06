@@ -154,6 +154,8 @@ describe('speakErrorText (R-CHAT-011 · R-CHAT-005, design/generate.md §3)', ()
     ['NETWORK', undefined, '서버에 연결할 수 없습니다.'],
     ['INTERNAL', undefined, ERROR_MESSAGES.INTERNAL],
     ['VALIDATION_ERROR', undefined, ERROR_MESSAGES.VALIDATION_ERROR],
+    // S3b TC-CH-096: code → ERROR_MESSAGES(서버 message 미사용), 초 문구 아님
+    ['LLM_BUDGET_EXCEEDED', undefined, '이번 달 AI 사용 한도에 닿았습니다. 다음 달에 다시 시도해 주세요.'],
   ] as const)('TC-CH-086: speakErrorText(%s, retryAfterSec=%s) = %s', (code, sec, text) => {
     const out = speakErrorText(err(code, sec))
     expect(out).toBe(text)

@@ -134,3 +134,16 @@ Bubble.test TC-CH-007~010 PASS + 캡처 육안 일치 → 「검증됨」.
 
 ## 요구ID 커버
 R-CHAT-002·003·004·005·006·007·008·011·013(S3분)·참조 R-MSG-003·006·007 자동 TC 전부 PASS. 육안 요소(R-CHAT-002 배치, R-CHAT-004 버튼 위치, R-CHAT-013 1행)는 캡처 PASS, 재작성 중 흐림·스크린리더·실 LLM 체감은 수동 이월.
+
+# S3b 결과 — chat(월 AI 비용 한도 LLM_BUDGET_EXCEEDED) / 2026-10-06 16:01~16:03
+실행: `npx tsc --noEmit -p ui`(exit 0) · `npx vitest run --project ui`(34파일 462 통과 / 실패 0) · `npx vitest run --project ui -t "TC-CH-096|TC-CH-097|TC-RM-029"`(3파일 19 통과 / 실패 0) · 루트 `npx vitest run`(53파일 763 통과 / 실패 0) · 스크린샷 0장 · 토큰 미사용
+판정: 통과 (자동 TC-CH-096·097 PASS 2 / FAIL 0 / SKIP 0)
+
+| TC | 판정 | 기대 | 실측 | 증거 |
+|---|---|---|---|---|
+| TC-CH-096 (speak 한도 초과) | PASS | 실패 말풍선 + 한도 문구 + 「재시도」, 토스트·숫자·카운트다운 없음, 전환 없음, 60초 뒤 자동 재시도 없음, 재시도 = 같은 캐릭터 2번째 호출 | 충족. 같은 429 RATE_LIMITED(retryAfterSec 40)와 문구가 다름(code로만 구분) 별도 테스트도 통과 | SpeakFlow.test.tsx 테스트 2건 ✓ |
+| TC-CH-097 (재작성 한도 초과) | PASS | 원 본문 유지·재작성 표시 소멸, warning 토스트, 재조회·전환·자동 재시도 없음 | 충족 | Regenerate.test.tsx 테스트 1건 ✓ |
+
+- 톤 판정: 통합 TC-CH-097이 warning 클래스를 검증하고, 순수 함수 `toastToneOf(LLM_BUDGET_EXCEEDED) = warning`은 writeRules.test.ts ✓.
+- 캡처: 해당 없음. 이번 증분은 UI 레이아웃 변경이 없는 문구·톤 분기 추가이며 통합 TC가 DOM·클래스를 직접 검증한다.
+- 콘솔 오류·경고: ui 프로젝트 출력 0건. 루트 전체 출력에는 Node MaxListenersExceededWarning(Socket 리스너 12개)이 반복되나 server 프로젝트 소음이며 FAIL 아님.

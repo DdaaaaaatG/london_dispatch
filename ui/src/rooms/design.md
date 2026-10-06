@@ -26,6 +26,7 @@
 | v1.3 | 2026-10-05 | named export 규칙(components.md 머리말) · TC-RM-016 판별 기준(React 19) · CF-01: §6.2 자동 진입 시 목록 미커밋 가능 명시, functions.md F-RM-06·08과 TC-RM-008을 "판정 시점에 목록 응답이 성공 상태"로 재정의(동작 변경 없음) | 시나리오 검증 지적 · conflict-checker CF-01 메인 세션 결정 |
 | v1.4 | 2026-10-05 | **S1 실물 소급**(§11.3 델타 R-1~R-6: `useRoomsLoader` 분리, `loadRooms`가 loading을 설정하지 않음, `ListArea` 지역 컴포넌트, `selectRoom` 없음, App 콜백 `useCallback`, `READ_ONLY_VIEWER` freeze). **S2 상세**: R-ROOMS-002 본문 승격(§2.2·§6.5·§7·§8.3·§10), 토큰·viewer·한도·공용 입력/시트/토스트 단일 정의(components.md §1.10~§1.20), F-RM-12~23, TC-RM-018~032, 계약 인용 v0.3 | 구축 S2 |
 | v1.5 | 2026-10-05 | 검증 MINOR 반영: DC-06 F-RM-03 참조(F-CH-27) · DC-07 변경이력 TC 범위 · DC-09 공용 미사용 표면 삭제(`useToast.dismissToast`·`--btn-busy-opacity`·TextInput/TextArea/Toggle `isDisabled`), IconButton `isDisabled` 추가(chat ⋯, 승인) · DC-10 §14 R-API-003 참조 행(R-CHAT-009로 닫힘) | ui-design-checker MINOR · 메인 세션 결정 DC-10 |
+| v1.5.1 | 2026-10-06 | S3b: `toastToneOf`(F-RM-22) warning 조건에 `LLM_BUDGET_EXCEEDED`(429, R-LLM-007) 추가 — functions.md F-RM-22 · §8.3 비고 · TC-RM-029 기대. 사용처는 chat 재작성 토스트(chat design v1.8), rooms 화면 동작 변경 없음 | 메인 세션 승인(chat S3b 공용 변경 요청) |
 
 ---
 
@@ -275,6 +276,7 @@ api.md **v0.3**을 **인용**한다(재정의 아님).
 | `NETWORK` | `서버에 연결할 수 없습니다.` | danger |
 | 그 밖 | `ERROR_MESSAGES[code]` | danger |
 
+- 톤 판정 `toastToneOf`(F-RM-22)는 (v1.5.1, S3b) `LLM_BUDGET_EXCEEDED`도 warning이다. 방 생성은 이 코드를 받지 않으므로 이 표의 문구 행은 늘지 않는다(사용처는 chat 재작성 토스트).
 - 서버 `error.message`는 화면에 쓰지 않는다. 화면 문구는 `code`로 정한다(api.md §3.1).
 - 같은 규칙의 chat판은 chat design.md §8.3(대상 동작별 `NOT_FOUND`·`VALIDATION_ERROR` 문구가 더 있다). 두 표의 인증·레이트리밋 행은 같은 문구다(§13 공용화 후보).
 
@@ -412,7 +414,7 @@ contract 변경 요청(설계에 끼워 넣지 않음):
 | TC-RM-026 | (S2) Enter 제출·IME | 유효 제목 Enter → `createRoom` 1회 · `isComposing=true` Enter → 호출 없음 · 무효 제목 Enter → 호출 없음 |
 | TC-RM-027 | (S2) App 토큰 흐름(TC-FLOW) | `initToken('?t=abc')` → `<App />` → 「+ 새 방」 있음 → 생성 → chat. `initToken('')` → 「+ 새 방」 없음 |
 | TC-RM-028 | (S2) token.ts | `readTokenFromSearch`: `'?t=abc'`→`'abc'` · `'?t=%20abc%20'`→`'abc'` · `'?t='`·`'?t=%20'`·`''`·`'?x=1'`→`null` · `'?t=a%2Bb'`→`'a+b'`. `initToken`→`getToken`, `clearToken`→`null`. 호출 전후 `localStorage`·`sessionStorage` 길이·`document.cookie` 변화 없음 |
-| TC-RM-029 | (S2) viewer·limits·tone | `viewerFromToken(null)` = READ_ONLY, `('x')` = WRITER · `countChars('  a😀b ')` = 3 · `isRoomTitleValid` 0/1/60/61 · `toastToneOf` auth·RATE_LIMITED = warning, 그 밖 danger |
+| TC-RM-029 | (S2) viewer·limits·tone | `viewerFromToken(null)` = READ_ONLY, `('x')` = WRITER · `countChars('  a😀b ')` = 3 · `isRoomTitleValid` 0/1/60/61 · `toastToneOf` auth·RATE_LIMITED·(v1.5.1) LLM_BUDGET_EXCEEDED = warning, 그 밖 danger |
 | TC-RM-030 | (S2) 토큰 비노출(리뷰) | grep: `localStorage`·`sessionStorage`·`document.cookie` 접근은 `storage.ts`뿐이고 토큰 값을 쓰지 않음 · `ui/src` 에서 `?t=`를 API 경로에 붙이는 코드 0건 · `console.` 로 토큰 출력 0건 · `initToken`·`configureClient` 호출은 `main.tsx`뿐 |
 | TC-RM-031 | (S2) 쓰기 판 스크린샷(수동) | 390×565, 「+ 새 방」·B 행 열림 상태, 가로 스크롤 없음, B 52·A 44 |
 | TC-RM-032 | (S2) 공용 TextInput·Toast·useToast·Button ref | TextInput 카운터·`over`·Enter/Esc/IME · Toast `role=alert`·톤 클래스 · useToast 2000ms 뒤 null, 새 show가 타이머 재시작·id 증가, 언마운트 시 타이머 해제 · Button `buttonRef`가 button 요소를 가리킴 |
