@@ -1,7 +1,7 @@
 # env 모듈 설계
 
-- 상태: 확정(S1 구현 동기화) · 최종 갱신: 2026-10-05
-- 묶음: S1(저장 + 읽기 전용). 이 문서의 공개 API는 전부 S1에서 구현되었다(`requireLlmApiKey`는 S1에서 만들고 S3 speak가 호출). **S2 변경 없음**: S2가 쓰는 `TOKEN_SECRET`·`TOKEN_MIN_LEVEL`·`RATE_LIMIT_PER_MIN`은 이미 `Config`(`tokenSecret`·`tokenMinLevel`·`rateLimitPerMin`)에 있고, [auth.md](auth.md) §6이 값으로 받는다.
+- 상태: 확정(S1 구현 동기화) · 최종 갱신: 2026-10-06
+- 묶음: S1(저장 + 읽기 전용). 이 문서의 공개 API는 전부 S1에서 구현되었다(`requireLlmApiKey`는 S1에서 만들고 S3 speak가 호출). **S2 변경 없음**: S2가 쓰는 `TOKEN_SECRET`·`TOKEN_MIN_LEVEL`·`RATE_LIMIT_PER_MIN`은 이미 `Config`(`tokenSecret`·`tokenMinLevel`·`rateLimitPerMin`)에 있고, [auth.md](auth.md) §6이 값으로 받는다. **S3 변경 없음**: S3가 쓰는 `llmProvider`·`llmModel`·`llmTimeoutMs`·`contextMessages`와 `requireLlmApiKey`는 이미 구현되어 있다. 컨테이너가 speak·regenerate 시점에만 `requireLlmApiKey`를 부르는 지연 생성 함수로 감싼다([llm.md](llm.md) §3.3, R-ENV-003). `requireLlmApiKey`는 `LLM_PROVIDER=fake`이면 키를 요구하지 않고 `''`을 돌려주며, `FakeProvider`는 그 값을 쓰지 않는다(키 없는 로컬 개발·테스트용).
 - 관련 문서: [index.md](index.md)(호출 지점·부트스트랩), [db.md](db.md)(`DB` 바인딩 소비), [auth.md](auth.md)(토큰·레이트리밋 설정 소비), [rooms.md](rooms.md), [messages.md](messages.md).
 
 ## 1. 목적
@@ -292,3 +292,4 @@ env 모듈은 엔드포인트를 노출하지 않는다. contract가 알아야 �
 |---|---|
 | 2026-10-05 | S1 초안 작성 |
 | 2026-10-05 | S1 구현 동기화(상태 확정). 공개 API·키 표는 `server/src/env.ts`와 일치해 본문 변경 없음. S2는 env 변경 없음(머리말에 명시), `.dev.vars.example` 확인 필요 항목 해결 처리 |
+| 2026-10-06 | S3 확인: env 변경 없음(머리말에 명시). `requireLlmApiKey` 호출 지점·fake 제공사 동작을 [llm.md](llm.md) §3.3에 연결 |

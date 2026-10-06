@@ -1,6 +1,6 @@
 # index(Workers 진입점·공통 기반) 설계
 
-- 상태: S1 확정(구현 동기화) · S2 초안 · 최종 갱신: 2026-10-05
+- 상태: S1 확정(구현 동기화) · S2 초안 · S3 초안(§2.3 컨테이너 델타) · 최종 갱신: 2026-10-06
 - 묶음: S1 = `fetch` 진입·Hono 앱 조립·부트스트랩·보안 헤더·공통 에러 핸들러·로거·`/embed` 서빙·health 서비스·`wrangler.toml`. S2 = 서비스 컨테이너에 `auth`·`config` 주입, `AppEnv.Variables.principal`, 인증 미들웨어의 **라우트 단위** 적용 원칙, `RATE_LIMITED`의 `retryAfterSec` 응답 변환. `scheduled` 진입은 S2에서 **추가하지 않는다**(레이트리밋 정리는 요청 경로에서 — [auth.md](auth.md) D-AUTH-7). S4(요약)에서 필요하면 추가한다.
 - 라우트(`server/src/routes/`)는 contract 소유다. 이 문서는 **라우트를 정의하지 않고**, 라우트가 쓸 타입·서비스·규약만 정한다.
 - 관련 문서: [env.md](env.md), [db.md](db.md), [auth.md](auth.md), [rooms.md](rooms.md), [messages.md](messages.md).
@@ -74,6 +74,8 @@ import type { Db } from './db'
 import type { Logger } from './logger'
 import type { RoomsService } from './rooms'
 import type { MessagesService } from './messages'
+import { createLlm, createProvider, type Llm } from './llm'   // S3
+import { requireLlmApiKey } from './env'                     // S3
 
 /** 계약 타입 HealthResponse 와 같다 (S1 구현) */
 export type HealthStatus = HealthResponse
@@ -118,6 +120,31 @@ rooms:    createRoomsService({ db, now })
 messages: createMessagesService({ db, now })
 getHealth: () => ({ ok: true, version: APP_VERSION })   // config·db 를 쓰지 않는다
 ```
+
+`createServices` 배선 델타(S3 — [llm.md](llm.md) §3.3, [messages.md](messages.md) §2·§2.3):
+
+```ts
+// 요청마다. Llm 을 즉시 만들지 않는다 — speak·regenerate 가 부를 때만 키를 확인한다(R-ENV-003)
+const llm = (): Llm =>
+  createLlm({
+    provider: createProvider({
+      provider: config.llmProvider,
+      apiKey: requireLlmApiKey(config),   // google + 키 없음 → ConfigError(['LLM_API_KEY']) → 500 CONFIG_INVALID
+      model: config.llmModel,
+    }),
+    timeoutMs: config.llmTimeoutMs,
+    logger,
+    now,
+  })
+
+messages: createMessagesService({ db, now, logger, contextMessages: config.contextMessages, llm })
+// afterSpeak 는 S3 에서 넘기지 않는다(no-op). S4 memory 가 채운다
+```
+
+- `Services`·`AppEnv` 타입은 바뀌지 않는다(`MessagesService`에 `speak`·`regenerate`가 늘 뿐).
+- `Config`는 통째로 넘기지 않는다. messages에는 `contextMessages`만, llm에는 지연 생성 함수 안에서 `llmProvider`·`llmModel`·`llmTimeoutMs`·키만 쓴다.
+- 읽기 경로(`/embed`·health·목록·히스토리)는 `llm()`을 부르지 않으므로 `LLM_API_KEY`가 없어도 동작한다(D-LLM-11).
+- 파급: `server/src/services.ts`의 `createServices`, `ServiceDeps` 변경 없음.
 
 ### 2.4 에러 기반 (`server/src/app-error.ts`)
 
@@ -491,6 +518,7 @@ run_worker_first = true                     # 정적 파일 요청도 Worker 를
 |---|---|
 | 2026-10-05 | S1 초안 작성 |
 | 2026-10-05 | S1 구현 동기화(상태 확정): `AppError(code, message?, options?)`(status는 `ERROR_STATUS`), `HealthStatus = HealthResponse`, `compatibility_date = 2026-08-15`. S2 설계: `ServiceDeps.config`·`Services.auth`·`Variables.principal?`, §3.1.1 인증 미들웨어 라우트 단위 원칙, `retryAfterSec` 변환(§2.4·§5.1), 로그 이벤트, SRV-T-160~162, D-IDX-9~11. `scheduled`는 S2에서 추가하지 않음 |
+| 2026-10-06 | S3 델타: §2.3 `createServices` 배선에 `llm` 지연 생성(`() => Llm`)과 messages deps 확장(`logger`·`contextMessages`·`llm`)을 반영([llm.md](llm.md) §3.3) |
 
 파급(공개 API 변경): `ServiceDeps`에 `config` 필수 추가 → 호출자 `server/src/app.ts` `bootstrap`(1줄), `server/test/app.test.ts` 188행의 `createServices({ db: trap, logger, now })`에 `config`(예: `parseEnv(env)` 결과)를 넣는다. `Services`·`AppEnv.Variables`·`AppError`·`toErrorBody`는 필드 추가뿐이라 기존 routes(`health.ts`·`rooms.ts`·`messages.ts`)·`validate.ts` 영향 없음.
 

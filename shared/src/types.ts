@@ -79,6 +79,11 @@ export type EditMessageBody = {
   text: string
 }
 
+/** POST /api/rooms/:id/speak 본문 (R-MSG-003). 두 값 밖이면 400 VALIDATION_ERROR (S3) */
+export type SpeakBody = {
+  character: CharacterId
+}
+
 /** 모든 실패 응답 본문 (R-API-002) */
 export type ApiErrorBody = {
   error: {

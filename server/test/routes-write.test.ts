@@ -1,4 +1,4 @@
-// API-T-050~066 — doc/200_설계/contract/api.md §14.5 (쓰기 6종: 토큰 · 레이트리밋 · 검증 · 정상)
+// API-T-050~066 — doc/200_설계/contract/api.md §14.5 · §14.9 (쓰기 8종: 토큰 · 레이트리밋 · 검증 · 정상)
 import { createExecutionContext, env } from 'cloudflare:test'
 import { ERROR_MESSAGES, ERROR_STATUS, type ErrorCode } from '@shared/errors'
 import type { Message, MessagesPage, RoomSummary } from '@shared/types'
@@ -85,7 +85,7 @@ const BAD_FORM = '요청 형식이 올바르지 않습니다.'
 const NO_ROOM = '방을 찾을 수 없습니다.'
 const NO_MESSAGE = '메시지를 찾을 수 없습니다.'
 
-/** 시드 방 ROOM 과 메시지 1건을 기준으로 한 6개 쓰기 호출 */
+/** 시드 방 ROOM 과 메시지 1건(마지막 캐릭터 메시지)을 기준으로 한 8개 쓰기 호출 (S2 6 + S3 speak·regenerate) */
 const writes = (messageId: number): Call[] => [
   { method: 'POST', path: '/api/rooms', body: { title: '새 방' } },
   { method: 'PATCH', path: `/api/rooms/${ROOM}`, body: { title: '이름' } },
@@ -93,6 +93,8 @@ const writes = (messageId: number): Call[] => [
   { method: 'POST', path: `/api/rooms/${ROOM}/user`, body: { text: '안녕', ooc: false } },
   { method: 'PATCH', path: `/api/messages/${messageId}`, body: { text: '고침' } },
   { method: 'DELETE', path: `/api/messages/${messageId}` },
+  { method: 'POST', path: `/api/rooms/${ROOM}/speak`, body: { character: 'sebastian' } },
+  { method: 'POST', path: `/api/messages/${messageId}/regenerate` },
 ]
 
 const countRows = async (table: 'rooms' | 'messages'): Promise<number> =>
@@ -114,7 +116,7 @@ beforeEach(async () => {
 })
 
 describe('쓰기 인증 · 레이트리밋', () => {
-  it('API-T-050 writes_require_token_on_all_six_endpoints', async () => {
+  it('API-T-050 writes_require_token_on_all_endpoints', async () => {
     for (const call of writes(firstMessageId)) {
       await expectContractError(await send(call, null), 'TOKEN_REQUIRED')
     }

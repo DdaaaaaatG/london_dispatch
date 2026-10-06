@@ -10,8 +10,9 @@ import type { HealthResponse } from '@shared/types'
 import pkg from '../package.json'
 import { createAuthService, type AuthService, type Principal } from './auth'
 import type { Db } from './db'
-import type { Config, Env } from './env'
+import { requireLlmApiKey, type Config, type Env } from './env'
 import type { Logger } from './logger'
+import { createLlm, createProvider } from './llm'
 import { createMessagesService, type MessagesService } from './messages'
 import { createRoomsService, type RoomsService } from './rooms'
 
@@ -62,6 +63,23 @@ export const createServices = (deps: ServiceDeps): Services => ({
     },
   }),
   rooms: createRoomsService({ db: deps.db, now: deps.now }),
-  messages: createMessagesService({ db: deps.db, now: deps.now }),
+  messages: createMessagesService({
+    db: deps.db,
+    now: deps.now,
+    logger: deps.logger,
+    contextMessages: deps.config.contextMessages,
+    // 지연 생성: speak·regenerate 가 부를 때 키를 확인한다(R-ENV-003)
+    llm: () =>
+      createLlm({
+        provider: createProvider({
+          provider: deps.config.llmProvider,
+          apiKey: requireLlmApiKey(deps.config),
+          model: deps.config.llmModel,
+        }),
+        timeoutMs: deps.config.llmTimeoutMs,
+        logger: deps.logger,
+        now: deps.now,
+      }),
+  }),
   getHealth: () => ({ ok: true, version: APP_VERSION }),
 })

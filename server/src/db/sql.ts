@@ -1,10 +1,10 @@
 /**
  * [목적] SQL 문자열 상수(S1 조회 + S2 쓰기·레이트리밋). 문자열 연결·보간 금지, 값은 전부 bind (R-DB-003). 설계 db.md §3.1·§3.2
- * [공개 API] S1 SQL_ROOMS_LIST_SUMMARIES·EXISTS·TOUCH, SQL_MESSAGES_PAGE_LATEST·BEFORE / S2 SQL_ROOMS_INSERT·UPDATE_TITLE·SUMMARY_BY_ID·DELETE·TOUCH_BY_MESSAGE, SQL_MEMORY_DELETE_BY_ROOM, SQL_MESSAGES_DELETE_BY_ROOM·INSERT_IF_ROOM·UPDATE_TEXT·DELETE, SQL_RATE_LIMITS_HIT·PURGE_BEFORE
+ * [공개 API] S3 SQL_ROOMS_ACQUIRE_SPEAK_LOCK·RELEASE_SPEAK_LOCK, SQL_MESSAGES_BY_ID, SQL_MEMORY_SUMMARY_BY_ROOM / S1 SQL_ROOMS_LIST_SUMMARIES·EXISTS·TOUCH, SQL_MESSAGES_PAGE_LATEST·BEFORE / S2 SQL_ROOMS_INSERT·UPDATE_TITLE·SUMMARY_BY_ID·DELETE·TOUCH_BY_MESSAGE, SQL_MEMORY_DELETE_BY_ROOM, SQL_MESSAGES_DELETE_BY_ROOM·INSERT_IF_ROOM·UPDATE_TEXT·DELETE, SQL_RATE_LIMITS_HIT·PURGE_BEFORE
  * [비동기] 없음
  * [에러] 없음
  * [설정] 없음
- * [테스트] server/test/db.test.ts (SRV-T-024~029, 121~128)
+ * [테스트] server/test/db.test.ts (SRV-T-024~029, 121~128, 187~190)
  */
 export const SQL_ROOMS_LIST_SUMMARIES = `SELECT r.id, r.title, r.created_at, r.updated_at,
        (SELECT COUNT(*) FROM messages m WHERE m.room_id = r.id) AS message_count
@@ -64,3 +64,17 @@ ON CONFLICT (mb_id, window_start) DO UPDATE SET count = count + 1 WHERE count < 
 RETURNING count`
 
 export const SQL_RATE_LIMITS_PURGE_BEFORE = 'DELETE FROM rate_limits WHERE window_start < ?1'
+
+// ---- S3 ----
+/** 비었거나 만료(≤ ?3)일 때만 선점. 선점하면 1행 RETURNING */
+export const SQL_ROOMS_ACQUIRE_SPEAK_LOCK = `UPDATE rooms SET speaking_until = ?1
+WHERE id = ?2 AND (speaking_until IS NULL OR speaking_until <= ?3)
+RETURNING id`
+
+/** 내가 건 잠금일 때만 해제 */
+export const SQL_ROOMS_RELEASE_SPEAK_LOCK =
+  'UPDATE rooms SET speaking_until = NULL WHERE id = ?1 AND speaking_until = ?2'
+
+export const SQL_MESSAGES_BY_ID = `SELECT ${MESSAGE_COLUMNS} FROM messages WHERE id = ?1`
+
+export const SQL_MEMORY_SUMMARY_BY_ROOM = 'SELECT summary FROM memory WHERE room_id = ?1'

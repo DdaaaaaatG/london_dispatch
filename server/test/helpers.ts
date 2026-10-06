@@ -41,3 +41,12 @@ export const insertLines = async (roomId: string, n: number): Promise<number[]> 
   for (let i = 1; i <= n; i += 1) ids.push(await insertLine(roomId, `m${i}`, i))
   return ids
 }
+
+/** S3 deps 를 쓰지 않는 테스트용: llm() 을 부르면 즉시 실패한다(SRV-T-145·209 의 "LLM 미사용" 보증을 겸한다) */
+export const IDLE_GENERATE_DEPS = {
+  logger: { info: () => undefined, warn: () => undefined, error: () => undefined },
+  contextMessages: 40,
+  llm: (): never => {
+    throw new Error('llm must not be created')
+  },
+}

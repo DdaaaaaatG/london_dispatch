@@ -5,7 +5,7 @@ import { AppError } from '../src/app-error'
 import { createDb, type Db } from '../src/db'
 import { createMessagesService } from '../src/messages'
 import { createRoomsService } from '../src/rooms'
-import { insertLines, insertRoom, resetDb } from './helpers'
+import { IDLE_GENERATE_DEPS, insertLines, insertRoom, resetDb } from './helpers'
 
 const NOW = 1_800_000_000_000
 
@@ -149,7 +149,11 @@ describe('createRoom · renameRoom · deleteRoom', () => {
     ).toBe(0)
     expect(await n("SELECT COUNT(*) AS n FROM memory WHERE room_id = 'a'")).toBe(0)
     expect(await n("SELECT COUNT(*) AS n FROM messages WHERE room_id = 'b'")).toBe(2)
-    const messages = createMessagesService({ db: createDb(env.DB), now: () => NOW })
+    const messages = createMessagesService({
+      ...IDLE_GENERATE_DEPS,
+      db: createDb(env.DB),
+      now: () => NOW,
+    })
     expect(await codeOf(messages.listMessages('a', {}))).toBe('NOT_FOUND')
   })
 

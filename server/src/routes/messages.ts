@@ -4,6 +4,7 @@ import type {
   Message,
   MessagesPage,
   MessagesQuery,
+  SpeakBody,
   UserMessageBody,
 } from '@shared/types'
 import { Hono } from 'hono'
@@ -14,6 +15,7 @@ import {
   messageIdParam,
   messagesQuery,
   roomIdParam,
+  speakBody,
   toPageQuery,
   userMessageBody,
 } from './schemas'
@@ -75,5 +77,33 @@ export const messagesRoutes = new Hono<AppEnv>()
       const { id } = c.req.valid('param')
       await c.get('services').messages.deleteMessage(id)
       return c.body(null, 204)
+    },
+  )
+  /// [계약] api.md §4.13 · [요구] R-MSG-003 · R-MSG-007 · R-NFR-001 · [에러] §4.5·§4.12 공통 + VALIDATION_ERROR · NOT_FOUND · [부수효과] messages 1행 + 방 updatedAt · 잠금 · AI 1~2회 · 레이트리밋 1회
+  .post(
+    PATHS.roomSpeak,
+    requireToken,
+    rateLimitWrites,
+    validate('param', roomIdParam),
+    validate('json', speakBody),
+    async c => {
+      const { id } = c.req.valid('param')
+      const body: SpeakBody = c.req.valid('json')
+      const message: Message = await c
+        .get('services')
+        .messages.speak(id, body, { waitUntil: task => c.executionCtx.waitUntil(task) })
+      return c.json(message, 201)
+    },
+  )
+  /// [계약] api.md §4.14 · [요구] R-MSG-006 · R-MSG-007 · R-NFR-001 · [에러] §4.5·§4.12 공통 + NOT_FOUND · NOT_CHARACTER_MESSAGE · NOT_LAST_MESSAGE · [부수효과] text 교체 + 방 updatedAt · 잠금 · AI 1~2회 · 레이트리밋 1회
+  .post(
+    PATHS.messageRegenerate,
+    requireToken,
+    rateLimitWrites,
+    validate('param', messageIdParam),
+    async c => {
+      const { id } = c.req.valid('param')
+      const message: Message = await c.get('services').messages.regenerate(id)
+      return c.json(message, 200)
     },
   )

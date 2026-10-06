@@ -18,6 +18,10 @@ export const PATHS = {
   roomUser: `${API}/rooms/:id/user`,
   /** PATCH·DELETE 메시지 (S2). :id 는 메시지 id(정수) */
   message: `${API}/messages/:id`,
+  /** POST 캐릭터 1턴 생성 (S3, R-MSG-003) */
+  roomSpeak: `${API}/rooms/:id/speak`,
+  /** POST 메시지 재작성 (S3, R-MSG-006). :id 는 메시지 id(정수) */
+  messageRegenerate: `${API}/messages/:id/regenerate`,
 } as const
 
 /** :id 자리에 인코딩한 값을 넣는다 */
@@ -43,4 +47,9 @@ export const endpoints = {
   roomUser: (roomId: string): string => withId(PATHS.roomUser, roomId),
   /** (S2) 메시지 id 는 정수라 String() 으로 넣는다 */
   message: (messageId: number): string => withId(PATHS.message, String(messageId)),
+  /** (S3) */
+  roomSpeak: (roomId: string): string => withId(PATHS.roomSpeak, roomId),
+  /** (S3) 메시지 id 는 정수라 String() 으로 넣는다 */
+  messageRegenerate: (messageId: number): string =>
+    withId(PATHS.messageRegenerate, String(messageId)),
 } as const

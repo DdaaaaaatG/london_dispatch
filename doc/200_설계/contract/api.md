@@ -1,9 +1,9 @@
 # API 계약 (api.md)
 
-- 상태: **초안 v0.3.1** · 최종 갱신 2026-10-05 · 소유 contract-designer
-- 묶음: **S1 상세 확정**(구현 완료) = `GET /api/health` · `GET /api/rooms` · `GET /api/rooms/:id/messages` · `GET /embed`. **S2 상세 확정**(구현 전) = 토큰 규약(§2) · `POST /api/rooms` · `PATCH`·`DELETE /api/rooms/:id` · `POST /api/rooms/:id/user` · `PATCH`·`DELETE /api/messages/:id` · 쓰기 레이트리밋(§6). 나머지 엔드포인트는 §4.0 표에 행만 두고 S3~S4에서 상세를 정한다.
+- 상태: **초안 v0.4** · 최종 갱신 2026-10-06 · 소유 contract-designer
+- 묶음: **S1 상세 확정**(구현 완료) = `GET /api/health` · `GET /api/rooms` · `GET /api/rooms/:id/messages` · `GET /embed`. **S2 상세 확정**(구현 전) = 토큰 규약(§2) · `POST /api/rooms` · `PATCH`·`DELETE /api/rooms/:id` · `POST /api/rooms/:id/user` · `PATCH`·`DELETE /api/messages/:id` · 쓰기 레이트리밋(§6). **S3 상세 확정**(구현 전, v0.4) = 생성 공통 규칙(§4.12) · `POST /api/rooms/:id/speak`(E9, §4.13) · `POST /api/messages/:id/regenerate`(E12, §4.14). 나머지(S4 memory)는 §4.0 표에 행만 두고 S4에서 상세를 정한다.
 - 이 문서가 단일 소스다: **api.md → `shared/src/*` → `server/src/routes/*` → `ui/src/api/*` → `doc/handoff/*`(S5)**. 넷이 어긋나면 contract 결함이다(확정사항 §3).
-- 입력: `doc/000_프로젝트_확정사항.md` §1·§2·§3·§5.2~§5.4·§6, `doc/100_요구조건/requirements.md` §3·§4·§5·§7(R-LLM-002)·§8·§9, `doc/200_설계/server/{index,env,db,rooms,messages}.md`, `doc/200_설계/architecture/ui-layout-01-rooms-chat.md`.
+- 입력: `doc/000_프로젝트_확정사항.md` §1·§2·§3·§5.2~§5.4·§6, `doc/100_요구조건/requirements.md` §3·§4·§5·§7(R-LLM-002)·§8·§9, `doc/200_설계/server/{index,env,db,rooms,messages}.md`, `doc/200_설계/architecture/ui-layout-01-rooms-chat.md`. (v0.4) `doc/200_설계/server/llm.md` 「contract 인계 요구 명세」·§2.3·§2.6·§4.2·§5, `messages.md` §2.3·§4.2·§4.3·§5·§9, `db.md` §2.3, `ui/src/chat/design.md` §8.3·§14.
 - 절 구성: §1~§10은 contract-design-strategy §13 고정 절이다(번호 변경 금지). §11~§15는 구현 설계 부록이다.
 
 ---
@@ -36,6 +36,19 @@ ui (React, iframe /embed)  ──▶  contract  ──▶  server (Workers + Hon
 | 화면 쪽 | `ui/src/api/{client,health,rooms,messages,index}.ts` | `request` · `getHealth` · `listRooms` · `listMessages` | `configureClient` · `isAuthFailure` · `createRoom` · `renameRoom` · `deleteRoom` · `appendUser` · `editMessage` · `deleteMessage` |
 | 갠홈 쪽 | `doc/handoff/*` | S5(쓰지 않음) | S5(쓰지 않음). §2.6이 참조 규약 |
 
+S3 추가(v0.4):
+
+| 당사자 | 파일 | S3 추가 |
+|---|---|---|
+| 문서(정본) | `doc/200_설계/contract/api.md` | §4.12~§4.14 · §11.8~§11.10 · §12.2 · §13.2 · §14.9~§14.11 · §15.8~§15.10 · 「ui 인계 메모」 |
+| 공용 타입 | `shared/src/types.ts` | `SpeakBody` |
+| 에러 코드 | `shared/src/errors.ts` | 변경 없음(S3 코드 5종은 S1부터 13종 안에 있다) |
+| 경로 | `shared/src/endpoints.ts` | `PATHS.roomSpeak` · `PATHS.messageRegenerate` · `endpoints.roomSpeak/messageRegenerate` |
+| 캐릭터 표시 메타 · 길이 규칙 | `shared/src/characters.ts` · `limits.ts` | 변경 없음 |
+| 서버 쪽 | `server/src/routes/{schemas,messages}.ts` | `speakBody` · `messages.ts` POST speak(E9) · POST regenerate(E12) |
+| 화면 쪽 | `ui/src/api/{messages,index}.ts` | `speak` · `regenerate` |
+| 갠홈 쪽 | `doc/handoff/*` | 영향 없음 |
+
 ### 1.2 경계 규칙
 
 - **단방향.** 화면·컴포넌트·state는 `@/api`(= `ui/src/api/index.ts`)만 import한다. `fetch`를 `ui/src/api/` 밖에서 쓰면 경계 위반이다.
@@ -50,6 +63,8 @@ ui (React, iframe /embed)  ──▶  contract  ──▶  server (Workers + Hon
 - S2 server 쪽(`server/src/auth/`, `rooms`·`messages`의 쓰기 함수, `AppError`의 `retryAfterSec`, `toErrorBody` 3번째 인자)은 **아직 없다**. S2 routes 구현은 server S2 구현 뒤에 한다(§11.4).
 - `ui/src/state/token.ts`는 아직 없다. `viewer.ts`는 S1 상수 `READ_ONLY_VIEWER`뿐이다.
 - 구현 순서는 §11.4를 따른다.
+- (v0.4, 2026-10-06) S3 4자는 **전부 아직 없다.** `shared/src/endpoints.ts`에 speak·regenerate 경로가 없고 routes에 핸들러가 없어 두 경로는 지금 `404 NOT_FOUND`다. server 쪽도 `server/src/llm/`·`messages.speak`·`regenerate`가 없다(설계만 있음).
+- (v0.4) S2 routes 테스트의 실제 파일은 `server/test/routes-write.test.ts`다. §14.5 제목의 `routes.test.ts` 표기와 다르다(계약 영향 없음, analyst 확인용).
 
 ### 1.4 묶음별 범위
 
@@ -57,7 +72,7 @@ ui (React, iframe /embed)  ──▶  contract  ──▶  server (Workers + Hon
 |---|---|
 | S1 | §3 에러 코드 13종 전부, §4.1~§4.4, §5 shared 4파일, §11 routes·ui/api, §12~§14 |
 | S2 (**v0.3 확정**) | §2 토큰 상세(형식·전달·검증 순서·`TokenPayload`·화면 보관·전환·교차 벡터), §4.5~§4.11 쓰기 엔드포인트(방 생성·변경·삭제, user 저장, 메시지 수정·삭제), §6 레이트리밋, §11.5~§11.6 routes·ui/api 설계 |
-| S3 | speak·regenerate |
+| S3 (**v0.4 확정**) | §4.12 생성 공통(70초 상한·화면 타임아웃 규약·잠금·레이트리밋 카운트), §4.13 speak, §4.14 regenerate, §5.2·§5.4 델타(`SpeakBody`·경로 2개), §11.8~§11.10 routes·ui/api 설계, 「ui 인계 메모」 |
 | S4 | memory GET·PUT |
 | S5 | §8 handoff 3종 |
 
@@ -235,15 +250,16 @@ V7  eyJtYl9pZCI6InRlc3RlcjAxIiwibmljayI6Ilx1ZDE0Y1x1YzJhNFx1ZDEzMCIsImNoX25hbWUi
 | `LEVEL_TOO_LOW` | 403 | 대화에 참여할 수 있는 회원 등급이 아닙니다. | `level < TOKEN_MIN_LEVEL`(R-AUTH-002) | auth 미들웨어 | S2 |
 | `RATE_LIMITED` | 429 | 요청이 너무 많습니다. 잠시 후 다시 시도해 주세요. | `mb_id` 분당 쓰기 초과(R-AUTH-005) | 레이트리밋 미들웨어 | S2 |
 | `NOT_FOUND` | 404 | 요청한 대상을 찾을 수 없습니다. | 없는 방·메시지, 매칭 없는 경로·메서드, `/embed` 파일 없음 | 서비스 · notFound · `/embed` | S1 |
-| `SPEAK_IN_PROGRESS` | 409 | 이 방에서 이미 대사를 만들고 있습니다. 잠시 후 다시 시도해 주세요. | 방 생성 잠금 선점 실패(R-MSG-007) | messages.speak · regenerate | S3 |
-| `NOT_LAST_MESSAGE` | 409 | 방의 마지막 메시지만 다시 생성할 수 있습니다. | 재작성 대상이 마지막 메시지가 아님(R-MSG-006) | messages.regenerate | S3 |
-| `NOT_CHARACTER_MESSAGE` | 400 | 캐릭터 메시지만 다시 생성할 수 있습니다. | 재작성 대상이 유저 메시지(R-MSG-006) | messages.regenerate | S3 |
-| `LLM_FAILED` | 502 | AI 응답을 받지 못했습니다. 다시 시도해 주세요. | 제공사 호출 최종 실패(R-LLM-005) | llm | S3 |
-| `LLM_EMPTY` | 502 | AI 응답이 비어 있습니다. 다시 시도해 주세요. | 후처리 결과가 빈 문자열(R-LLM-004) | llm | S3 |
+| `SPEAK_IN_PROGRESS` | 409 | 이 방에서 이미 대사를 만들고 있습니다. 잠시 후 다시 시도해 주세요. | 방 생성 잠금 선점 실패 — 같은 방 speak·regenerate 진행 중(R-MSG-007) | messages.speak · regenerate | S3(v0.4 확정) |
+| `NOT_LAST_MESSAGE` | 409 | 방의 마지막 메시지만 다시 생성할 수 있습니다. | 재작성 대상이 마지막 메시지가 아님 — 잠금을 잡은 뒤 판정(R-MSG-006) | messages.regenerate | S3(v0.4 확정) |
+| `NOT_CHARACTER_MESSAGE` | 400 | 캐릭터 메시지만 다시 생성할 수 있습니다. | 재작성 대상이 유저 메시지(R-MSG-006) | messages.regenerate | S3(v0.4 확정) |
+| `LLM_FAILED` | 502 | AI 응답을 받지 못했습니다. 다시 시도해 주세요. | 제공사 호출 최종 실패 — 네트워크·타임아웃·5xx는 1회 재시도 뒤, 429·그 밖 4xx·응답 형식 오류는 즉시, 재시도 예산 부족(R-LLM-005) | llm → messages가 그대로 전파 | S3(v0.4 확정) |
+| `LLM_EMPTY` | 502 | AI 응답이 비어 있습니다. 다시 시도해 주세요. | 후처리 결과가 빈 문자열(R-LLM-004), 또는 제공사가 차단·후보 없음으로 답함(llm.md D-LLM-6) | llm → messages가 그대로 전파 | S3(v0.4 확정) |
 | `CONFIG_INVALID` | 500 | 서버 설정이 올바르지 않습니다. 관리자에게 알려 주세요. | `parseEnv` 실패(모든 경로, `/embed`·health 포함). `LLM_API_KEY` 누락(speak·regenerate만)(R-ENV-003) | env · 부트스트랩 | S1 |
 | `INTERNAL` | 500 | 서버 내부 오류가 발생했습니다. 잠시 후 다시 시도해 주세요. | 그 밖의 예상 못 한 오류(D1 장애 등) | onError | S1 |
 
 - 13종은 S1에 한 번에 확정한다. S2~S4의 기본 문구는 착수 시 다듬을 수 있다(문구 변경 = 비파괴).
+- (v0.4) S3 5코드의 문구는 v0.1 기본 문구를 **그대로 확정**한다. 다섯 문구 모두 화면이 그대로 띄울 수 있는 한 문장이고 제공사 이름·HTTP 상태·차단 사유·키 이름이 없다(R-LLM-005). 서버는 이 다섯 코드에 상황 문구를 쓰지 않고 기본 문구만 보낸다(llm.md §5, messages.md §5).
 - `CONFIG_INVALID`·`INTERNAL`·`VALIDATION_ERROR` 기본 문구는 server env.md §5와 index.md §5.1의 문구와 같다.
 
 ### 3.3 클라이언트 전용 코드 `NETWORK`
@@ -265,13 +281,14 @@ V7  eyJtYl9pZCI6InRlc3RlcjAxIiwibmljayI6Ilx1ZDE0Y1x1YzJhNFx1ZDEzMCIsImNoX25hbWUi
 | `fetch` 자체 실패(오프라인·DNS·연결 거부) | `{ code: 'NETWORK', message: '서버에 연결할 수 없습니다.' }` |
 
 - 래퍼는 **어떤 경우에도 throw·reject하지 않는다.** 화면은 `result.ok` 분기만 쓰고 `try/catch`를 쓰지 않는다.
+- (v0.4) **요청 타임아웃은 없다.** `request`는 `AbortSignal`·타이머를 쓰지 않고 응답이 올 때까지 기다린다. speak·regenerate는 서버가 70초 안에 성공·실패로 끝내므로(R-NFR-001) 화면은 서버 종결에 의존한다. 나중에 타임아웃을 넣으면 두 호출은 **75초 이상**이어야 한다(§4.12).
 
 ### 3.5 에러 변환 위치
 
 - 라우트와 서비스는 `AppError`를 throw만 한다. 응답 본문은 server 진입점의 `onError` 한 곳이 `{ error: { code, message } }`로 만든다(index.md §5.1).
 - zod 검증 실패는 라우트의 `validate` 훅이 `AppError('VALIDATION_ERROR', 400, ERROR_MESSAGES.VALIDATION_ERROR)`를 throw한다(§11.2). zod-validator 기본 실패 응답은 계약 형식이 아니라서 쓰지 않는다.
 - 매칭 없는 경로와 메서드는 `notFound`가 `404 NOT_FOUND`(`요청한 주소를 찾을 수 없습니다.`)로 닫는다. S1 시점에 `POST /api/rooms` 같은 미구현 쓰기 경로도 이 응답이다.
-- (S2) `GET /api/rooms/:id`·`PUT /api/rooms/:id`·`GET /api/messages/:id`처럼 경로는 있으나 메서드가 등록되지 않은 요청도 `404 NOT_FOUND`다(405를 쓰지 않는다). S3·S4 경로(speak·regenerate·memory)는 그 묶음 전까지 이 응답이다.
+- (S2) `GET /api/rooms/:id`·`PUT /api/rooms/:id`·`GET /api/messages/:id`처럼 경로는 있으나 메서드가 등록되지 않은 요청도 `404 NOT_FOUND`다(405를 쓰지 않는다). S4 경로(memory)는 그 묶음 전까지 이 응답이다. (v0.4) S3 경로도 구현 전까지는 `404`이고, 구현 뒤에도 `GET`·`PUT /api/rooms/:id/speak`, `GET /api/messages/:id/regenerate`처럼 POST가 아닌 메서드는 `404`다.
 - (S2) `RATE_LIMITED`의 `retryAfterSec`·`Retry-After`도 `onError`가 `AppError`의 선택 필드에서 옮긴다. 라우트·미들웨어는 헤더를 만들지 않는다(server index.md D-IDX-11).
 - (S2) 본문 JSON이 깨졌으면 Hono가 `HTTPException(400)`을 던지고 `onError`가 `400 VALIDATION_ERROR`(기본 문구)로 바꾼다. `Content-Type`이 JSON이 아니면 본문을 `{}`로 보고 zod가 실패해 같은 `400`이 나간다(hono 4.13 validator 동작).
 
@@ -291,16 +308,16 @@ V7  eyJtYl9pZCI6InRlc3RlcjAxIiwibmljayI6Ilx1ZDE0Y1x1YzJhNFx1ZDEzMCIsImNoX25hbWUi
 | E6 | `DELETE /api/rooms/:id` | ○ | 방 삭제 | S2 | **확정** | R-ROOM-004 | §4.8 |
 | E7 | `GET /api/rooms/:id/messages?before&limit` | ✕ | 히스토리 한 페이지 | S1 | **확정** | R-MSG-001 | §4.3 |
 | E8 | `POST /api/rooms/:id/user` | ○ | 유저 발화·지시 저장(AI 호출 없음) | S2 | **확정** | R-MSG-002 | §4.9 |
-| E9 | `POST /api/rooms/:id/speak` | ○ | 해당 캐릭터 1턴 생성 | S3 | S3 상세 예정 | R-MSG-003 · R-MSG-007 | — |
+| E9 | `POST /api/rooms/:id/speak` | ○ | 해당 캐릭터 1턴 생성 | S3 | **확정**(구현 전) | R-MSG-003 · R-MSG-007 | §4.12 · §4.13 |
 | E10 | `PATCH /api/messages/:id` | ○ | 메시지 수정 | S2 | **확정** | R-MSG-004 · R-MSG-008 | §4.10 |
 | E11 | `DELETE /api/messages/:id` | ○ | 메시지 삭제 | S2 | **확정** | R-MSG-005 · R-MSG-008 | §4.11 |
-| E12 | `POST /api/messages/:id/regenerate` | ○ | 같은 캐릭터로 재생성 | S3 | S3 상세 예정 | R-MSG-006 · R-MSG-007 | — |
+| E12 | `POST /api/messages/:id/regenerate` | ○ | 같은 캐릭터로 재생성 | S3 | **확정**(구현 전) | R-MSG-006 · R-MSG-007 | §4.12 · §4.14 |
 | E13 | `GET /api/rooms/:id/memory` | ○ | 장기기억 보기 | S4 | S4 상세 예정 | R-MEM-001 | — |
 | E14 | `PUT /api/rooms/:id/memory` | ○ | 장기기억 편집 | S4 | S4 상세 예정 | R-MEM-001 | — |
 
 - **방 단건 조회(`GET /api/rooms/:id`)는 없다.** 대화 화면 상단 바의 방 제목·생성일(R-CHAT-001)은 `listRooms()` 결과에서 찾는다. 마지막 본 방 복원(R-ROOMS-004)도 `listRooms()`를 먼저 부른 뒤 id로 찾는다.
-- S3~S4 행의 요청·응답 필드는 해당 묶음에서 정한다. 이 문서는 아직 추측하지 않는다.
-- 같은 경로 패턴을 여러 메서드가 쓴다: `PATHS.rooms`(GET E3 · POST E4), `PATHS.room`(PATCH E5 · DELETE E6), `PATHS.message`(PATCH E10 · DELETE E11).
+- S4 행(E13·E14)의 요청·응답 필드는 S4에서 정한다. 이 문서는 아직 추측하지 않는다. (v0.4) S3 행(E9·E12)은 확정했다.
+- 같은 경로 패턴을 여러 메서드가 쓴다: `PATHS.rooms`(GET E3 · POST E4), `PATHS.room`(PATCH E5 · DELETE E6), `PATHS.message`(PATCH E10 · DELETE E11). (v0.4) E9·E12는 경로마다 메서드가 하나다(`PATHS.roomSpeak` POST · `PATHS.messageRegenerate` POST).
 
 ### 4.1 `GET /api/health` (E2)
 
@@ -609,6 +626,153 @@ V7  eyJtYl9pZCI6InRlc3RlcjAxIiwibmljayI6Ilx1ZDE0Y1x1YzJhNFx1ZDEzMCIsImNoX25hbWUi
 | 요구ID | R-MSG-005 · R-MSG-008 · R-ROOM-005 · R-CHAT-007(삭제, confirm은 화면) |
 | 테스트 | API-T-050 ~ 053 · 064 · 065 · 066 |
 
+### 4.12 생성 공통 규칙 (S3 — E9 · E12)
+
+AI가 대사를 만드는 두 쓰기다. 주방에 화구가 방마다 하나뿐이라 한 방에서는 한 번에 한 접시만 굽는다고 보면 된다. §4.5 쓰기 공통 규칙을 그대로 따르고 아래만 더한다.
+
+| 항목 | 값 |
+|---|---|
+| 토큰 | ○ — §2.2. 두 엔드포인트 모두 라우트 단위로 `requireToken → rateLimitWrites → validate → 핸들러` |
+| 처리 순서 | 부트스트랩 → `requireToken` → `rateLimitWrites` → `validate('param')` → (E9만) `validate('json')` → 핸들러 → 서비스. 서비스 안 판정 순서는 각 절의 「판정 순서」 표(server 설계 고정) |
+| 시간 상한 (R-NFR-001 🔒) | 서버는 요청을 받은 뒤 **70초 안에** 성공 또는 실패 응답으로 끝난다. 내역: LLM 단계 최대 66초(1차 최대 60초 + 대기 1초 + 남은 예산 안의 재시도) + D1 왕복 여유 4초(llm.md §4.2). 정상 응답은 보통 수 초다 |
+| 화면 타임아웃 | `ui/src/api/client.ts`에는 요청 타임아웃이 **없다 — 서버 종결에 의존한다**(§3.4). 타임아웃을 두게 되면 이 두 호출은 **75초 이상**(70초 + 망 여유 5초)이어야 한다. 그보다 짧으면 서버는 저장했는데 화면은 실패로 보고, 「재시도」가 대사를 하나 더 만든다 |
+| 진행 상태 | 응답은 끝날 때 한 번에 온다. 스트리밍·진행 상태 조회·취소 엔드포인트는 없다(R-API-001) |
+| 동시 1건 (R-MSG-007 🔒 · R-NFR-003 🔒) | 같은 방의 speak·regenerate는 **하나의 잠금**(`rooms.speaking_until`, 만료 90초)을 나눠 쓴다. 이미 생성 중이면 `409 SPEAK_IN_PROGRESS`. 다른 방끼리는 막지 않는다. 유저 발화·수정·삭제(E8·E10·E11)와 방 삭제(E6)는 잠금을 보지 않는다 |
+| 잠금 해제 | 서버가 성공·실패와 무관하게 응답 전에 푼다. 해제 실패나 연결 끊김으로 남은 잠금은 최대 90초 뒤 저절로 풀린다(messages.md §4.3). 그동안 그 방의 생성 요청은 `409`다 |
+| 레이트리밋 | 요청 1건 = 1회. 쓰기 6종과 **같은 분당 한도**를 나눠 쓴다. 인증 통과 뒤 세므로 `400`·`404`·`409`·`500 CONFIG_INVALID`·`502`로 끝나도 1회다. `401`·`403`은 세지 않는다(§6.1 S3 행) |
+| AI 호출 | 요청당 제공사 호출 1~2회(1회 재시도, R-LLM-005). 래퍼는 자동 재시도하지 않는다. 「재시도」는 사용자가 누르는 새 요청이다(R-CHAT-005) |
+| 응답 메시지 | 기존 `Message` 그대로. `speaker`는 `'sebastian'`·`'ciel'`, `kind: 'line'`, `authorName: null`. 누가 눌렀는지는 저장·응답하지 않는다(messages.md D-MSG-12). 이름·아바타는 화면이 `CHARACTERS[speaker]`로 그린다(R-LLM-002, §5.5) |
+| `text` | 제공사 응답의 후처리 결과(앞머리 이름표 제거·양끝 공백·연속 빈 줄 정리, R-LLM-004). 최대 2000자(코드 포인트, llm.md D-LLM-9). 빈 결과면 `502 LLM_EMPTY` |
+| 응답 뒤 작업 | S3에는 없다. S4 장기기억 요약(R-MEM-002)이 성공 응답 뒤 백그라운드로 붙어도 응답 형태·status는 바뀌지 않는다 |
+
+공통 에러(§4.5 공통에 더함):
+
+| 코드 | status | message | 조건 | 판정 위치 |
+|---|---|---|---|---|
+| `CONFIG_INVALID` | 500 | 기본 문구 | `LLM_PROVIDER = google`인데 `LLM_API_KEY`가 없음. **이 두 엔드포인트만** 실패하고 읽기·다른 쓰기는 정상이다(R-ENV-003). `fake` 제공사는 키가 없어도 된다 | 서비스(`deps.llm()`, 잠금 전) |
+| `SPEAK_IN_PROGRESS` | 409 | 기본 문구 | 같은 방에서 speak·regenerate가 진행 중(잠금 만료 전) | 서비스(잠금 선점) |
+| `LLM_FAILED` | 502 | 기본 문구 | 제공사 호출 최종 실패(§3.2 표) | llm |
+| `LLM_EMPTY` | 502 | 기본 문구 | 제공사 차단·후보 없음, 또는 후처리 결과가 빈 문자열 | llm |
+
+- `502`이면 저장하지 않는다. 메시지 수·방 `updatedAt`이 그대로이고 잠금은 풀린다(server SRV-T-198).
+- 응답 `message`에 제공사 이름·HTTP 상태·차단 사유·키 이름을 싣지 않는다. 원인은 서버 로그(`llm_failed`)에만 있다(R-LLM-005 · R-NFR-004).
+
+### 4.13 `POST /api/rooms/:id/speak` (E9) — 캐릭터 1턴 생성
+
+| 항목 | 값 |
+|---|---|
+| 토큰 | ○ |
+| 경로 | `id: string`(방 id, §4.5 `roomIdParam`) |
+| 본문 | `SpeakBody` = `{ character: CharacterId }`(`'sebastian' \| 'ciel'`). 필수. 모르는 키는 버린다 |
+| 성공 | `201` · `Message`. `speaker = character`, `kind: 'line'`, `authorName: null`, `text` = 후처리 결과, `createdAt` = **저장 시각**(생성이 끝난 시각이지 요청 시각이 아니다). 저장 순서대로 id가 붙어 히스토리 끝에 온다 |
+| 직전 발화자 | 무관. 같은 캐릭터가 연속으로 말해도 된다(R-MSG-003) |
+| 컨텍스트 | 서버가 그 방의 최근 메시지(`CONTEXT_MESSAGES`개, 기본 40)와 장기기억 요약을 읽어 프롬프트를 만든다. 화면은 대화 내용을 보내지 않는다 |
+| 에러 | §4.5 공통 + §4.12 공통 + 아래 |
+| 부수 효과 | `messages` 1행 + 방 `updatedAt` = 저장 시각(같은 batch, R-ROOM-005). 잠금 선점·해제(`updatedAt`은 바꾸지 않는다). 제공사 호출 1~2회. 실패면 아무것도 저장하지 않는다 |
+| 레이트리밋 | 1회 |
+| 소요 | 최대 70초(§4.12) |
+| server | `messages.speak(roomId: string, input: SpeakInput, background: Background): Promise<Message>` — `SpeakInput = SpeakBody`, 라우트가 `background = { waitUntil: task => c.executionCtx.waitUntil(task) }`를 넘긴다(messages.md §2.3) |
+| 요구ID | R-MSG-003 · R-MSG-007 · R-ROOM-005 · R-NFR-001 · R-NFR-003 · R-LLM-002 · R-LLM-004 · R-LLM-005 · R-CHAT-005 |
+| 테스트 | API-T-050 ~ 053(쓰기 표에 추가) · 070 ~ 077 · 084 |
+
+판정 순서(server 설계 고정 — messages.md §4.2. 앞 단계에서 실패하면 뒤 단계는 보지 않는다):
+
+| 순서 | 검사 | 실패 |
+|---|---|---|
+| 1 | 토큰(§2.3) | `401 TOKEN_REQUIRED`·`TOKEN_INVALID` / `403 LEVEL_TOO_LOW` |
+| 2 | 레이트리밋(§6.1) — 여기서 1회 소모 | `429 RATE_LIMITED` |
+| 3 | 본문 `character`(라우트 zod) | `400 VALIDATION_ERROR` |
+| 4 | LLM 설정(`LLM_API_KEY`) | `500 CONFIG_INVALID` |
+| 5 | 방 존재 · 잠금 선점(한 batch) | `404 NOT_FOUND` / `409 SPEAK_IN_PROGRESS` |
+| 6 | 제공사 호출 · 후처리 | `502 LLM_FAILED` / `502 LLM_EMPTY` |
+| 7 | 저장(생성 중 방이 삭제됐으면 저장하지 않는다) | `404 NOT_FOUND` |
+
+- 그래서 없는 방에 잘못된 `character`를 보내면 `400`이고, 키가 없는 서버에 없는 방으로 보내면 `500 CONFIG_INVALID`다.
+
+에러(이 엔드포인트만):
+
+| 코드 | status | message | 조건 |
+|---|---|---|---|
+| `VALIDATION_ERROR` | 400 | `요청 형식이 올바르지 않습니다.` | `character` 없음 · 두 값이 아닌 문자열(`'Sebastian'`·`'meirin'`·`''` 포함) · 문자열이 아님(`1`·`null`) · 본문 JSON 깨짐 · `Content-Type`이 JSON 아님 |
+| `NOT_FOUND` | 404 | `방을 찾을 수 없습니다.` | 없는 방(삭제된 방 포함) · 생성 중 방이 삭제됨(고아 메시지 없음) |
+
+```json
+{ "character": "sebastian" }
+```
+
+```json
+{ "id": 72, "roomId": "00000000-0000-4000-8000-000000000001", "speaker": "sebastian", "kind": "line", "text": "분부대로 하겠습니다, 도련님.", "authorName": null, "createdAt": 1767230012000 }
+```
+
+경합(messages.md §4.3):
+
+| 상황 | 결과 |
+|---|---|
+| 같은 방 speak 2건 동시 | 1건 `201`, 나머지 `409 SPEAK_IN_PROGRESS` |
+| 같은 방 speak와 regenerate 동시 | 같은 잠금이라 한쪽 `409 SPEAK_IN_PROGRESS` |
+| 다른 방 speak 2건 | 둘 다 진행 |
+| speak 중 유저 발화(E8) | 둘 다 성공. 이번 대사는 잠금 직후까지의 대화만 보고, 그 유저 발화보다 뒤(큰 id)에 저장된다 |
+| speak 중 방 삭제(E6) | 방 삭제는 `204`, speak는 `404 NOT_FOUND` |
+| 연결 끊김(탭 닫기 등) | 서버 실행이 취소될 수 있다. 대사 저장 여부는 취소 시점에 따른다. 남은 잠금은 최대 90초 뒤 풀린다 |
+
+### 4.14 `POST /api/messages/:id/regenerate` (E12) — 같은 캐릭터로 다시 생성
+
+| 항목 | 값 |
+|---|---|
+| 토큰 | ○ |
+| 경로 | `id`: 메시지 id(§4.5 `messageIdParam` — 10진 숫자 문자열만 `Number()`, 그 밖은 `404`) |
+| 본문 | **없음.** 보내도 읽지 않는다(`validate('json')` 없음). 깨진 JSON·다른 `Content-Type`도 무시하고 진행한다 |
+| 대상 조건 (R-MSG-006 🔒) | 캐릭터 메시지(`speaker`가 `'sebastian'`·`'ciel'`)이고 **그 방의 마지막 메시지**(그 방에서 id가 가장 큼)일 때만 |
+| 성공 | `200` · `Message`. `text`만 새 대사로 바뀐다. `id`·`roomId`·`speaker`·`kind`·`authorName`(`null`)·`createdAt`은 그대로다. 캐릭터는 대상의 `speaker`이며 요청으로 바꿀 수 없다 |
+| 컨텍스트 | 대상을 뺀 그 앞의 최근 메시지(`CONTEXT_MESSAGES`개)와 장기기억 요약. 대상의 원래 대사는 프롬프트에 넣지 않는다 |
+| 에러 | §4.5 공통 + §4.12 공통 + 아래 |
+| 부수 효과 | 대상 `text` 교체 + 그 방 `updatedAt` = 교체 시각(같은 batch, R-ROOM-005). 잠금 선점·해제. 제공사 호출 1~2회. 실패면 원래 대사가 그대로 남는다 |
+| 레이트리밋 | 1회 |
+| 소요 | 최대 70초(§4.12) |
+| server | `messages.regenerate(messageId: number): Promise<Message>`(messages.md §2.3) |
+| 요구ID | R-MSG-006 · R-MSG-007 · R-ROOM-005 · R-NFR-001 · R-NFR-003 · R-LLM-004 · R-LLM-005 · R-CHAT-007(재작성) |
+| 테스트 | API-T-050 ~ 053(쓰기 표에 추가) · 074 · 075 · 078 ~ 084 |
+
+판정 순서(server 설계 고정 — messages.md §4.2):
+
+| 순서 | 검사 | 실패 |
+|---|---|---|
+| 1 | 토큰 | `401` / `403` |
+| 2 | 레이트리밋 — 1회 소모 | `429` |
+| 3 | id 형식(1 이상 안전 정수) · 메시지 존재 | `404 NOT_FOUND` |
+| 4 | 대상이 유저 메시지 | `400 NOT_CHARACTER_MESSAGE` |
+| 5 | LLM 설정 | `500 CONFIG_INVALID` |
+| 6 | 잠금 선점 → (잡았으면) 마지막 메시지 확인 | `409 SPEAK_IN_PROGRESS` → `409 NOT_LAST_MESSAGE` / 그사이 대상이 삭제됨 `404 NOT_FOUND` |
+| 7 | 제공사 호출 · 후처리 | `502 LLM_FAILED` / `502 LLM_EMPTY` |
+| 8 | 교체(생성 중 대상이 삭제됐으면 교체하지 않는다) | `404 NOT_FOUND` |
+
+- **두 409의 우선순위는 잠금이 먼저다.** 다른 생성이 진행 중이면 대상이 마지막이 아니어도 `SPEAK_IN_PROGRESS`다. 마지막 여부는 잠금을 잡은 뒤에만 본다.
+- 유저 메시지는 마지막이든 아니든 `400 NOT_CHARACTER_MESSAGE`다(4가 6보다 먼저). 키가 없는 서버에서도 유저 메시지는 `400`이다.
+- 마지막 여부는 잠금을 잡은 시점에 한 번 본다. 생성 중에 유저 발화가 뒤에 붙어도 교체는 된다(messages.md §4.3의 확인 필요 항목).
+
+에러(이 엔드포인트만):
+
+| 코드 | status | message | 조건 |
+|---|---|---|---|
+| `NOT_FOUND` | 404 | `메시지를 찾을 수 없습니다.` | id 형식 위반(`abc`·`0`·`1.5`·`0x10`·`1e1`) · 없는 메시지 · 이미 삭제 · 생성 중 대상(또는 그 방) 삭제 |
+| `NOT_CHARACTER_MESSAGE` | 400 | `캐릭터 메시지만 다시 생성할 수 있습니다.` | 대상 `speaker === 'user'`(`kind` `line`·`ooc` 모두) |
+| `NOT_LAST_MESSAGE` | 409 | `방의 마지막 메시지만 다시 생성할 수 있습니다.` | 그 방에 대상보다 큰 id의 메시지가 있음 |
+
+요청: `POST /api/messages/72/regenerate`(본문 없음). 응답:
+
+```json
+{ "id": 72, "roomId": "00000000-0000-4000-8000-000000000001", "speaker": "sebastian", "kind": "line", "text": "물론입니다. 오늘 일정부터 말씀드리지요.", "authorName": null, "createdAt": 1767230012000 }
+```
+
+경합(messages.md §4.3):
+
+| 상황 | 결과 |
+|---|---|
+| regenerate와 같은 방 speak 동시 | 한쪽 `409 SPEAK_IN_PROGRESS` |
+| regenerate 중 같은 메시지 수정(E10) | 둘 다 성공할 수 있고 나중에 쓴 쪽이 남는다(수정은 잠금을 보지 않는다) |
+| regenerate 중 대상 삭제(E11)·방 삭제(E6) | 삭제는 `204`, regenerate는 `404 NOT_FOUND` |
+| regenerate 중 유저 발화(E8) | 둘 다 성공. 교체된 대사는 이제 마지막이 아니다 |
+
 ---
 
 ## 5. 타입 (TS + JSON 예시 + 스키마 방식)
@@ -723,6 +887,22 @@ export type ApiErrorBody = {
 - `CreateRoomBody`와 `RenameRoomBody`는 모양이 같지만 엔드포인트별 계약이라 따로 둔다. 한쪽만 바뀌어도 다른 쪽에 번지지 않는다.
 - `TokenPayload`는 shared에 두지 않는다(§2.3).
 - `Message`·`RoomSummary`는 쓰기 응답에 그대로 쓴다. 새 응답 타입은 없다. `DELETE` 성공은 본문이 없다(`204`).
+
+S3 추가분(v0.4 — `shared/src/types.ts`의 `EditMessageBody` 다음):
+
+```ts
+/** POST /api/rooms/:id/speak 본문 (R-MSG-003). 두 값 밖이면 400 VALIDATION_ERROR (S3) */
+export type SpeakBody = {
+  character: CharacterId
+}
+```
+
+```json
+{ "character": "ciel" }
+```
+
+- (S3) 추가는 `SpeakBody` 하나다. E12는 본문이 없어 타입이 없다. 두 엔드포인트 응답은 기존 `Message`다(새 응답 타입 없음).
+- `CharacterId`를 그대로 쓴다. 캐릭터 문자열 유니온을 새로 만들지 않는다.
 
 JSON 예시(열거·nullable):
 
@@ -854,6 +1034,26 @@ export const endpoints = {
 
 - (S2) `endpoints.rooms()`는 GET(E3)과 POST(E4)가 같이 쓴다. `endpoints.room()`·`endpoints.message()`도 PATCH·DELETE가 같이 쓴다.
 
+S3 추가분(v0.4):
+
+```ts
+// PATHS 에 추가 (message 다음)
+  /** POST 캐릭터 1턴 생성 (S3) */
+  roomSpeak: `${API}/rooms/:id/speak`,
+  /** POST 같은 캐릭터로 재생성 (S3). :id 는 메시지 id(정수) */
+  messageRegenerate: `${API}/messages/:id/regenerate`,
+
+// endpoints 에 추가 (message 다음)
+  /** (S3) */
+  roomSpeak: (roomId: string): string => withId(PATHS.roomSpeak, roomId),
+  /** (S3) 메시지 id 는 정수라 String() 으로 넣는다 */
+  messageRegenerate: (messageId: number): string =>
+    withId(PATHS.messageRegenerate, String(messageId)),
+```
+
+- 이름은 기존 규칙(자원 + 하위 경로: `roomMessages`·`roomUser`)을 따른다. 방 아래 경로는 `room…`, 메시지 아래 경로는 `message…`다.
+- `PATHS` 값은 9개가 된다(shared 테스트 API-T-042 기대 갱신).
+
 - `PATHS`는 `as const`라 Hono가 `'/api/rooms/:id/messages'` 리터럴 타입을 그대로 받는다.
 - S2~S4는 `PATHS`·`endpoints`에 키를 **추가**한다(기존 키 변경 없음).
 - `URLSearchParams`를 쓰지 않는 이유: shared는 런타임 중립이어야 한다(브라우저·workerd 공용, lib 설정 의존 제거).
@@ -913,6 +1113,7 @@ export const CHARACTERS: { readonly [K in CharacterId]: CharacterMeta & { readon
 | 메시지 id(S2) | `messageIdParam`이 10진 숫자 문자열만 `Number()`로, 나머지는 `NaN`으로 바꾼다. 범위 판정·`404`는 서비스 | 경로 식별자는 정규 표기 하나만 인정한다(`0x10`·`1e1`이 다른 메시지를 가리키지 않게) |
 | 타입 대조(S2) | 핸들러에서 `const body: CreateRoomBody = c.req.valid('json')`처럼 shared 본문 타입에 대입한다 | S1과 같은 방식 |
 | 길이 규칙(v0.3.1) | 상수·정규화·세기 함수는 `@shared/limits`(§5.7) 하나. 서버 서비스가 판정에, 화면이 입력 제한·글자 수 표시에 같은 것을 쓴다 | 화면과 서버가 같은 입력을 다르게 세지 않게 한다 |
+| 생성 본문(S3) | `speakBody = z.object({ character: z.enum(CHARACTER_IDS) })`. `CHARACTER_IDS = ['sebastian', 'ciel'] as const satisfies readonly CharacterId[]`(schemas.ts 내부 상수). E12는 본문 스키마가 없다 | 값 두 개뿐인 열거라 타입 검사의 일부로 zod가 끝낸다. 서비스의 `isCharacterId` 재검사는 라우트를 거치지 않는 호출을 위한 안전망이라 HTTP로는 닿지 않는다(§15.9 S3-R1) |
 
 ### 5.7 `shared/src/limits.ts` 전문 초안 (v0.3.1 신규)
 
@@ -959,7 +1160,7 @@ export const normalizeText = (s: string): string => s.trim()
 | 항목 | S1 | 이후 |
 |---|---|---|
 | 읽기 레이트리밋 | 없음(E2·E3·E7) | 없음 |
-| 쓰기 레이트리밋 | 해당 없음 | **S2 확정** — §6.1 |
+| 쓰기 레이트리밋 | 해당 없음 | **S2 확정** — §6.1. (S3) speak·regenerate도 같은 한도 |
 | 방 목록 페이지네이션 | 없음(요구 없음) | 요구가 생기면 §13 참고 |
 | 히스토리 페이지네이션 | `before` 커서 + `limit`(기본 30, 최대 100), `hasMore`(§4.3) | 변경 없음 |
 
@@ -974,6 +1175,7 @@ export const normalizeText = (s: string): string => s.trim()
 | 한도 | 창당 `RATE_LIMIT_PER_MIN`회(기본 **20**, `wrangler.toml [vars]`, 1~600). 1~20번째 통과, **21번째부터 `429`** |
 | 대상 | `rateLimitWrites`가 붙은 요청 전부. S2는 E4·E5·E6·E8·E10·E11. S3 speak·regenerate도 같은 한도를 나눠 쓴다 |
 | 세는 시점 | `requireToken` 통과 직후, 본문 검증 전. 그래서 `400`·`404`로 끝난 요청도 1회다. 인증 실패(`401`·`403`)는 세지 않는다 |
+| S3 카운트 (v0.4) | speak·regenerate도 요청 1건 = 1회. `409 SPEAK_IN_PROGRESS`·`409 NOT_LAST_MESSAGE`·`400 NOT_CHARACTER_MESSAGE`·`500 CONFIG_INVALID`·`502 LLM_FAILED`·`502 LLM_EMPTY`로 끝나도 센다. 근거: ① 세는 시점이 핸들러 전이라 결과를 보고 되돌리는 경로가 없다(S2 규칙 그대로) ② `502`는 이미 제공사 호출을 1~2회 썼다 ③ 실패 뒤 연타가 제공사 할당량을 태우는 것을 분당 한도가 막는다. `401`·`403`은 여전히 세지 않는다 |
 | 읽기 | 세지 않는다(E2·E3·E7) |
 | 초과 응답 | `429 RATE_LIMITED`, 본문 `error.retryAfterSec`(정수 ≥ 1) + 헤더 `Retry-After`(같은 값). 핸들러·서비스는 실행되지 않는다 |
 | `retryAfterSec` | `max(1, ceil((windowStart + 60000 − nowMs) / 1000))`. 예: 창 시작 후 20초 → `40` |
@@ -1025,6 +1227,7 @@ export const normalizeText = (s: string): string => s.trim()
 | v0.3 | 2026-10-05 | S2 상세 확정. §2 토큰(전달·형식·`TokenPayload`·검증 순서·화면 보관·읽기 전용 전환·교차 벡터 V1~V8·handoff 참조), §4.5 쓰기 공통, §4.6~§4.11 E4·E5·E6·E8·E10·E11, §6.1 레이트리밋, shared 본문 타입 4개·`ApiErrorBody.error.retryAfterSec?`·`PATHS.room/roomUser/message`, `204` 정규화, ui/api `configureClient`·`isAuthFailure`·쓰기 래퍼 6개, §14.5~§14.7 테스트 | 추가(기존 엔드포인트·타입·필드 변경 없음. `retryAfterSec`는 선택 필드 추가 = 비파괴) | 아니오(handoff 미전달) |
 | v0.3.1 | 2026-10-05 | ui-designer 요청(메인 세션 승인). `shared/src/limits.ts` 신규: `ROOM_TITLE_MAX`·`MESSAGE_TEXT_MAX`·`MEMORY_SUMMARY_MAX`·`countCodePoints`·`normalizeText`(§5.7). 서버 서비스와 화면이 같은 길이 규칙을 import. §12.1 행, §13.1 행, API-T-046, S2-R4 | 추가(새 파일, 기존 export 변경 없음) | 아니오 |
 | v0.3.1 구현 | 2026-10-05 | S2 구현 완료(routes 쓰기 6종 · ui/api 쓰기 래퍼 6종 · `configureClient` · `isAuthFailure` · `retryAfterSec`). 테스트 API-T-050~066 · API-T-UI-011~018. 계약 내용 변경 없음 | 변경 없음 | 아니오 |
+| v0.4 | 2026-10-06 | S3 상세 확정. §4.12 생성 공통(70초 상한·화면 타임아웃 없음/두면 75초 이상·잠금·레이트리밋 카운트), §4.13 E9 speak, §4.14 E12 regenerate, §3.2 S3 5코드 문구 확정(v0.1 문구 유지), `SpeakBody`·`PATHS.roomSpeak/messageRegenerate`·`endpoints` 빌더 2개, routes `speakBody`·`messages.ts` 핸들러 2개, ui/api `speak`·`regenerate`, §12.2·§13.2·§14.9~§14.11·§15.8~§15.10, 「ui 인계 메모」 | 추가(기존 엔드포인트·타입·필드·에러 코드 변경 없음) | 아니오 |
 
 ---
 
@@ -1032,7 +1235,7 @@ export const normalizeText = (s: string): string => s.trim()
 
 | 요구ID | 계약 항목 | 절 | 판정 | 호환성 | 테스트ID | 상태 |
 |---|---|---|---|---|---|---|
-| R-API-001 🔒 | 엔드포인트 집합 14행, `PATHS`, 단건 방 조회 없음, 미등록 메서드 404 | §4.0 · §3.5 · §5.4 · §12 | 신규(S2 확장) | 추가 | API-T-013 · 042 · 045 | S1·S2 행 확정, S3~S4 행 예정 |
+| R-API-001 🔒 | 엔드포인트 집합 14행, `PATHS`, 단건 방 조회 없음, 미등록 메서드 404 | §4.0 · §3.5 · §5.4 · §12 | 신규(S2·S3 확장) | 추가 | API-T-013 · 042 · 045 · 047 · 084 | S1~S3 행 확정, S4 행 예정 |
 | R-API-002 🔒 | `{ error: { code, message } }`, 13종 status·문구, (S2) `RATE_LIMITED`만 `retryAfterSec` 추가 | §3 · §5.2 · §5.3 | 신규(S2 확장) | 추가 | API-T-040 · 041 · 054, 모든 에러 테스트의 `expectContractError`, API-T-UI-002·004·005·014 | 확정 |
 | R-API-003 🔒 | Bearer 헤더만, `?t=` → `state/token.ts` 메모리, `configureClient` getter 주입, 쓰기 래퍼만 헤더 부착 | §2.2 · §2.4 · §11.6 | 신규 | 추가 | API-T-051, API-T-UI-011 · 012 · 013 · 018 | 확정(S2) |
 | R-API-004 | camelCase · epoch ms · id 타입 · zod 검증 · `400 VALIDATION_ERROR` | §5.1 · §5.6 · §4.3 | 신규 | 추가 | API-T-011 · 023 · 030 ~ 032 | 확정 |
@@ -1058,10 +1261,10 @@ export const normalizeText = (s: string): string => s.trim()
 | R-ROOM-002 · R-MSG-002 · R-MSG-004 · R-MEM-001 (길이 규칙, v0.3.1) | 상한 60·2000·4000, trim 후 코드 포인트 세기를 `@shared/limits` 한 곳에 | §5.7 | 신규 | 추가 | API-T-046 · 058 · 062 | 확정(MEMORY는 S4에서 사용) |
 | R-MSG-008 (확인 필요) | 수정·삭제 작성자 제한 없음 | §4.5 · §4.10 · §4.11 | 신규 | 추가 | API-T-066 | 확정(기본값) |
 | R-ROOM-005 | 발화 저장·수정·삭제 시 방 `updatedAt` 갱신, 이름 변경은 유지 | §4.7 · §4.9 ~ §4.11 | 신규 | 추가 | API-T-059 · 061 · 063 · 065 | 확정(S2 경로) |
-| R-NFR-003 🔒 (레이트리밋 몫) | 초과 `429` | §6.1 | 신규 | 추가 | API-T-054, server SRV-T-114 | 확정(S2), speak 409는 S3 |
+| R-NFR-003 🔒 (레이트리밋 몫) | 초과 `429` | §6.1 | 신규 | 추가 | API-T-054, server SRV-T-114 | 확정(S2 429 · S3 409 — 아래 S3 행) |
 | R-ROOMS-002 🔒 | 「+ 새 방」이 쓰는 `createRoom`, 토큰 있을 때만 | §2.4 · §4.6 · §11.6 | 신규 | 추가 | API-T-UI-011, 화면 TC | 계약 확정 |
 | R-CHAT-004 🔒 · R-CHAT-006 🔒 | 하단 바 전송이 쓰는 `appendUser`(OOC 토글 = `ooc`), AI 미호출 | §4.9 · §11.6 | 신규 | 추가 | API-T-UI-011, 화면 TC | 계약 확정 |
-| R-CHAT-007 🔒 (수정·삭제) | 말풍선 메뉴가 쓰는 `editMessage`·`deleteMessage` | §4.10 · §4.11 · §11.6 | 신규 | 추가 | API-T-UI-011 · 015, 화면 TC | 계약 확정(재작성은 S3) |
+| R-CHAT-007 🔒 (수정·삭제) | 말풍선 메뉴가 쓰는 `editMessage`·`deleteMessage` | §4.10 · §4.11 · §11.6 | 신규 | 추가 | API-T-UI-011 · 015, 화면 TC | 계약 확정(재작성은 아래 S3 행) |
 | R-CHAT-001 🔒 (⋯ 메뉴) | 이름 변경·방 삭제가 쓰는 `renameRoom`·`deleteRoom` | §4.7 · §4.8 · §11.6 | 신규 | 추가 | API-T-UI-011 · 015, 화면 TC | 계약 확정(장기기억은 S4) |
 | R-CHAT-009 🔒 | `?t=` 1회 읽기, 메모리만, 쓰기 헤더 부착 | §2.4 · §11.6 | 신규 | 추가 | API-T-UI-011 · 018 | 계약 확정 |
 | R-CHAT-011 | 인증 실패 3코드 → 읽기 전용 전환(`isAuthFailure`), `RATE_LIMITED` 안내·`retryAfterSec` | §2.4 · §3.4 · §11.6 | 신규 | 추가 | API-T-UI-014 · 016, 화면 TC | 계약 확정 |
@@ -1071,6 +1274,20 @@ export const normalizeText = (s: string): string => s.trim()
 | R-CHAT-003 🔒 | 위로 스크롤 시 `before` 페이지, `hasMore` | §4.3 | 신규 | 추가 | API-T-021, 화면 TC | 계약 확정 |
 | R-ROOMS-001 🔒 | 방 목록 데이터 | §4.2 | 신규 | 추가 | 화면 TC | 계약 확정 |
 | R-NFR-004 🔒 | 응답·로그에 토큰 없음(`?t=` 미기록), 에러 본문에 내부 정보 없음 | §3.1 · §4.4 | 신규 | 추가 | API-T-014, SRV-T-083 · 088 | 확정 |
+| R-MSG-003 🔒 (S3) | `POST /api/rooms/:id/speak` `SpeakBody` → `201 Message`(`speaker = character`, `kind 'line'`, `authorName null`), 직전 발화자 무관 | §4.13 · §5.2 · §5.4 | 신규 | 추가 | API-T-070 · 071 · 072 · 073, API-T-UI-019 | 확정(S3, 구현 전) |
+| R-MSG-006 🔒 (S3) | `POST /api/messages/:id/regenerate` 본문 없음 → `200 Message`(`text`만 교체), `400 NOT_CHARACTER_MESSAGE` · `409 NOT_LAST_MESSAGE` · `404` | §4.14 · §5.4 | 신규 | 추가 | API-T-078 ~ 083, API-T-UI-019 | 확정(S3, 구현 전) |
+| R-MSG-007 🔒 (S3) | 방당 1건, speak·regenerate 같은 잠금, `409 SPEAK_IN_PROGRESS`, 우선순위(잠금 → 마지막 판정) | §4.12 · §4.13 · §4.14 | 신규 | 추가 | API-T-075, server SRV-T-196 · 199 · 207 | 확정(S3) |
+| R-NFR-001 🔒 (S3) | 서버 70초 종결, 화면 요청 타임아웃 없음(두면 75초 이상) | §3.4 · §4.12 · §11.9 | 신규 | 추가 | server SRV-T-208, API-T-UI-021 | 확정(S3) |
+| R-NFR-003 🔒 (S3 409 몫) | 동시 생성 `409`, 실패한 생성도 레이트리밋 1회 | §4.12 · §6.1 | 확장 | 추가 | API-T-075 · 077, server SRV-T-199 | 확정(S3) |
+| R-LLM-002 🔒 (S3 응답 쪽) | 생성 응답 `speaker`는 `CharacterId`, 표시 메타는 화면이 `CHARACTERS[speaker]`(shared). 조회 엔드포인트 없음 | §4.12 · §5.5 | 확장 | 추가 | API-T-070 · 043 | 확정(S3) |
+| R-LLM-004 🔒 | 후처리된 `text`(최대 2000자), 빈 결과 `502 LLM_EMPTY` | §3.2 · §4.12 | 신규 | 추가 | API-T-076, server SRV-T-172 · 198 | 확정(S3) |
+| R-LLM-005 🔒 | 최종 실패 `502 LLM_FAILED`, 응답은 기본 문구만(제공사 정보 없음), 저장 없음 | §3.2 · §4.12 | 신규 | 추가 | API-T-076 · 083 | 확정(S3) |
+| R-API-002 🔒 (S3) | 13종 안 5코드(`SPEAK_IN_PROGRESS`·`NOT_LAST_MESSAGE`·`NOT_CHARACTER_MESSAGE`·`LLM_FAILED`·`LLM_EMPTY`) + `CONFIG_INVALID`, 형식 `{ error: { code, message } }`, 문구 확정 | §3.2 · §4.12 ~ §4.14 | 확장 | 추가 | API-T-072 ~ 083의 `expectContractError`, API-T-UI-020 | 확정(S3) |
+| R-ROOM-005 (S3) | speak 저장·regenerate 교체 시 방 `updatedAt` 갱신, 실패 시 불변 | §4.13 · §4.14 | 확장 | 추가 | API-T-070 · 076 · 078 · 083 | 확정(S3) |
+| R-ENV-003 (S3) | 키 없음 → speak·regenerate만 `500 CONFIG_INVALID` | §4.12 | 확장 | 추가 | API-T-073 · 074 · 081 | 확정(S3) |
+| R-CHAT-005 🔒 | 캐릭터 버튼이 쓰는 `speak`, 「재시도」는 같은 호출, 소요 최대 70초 | §4.13 · §11.9 · 「ui 인계 메모」 | 신규 | 추가 | API-T-UI-019 · 020, 화면 TC | 계약 확정(S3) |
+| R-CHAT-007 🔒 (재작성) | 메뉴 재작성이 쓰는 `regenerate`, 표시 조건(캐릭터·마지막)과 `409 NOT_LAST_MESSAGE`의 관계 | §4.14 · 「ui 인계 메모」 | 신규 | 추가 | API-T-UI-019, 화면 TC | 계약 확정(S3) |
+| R-CHAT-011 (S3) | `SPEAK_IN_PROGRESS`(생성 중)·`LLM_FAILED`·`LLM_EMPTY`(재시도)·`CONFIG_INVALID`(관리자) 안내의 근거 코드. 생성 실패 코드는 읽기 전용 전환 대상 아님 | §2.4 · §4.12 · 「ui 인계 메모」 | 확장 | 추가 | API-T-UI-020, 화면 TC | 계약 확정(S3) |
 
 ---
 
@@ -1653,6 +1870,119 @@ export { createRoom, deleteRoom, listRooms, renameRoom } from './rooms'
 5. ui-implementer: `ui/src/state/token.ts` · `main.tsx`의 `configureClient` 호출 · `viewer` 계산 · 쓰기 화면.
 6. 증거: `npx vitest run server shared ui/src/api` 결과와 세 워크스페이스 `tsc --noEmit` exit 0.
 
+### 11.8 S3 routes 설계 (`server/src/routes/`)
+
+| 파일 | S3 변경 | 크기(예상) |
+|---|---|---|
+| `schemas.ts` | `CHARACTER_IDS`(내부 상수) · `speakBody` 추가 | ~48줄 |
+| `messages.ts` | POST speak(E9) · POST regenerate(E12) 추가 | ~110줄 |
+| `rooms.ts` · `index.ts` · `validate.ts` · `health.ts` | 변경 없음 | — |
+
+- **E9를 `messages.ts`에 두는 이유:** 라우트 파일은 경로 접두어가 아니라 **부르는 서비스**로 나눈다. S2의 `POST /api/rooms/:id/user`(E8)도 `messages.addUserMessage`를 불러 `messages.ts`에 있다. E9는 `messages.speak`를 부르고, `rooms.ts`는 `rooms` 서비스만 부른다. 합쳐도 ~110줄로 400줄 한계 안이다.
+- 미들웨어 순서는 S2와 같다: `requireToken, rateLimitWrites, validate('param', …), validate('json', …)`. E12는 `validate('json')`을 붙이지 않는다(본문 무시).
+- `background`는 `{ waitUntil: task => c.executionCtx.waitUntil(task) }`로 만든다. `c.executionCtx`는 **콜백 안에서만** 읽는다. 핸들러 본문에서 미리 읽어 변수에 두지 않는다. S3에는 훅이 없어 콜백이 불리지 않는다(llm.md 「contract 인계 요구 명세」).
+- 에러 변환은 S2와 같다. 서비스가 던진 `AppError`·`ConfigError`를 server `onError`가 `{ error: { code, message } }`로 바꾼다. 라우트는 try/catch·`c.json({ error })`를 쓰지 않는다.
+- principal을 쓰지 않는다. `getPrincipal(c)`를 부르지 않는다(서비스가 작성자를 받지 않는다, messages.md D-MSG-12). 인증·레이트리밋은 미들웨어가 끝낸다.
+
+```ts
+// server/src/routes/schemas.ts — S3 추가분
+import type { CharacterId } from '@shared/types'
+
+/** CharacterId 와 같은 두 값. 캐릭터는 2명 고정(확정사항 §1) */
+const CHARACTER_IDS = ['sebastian', 'ciel'] as const satisfies readonly CharacterId[]
+
+/** POST /api/rooms/:id/speak 본문. 두 값 밖 → 400 VALIDATION_ERROR(기본 문구) (api.md §4.13) */
+export const speakBody = z.object({ character: z.enum(CHARACTER_IDS) })
+```
+
+```ts
+// server/src/routes/messages.ts — S3 추가분 (S2 체인의 .delete 다음에 잇는다)
+// import: SpeakBody 는 '@shared/types' 목록에, speakBody 는 './schemas' 목록에 합친다
+
+  /// [계약] api.md §4.13 · [요구] R-MSG-003 · R-MSG-007 · R-NFR-001 · [에러] §4.5·§4.12 공통 + VALIDATION_ERROR · NOT_FOUND · [부수효과] messages 1행 + 방 updatedAt · 잠금 · AI 1~2회 · 레이트리밋 1회
+  .post(
+    PATHS.roomSpeak,
+    requireToken,
+    rateLimitWrites,
+    validate('param', roomIdParam),
+    validate('json', speakBody),
+    async c => {
+      const { id } = c.req.valid('param')
+      const body: SpeakBody = c.req.valid('json')
+      const message: Message = await c
+        .get('services')
+        .messages.speak(id, body, { waitUntil: task => c.executionCtx.waitUntil(task) })
+      return c.json(message, 201)
+    },
+  )
+  /// [계약] api.md §4.14 · [요구] R-MSG-006 · R-MSG-007 · R-NFR-001 · [에러] §4.5·§4.12 공통 + NOT_FOUND · NOT_CHARACTER_MESSAGE · NOT_LAST_MESSAGE · [부수효과] text 교체 + 방 updatedAt · 잠금 · AI 1~2회 · 레이트리밋 1회
+  .post(
+    PATHS.messageRegenerate,
+    requireToken,
+    rateLimitWrites,
+    validate('param', messageIdParam),
+    async c => {
+      const { id } = c.req.valid('param')
+      const message: Message = await c.get('services').messages.regenerate(id)
+      return c.json(message, 200)
+    },
+  )
+```
+
+- 핸들러 본문은 5줄 이내다(R-API-007).
+- `const body: SpeakBody = c.req.valid('json')` 대입이 zod 결과와 shared 타입을 tsc로 대조한다(§5.6).
+
+### 11.9 S3 ui/api 설계 (`ui/src/api/`)
+
+| 파일 | S3 추가 export | 비고 |
+|---|---|---|
+| `messages.ts` | `speak(roomId: string, body: SpeakBody): Promise<Result<Message>>` · `regenerate(messageId: number): Promise<Result<Message>>` | 이름은 서버 서비스와 같다 |
+| `index.ts` | `speak` · `regenerate` 재노출 | 화면은 `@/api`만 import |
+| `client.ts` | **변경 없음** | 타임아웃·재시도를 넣지 않는다 |
+
+```ts
+// ui/src/api/messages.ts — S3 추가분
+// import: SpeakBody 를 '@shared/types' 목록에 합친다
+
+/** [계약] api.md §4.13 · [요구] R-MSG-003 · R-CHAT-005 — 캐릭터 1턴 생성(201 Message). 최대 70초 */
+export const speak = (roomId: string, body: SpeakBody): Promise<Result<Message>> =>
+  request<Message>(endpoints.roomSpeak(roomId), {
+    method: 'POST',
+    body: { character: body.character },
+    auth: true,
+  })
+
+/** [계약] api.md §4.14 · [요구] R-MSG-006 · R-CHAT-007 — 같은 캐릭터로 재생성(200 Message). 본문 없음. 최대 70초 */
+export const regenerate = (messageId: number): Promise<Result<Message>> =>
+  request<Message>(endpoints.messageRegenerate(messageId), { method: 'POST', auth: true })
+```
+
+```ts
+// ui/src/api/index.ts — S3 변경 줄
+export { appendUser, deleteMessage, editMessage, listMessages, regenerate, speak } from './messages'
+```
+
+래퍼 규약(S3):
+
+| 항목 | 규칙 |
+|---|---|
+| 반환 | `Result<Message>`. throw·reject 없음(§3.4). 실패는 `error.code`로만 분기한다 |
+| 토큰 | `auth: true` — 쓰기 래퍼 규칙 그대로(§2.2). getter가 `null`이면 헤더 없이 보내고 서버의 `TOKEN_REQUIRED`를 그대로 돌려준다 |
+| 본문 | `speak`는 `{ character }`만 다시 만들어 보낸다. `regenerate`는 본문·`Content-Type`을 보내지 않는다 |
+| 타임아웃 | **없음 — 서버 종결(70초)에 의존한다.** `client.ts`에 `AbortSignal`·타이머가 없고 S3에서도 넣지 않는다. 넣게 되면 이 두 래퍼는 75초 이상이어야 한다(§4.12) |
+| 자동 재시도 | 없음. 「재시도」는 화면이 같은 래퍼를 다시 부르는 것이다(R-CHAT-005) |
+| 동시 호출 | 래퍼는 막지 않는다. 생성 중 두 버튼·전송 잠금은 화면 몫이다(R-CHAT-005). 다른 탭·다른 사람과 겹치면 서버가 `409`로 막는다 |
+| 인증 실패 | `isAuthFailure(error)`이면 S2와 같이 읽기 전용 전환(§2.4). 생성 실패 코드(`409`·`400 NOT_CHARACTER_MESSAGE`·`500`·`502`)는 전환하지 않는다 |
+
+### 11.10 S3 구현 순서
+
+1. contract-implementer: `shared/src/types.ts`(`SpeakBody`) · `endpoints.ts`(경로 2개 · 빌더 2개) + shared 테스트(API-T-042 갱신 · 047). server `messages/generate.ts`가 `SpeakBody`를 import하므로 이것이 먼저다(messages.md §2.3).
+2. server-implementer: `server/src/llm/` · `messages.speak`·`regenerate` · db 잠금 함수 · `services.ts` 배선(llm.md §3.3).
+3. contract-implementer: routes S3(§11.8) + `server/test/routes-generate.test.ts`의 API-T-070~084 + `server/test/routes-write.test.ts`의 쓰기 표에 E9·E12 추가(API-T-050~053이 8개를 돈다).
+4. contract-implementer: ui/api S3(§11.9) + API-T-UI-019~021(§14.11). 3과 서로 의존하지 않는다(shared만 필요).
+5. ui-implementer: 캐릭터 버튼·임시 말풍선·재작성 메뉴·S3 오류 문구(ui 설계 몫).
+6. 증거: `npx vitest run --project shared` · `--project server` · `--project ui` 결과와 세 워크스페이스 `tsc --noEmit` exit 0.
+
 ---
 
 ## 12. 4자 대조표 (S1)
@@ -1694,6 +2024,25 @@ export { createRoom, deleteRoom, listRooms, renameRoom } from './rooms'
 | 인증 실패 → 읽기 전용 | §2.4 | `ErrorCode`(3코드) | — | `isAuthFailure` | 설계 일치 |
 | 레이트리밋 적용 | §6.1 | — | `rateLimitWrites` 라우트 단위 6개 | — | 설계 일치 |
 
+### 12.2 4자 대조표 (S3 — 구현 완료 2026-10-06, contract-implementer 실물 기준)
+
+| 계약 항목 | api.md | shared | routes | ui/api | 판정 |
+|---|---|---|---|---|---|
+| `POST /api/rooms/:id/speak` `{ character }` → `201 Message` | §4.13 | `endpoints.ts` `PATHS.roomSpeak` · `endpoints.roomSpeak(roomId)` · `types.ts` `SpeakBody` · 기존 `CharacterId` · `Message` | `routes/messages.ts` `.post(PATHS.roomSpeak, requireToken, rateLimitWrites, validate('param', roomIdParam), validate('json', speakBody))` → `const body: SpeakBody` → `messages.speak(id, body, { waitUntil })` | `api/messages.ts` `speak(roomId, body: SpeakBody)` → `Result<Message>` | 구현 일치. 테스트 API-T-070~077 · 084 · T-UI-019~021 |
+| `POST /api/messages/:id/regenerate` 본문 없음 → `200 Message` | §4.14 | `PATHS.messageRegenerate` · `endpoints.messageRegenerate(messageId: number)` | `routes/messages.ts` `.post(PATHS.messageRegenerate, requireToken, rateLimitWrites, validate('param', messageIdParam))` · json 검증 없음 → `messages.regenerate(id)` | `api/messages.ts` `regenerate(messageId: number)` 본문·`Content-Type` 없음 | 구현 일치. 테스트 API-T-074 · 075 · 078~084 · T-UI-019~021 |
+| 생성 에러 5코드 + `CONFIG_INVALID` | §3.2 · §4.12 | `ERROR_CODES` 변경 없음 | 서비스 throw → server `onError`(라우트 변환 없음) | `toApiError` 변경 없음 | 구현 일치. API-T-073~083 · T-UI-020 |
+| 시간 상한 70초 · 화면 타임아웃 없음 | §4.12 | — | 없음(서비스·llm 예산) | `request` 타임아웃 없음, 래퍼 `signal` 없음 | 구현 일치. T-UI-021 + grep 0건 |
+| 토큰·레이트리밋 | §4.12 · §6.1 | — | `requireToken` · `rateLimitWrites` 2개 추가(라우트 단위 총 8개) | `auth: true` | 구현 일치. API-T-050~053(8개) · 077 |
+| 캐릭터 값 두 개 | §5.2 · §5.6 | `CharacterId` | `routes/schemas.ts` `CHARACTER_IDS` `satisfies readonly CharacterId[]` · `speakBody` | `SpeakBody` | 구현 일치. API-T-072 |
+
+---|---|---|---|---|---|
+| `POST /api/rooms/:id/speak` `{ character }` → `201 Message` | §4.13 | (예정) `PATHS.roomSpeak` · `endpoints.roomSpeak(roomId)` · `SpeakBody` · 기존 `CharacterId` · `Message` | (예정) `messages.ts` `.post(PATHS.roomSpeak)` · `roomIdParam` · `speakBody` → `const body: SpeakBody` | (예정) `speak(roomId, body: SpeakBody)` → `Result<Message>` | 설계 일치(구현 전) |
+| `POST /api/messages/:id/regenerate` 본문 없음 → `200 Message` | §4.14 | (예정) `PATHS.messageRegenerate` · `endpoints.messageRegenerate(messageId: number)` | (예정) `messages.ts` `.post(PATHS.messageRegenerate)` · `messageIdParam` · json 검증 없음 | (예정) `regenerate(messageId: number)` 본문 없음 | 설계 일치(구현 전) |
+| 생성 에러 5코드 + `CONFIG_INVALID` | §3.2 · §4.12 | `ERROR_CODES` 변경 없음(이미 있음) | 서비스 throw → server `onError` | `toApiError` 변경 없음 | 설계 일치(기존 코드) |
+| 시간 상한 70초 · 화면 타임아웃 없음 | §4.12 | — | 없음(서비스·llm 예산) | `request` 타임아웃 없음 | 설계 일치 |
+| 토큰·레이트리밋 | §4.12 · §6.1 | — | (예정) `requireToken` · `rateLimitWrites` 2개 추가(라우트 단위 총 8개) | `auth: true` | 설계 일치(구현 전) |
+| 캐릭터 값 두 개 | §5.2 · §5.6 | `CharacterId` | (예정) `CHARACTER_IDS` `satisfies readonly CharacterId[]` | `SpeakBody` | 설계 일치(구현 전) |
+
 ---
 
 ## 13. 호환성 분류
@@ -1732,6 +2081,22 @@ S1은 처음 만드는 계약이라 **전부 「추가」**다. ui·갠홈 영�
 
 - **파괴 변경 0건.** S1 엔드포인트(E1·E2·E3·E7)의 요청·응답·에러는 바뀌지 않았다. `GET /api/rooms/:id`는 여전히 `404`다(API-T-013).
 - 이후 바뀔 수 있는 자리: 확정사항 §9-5(권한 "누구나")가 "작성자만"·"관리자만"으로 바뀌면 E5·E6·E10·E11에 `403` 계열 조건이 생긴다. 새 코드가 필요하면 13종 밖이라 R-API-002 개정이 필요하다(파괴는 아니지만 화면 안내 추가).
+
+### 13.2 S3 변경 분류 (v0.4)
+
+| 변경 | 분류 | 영향 받는 곳 | 비고 |
+|---|---|---|---|
+| E9·E12 상세 확정 | 추가 | 없음(이전에는 `404`) | §4.0 집합은 S1부터 같다(R-API-001) |
+| `PATHS.roomSpeak` · `messageRegenerate`, `endpoints` 빌더 2개 | 추가 | 없음(기존 키 그대로) | API-T-042의 "PATHS 값 7개"를 9개로 고친다(테스트 갱신) |
+| `SpeakBody` | 추가 | 없음 | |
+| ui/api `speak` · `regenerate` | 추가 | 없음(화면은 S3에서 처음 쓴다) | |
+| `ERROR_CODES`·status·문구 | 변경 없음 | — | S3 5코드 문구는 v0.1 그대로 확정 |
+| `client.ts` | 변경 없음 | — | 타임아웃을 넣지 않는다 |
+| routes 쓰기 표 6개 → 8개 | 테스트 갱신 | `server/test/routes-write.test.ts` | 소비자 영향 없음 |
+
+- **파괴 변경 0건.** 기존 엔드포인트(E1~E8·E10·E11)의 요청·응답·에러·레이트리밋 한도 값은 바뀌지 않았다. speak·regenerate가 같은 분당 한도를 나눠 쓰므로 한 사람이 쓸 수 있는 다른 쓰기 횟수는 그만큼 준다.
+- 저쪽 재적용 없음. 토큰·`?t=`·임베드 주소는 그대로다.
+- 이후 바뀔 수 있는 자리: 생성 진행 상태·스트리밍이 요구되면 새 엔드포인트가 필요하다(R-API-001 개정). `Message`에 "생성 중" 같은 필드를 넣지 않는다.
 
 ---
 
@@ -1873,6 +2238,51 @@ grep -rnE "\.use\(|get\('principal'\)" server/src/routes
 - 라우트 핸들러 30줄 이내, 쓰기 핸들러 6개 모두 `requireToken`·`rateLimitWrites`가 `validate` 앞(R-API-007, API-T-050이 자동 대조).
 - 수동: `wrangler dev`에서 토큰 없이 `curl -i -X POST http://localhost:3000/api/rooms -H 'content-type: application/json' -d '{"title":"x"}'` → 401 `TOKEN_REQUIRED`. 로컬 SECRET으로 만든 토큰으로 21회 → 21번째 `429`·`Retry-After`.
 
+### 14.9 S3 routes — `server/test/routes-generate.test.ts` (API-T-070 ~ 084)
+
+준비:
+
+- 앱·토큰·시각은 §14.5와 같다(`signTestToken`, `NOW`). 성공 경로는 `testEnv`에 `LLM_PROVIDER: 'fake'`를 넣는다. 각본 없는 `FakeProvider`는 `FAKE_DEFAULT_TEXT`를 돌려준다(llm.md §2).
+- `502` 경로는 `LLM_PROVIDER: 'google'` + 테스트용 가짜 키 문자열(실값 아님)로 두고 `vi.stubGlobal('fetch', …)`로 제공사 응답을 흉내 낸다. `GeminiProvider`의 기본 `fetchFn`은 전역 `fetch`이고 요청마다 새로 만든다(llm.md §2.2). 재시도 없는 실패(HTTP 400)·차단(`promptFeedback.blockReason`)·이름표만 있는 텍스트(후처리 뒤 빈 결과)를 쓴다. 재시도가 걸리는 5xx·타임아웃은 server 테스트(SRV-T-198·208)에 맡긴다. 이 방식이 workerd에서 막히면 §15.9 S3-R3.
+- 잠금 상태는 `UPDATE rooms SET speaking_until = ?`로 직접 만든다. 동시 요청 경합은 server SRV-T-199가 맡는다.
+- `expectContractError`는 §14.5 그대로다.
+
+| 테스트ID | 이름 | 입력 | 기대 | 요구 |
+|---|---|---|---|---|
+| API-T-070 | `speak_returns_201_character_message` | 시드 방, `{ character: 'sebastian' }` · `{ character: 'ciel', foo: 1 }` | 201. 키가 정확히 `id,roomId,speaker,kind,text,authorName,createdAt`, `speaker` = 보낸 값, `kind 'line'`, `authorName null`, `text` 비어 있지 않음, `createdAt === NOW`. 방 `updatedAt === NOW`, `speaking_until` NULL, DB `author_mb_id` NULL. 모르는 키 무시 | R-MSG-003 · R-ROOM-005 · R-LLM-002 |
+| API-T-071 | `speak_allows_same_character_twice` | `ciel` 2회 연속 | 둘 다 201, 두 번째 id가 더 큼, 히스토리 마지막 2건이 `ciel` | R-MSG-003 |
+| API-T-072 | `speak_rejects_bad_character` | `{}` · `'meirin'` · `'Sebastian'` · `''` · `1` · `null` · 깨진 JSON · `Content-Type` 없음 | 전부 400 `VALIDATION_ERROR` `요청 형식이 올바르지 않습니다.`, 메시지 0건 추가 | R-MSG-003 · R-API-002 |
+| API-T-073 | `speak_checks_validation_then_config_then_room` | ① 없는 방 + `'meirin'` ② `google`·키 없음 + 없는 방 ③ `fake` + 없는 방 | ① 400 ② 500 `CONFIG_INVALID`(본문에 키 이름 없음) ③ 404 `방을 찾을 수 없습니다.` | R-ENV-003 · R-API-002 |
+| API-T-074 | `config_invalid_only_on_generate_paths` | `google`·키 없음에서 `GET /api/rooms` · `POST …/user` · speak · regenerate(마지막 캐릭터 메시지) | 200 · 201 · 500 `CONFIG_INVALID` · 500 `CONFIG_INVALID` | R-ENV-003 |
+| API-T-075 | `generate_returns_409_while_locked` | `speaking_until = NOW + 1`인 방에 speak · 그 방 마지막 캐릭터 메시지 regenerate · 그 방 마지막이 아닌 캐릭터 메시지 regenerate / `speaking_until = NOW`(만료 경계) speak | 409 `SPEAK_IN_PROGRESS` ×3(마지막 아님도 `SPEAK_IN_PROGRESS`), 메시지 불변 / 201 | R-MSG-007 · R-NFR-003 |
+| API-T-076 | `speak_maps_provider_failures_to_502` | 제공사 HTTP 400 · 차단 응답 · 이름표만 있는 텍스트 | 502 `LLM_FAILED` · 502 `LLM_EMPTY` · 502 `LLM_EMPTY`, message = 기본 문구, 본문에 `gemini`·`google`·HTTP 상태·`blockReason` 없음. 메시지 0건, 방 `updatedAt` 불변, `speaking_until` NULL | R-LLM-004 · R-LLM-005 · R-NFR-004 |
+| API-T-077 | `failed_generates_count_toward_rate_limit` | 한도 2. 같은 토큰으로 ① speak 502 ② 잠긴 방 speak 409 ③ 정상 speak | ① 502 ② 409 ③ 429(앞 두 건이 셌다) | R-AUTH-005 · R-NFR-003 |
+| API-T-078 | `regenerate_returns_200_and_keeps_meta` | 유저 발화 → 세바스찬(마지막, `created_at` 500). 본문 없음 / 본문 `{"x":1}` / 깨진 JSON 본문 | 전부 200. `id`·`roomId`·`speaker`·`kind`·`authorName`·`createdAt(500)` 그대로, `text` 바뀜, 방 `updatedAt === NOW`, 메시지 수 불변 | R-MSG-006 · R-ROOM-005 |
+| API-T-079 | `regenerate_rejects_user_message` | 마지막 유저 `line` · 마지막 유저 `ooc` · 마지막이 아닌 유저 메시지 | 전부 400 `NOT_CHARACTER_MESSAGE`, 기본 문구 | R-MSG-006 |
+| API-T-080 | `regenerate_rejects_non_last_character_message` | 세바스찬 → 유저 발화, 세바스찬 id | 409 `NOT_LAST_MESSAGE`, 원문 불변, `speaking_until` NULL | R-MSG-006 |
+| API-T-081 | `regenerate_checks_target_then_config` | `google`·키 없음에서 ① 유저 메시지 ② 없는 id ③ 마지막 캐릭터 메시지 | ① 400 `NOT_CHARACTER_MESSAGE` ② 404 ③ 500 `CONFIG_INVALID` | R-MSG-006 · R-ENV-003 |
+| API-T-082 | `regenerate_message_id_errors` | id `abc`·`0`·`1.5`·`0x10`·`1e1`·없는 큰 수 | 전부 404 `메시지를 찾을 수 없습니다.` | R-MSG-006 · R-API-004 |
+| API-T-083 | `regenerate_failure_keeps_text` | 제공사 HTTP 400 | 502 `LLM_FAILED`, 원문 불변, 방 `updatedAt` 불변, `speaking_until` NULL | R-LLM-005 · R-MSG-007 · R-ROOM-005 |
+| API-T-084 | `generate_paths_reject_other_methods` | `GET`·`PUT /api/rooms/:id/speak`, `GET /api/messages/:id/regenerate` | 전부 404 `NOT_FOUND` | R-API-001 |
+
+- (갱신) API-T-050 ~ 053: 쓰기 표에 E9(`{ character: 'sebastian' }`)·E12(시드의 마지막 캐릭터 메시지)를 더해 8개를 돈다. 인증이 먼저라 제공사는 불리지 않는다. 테스트 이름의 "six"는 "all"로 바꾼다.
+- 정상 경로 3개(070·071·078)보다 에러 입력이 많다(072만 8건).
+
+### 14.10 S3 shared — `shared/test/*.test.ts`
+
+| 테스트ID | 이름 | 기대 | 요구 |
+|---|---|---|---|
+| API-T-042(갱신) | `endpoints_build_paths_and_queries` | `PATHS` 값 **9개**. 나머지 기대는 S1·S2 그대로 | R-API-001 · R-API-008 |
+| API-T-047 | `endpoints_build_generate_paths` | `PATHS.roomSpeak === '/api/rooms/:id/speak'`, `messageRegenerate === '/api/messages/:id/regenerate'`. `roomSpeak('a b/c')` → `/api/rooms/a%20b%2Fc/speak`, `messageRegenerate(72)` → `/api/messages/72/regenerate` | R-API-001 · R-API-008 |
+
+### 14.11 S3 ui/api — `ui/src/api/api.test.ts` (§14.7 준비 그대로)
+
+| 테스트ID | 이름 | 기대 | 요구 |
+|---|---|---|---|
+| API-T-UI-019 | `generate_wrappers_send_method_url_body_and_bearer` | getter `'tok'`. `speak('r1', { character: 'ciel' })` POST `/api/rooms/r1/speak` 본문 `{"character":"ciel"}` + `Content-Type: application/json` · `speak('a b', …)` → `/api/rooms/a%20b/speak` · `regenerate(72)` POST `/api/messages/72/regenerate` 본문·`Content-Type` 없음. 모두 `Authorization: Bearer tok`. `speak('r1', { character: 'ciel', extra: 1 } as SpeakBody)` → 본문 `{"character":"ciel"}` | R-MSG-003 · R-MSG-006 · R-API-003 · R-CHAT-005 · R-CHAT-007 |
+| API-T-UI-020 | `generate_wrappers_pass_s3_codes_and_never_reject` | 409 `SPEAK_IN_PROGRESS` · 409 `NOT_LAST_MESSAGE` · 400 `NOT_CHARACTER_MESSAGE` · 502 `LLM_FAILED` · 502 `LLM_EMPTY` · 500 `CONFIG_INVALID` 본문 → 같은 `code`·`message`, `isAuthFailure` 6개 모두 false. `fetch` throw → `NETWORK`, 502 HTML → `INTERNAL`. 어느 경우도 reject 없음 | R-API-002 · R-CHAT-011 |
+| API-T-UI-021 | `generate_wrappers_set_no_timeout`(단위 + 리뷰 grep) | 두 래퍼의 `fetch` 두 번째 인자에 `signal` 키 없음. `grep -nE "AbortController\|AbortSignal\|setTimeout" ui/src/api --include=*.ts`(테스트 파일 제외) 0건 | R-NFR-001 |
+
 ---
 
 ## 15. server 의존 · 변경 요청 · 확인 필요
@@ -1964,3 +2374,57 @@ grep -rnE "\.use\(|get\('principal'\)" server/src/routes
 사용자 확인이 남은 기본값(확정사항 §9, 값이 바뀌어도 계약 구조는 같다):
 
 - §9-1 `TOKEN_MIN_LEVEL` = 5 · §9-2 표시 이름(`ch_name` 우선) · §9-5 이름 변경·삭제·메시지 수정·삭제 권한 "등급 통과자 누구나" · §9-6 분당 20회.
+
+### 15.8 S3에서 쓰는 server 함수·타입 (모두 server S3 설계에 있음, 구현 전)
+
+| 사용처 | server 쪽 | 출처 |
+|---|---|---|
+| E9 | `MessagesService.speak(roomId: string, input: SpeakInput, background: Background): Promise<Message>` — `SpeakInput = SpeakBody` | messages.md §2.3 |
+| E9 | `type Background = { waitUntil: (task: Promise<unknown>) => void }` | messages.md §2.3 |
+| E12 | `MessagesService.regenerate(messageId: number): Promise<Message>` | messages.md §2.3 |
+| E9 · E12 | `requireToken` · `rateLimitWrites`(S2 그대로) | auth.md §9.1 |
+| 라우트 테스트 | `FAKE_DEFAULT_TEXT`(`server/src/llm`) · `signTestToken`(`server/test/token.ts`) | llm.md §2 · auth.md §3 |
+
+- env 바인딩·설정 추가: **없음.** `LLM_PROVIDER`·`LLM_MODEL`·`LLM_TIMEOUT_MS`·`CONTEXT_MESSAGES`(`wrangler.toml [vars]`)와 `LLM_API_KEY`(Secrets)는 server 설계에 이미 있다(llm.md §6). 라우트는 이 값을 읽지 않는다.
+
+### 15.9 server 설계와 어긋나 보이는 점·변경 요청 (S3 — 막는 것 없음, 고치지 않고 보고)
+
+| # | 대상 | 내용 | 요청 |
+|---|---|---|---|
+| S3-R1 | messages.md §5 `VALIDATION_ERROR` 행 `캐릭터는 sebastian 또는 ciel 중 하나여야 합니다.` | 라우트 zod `enum`이 먼저 거르므로 HTTP 응답으로는 이 문구가 나가지 않는다. 계약 응답은 기본 문구 `요청 형식이 올바르지 않습니다.`다(§4.13). 이 문구는 내부 id(`sebastian`)를 사용자 문장에 드러내기도 한다 | messages.md §5 해당 행에 "HTTP로는 닿지 않음(라우트 zod 선검사)"을 적는다. 문구를 남긴다면 내부 id 없는 문장을 권고 |
+| S3-R2 | messages.md §9 `messages.regenerate(Number(id))` · llm.md 인계 표 "`messageIdParam`의 `Number()` 변환 결과" | 실제 라우트 변환은 10진 숫자 문자열만 `Number()`, 그 밖은 `NaN`이다(§4.5). 서비스 변경 없음 | 문구 정리(S2-R1과 같은 건) |
+| S3-R3 | 라우트 테스트의 `502` 주입 | 서비스 컨테이너가 요청마다 env로 provider를 만들어, 라우트 테스트가 `FakeProvider` 각본을 넣을 길이 없다. §14.9는 `google` + 전역 `fetch` 대체로 우회한다 | 우회가 workerd에서 막히면 그때 `createApp`에 테스트 전용 llm 주입 옵션을 server에 요청한다. 지금은 요청하지 않는다 |
+| S3-R4 | R-NFR-001 70초 | 서버 상한 70초는 D1 왕복 합 4초 가정 위에 있다(llm.md §4.2, 메인 세션 보고 사항 1-③) | 실측 뒤 4초를 넘으면 `LLM_BUDGET_MS` 조정(server 몫). 화면 타임아웃이 없어 계약 문구는 그대로다 |
+
+### 15.10 확인 필요 (S3)
+
+계약이 정한 것(되돌리려면 알려 달라, 지금은 막지 않음):
+
+1. **실패한 생성도 레이트리밋 1회.** `409`·`502`·`500 CONFIG_INVALID`로 끝나도 센다(§6.1 S3 행). `502` 뒤 「재시도」를 연타하면 분당 20회에서 막힌다.
+2. **화면 요청 타임아웃 없음.** 서버 70초 종결에 의존한다. 화면 쪽 시간 제한 안내가 필요하면 ui 요구로 올린다(두면 75초 이상).
+3. **E12 본문은 깨진 JSON이어도 무시하고 진행한다**(본문을 읽지 않는다).
+4. **E9 `character` 오류 문구는 기본 문구**(`요청 형식이 올바르지 않습니다.`)다. 화면은 버튼 두 개로만 값을 보내므로 사용자에게 보일 일이 없다.
+
+사용자 확인이 남은 server 쪽 사항(계약 구조는 같다): R-MSG-006 "마지막" 판정을 잠금 시점 1회로 하는 것(생성 중 유저 발화가 붙어도 교체된다 — messages.md §4.3 확인 필요).
+
+---
+
+## 「ui 인계 메모」 (S3 — 화면이 계약에서 알아야 할 것만)
+
+| 주제 | 계약 |
+|---|---|
+| 호출 | 캐릭터 버튼 → `speak(roomId, { character })`, 메뉴 재작성 → `regenerate(messageId)`. 둘 다 `@/api`에서 import한다. 성공 값은 `Message`다 |
+| 소요 상한 | 두 호출 모두 **최대 70초**(보통 수 초). 래퍼에 타임아웃이 없어 서버가 끝낼 때까지 기다린다. 화면이 자체 타이머로 실패 처리하지 않는다. 서버가 저장했는데 화면이 실패로 보면 「재시도」가 대사를 하나 더 만든다 |
+| 성공 반영 | speak `201` → 새 메시지를 끝에 붙인다(S2 `messagesAppended`와 같은 흐름). regenerate `200` → 같은 `id`의 메시지를 통째로 바꾼다(`text`만 다르다, `messageReplaced`와 같은 흐름) |
+| `SPEAK_IN_PROGRESS` (409) | 이 방에서 다른 생성(다른 탭·다른 사람)이 진행 중이다. **잠시 후 다시 누르면 될 수 있다.** 생성은 최대 70초, 남은 잠금은 최대 90초다 |
+| `NOT_LAST_MESSAGE` (409) | 대상이 이제 마지막 메시지가 아니다. **다시 눌러도 안 된다.** 재작성 메뉴 항목은 "캐릭터 메시지이고 마지막"일 때만 보인다(R-CHAT-007). 화면 목록 기준으로 숨겨도 그사이 다른 사람이 글을 쓰면 서버가 이 코드로 거절한다. 받으면 최신 메시지를 다시 반영하는 것을 권장한다(ui 판단) |
+| `NOT_CHARACTER_MESSAGE` (400) | 유저 메시지에 재작성을 요청했다. 메뉴를 캐릭터 메시지에만 보이면 나오지 않는다(나오면 화면 결함) |
+| `LLM_FAILED` · `LLM_EMPTY` (502) | AI가 대사를 만들지 못했다. 저장된 것이 없다(regenerate는 원래 대사 유지). **「재시도」 버튼**으로 같은 호출을 다시 하면 된다(R-CHAT-005). 두 코드의 화면 처리는 같아도 된다 |
+| `CONFIG_INVALID` (500) | 서버에 AI 설정이 없다. 재시도해도 안 된다. **관리자 안내**를 띄운다(`ERROR_MESSAGES.CONFIG_INVALID`). 읽기·유저 발화는 계속 된다 |
+| `NOT_FOUND` (404) | speak: 방이 사라졌다(생성 중 삭제 포함). regenerate: 대상 메시지가 사라졌다 |
+| `RATE_LIMITED` (429) | S2와 같다(`retryAfterSec`). 실패한 생성도 1회로 센다 |
+| 인증 3코드 (401·403) | S2와 같다. `isAuthFailure`면 읽기 전용으로 전환한다 |
+| `NETWORK` · `INTERNAL` | 연결이 끊겼거나 서버 오류다. **speak는 서버에서 저장됐을 수도 있다**(응답만 못 받은 경우). 「재시도」 전에 최신 페이지를 다시 읽으면 중복을 피할 수 있다(ui 판단) |
+| 표시 | 응답 `speaker`로 `CHARACTERS[speaker]`의 `shortName`·`avatar`를 그린다. `authorName`은 `null`이다 |
+| 문구 | 화면 문구는 `labels.ts`가 `code`로 정한다. 서버 `message`는 폴백이다(§3.1) |
+

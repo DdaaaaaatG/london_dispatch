@@ -385,3 +385,73 @@ describe('rateLimits repo', () => {
     expect(await countWhere('rate_limits', '1 = 1')).toBe(1)
   })
 })
+
+const speakingUntil = async (id: string): Promise<number | null | undefined> =>
+  (
+    await env.DB.prepare('SELECT speaking_until AS s FROM rooms WHERE id = ?1')
+      .bind(id)
+      .first<{ s: number | null }>()
+  )?.s
+
+describe('S3 잠금·단건·요약', () => {
+  beforeEach(resetDb)
+
+  it('SRV-T-187 rooms_acquireSpeakLock_acquires_only_when_free_or_expired', async () => {
+    const db = createDb(env.DB)
+    await insertRoom('a', 'A', 1, 100)
+    expect(await db.rooms.acquireSpeakLock('a', 1090, 1000)).toBe('acquired')
+    expect(await speakingUntil('a')).toBe(1090)
+    expect(await db.rooms.acquireSpeakLock('a', 5000, 1089)).toBe('busy')
+    expect(await speakingUntil('a')).toBe(1090)
+    expect(await db.rooms.acquireSpeakLock('a', 5000, 1090)).toBe('acquired')
+    expect(await speakingUntil('a')).toBe(5000)
+    expect(await db.rooms.acquireSpeakLock('a', 9000, 6000)).toBe('acquired')
+    const row = await env.DB.prepare('SELECT updated_at FROM rooms WHERE id = ?1')
+      .bind('a')
+      .first<{ updated_at: number }>()
+    expect(row?.updated_at).toBe(100)
+  })
+
+  it('SRV-T-188 rooms_acquireSpeakLock_returns_missing_for_unknown_room', async () => {
+    const db = createDb(env.DB)
+    await insertRoom('a', 'A', 1, 100)
+    expect(await db.rooms.acquireSpeakLock('zzz', 2000, 1000)).toBe('missing')
+    expect(await speakingUntil('a')).toBeNull()
+  })
+
+  it('SRV-T-189 rooms_releaseSpeakLock_clears_only_own_lock', async () => {
+    const db = createDb(env.DB)
+    await insertRoom('a', 'A', 1, 100)
+    await db.rooms.acquireSpeakLock('a', 2000, 1000)
+    expect(await db.rooms.releaseSpeakLock('a', 1999)).toBe(false)
+    expect(await speakingUntil('a')).toBe(2000)
+    expect(await db.rooms.releaseSpeakLock('a', 2000)).toBe(true)
+    expect(await speakingUntil('a')).toBeNull()
+    expect(await db.rooms.releaseSpeakLock('zzz', 2000)).toBe(false)
+  })
+
+  it('SRV-T-190 messages_getById_and_memory_getSummary', async () => {
+    const db = createDb(env.DB)
+    await insertRoom('a', 'A', 1, 100)
+    const id = await insertLine('a', 'hello', 5)
+    const m = await db.messages.getById(id)
+    expect(m).toEqual({
+      id,
+      roomId: 'a',
+      speaker: 'sebastian',
+      kind: 'line',
+      text: 'hello',
+      authorName: null,
+      createdAt: 5,
+    })
+    expect(Object.keys(m ?? {})).toHaveLength(7)
+    expect(await db.messages.getById(id + 999)).toBeNull()
+    expect(await db.memory.getSummary('a')).toBeNull()
+    await env.DB.prepare(
+      "INSERT INTO memory (room_id, summary, updated_at) VALUES ('a', '요약', 1)",
+    ).run()
+    expect(await db.memory.getSummary('a')).toBe('요약')
+    await env.DB.prepare("UPDATE memory SET summary = '' WHERE room_id = 'a'").run()
+    expect(await db.memory.getSummary('a')).toBe('')
+  })
+})

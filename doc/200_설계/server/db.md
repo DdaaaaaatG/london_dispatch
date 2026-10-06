@@ -1,7 +1,7 @@
 # db 모듈 설계
 
-- 상태: S1 확정(구현 동기화) · S2 초안 · 최종 갱신: 2026-10-05
-- 묶음: S1 = 스키마(4테이블 전부)·마이그레이션 `0001_init.sql`·읽기 함수. S2 = 방 생성·이름 변경·연쇄 삭제, 메시지 추가·수정·삭제, 레이트리밋 카운터(§2.1의 "S2" 표시). S3·S4용은 §2.2에 예정 시그니처만.
+- 상태: S1 확정(구현 동기화) · S2 초안 · S3 초안(§2.3·§3.5) · 최종 갱신: 2026-10-06
+- 묶음: S1 = 스키마(4테이블 전부)·마이그레이션 `0001_init.sql`·읽기 함수. S2 = 방 생성·이름 변경·연쇄 삭제, 메시지 추가·수정·삭제, 레이트리밋 카운터(§2.1의 "S2" 표시). S3 = speak 잠금 선점·해제, 메시지 단건 조회, 장기기억 summary 읽기(§2.3 — **마이그레이션 없음**). S4용은 §2.2에 예정 시그니처만.
 - 관련 문서: [env.md](env.md)(`DB` 바인딩), [index.md](index.md)(`createDb` 호출 지점), [rooms.md](rooms.md), [messages.md](messages.md), [auth.md](auth.md)(레이트리밋).
 
 ## 1. 목적
@@ -114,12 +114,48 @@ export const createDb = (binding: D1Database): Db
 
 | 묶음 | 저장소 | 예정 시그니처 | SQL 요지 | 요구ID |
 |---|---|---|---|---|
-| S3 | rooms | `acquireSpeakLock(id, untilMs, nowMs): Promise<boolean>` | `UPDATE rooms SET speaking_until=? WHERE id=? AND (speaking_until IS NULL OR speaking_until < ?)` | R-MSG-007 |
-| S3 | rooms | `releaseSpeakLock(id, untilMs): Promise<void>` | `UPDATE rooms SET speaking_until=NULL WHERE id=? AND speaking_until=?` | R-MSG-007 |
-| S3 | messages | `recent(roomId, n)` / `last(roomId)` / `getById(id)` | `ORDER BY id DESC LIMIT ?` / `WHERE id=?` | R-LLM-003 · R-MSG-006 |
+| S3 | rooms·messages·memory | **§2.3에서 확정**(아래 예정안을 대체) | — | R-MSG-006·007 · R-LLM-003 |
 | S4 | memory | `get` / `put` / `advance(roomId, expectedUntilId, newUntilId, summary, nowMs): Promise<boolean>` | `advance`는 `WHERE source_until_id = ?` 조건부 UPDATE | R-MEM-001~003 |
 
 - S3 speak 저장은 `messages.insert`, regenerate 교체는 `messages.updateText`를 재사용한다(`updated_at` 갱신이 함께 된다).
+- S1·S2 문서의 S3 예정안 중 `acquireSpeakLock(): Promise<boolean>`은 세 값 결과로, `releaseSpeakLock(): Promise<void>`는 `boolean`으로 바뀌고, `recent`·`last`는 만들지 않는다(`pageDesc` 재사용 — D-DB-16).
+
+### 2.3 S3 확정 — speak·regenerate 지원 ([messages.md](messages.md) §4.2)
+
+```ts
+// server/src/db/rooms.ts — RoomsRepo 에 추가
+/** 선점 결과. missing = 방 없음 */
+export type SpeakLockResult = 'acquired' | 'busy' | 'missing'
+  /** S3. speaking_until 이 NULL 이거나 만료(≤ nowMs)일 때만 untilMs 로 선점 + 방 존재 확인을 한 batch 로 */
+  acquireSpeakLock: (id: string, untilMs: number, nowMs: number) => Promise<SpeakLockResult>
+  /** S3. 내가 건 잠금(speaking_until = untilMs)일 때만 NULL 로. 지웠으면 true */
+  releaseSpeakLock: (id: string, untilMs: number) => Promise<boolean>
+
+// server/src/db/messages.ts — MessagesRepo 에 추가
+  /** S3. 메시지 1건. 없으면 null. author_mb_id 는 조회하지 않는다(D-DB-5) */
+  getById: (id: number) => Promise<Message | null>
+
+// server/src/db/memory.ts — 신규. S3 은 읽기 1개, S4 가 get·put·advance 를 더한다
+export type MemoryRepo = {
+  /** S3. 방의 memory.summary. memory 행이 없으면 null(빈 문자열 행은 '') */
+  getSummary: (roomId: string) => Promise<string | null>
+}
+
+// server/src/db/index.ts — Db 에 추가
+  readonly memory: MemoryRepo
+```
+
+| 이름 | 묶음 | 인자 | 반환 | 실패 | 요구ID |
+|---|---|---|---|---|---|
+| `rooms.acquireSpeakLock` | S3 | `id, untilMs, nowMs` | `'acquired' \| 'busy' \| 'missing'` | 전파 | R-MSG-007 · R-NFR-003 |
+| `rooms.releaseSpeakLock` | S3 | `id, untilMs` | `boolean` | 전파(호출자가 잡아 로그) | R-MSG-007 |
+| `messages.getById` | S3 | `id` | `Message \| null` | 전파 | R-MSG-006 |
+| `memory.getSummary` | S3 | `roomId` | `string \| null` | 전파 | R-LLM-003 |
+
+- **최근 N개·마지막 메시지 판정은 기존 `pageDesc`를 쓴다.** speak 컨텍스트 = `pageDesc(roomId, contextMessages)`를 뒤집은 것. regenerate는 `pageDesc(roomId, contextMessages + 1)`의 첫 행이 대상인지로 "마지막 메시지"를 판정하고 나머지를 컨텍스트로 쓴다(왕복 1회). 인덱스 `idx_messages_room_id_id` 역순 범위 스캔이다.
+- 잠금 판정·`untilMs` 계산(선점 시각 + 90000)은 messages 서비스 몫이다. db는 받은 값을 쓴다(시각을 만들지 않는다 — §3).
+- 잠금 선점·해제는 `updated_at`을 바꾸지 않는다(잠금은 대화 활동이 아니다 — R-ROOM-005 목록 밖).
+- **마이그레이션 불필요.** `rooms.speaking_until`(NULL 허용)과 `memory` 테이블은 `0001_init.sql`에 이미 있다(§7.1). 새 인덱스도 필요 없다(잠금은 PK 조회, `getById`도 PK, `getSummary`는 `memory` PK).
 
 ## 3. 내부 구조
 
@@ -131,8 +167,9 @@ export const createDb = (binding: D1Database): Db
 | `server/src/db/rooms.ts` | `createRoomsRepo(binding)` — `toRoomSummary` 포함 |
 | `server/src/db/messages.ts` | `createMessagesRepo(binding)`, `toMessage(row)`(파일 export, index 미노출) |
 | `server/src/db/rate-limits.ts` | S2 `createRateLimitsRepo(binding)` |
+| `server/src/db/memory.ts` | S3 `createMemoryRepo(binding)` — `getSummary`(S4가 확장) |
 | `server/migrations/0001_init.sql` | 초기 스키마(§7) |
-| `server/test/db.test.ts` | SRV-T-020~031(S1), SRV-T-121~128(S2) |
+| `server/test/db.test.ts` | SRV-T-020~031(S1), SRV-T-121~128(S2), SRV-T-187~190(S3) |
 | `server/test/helpers.ts` | `resetDb`(자식 먼저 + `rate_limits`)·`insertRoom`·`insertLine`·`insertLines` |
 
 - 의존: `@cloudflare/workers-types`(타입), `@shared/types`(타입), `../app-error`. 서비스 모듈(`rooms/`·`messages/`·`auth/` 등) import 금지(R-DB-005).
@@ -237,6 +274,33 @@ DELETE FROM rate_limits WHERE window_start < ?1
 | `messages.author_mb_id` | (조회 안 함) / `NewMessage.authorMbId`(쓰기) | 쓰기 전용 |
 | `rate_limits.count` | `hit` 반환값 | number |
 
+### 3.5 S3 SQL 상수와 batch 해석
+
+```ts
+/** 비었거나 만료(≤ ?3)일 때만 선점. 선점하면 1행 RETURNING */
+export const SQL_ROOMS_ACQUIRE_SPEAK_LOCK = `UPDATE rooms SET speaking_until = ?1
+WHERE id = ?2 AND (speaking_until IS NULL OR speaking_until <= ?3)
+RETURNING id`
+
+/** 내가 건 잠금일 때만 해제 */
+export const SQL_ROOMS_RELEASE_SPEAK_LOCK =
+  'UPDATE rooms SET speaking_until = NULL WHERE id = ?1 AND speaking_until = ?2'
+
+export const SQL_MESSAGES_BY_ID = `SELECT ${MESSAGE_COLUMNS} FROM messages WHERE id = ?1`
+
+export const SQL_MEMORY_SUMMARY_BY_ROOM = 'SELECT summary FROM memory WHERE room_id = ?1'
+```
+
+| 함수 | 문장 | 결과 해석 |
+|---|---|---|
+| `acquireSpeakLock(id, untilMs, nowMs)` | `batch[ ACQUIRE.bind(untilMs, id, nowMs), SQL_ROOMS_EXISTS.bind(id) ]` | `results[0].results.length > 0` → `'acquired'`. 아니면 `results[1].results.length > 0` → `'busy'`. 둘 다 0 → `'missing'` |
+| `releaseSpeakLock(id, untilMs)` | `RELEASE.bind(id, untilMs).run()` | `meta.changes > 0` |
+| `getById(id)` | `BY_ID.bind(id).first<MessageRow>()` | `null` 또는 `toMessage(row)` |
+| `getSummary(roomId)` | `SUMMARY_BY_ROOM.bind(roomId).first<{ summary: string }>()` | `null` 또는 `row.summary` |
+
+- 선점 batch는 트랜잭션이다. UPDATE와 존재 확인 사이에 방이 삭제될 틈이 없어 `'busy'`·`'missing'` 구분이 정확하다.
+- `RETURNING id`는 S2 `UPDATE … RETURNING`(`SQL_MESSAGES_UPDATE_TEXT`)과 같은 D1 기능이다.
+
 ## 4. 비동기·동시성
 
 ```
@@ -245,6 +309,9 @@ DELETE FROM rate_limits WHERE window_start < ?1
   └ (S2) db.rooms.insert / updateTitle / deleteCascade                                   ── 단일 또는 batch
   └ (S2) db.messages.insert / updateText / deleteById  ── 각자 batch[메시지 문장, rooms.updated_at] ── 원자적
   └ (S2) db.rateLimits.hit  ── UPSERT 1문장(증가+한도 판정이 한 문장)                      ── 원자적
+  └ (S3) db.rooms.acquireSpeakLock ── batch[조건부 UPDATE RETURNING, 존재 확인]             ── 원자적
+  └ (S3) db.rooms.releaseSpeakLock ── 조건부 UPDATE 1문장(내 untilMs 일 때만)                ── 원자적
+  └ (S3) db.messages.getById · db.memory.getSummary · pageDesc                              ── 읽기
 ```
 
 - 전부 `async`/`await`.
@@ -277,6 +344,8 @@ DELETE FROM rate_limits WHERE window_start < ?1
 | `DELETE /api/rooms/:id` | 1(batch 3) | 그 방 메시지 수 + 2 | (1 + 메시지 수) × 2 + memory |
 | `POST /api/rooms/:id/user` | 1(batch 2) | 2 | 4 |
 | `PATCH` · `DELETE /api/messages/:id` | 1(batch 2) | 2~3 | 2~4 |
+| `POST /api/rooms/:id/speak`(S3) | 4(선점 batch 2 → 조회 2 병렬 → insert batch 2 → 해제 1) | 2 + 최대 `CONTEXT_MESSAGES` + 1 + 2 | 1 + 4 + 1 = 약 6 |
+| `POST /api/messages/:id/regenerate`(S3) | 5(단건 → 선점 → 조회 2 병렬 → updateText batch 2 → 해제) | 1 + 2 + 최대 `CONTEXT_MESSAGES + 1` + 1 + 2 | 1 + 2~3 + 1 = 약 5 |
 
 - 쓰기 요청 1건 ≈ 3~5행 쓰기 → 하루 약 2만 건 쓰기 요청까지 무료 한도 안이다. 소규모 커뮤니티에는 충분하다.
 - 방 목록 읽기 비용이 전체 메시지 수에 비례하는 점은 S1과 같다(§11 제안).
@@ -432,6 +501,10 @@ CREATE INDEX IF NOT EXISTS idx_rooms_updated_at ON rooms (updated_at);
 | SRV-T-126 | `rateLimits_hit_counts_up_to_limit_then_returns_null` | limit 3: 1·2·3 → 4번째 `null`, 행 `count = 3`. 다른 창·다른 mbId는 1부터 | R-AUTH-005 |
 | SRV-T-127 | `rateLimits_purgeBefore_deletes_only_older_windows` | 창 W−120000·W−60000·W 행 → `purgeBefore(W)` = 2, W 행만 남음 | R-AUTH-005 |
 | SRV-T-128 | `messages_deleteById_touches_room_before_delete` | `true`, 행 없음, 그 방 `updated_at = nowMs`. 없는 id → `false`, 방 불변 | R-MSG-005 · R-ROOM-005 |
+| SRV-T-187 | `rooms_acquireSpeakLock_acquires_only_when_free_or_expired` | `speaking_until` NULL → `'acquired'`, 행 값 = `untilMs`. `until > now` → `'busy'`, 값 불변. `until == now`·`until < now` → `'acquired'`(만료 경계). 모든 경우 `updated_at` 불변 | R-MSG-007 |
+| SRV-T-188 | `rooms_acquireSpeakLock_returns_missing_for_unknown_room` | 없는 id → `'missing'`, 다른 방 `speaking_until` 불변 | R-MSG-007 |
+| SRV-T-189 | `rooms_releaseSpeakLock_clears_only_own_lock` | 내 `untilMs` → `true`, NULL. 다른 `untilMs`(만료 후 남이 재선점) → `false`, 값 불변. 없는 방 → `false` | R-MSG-007 |
+| SRV-T-190 | `messages_getById_and_memory_getSummary` | `getById`: 키 7개(`authorMbId` 없음)·없는 id `null`. `getSummary`: 행 있음 → 문자열(`''` 포함), 행 없음 → `null` | R-MSG-006 · R-LLM-003 · R-DB-005 |
 
 수동·리뷰 체크:
 
@@ -470,6 +543,9 @@ db는 contract에 직접 노출되지 않는다. contract가 알아야 할 데�
 | R-AUTH-005 | `rateLimits.hit`·`purgeBefore` | SRV-T-126·127 | ✅ |
 | R-NFR-002 | §3.1 인덱스 범위 스캔 | 수동 EXPLAIN | 부분(응답 시간은 [messages.md](messages.md)) |
 | R-NFR-005 | §4.2 | 리뷰 | ✅ |
+| R-MSG-007 🔒 · R-NFR-003 (S3) | §2.3·§3.5 `acquireSpeakLock`·`releaseSpeakLock` | SRV-T-187~189 | ✅(설계) |
+| R-MSG-006 🔒 (S3) | §2.3 `getById`, `pageDesc` 재사용 | SRV-T-190 | ✅(설계) |
+| R-LLM-003 🔒 (S3) | §2.3 `memory.getSummary`, `pageDesc` 재사용 | SRV-T-190 | ✅(설계) |
 
 ## 11. 설계 결정 노트
 
@@ -487,6 +563,11 @@ db는 contract에 직접 노출되지 않는다. contract가 알아야 할 데�
 | D-DB-10 | "없음"·"한도 도달"을 `RETURNING` 행 유무로 판정 | `meta.changes` | UPSERT의 `DO UPDATE … WHERE` 거짓·`INSERT…SELECT` 0행을 같은 방식으로 다룬다. 새 count를 바로 얻어 purge 시점(`count === 1`)도 판정한다 |
 | D-DB-11 | `deleteById`는 touch를 DELETE보다 먼저 | DELETE 후 touch | 삭제 뒤에는 `room_id`를 메시지에서 찾을 수 없다. 같은 batch라 원자성은 같다 |
 | D-DB-12 | `updateTitle`이 요약까지 돌려준다 | `boolean`만 | 서비스가 응답용 재조회를 따로 하지 않게(왕복 1회) |
+| D-DB-13 (S3) | 잠금 선점과 방 존재 확인을 한 batch로, 결과 세 값 | `boolean` 반환 후 실패 시 `exists` 재조회 | `SPEAK_IN_PROGRESS`·`NOT_FOUND` 구분을 왕복 1회·원자적으로 |
+| D-DB-14 (S3) | 만료 판정 `speaking_until <= nowMs`(만료 시각 자체에 만료) | `<`(S2 문서 예정안) | 잠금 유효 구간을 `[선점, untilMs)`로 정의. 경계 테스트(SRV-T-187)가 명확하다 |
+| D-DB-15 (S3) | 해제는 `speaking_until = untilMs`일 때만 | 무조건 NULL | 만료 뒤 다른 요청이 다시 건 잠금을 지우지 않는다. 같은 방의 다음 선점은 이전 잠금 만료 뒤에만 가능하므로 `untilMs`가 겹치지 않는다(다음 값 = 더 늦은 now + 90000) |
+| D-DB-16 (S3) | 최근 N개·마지막 판정에 `pageDesc` 재사용 | `recent`·`last` 신규 함수 | 같은 SQL·인덱스. 공개 API를 늘리지 않는다 |
+| D-DB-17 (S3) | 새 마이그레이션 없음 | `0002_*.sql` | 필요한 컬럼·테이블이 `0001`에 모두 있다. 인덱스도 PK·기존 인덱스로 충분 |
 
 확인 필요:
 
@@ -502,5 +583,8 @@ db는 contract에 직접 노출되지 않는다. contract가 알아야 할 데�
 |---|---|
 | 2026-10-05 | S1 초안 작성 |
 | 2026-10-05 | S1 구현 동기화(상태 확정): 도메인 타입은 `@shared/types` 재노출, `toMessage`는 파일 export(index 미노출), `AppError(code, message?)` 시그니처, vitest 0.22 `cloudflareTest` 설정, `test/helpers.ts`. S2 설계: §2.1 S2 함수 8종·`NewMessage`·`RateLimitsRepo`, §3.2 SQL, §3.3 batch 구성, §7.4 인덱스 영향 없음, D-DB-8~12. 기존 §2.2의 S2 예정 시그니처(`rename`·`insertStmt`·`findById`·`updateTextStmt`·`deleteStmt`)는 위 함수로 대체 |
+| 2026-10-06 | S3 설계: §2.3(`acquireSpeakLock`·`releaseSpeakLock`·`getById`·`MemoryRepo.getSummary`·`Db.memory`), §3.5 SQL·batch 해석, §4.2 speak·regenerate 비용, SRV-T-187~190, D-DB-13~17. 마이그레이션 없음 |
 
 파급(공개 API 변경): `Db`에 `rateLimits` 추가 → `Db`를 직접 구현하는 테스트 가짜 객체(`server/test/app.test.ts` 188행 근처 `trap`, `rooms.test.ts`·`messages.test.ts`의 가짜 `Db`)가 타입 오류가 나면 `rateLimits`를 추가한다. 기존 S1 함수 시그니처는 바뀌지 않는다.
+
+파급(S3 공개 API 변경): `Db`에 `memory` 추가 → `Db`를 직접 구현하는 테스트 가짜 객체(`server/test/app.test.ts`의 `trap`, `rooms.test.ts`·`messages.test.ts`의 가짜 `Db`)에 `memory`를 추가한다. `RoomsRepo`·`MessagesRepo`는 함수 추가만이라 기존 호출자 영향 없다. 서비스 호출자는 [messages.md](messages.md) §2.3뿐.

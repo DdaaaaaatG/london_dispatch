@@ -7,11 +7,12 @@ import type {
   EditMessageBody,
   MessagesQuery,
   RenameRoomBody,
+  SpeakBody,
   UserMessageBody,
 } from '../src/types'
 
 describe('API-T-042 endpoints_build_paths_and_queries', () => {
-  it('PATHS 값 7개가 계약과 같다', () => {
+  it('PATHS 값 9개가 계약과 같다', () => {
     expect(PATHS).toEqual({
       embed: '/embed',
       health: '/api/health',
@@ -20,6 +21,8 @@ describe('API-T-042 endpoints_build_paths_and_queries', () => {
       room: '/api/rooms/:id',
       roomUser: '/api/rooms/:id/user',
       message: '/api/messages/:id',
+      roomSpeak: '/api/rooms/:id/speak',
+      messageRegenerate: '/api/messages/:id/regenerate',
     })
   })
 
@@ -68,5 +71,22 @@ describe('API-T-045 endpoints_build_write_paths', () => {
     const e: ApiErrorBody = { error: { code: 'RATE_LIMITED', message: 'm', retryAfterSec: 5 } }
     const f: ApiErrorBody = { error: { code: 'NOT_FOUND', message: 'm' } }
     expect([a, b, c, d, e, f]).toHaveLength(6)
+  })
+})
+
+describe('API-T-047 endpoints_build_generate_paths', () => {
+  it('생성 경로 패턴', () => {
+    expect(PATHS.roomSpeak).toBe('/api/rooms/:id/speak')
+    expect(PATHS.messageRegenerate).toBe('/api/messages/:id/regenerate')
+  })
+
+  it('빌더가 id를 채우고 인코딩한다', () => {
+    expect(endpoints.roomSpeak('a b/c')).toBe('/api/rooms/a%20b%2Fc/speak')
+    expect(endpoints.messageRegenerate(72)).toBe('/api/messages/72/regenerate')
+  })
+
+  it('타입: SpeakBody 는 character 하나', () => {
+    const a: SpeakBody = { character: 'ciel' }
+    expect(a.character).toBe('ciel')
   })
 })

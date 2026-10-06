@@ -1,24 +1,29 @@
 /**
  * [목적] rooms 테이블 접근 함수(비즈니스 규칙 없음). 행→도메인 변환은 여기서 한 번만 (R-DB-005). 설계 db.md §2.1
- * [공개 API] createRoomsRepo(binding) -> RoomsRepo { listSummaries, exists, touchStmt, insert(S2), updateTitle(S2), deleteCascade(S2) }
+ * [공개 API] createRoomsRepo(binding) -> RoomsRepo { listSummaries, exists, touchStmt, insert(S2), updateTitle(S2), deleteCascade(S2), acquireSpeakLock(S3), releaseSpeakLock(S3) }
  * [비동기] D1 prepare().bind().all()/first() await. touchStmt 는 실행하지 않고 문장만 돌려준다. updateTitle·deleteCascade 는 batch(원자적)
  * [에러] D1 오류는 감싸지 않고 전파(onError 가 INTERNAL 로 닫는다)
  * [설정] 없음
- * [테스트] server/test/db.test.ts (SRV-T-024~027, 121~123)
+ * [테스트] server/test/db.test.ts (SRV-T-024~027, 121~123, 187~189)
  */
 import type { D1Database, D1PreparedStatement } from '@cloudflare/workers-types'
 import {
   SQL_MEMORY_DELETE_BY_ROOM,
+  SQL_ROOMS_ACQUIRE_SPEAK_LOCK,
   SQL_MESSAGES_DELETE_BY_ROOM,
   SQL_ROOMS_DELETE,
   SQL_ROOMS_EXISTS,
   SQL_ROOMS_INSERT,
   SQL_ROOMS_LIST_SUMMARIES,
+  SQL_ROOMS_RELEASE_SPEAK_LOCK,
   SQL_ROOMS_SUMMARY_BY_ID,
   SQL_ROOMS_TOUCH,
   SQL_ROOMS_UPDATE_TITLE,
 } from './sql'
 import type { RoomSummary, RoomSummaryRow } from './types'
+
+/** 선점 결과. missing = 방 없음 */
+export type SpeakLockResult = 'acquired' | 'busy' | 'missing'
 
 export type RoomsRepo = {
   /** 전 방 + 메시지 수, updated_at 내림차순(동률은 id 오름차순) */
@@ -33,6 +38,10 @@ export type RoomsRepo = {
   updateTitle: (id: string, title: string) => Promise<RoomSummary | null>
   /** S2. memory → messages → rooms 순서 DELETE 를 한 batch 로. 방이 없었으면 false */
   deleteCascade: (id: string) => Promise<boolean>
+  /** S3. speaking_until 이 NULL 이거나 만료(≤ nowMs)일 때만 untilMs 로 선점 + 방 존재 확인을 한 batch 로 */
+  acquireSpeakLock: (id: string, untilMs: number, nowMs: number) => Promise<SpeakLockResult>
+  /** S3. 내가 건 잠금(speaking_until = untilMs)일 때만 NULL 로. 지웠으면 true */
+  releaseSpeakLock: (id: string, untilMs: number) => Promise<boolean>
 }
 
 const toRoomSummary = (row: RoomSummaryRow): RoomSummary => ({
@@ -72,5 +81,17 @@ export const createRoomsRepo = (binding: D1Database): RoomsRepo => ({
       binding.prepare(SQL_ROOMS_DELETE).bind(id),
     ])
     return (results[2]?.meta.changes ?? 0) > 0
+  },
+  acquireSpeakLock: async (id, untilMs, nowMs) => {
+    const results = await binding.batch<{ id: string }>([
+      binding.prepare(SQL_ROOMS_ACQUIRE_SPEAK_LOCK).bind(untilMs, id, nowMs),
+      binding.prepare(SQL_ROOMS_EXISTS).bind(id),
+    ])
+    if ((results[0]?.results.length ?? 0) > 0) return 'acquired'
+    return (results[1]?.results.length ?? 0) > 0 ? 'busy' : 'missing'
+  },
+  releaseSpeakLock: async (id, untilMs) => {
+    const result = await binding.prepare(SQL_ROOMS_RELEASE_SPEAK_LOCK).bind(id, untilMs).run()
+    return result.meta.changes > 0
   },
 })

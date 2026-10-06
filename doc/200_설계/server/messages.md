@@ -1,8 +1,8 @@
 # messages 모듈 설계
 
-- 상태: S1 확정(구현 동기화) · S2 초안 · 최종 갱신: 2026-10-05
-- 묶음: S1 = R-MSG-001(히스토리 페이지). S2 = R-MSG-002(유저 발화·지시 저장) · R-MSG-004(수정) · R-MSG-005(삭제) · R-MSG-008(권한). S3 = R-MSG-003·006·007(speak·regenerate·잠금 — §2.3에 시그니처만).
-- 관련 문서: [db.md](db.md)(`messages` 저장소), [rooms.md](rooms.md)(`updated_at` 갱신 규칙), [auth.md](auth.md)(`Principal`·쓰기 미들웨어), [index.md](index.md)(서비스 컨테이너·에러 핸들러).
+- 상태: S1 확정(구현 동기화) · S2 초안 · S3 초안(§2.3·§4.2·§4.3·§8.2) · 최종 갱신: 2026-10-06
+- 묶음: S1 = R-MSG-001(히스토리 페이지). S2 = R-MSG-002(유저 발화·지시 저장) · R-MSG-004(수정) · R-MSG-005(삭제) · R-MSG-008(권한). S3 = R-MSG-003·006·007(speak·regenerate·방당 잠금) · R-ROOM-005(재작성 갱신) · R-NFR-001·003 · R-MEM-002(훅 자리만, S3 no-op).
+- 관련 문서: [db.md](db.md)(`messages` 저장소), [rooms.md](rooms.md)(`updated_at` 갱신 규칙), [auth.md](auth.md)(`Principal`·쓰기 미들웨어), [index.md](index.md)(서비스 컨테이너·에러 핸들러), [llm.md](llm.md)(S3 프롬프트·제공사·재시도).
 
 ## 1. 목적
 
@@ -18,6 +18,12 @@
 | R-AUTH-004 | `author_name` = `Principal.displayName` |
 | R-ROOM-005 | 추가·수정·삭제 시 방 `updated_at` 갱신 |
 | R-NFR-002 · R-API-004 | 첫 페이지 1초 이내, camelCase·epoch ms·메시지 id 정수 |
+| R-MSG-003 🔒 (S3) | speak `{ character }`: 해당 캐릭터 1턴, 직전 발화자 무관, 저장·반환, 토큰 필요 |
+| R-MSG-006 🔒 (S3) | regenerate: 캐릭터 메시지이고 방의 마지막 메시지일 때만 같은 캐릭터로 `text` 교체. 아니면 `409 NOT_LAST_MESSAGE`, 유저 메시지는 `400 NOT_CHARACTER_MESSAGE` |
+| R-MSG-007 🔒 (S3) | speak·regenerate 방당 동시 1건. `rooms.speaking_until` 조건부 UPDATE 선점(만료 90초), 끝나면 해제, 실패 `409 SPEAK_IN_PROGRESS` |
+| R-ROOM-005 (S3) | 재작성도 방 `updated_at` 갱신 |
+| R-NFR-001 🔒 · R-NFR-003 🔒 (S3) | speak 70초 이내 종결 · 동시 speak 1건만 |
+| R-MEM-002 🔒 (S3는 자리만) | speak 성공 응답 뒤 `ctx.waitUntil()` 후처리 훅. 요약 자체는 S4 |
 
 ## 2. 공개 API
 
@@ -53,9 +59,24 @@ export type MessagesService = {
   editMessage: (messageId: number, input: MessageTextInput) => Promise<Message>
   /** 실삭제 (S2) */
   deleteMessage: (messageId: number) => Promise<void>
+  /** 캐릭터 1턴 생성·저장 (S3, §2.3) */
+  speak: (roomId: string, input: SpeakInput, background: Background) => Promise<Message>
+  /** 마지막 캐릭터 메시지를 같은 캐릭터로 다시 생성 (S3, §2.3) */
+  regenerate: (messageId: number) => Promise<Message>
 }
 
-export type MessagesDeps = { db: Db; now: () => number }
+export type MessagesDeps = {
+  db: Db
+  now: () => number
+  /** S3 */
+  logger: Logger
+  /** S3. config.contextMessages (1~100) */
+  contextMessages: number
+  /** S3. 지연 생성 — 부를 때 키를 확인한다(google + 키 없음 → ConfigError CONFIG_INVALID) */
+  llm: () => Llm
+  /** S3 자리. 없으면 no-op. S4 memory 가 채운다 */
+  afterSpeak?: AfterSpeakHook
+}
 
 export const createMessagesService = (deps: MessagesDeps): MessagesService
 
@@ -111,22 +132,49 @@ export const isMessageId = (id: number): boolean
 | 메시지 id | 서비스가 `isMessageId`로 판정. 아니면 DB 접근 없이 `NOT_FOUND`(`메시지를 찾을 수 없습니다.`) — 경로의 자원 식별자라 "없는 자원"으로 본다(§11 D-MSG-9) |
 | `updated_at` | 세 쓰기 모두 같은 batch에서 방 `updated_at = now()`([rooms.md](rooms.md) §4.1) |
 
-### 2.3 후속 묶음 예정 (S3 — 시그니처만, 상세는 S3 설계)
+### 2.3 speak·regenerate (S3 — R-MSG-003·006·007)
 
 ```ts
-// waitUntil 은 라우트가 c.executionCtx.waitUntil 을 감싸 넘긴다(서비스는 Hono 객체를 모른다)
-speak: (roomId: string, input: { character: 'sebastian' | 'ciel' }, author: MessageAuthor,
-        background: { waitUntil: (task: Promise<unknown>) => void }) => Promise<Message>
-regenerate: (messageId: number,
-             background: { waitUntil: (task: Promise<unknown>) => void }) => Promise<Message>
+// server/src/messages/generate.ts (S3) — index.ts 가 재노출
+import type { SpeakBody } from '@shared/types'     // contract 가 추가: { character: CharacterId }
+import type { Llm } from '../llm'
+import type { Logger } from '../logger'
+
+/** = @shared/types SpeakBody */
+export type SpeakInput = SpeakBody
+/** 응답 뒤 작업 등록기. 라우트가 c.executionCtx.waitUntil 을 감싸 넘긴다(서비스는 Hono 를 모른다) */
+export type Background = { waitUntil: (task: Promise<unknown>) => void }
+export type AfterSpeakEvent = { roomId: string; messageId: number }
+/** speak 성공 뒤 waitUntil 로 실행되는 훅. 실패는 서비스가 잡아 로그만 남긴다 (R-MEM-002 자리) */
+export type AfterSpeakHook = (event: AfterSpeakEvent) => Promise<void>
+
+/** R-MSG-007: 잠금 만료 90초. R-NFR-001 상한 70초보다 길어 생성 중에는 만료되지 않는다 */
+export const SPEAK_LOCK_MS = 90_000
 ```
 
-| 이름 | 규칙 요지 | 업무 에러 | 요구ID |
-|---|---|---|---|
-| `speak` | 방당 동시 1건(`speaking_until` 조건부 UPDATE, 90초), LLM 1턴 생성, 저장은 `db.messages.insert` 재사용, 응답 뒤 요약은 `waitUntil` | `VALIDATION_ERROR`, `NOT_FOUND`, `SPEAK_IN_PROGRESS`, `LLM_FAILED`, `LLM_EMPTY`, `CONFIG_INVALID` | R-MSG-003·007 |
-| `regenerate` | 캐릭터 메시지이고 방의 마지막 메시지일 때만, 교체는 `db.messages.updateText` 재사용 | `NOT_FOUND`, `NOT_CHARACTER_MESSAGE`, `NOT_LAST_MESSAGE`, `SPEAK_IN_PROGRESS`, `LLM_FAILED`, `LLM_EMPTY`, `CONFIG_INVALID` | R-MSG-006·007 |
+| 이름 | 인자 | 반환 | 실패 조건(에러 코드, 판정 순서) | 요구ID |
+|---|---|---|---|---|
+| `speak` | `roomId, { character }, background` | `Promise<Message>` | ① `character`가 두 값 아님 → `VALIDATION_ERROR`(400, DB·LLM 전) ② 키 없음 → `CONFIG_INVALID`(500) ③ 방 없음 → `NOT_FOUND`(404) / 잠금 중 → `SPEAK_IN_PROGRESS`(409) ④ `LLM_FAILED`·`LLM_EMPTY`(502) ⑤ 저장 시 방 없음(생성 중 삭제) → `NOT_FOUND` | R-MSG-003·007 · R-ROOM-005 · R-NFR-001·003 · R-MEM-002(훅) |
+| `regenerate` | `messageId` | `Promise<Message>` | ① id 형식 위반·메시지 없음 → `NOT_FOUND`(404) ② 유저 메시지 → `NOT_CHARACTER_MESSAGE`(400) ③ `CONFIG_INVALID` ④ 잠금 중 → `SPEAK_IN_PROGRESS` / 잠금 뒤 확인 시 뒤 메시지 있음 → `NOT_LAST_MESSAGE`(409) / 대상 사라짐 → `NOT_FOUND` ⑤ `LLM_FAILED`·`LLM_EMPTY` ⑥ 교체 시 대상 없음(생성 중 삭제) → `NOT_FOUND` | R-MSG-006·007 · R-ROOM-005 · R-NFR-001 |
 
-- S3 설계에서 정할 것: speak의 `author` 인자 필요 여부(캐릭터 메시지는 `author_*`가 NULL — 누가 눌렀는지 저장 요구 없음), regenerate가 `MessageAuthor`를 받을지.
+규칙:
+
+| 항목 | speak | regenerate |
+|---|---|---|
+| 캐릭터 | 요청의 `character` | 대상 메시지의 `speaker`(같은 캐릭터) |
+| 직전 발화자 | 무관 — 같은 캐릭터 연속 허용(R-MSG-003) | — |
+| 잠금 | 방 `roomId` | 대상의 방 `target.roomId` — speak와 **같은 잠금**(R-MSG-007) |
+| 컨텍스트 | `pageDesc(roomId, contextMessages)` → 오래된→새 | `pageDesc(roomId, contextMessages + 1)`: 첫 행이 대상이어야 하고(마지막 판정), 나머지 `contextMessages`개 → 오래된→새. 대상 자신은 컨텍스트에서 뺀다 |
+| 장기기억 | `db.memory.getSummary(roomId)` — 없거나 빈 값이면 프롬프트에서 생략 | 같음 |
+| 프롬프트·후처리 | `buildSpeakPrompt` → `llm.complete` → `postprocessLine`([llm.md](llm.md) §7) | 같음 |
+| 저장 | `db.messages.insert({ roomId, speaker: character, kind: 'line', text, authorMbId: null, authorName: null }, now())` — 방 `updated_at` 같은 batch | `db.messages.updateText(id, text, now())` — 방 `updated_at` 같은 batch(R-ROOM-005) |
+| 작성자 | **저장하지 않는다**(`author_*` NULL — "누가 눌렀는지 저장" 요구 없음, §11 D-MSG-12) | 바꾸지 않는다(캐릭터 메시지는 원래 NULL) |
+| 응답 뒤 | 성공 시 `afterSpeak`가 있으면 `background.waitUntil(…)`로 등록(S3는 없음 → 등록 0회) | 없음(요약 기준인 메시지 수가 늘지 않는다) |
+| AI 호출 | 1~2회(재시도) | 1~2회 |
+
+- **`author` 인자 없음**(S1·S2 문서의 예정 시그니처에서 뺐다). 캐릭터 메시지는 `author_*`가 NULL이고, 등급 확인·레이트리밋은 라우트 미들웨어가 이미 `Principal`로 끝낸다. 서비스가 쓸 곳이 없다(§11 D-MSG-12).
+- **regenerate에 `MessageAuthor`·`background` 없음.** 작성자를 기록하지 않고 응답 뒤 작업도 없다(§11 D-MSG-13).
+- `SpeakInput`은 계약 타입 재노출 관례(`@shared/types`)를 따른다. contract-implementer가 `SpeakBody`를 먼저 추가한다(S1과 같은 순서 — [llm.md](llm.md) 「contract 인계 요구 명세」).
 
 ## 3. 내부 구조
 
@@ -136,14 +184,19 @@ regenerate: (messageId: number,
 | `server/src/messages/service.ts` | `listMessages`·`addUserMessage`·`editMessage`·`deleteMessage` 흐름(§4) |
 | `server/src/messages/page.ts` | `normalizePageQuery`·`toPage`·페이지 상수 |
 | `server/src/messages/text.ts` | `normalizeMessageText`·`isMessageId`·`MESSAGE_TEXT_MAX`·메시지 문구 상수 |
+| `server/src/messages/generate.ts` | (S3) `createGenerateOps(deps)` → `{ speak, regenerate }`, `withSpeakLock`(선점 → 작업 → finally 해제), `SPEAK_LOCK_MS`, 훅 실행기 `runAfterSpeak`. `service.ts`가 펼쳐 `MessagesService`를 만든다(파일 400줄·함수 50줄 한계 — 예상 160줄) |
 | `server/test/messages-page.test.ts` | SRV-T-060~065(순수 단위) |
 | `server/test/messages.test.ts` | SRV-T-066~070(S1 D1 통합), SRV-T-140~150(S2) |
+| `server/test/messages-generate.test.ts` | SRV-T-191~209(S3, D1 + `FakeProvider` + 가짜 시계) |
 | `server/test/fixtures/seed-s1.sql` | 수동 확인·화면 캡처용 시드(§8.1) |
 
-- 의존: `../db`, `../app-error`, `../auth`(타입 `Principal`만 — `import type`). `llm`·`memory`는 S3·S4. HTTP 객체를 모른다.
-- 상태 없음. 상수는 §2의 세 개와 메시지 문구.
+- 의존: `../db`, `../app-error`, `../auth`(타입 `Principal`만 — `import type`), (S3) `../llm`(`Llm` 타입·`buildSpeakPrompt`·`postprocessLine`·`isCharacterId`), `../logger`(타입). `memory` 모듈은 import하지 않는다(S4 훅은 deps 주입). HTTP 객체를 모른다.
+- 상태 없음. 상수는 §2의 세 개, `SPEAK_LOCK_MS`, 메시지 문구. 잠금은 D1 행(`rooms.speaking_until`)에만 있다(프로세스 메모리 잠금 금지).
+- 컨테이너 연결(`services.ts`)은 [llm.md](llm.md) §3.3.
 
 ## 4. 비동기·동시성
+
+### 4.1 조회·쓰기 흐름 (S1·S2)
 
 ```
 GET /api/rooms/:id/messages?before&limit                        (S1)
@@ -181,6 +234,72 @@ DELETE /api/messages/:id  [미들웨어]
 - 페이지 커서는 id 기준이라 그사이 메시지가 추가·삭제돼도 중복 없이 이어진다. 삭제된 메시지 뒤 페이지는 그 id가 빠진 채 이어진다.
 - CPU: 최대 101행 매핑(조회), 본문 2000자 코드 포인트 세기(쓰기). R-NFR-005 안.
 
+### 4.2 speak·regenerate 흐름 (S3)
+
+```
+POST /api/rooms/:id/speak  [requireToken·rateLimitWrites]
+  └ speak(roomId, { character }, background)
+       ① isCharacterId(character) ── 아님 → VALIDATION_ERROR (DB·LLM 전)
+       ② llm = deps.llm()          ── google + 키 없음 → ConfigError → 500 CONFIG_INVALID (잠금 전)
+       ③ startMs = now(); untilMs = startMs + SPEAK_LOCK_MS
+          db.rooms.acquireSpeakLock(roomId, untilMs, startMs)
+            'missing' → NOT_FOUND(방)   'busy' → SPEAK_IN_PROGRESS
+       ④ try {
+            [rowsDesc, summary] = await Promise.all([ db.messages.pageDesc(roomId, contextMessages),
+                                                      db.memory.getSummary(roomId) ])
+            prompt = buildSpeakPrompt({ character, summary, history: rowsDesc 뒤집기 })
+            raw    = await llm.complete(prompt)          ── LLM_FAILED / LLM_EMPTY  (재시도·66초 예산은 llm)
+            text   = postprocessLine(raw)                ── LLM_EMPTY
+            saved  = await db.messages.insert({ speaker: character, kind: 'line', author 둘 다 null … }, now())
+            saved === null → NOT_FOUND(방 — 생성 중 삭제)
+          } finally {
+            await releaseQuietly(roomId, untilMs)   ── db.rooms.releaseSpeakLock, 실패는 warn 로그만(원래 결과·에러 유지)
+          }
+       ⑤ afterSpeak 있으면 background.waitUntil(runAfterSpeak({ roomId, messageId: saved.id }))   (S3: 없음)
+       ⑥ logger.info('speak_done', { roomId, messageId, character, ms: now() − startMs })
+  ◀ 201 Message
+
+POST /api/messages/:id/regenerate  [requireToken·rateLimitWrites]
+  └ regenerate(messageId)
+       ① isMessageId ── 아님 → NOT_FOUND (DB 전)
+       ② target = db.messages.getById(id) ── null → NOT_FOUND
+          target.speaker === 'user' → NOT_CHARACTER_MESSAGE
+       ③ llm = deps.llm()                ── CONFIG_INVALID
+       ④ acquireSpeakLock(target.roomId, …)  'missing' → NOT_FOUND(메시지)  'busy' → SPEAK_IN_PROGRESS
+       ⑤ try {
+            [rowsDesc, summary] = Promise.all([ pageDesc(roomId, contextMessages + 1), getSummary(roomId) ])
+            head = rowsDesc[0]
+            head 없음 또는 head.id < id → NOT_FOUND(대상 삭제됨)
+            head.id > id               → NOT_LAST_MESSAGE
+            prompt = buildSpeakPrompt({ character: target.speaker, summary, history: rowsDesc.slice(1) 뒤집기 })
+            text   = postprocessLine(await llm.complete(prompt))
+            saved  = db.messages.updateText(id, text, now()) ── null → NOT_FOUND(생성 중 삭제)
+          } finally { releaseQuietly(roomId, untilMs) }
+       ⑥ logger.info('regenerate_done', { roomId, messageId, character, ms })
+  ◀ 200 Message
+```
+
+- 잠금 선점 → 작업 → 해제는 `withSpeakLock(roomId, onMissing, task)` 하나로 두 흐름이 공유한다(try/finally가 한 곳).
+- `releaseQuietly`가 해제 실패를 삼키는 이유: 해제 실패(D1 장애)로 이미 저장된 대사를 500으로 바꾸면 화면이 재시도해 같은 대사가 두 번 생긴다. 잠금은 90초 뒤 스스로 풀린다. 로그 `speak_lock_release_failed { roomId, errName }`(warn).
+- `runAfterSpeak`는 훅을 `try/catch`로 감싸 `after_speak_failed { roomId, errName }`(warn)만 남긴다. `waitUntil`에 넘긴 promise는 항상 resolve한다(R-MEM-002 "실패해도 speak 응답은 성공").
+- 시간 상한: 잠금 선점부터 해제까지 = D1 왕복(선점·조회·저장·해제) + LLM 단계(≤ 66초, [llm.md](llm.md) §4.2) ≤ 70초(R-NFR-001). `SPEAK_LOCK_MS` 90초는 이보다 20초 길다.
+- 로그에 본문·프롬프트·요약을 남기지 않는다(`speak_done`·`regenerate_done`은 id·캐릭터·ms만). `mbId`도 남기지 않는다(서비스가 `Principal`을 받지 않는다 — 레이트리밋 로그가 이미 `mbId`를 가진다).
+
+### 4.3 동시성·경합 (S3)
+
+| 경합 | 결과 | 근거 |
+|---|---|---|
+| 같은 방 speak 2건 동시 | 하나만 선점, 나머지 `409 SPEAK_IN_PROGRESS`(R-NFR-003) | 조건부 UPDATE 1문장 — D1이 쓰기를 직렬 실행 |
+| 같은 방 speak ∥ regenerate | 같은 잠금이라 한쪽 409 | R-MSG-007 |
+| 다른 방 speak 2건 | 둘 다 진행 | 잠금은 방 단위 행 |
+| speak ∥ 유저 발화(`addUserMessage`) | 둘 다 성공. 컨텍스트는 선점 직후 조회 시점까지라, 그 뒤 들어온 유저 발화는 이번 대사가 못 본다 | 유저 발화는 잠금을 쓰지 않는다(R-MSG-007 대상 아님) |
+| regenerate ∥ 유저 발화 | 둘 다 성공 가능. 마지막 판정은 잠금 뒤 1회라, 생성 중 뒤에 유저 발화가 붙어도 교체는 된다 | 위와 같다. §11 확인 필요 |
+| speak 중 방 삭제 | 저장 `insert`가 `null` → `NOT_FOUND`, 고아 없음, 해제는 0행(무해) | `INSERT … WHERE EXISTS`(D-DB-9) · [rooms.md](rooms.md) §11 인계 |
+| regenerate 중 대상 삭제 | `updateText`가 `null` → `NOT_FOUND` | §4(S2 절) 인계 그대로 |
+| regenerate 중 같은 메시지 수정(`editMessage`) | 나중 쓰기가 이긴다 | 수정은 잠금을 쓰지 않는다(S2 규칙 유지) |
+| 잠금 만료(90초) 뒤 남은 요청의 해제 | 해제는 내 `untilMs`일 때만이라 남의 잠금을 지우지 않는다 | D-DB-15 |
+| 클라이언트 연결 끊김으로 Worker 실행 취소 | `finally`가 못 돌 수 있다. 잠금은 최대 90초 뒤 풀리고 그동안 그 방 생성은 409. 대사 저장 여부는 취소 시점에 따른다 | Workers 동작. 수동 확인 대상(§8.2) |
+
 ## 5. 에러 타입
 
 | 에러 클래스 | shared 에러 코드 | HTTP | 한국어 메시지 | 원인 | 묶음 |
@@ -191,6 +310,14 @@ DELETE /api/messages/:id  [미들웨어]
 | `AppError` | `VALIDATION_ERROR` | 400 | `메시지는 1~2000자로 입력해 주세요.` | 본문 trim 후 0자 또는 2001자 이상 | S2 |
 | `AppError` | `NOT_FOUND` | 404 | `메시지를 찾을 수 없습니다.` | id 형식 위반·없는 메시지(수정·삭제) | S2 |
 | (전파) D1 오류 | `INTERNAL` | 500 | `서버 내부 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.` | D1 장애 | S1 |
+| `AppError` | `VALIDATION_ERROR` | 400 | `캐릭터는 sebastian 또는 ciel 중 하나여야 합니다.` | speak `character` 위반(라우트 zod를 지나온 경우의 재검사) | S3 |
+| `AppError` | `NOT_FOUND` | 404 | `방을 찾을 수 없습니다.` | speak 방 없음·생성 중 삭제 | S3 |
+| `AppError` | `NOT_FOUND` | 404 | `메시지를 찾을 수 없습니다.` | regenerate id 형식 위반·없음·생성 중 삭제 | S3 |
+| `AppError` | `SPEAK_IN_PROGRESS` | 409 | 기본 문구(`이 방에서 이미 대사를 만들고 있습니다. 잠시 후 다시 시도해 주세요.`) | 잠금 선점 실패 | S3 |
+| `AppError` | `NOT_LAST_MESSAGE` | 409 | 기본 문구 | 대상 뒤에 메시지 있음 | S3 |
+| `AppError` | `NOT_CHARACTER_MESSAGE` | 400 | 기본 문구 | 대상이 유저 메시지 | S3 |
+| `AppError`(llm) | `LLM_FAILED` · `LLM_EMPTY` | 502 | 기본 문구 | [llm.md](llm.md) §5 — messages는 그대로 전파 | S3 |
+| `ConfigError`(env) | `CONFIG_INVALID` | 500 | 기본 문구 | `deps.llm()`에서 `requireLlmApiKey` 실패 — 그대로 전파 | S3 |
 
 - 토큰·등급·레이트리밋 에러는 라우트 미들웨어가 서비스 호출 전에 낸다([auth.md](auth.md) §5).
 - 에러 메시지에 유저 입력·`mbId`를 넣지 않는다(로그 `errMessage`로 새지 않게).
@@ -198,12 +325,14 @@ DELETE /api/messages/:id  [미들웨어]
 ## 6. 설정(env)
 
 - 읽는 키: 없음. 쓰는 키: 없음. 30·100·2000은 요구 상수라 모듈 상수다. `now`는 서비스 컨테이너가 주입하는 시계다.
+- (S3) `contextMessages`(= `CONTEXT_MESSAGES`, 기본 40)를 deps 값으로 받는다. LLM 키·모델·타임아웃은 `llm` 지연 생성 함수 안에 갇혀 있어 messages가 보지 않는다([llm.md](llm.md) §3.3). `SPEAK_LOCK_MS` 90000은 요구 상수(R-MSG-007)라 모듈 상수다.
 
 ## 7. DB 스키마·마이그레이션
 
 - 사용 테이블: `messages`(읽기·쓰기), `rooms`(존재 확인·`updated_at`). 정의는 [db.md](db.md) §7.1.
 - 제약이 지키는 것: 유저 메시지의 `author_mb_id`·`author_name` NOT NULL, `speaker = 'user' OR kind = 'line'`, `length(text) >= 1`. 2000자 상한은 서비스 규칙(CHECK 없음 — D-DB-3).
 - 인덱스: `idx_messages_room_id_id`. 새 마이그레이션 없음.
+- (S3) `rooms.speaking_until`(잠금), `memory.summary`(읽기만)를 추가로 쓴다. 둘 다 `0001_init.sql`에 있어 **마이그레이션 없음**([db.md](db.md) §2.3·D-DB-17). 캐릭터 메시지 행은 `speaker IN ('sebastian','ciel')`·`kind 'line'`·`author_* NULL`(CHECK 통과).
 
 ## 8. 테스트 계획
 
@@ -285,6 +414,39 @@ INSERT INTO messages (room_id, speaker, kind, text, author_mb_id, author_name, c
 - [ ] (S2) 토큰을 붙여 `POST /api/rooms/<방1>/user {"text":"테스트","ooc":true}` → 응답 `kind: "ooc"`, `authorName`이 토큰의 캐릭터명(없으면 닉네임). 이어 `GET /api/rooms`에서 방 1이 맨 위.
 - [ ] (S2) `wrangler dev` 로그에 입력 본문(`테스트`)이 찍히지 않는다.
 
+### 8.2 S3 테스트 — `server/test/messages-generate.test.ts`
+
+준비: D1(workers pool) + `createMessagesService({ db, now, logger, contextMessages, llm })`. `llm`은 `() => createLlm({ provider: fake, timeoutMs: 60000, logger, now, sleep })`이고 `fake = new FakeProvider(steps)`. 시계는 가짜(`now`가 변수를 읽고 `sleep`·각본 함수가 올린다). 로그는 수집 sink. 동시성 테스트는 각본 함수가 외부 deferred를 기다리게 해 첫 요청이 잠금을 잡은 상태를 만든다.
+
+| 테스트ID | 이름 | 입력 | 기대 | 요구 |
+|---|---|---|---|---|
+| SRV-T-191 | `speak_saves_character_line_and_touches_room` | 방(`updated_at` 100), fake `'세바스찬: 분부대로.'`, now 999 | 반환 `speaker 'sebastian'`·`kind 'line'`·`text '분부대로.'`·`authorName null`·`createdAt 999`. DB `author_mb_id` NULL, 방 `updated_at 999`, `speaking_until` NULL | R-MSG-003 · R-ROOM-005 |
+| SRV-T-192 | `speak_allows_same_character_twice_in_a_row` | `ciel` 2회 연속 | 둘 다 성공, 메시지 2건 모두 `ciel`, 두 번째 호출 컨텍스트에 첫 대사 포함 | R-MSG-003 |
+| SRV-T-193 | `speak_sends_recent_context_with_summary_in_order` | 방 A 45건 + 방 B 3건, `contextMessages 40`, memory 행 `summary 'S'` / memory 행 없음 | `fake.calls[0].turns[0].text`에 `[지난 이야기 요약] S`와 방 A의 6~45번째만 오래된→새 순, 방 B 없음. memory 없으면 요약 줄 없음. `system`에 눌린 캐릭터 설정 | R-LLM-003 · R-MSG-003 |
+| SRV-T-194 | `speak_validates_character_before_llm_and_db` | `{ character: 'meirin' }`(캐스팅), 호출 시 실패하는 가짜 `Db`·`llm` 스파이 | `VALIDATION_ERROR`, `Db` 0회, `llm()` 0회 | R-MSG-003 |
+| SRV-T-195 | `speak_throws_NOT_FOUND_for_unknown_room_without_llm_call` | 없는 방 | `NOT_FOUND`, `fake.calls` 0, 메시지 0건 | R-MSG-003 |
+| SRV-T-196 | `speak_throws_SPEAK_IN_PROGRESS_when_locked_and_retakes_after_expiry` | `speaking_until = now + 1` / `= now`(만료 경계) | 409 `SPEAK_IN_PROGRESS`, `fake.calls` 0, 값 불변 / 성공 | R-MSG-007 |
+| SRV-T-197 | `speak_and_regenerate_throw_CONFIG_INVALID_only_when_called` | `llm`을 실제 컨테이너 방식으로 `google`·키 없는 `Config`에서 만든 것 | speak·regenerate 500 `CONFIG_INVALID`(`keys ['LLM_API_KEY']`), `speaking_until` NULL(잠금 전 실패). 같은 서비스의 `listMessages`·`addUserMessage`는 성공. `fake`+키 없음은 speak 성공 | R-ENV-003 |
+| SRV-T-198 | `speak_releases_lock_and_saves_nothing_on_llm_failure` | 각본 `[http_5xx, http_5xx]` / `[blocked]` / `[{ text: '시엘: ' }]` | 각각 `LLM_FAILED` / `LLM_EMPTY` / `LLM_EMPTY`, 메시지 0건, `speaking_until` NULL, 방 `updated_at` 불변 | R-MSG-007 · R-LLM-004·005 |
+| SRV-T-199 | `speak_concurrent_requests_allow_only_one` | 같은 방 speak 2건을 `Promise.allSettled`(첫 요청은 deferred 대기) / 다른 방 2건 | 같은 방: 정확히 1건 성공·1건 `SPEAK_IN_PROGRESS`, 해제 뒤 3번째 성공. 다른 방: 둘 다 성공 | R-NFR-003 · R-MSG-007 |
+| SRV-T-200 | `speak_returns_NOT_FOUND_when_room_deleted_during_generation` | 각본 함수가 `db.rooms.deleteCascade(roomId)` 후 텍스트 반환 | `NOT_FOUND`, `messages`에 그 방 행 0(고아 없음), 예외 없이 해제 시도 | R-MSG-003 · R-ROOM-004 |
+| SRV-T-201 | `speak_keeps_result_when_lock_release_fails` | `releaseSpeakLock`만 reject하는 `Db` 래퍼, 성공 각본 / 실패 각본(`http_4xx`) | 성공: 메시지 반환·저장됨 + `speak_lock_release_failed` warn 1건. 실패: 원래 `LLM_FAILED` 유지 + 같은 warn | R-MSG-007 |
+| SRV-T-202 | `speak_schedules_afterSpeak_via_waitUntil_only_on_success` | `afterSpeak` 스파이 + `waitUntil` 스파이: 성공 / LLM 실패 / 훅 reject / 훅 없음 | 성공: `waitUntil` 1회, 넘긴 promise await 후 훅이 `{ roomId, messageId }`로 1회. 실패: 0회. 훅 reject: promise는 resolve, `after_speak_failed` warn. 훅 없음: `waitUntil` 0회 | R-MEM-002(자리) |
+| SRV-T-203 | `regenerate_replaces_last_character_message_text` | 유저 발화 → 세바스찬(마지막), fake `'세바스찬: 다시 말씀드리지요.'`, now 999 | 같은 `id`·`speaker`·`kind`·`createdAt`, `text '다시 말씀드리지요.'`, 방 `updated_at 999`, 컨텍스트에 유저 발화는 있고 대상 원문은 없음, 마지막 줄 `다음 발화자: 세바스찬.`으로 시작, 잠금 해제 | R-MSG-006 · R-ROOM-005 |
+| SRV-T-204 | `regenerate_rejects_user_message_with_NOT_CHARACTER_MESSAGE` | 유저 메시지 id | 400 `NOT_CHARACTER_MESSAGE`, `fake.calls` 0, `speaking_until` NULL | R-MSG-006 |
+| SRV-T-205 | `regenerate_rejects_non_last_with_NOT_LAST_MESSAGE` | 세바스찬 → 유저 발화, 세바스찬 id로 | 409 `NOT_LAST_MESSAGE`, `fake.calls` 0, 원문 불변, 잠금 해제 | R-MSG-006 |
+| SRV-T-206 | `regenerate_throws_NOT_FOUND_for_bad_unknown_or_deleted_target` | id `0`·`NaN`(Db 0회), 없는 id, 각본 함수가 대상 `deleteById` 후 텍스트 반환 | 전부 `NOT_FOUND`, 마지막 경우 잠금 해제·메시지 0건 | R-MSG-006 |
+| SRV-T-207 | `regenerate_shares_speak_lock` | 선점된 방에서 regenerate / regenerate 진행 중(deferred) 같은 방 speak | 409 `SPEAK_IN_PROGRESS` / speak 409, regenerate 성공 | R-MSG-007 |
+| SRV-T-208 | `speak_finishes_within_70s_budget_on_repeated_timeouts` | 가짜 시계, 각본 `[timeout(+60000), timeout(+5000)]` | `LLM_FAILED`, 선점부터 응답까지 시계 경과 ≤ 70000(D1은 시계를 안 올림 → 실제 ≤ 66000), 잠금 `untilMs = 선점 + 90000` > 선점 + 70000, 해제됨 | R-NFR-001 |
+| SRV-T-209 | `addUserMessage_and_edit_never_create_llm` | `llm` 스파이 thunk로 `addUserMessage`·`editMessage`·`deleteMessage`·`listMessages` | `llm()` 호출 0회(SRV-T-145의 `fetch` 0회와 함께) | R-MSG-002 |
+
+- 에러 경로(194~201·204~208) 13 ≥ 정상 경로 6.
+- 수동 체크리스트(S3):
+  - [ ] 로컬 `LLM_PROVIDER=fake`로 `/run-app` → 두 버튼이 각 캐릭터 말풍선을 만들고, 재작성은 마지막 캐릭터 메시지에서만 성공.
+  - [ ] 두 브라우저 탭에서 같은 방 버튼을 거의 동시에 눌러 한쪽 409 안내(R-NFR-003).
+  - [ ] speak 중 탭을 닫은 뒤 다른 탭에서 같은 방 speak → 최대 90초 동안 409, 이후 성공(§4.3 연결 끊김 행 확인).
+  - [ ] `wrangler dev` 로그 `speak_done`에 본문·`mbId` 없음.
+
 ## 9. contract 요구 명세
 
 | 서비스 | 엔드포인트 후보 | 입력 | 출력 | 에러 | 토큰 | 레이트리밋 | 이유 |
@@ -293,8 +455,8 @@ INSERT INTO messages (room_id, speaker, kind, text, author_mb_id, author_name, c
 | `messages.addUserMessage(roomId, { text, ooc }, getPrincipal(c))` | `POST /api/rooms/:id/user` | 경로 `id`(문자열), 본문 `{ text: string; ooc: boolean }` | `Message` | `VALIDATION_ERROR`(400), `NOT_FOUND`(404) + 공통 | ○ | ○ | R-MSG-002 |
 | `messages.editMessage(Number(id), { text })` | `PATCH /api/messages/:id` | 경로 `id` → `Number()` 변환만, 본문 `{ text: string }` | `Message` | `VALIDATION_ERROR`(400), `NOT_FOUND`(404) + 공통 | ○ | ○ | R-MSG-004·008 |
 | `messages.deleteMessage(Number(id))` | `DELETE /api/messages/:id` | 경로 `id` → `Number()` 변환만 | 없음(`void`) | `NOT_FOUND`(404) + 공통 | ○ | ○ | R-MSG-005·008 |
-| `speak` (S3) | `POST /api/rooms/:id/speak` | `{ character }` | `Message` | §2.3 + 공통 | ○ | ○ | R-MSG-003 |
-| `regenerate` (S3) | `POST /api/messages/:id/regenerate` | — | `Message` | §2.3 + 공통 | ○ | ○ | R-MSG-006 |
+| `messages.speak(id, body, { waitUntil: p => c.executionCtx.waitUntil(p) })` (S3) | `POST /api/rooms/:id/speak` | 경로 `id`(문자열), 본문 `SpeakBody = { character: 'sebastian' \| 'ciel' }` | **201** `Message` | `VALIDATION_ERROR`(400), `CONFIG_INVALID`(500), `NOT_FOUND`(404), `SPEAK_IN_PROGRESS`(409), `LLM_FAILED`·`LLM_EMPTY`(502) + 공통 | ○ | ○ | R-MSG-003·007 |
+| `messages.regenerate(Number(id))` (S3) | `POST /api/messages/:id/regenerate` | 경로 `id` → `Number()`, 본문 없음(읽지 않음) | **200** `Message` | `NOT_FOUND`(404), `NOT_CHARACTER_MESSAGE`(400), `CONFIG_INVALID`(500), `SPEAK_IN_PROGRESS`·`NOT_LAST_MESSAGE`(409), `LLM_FAILED`·`LLM_EMPTY`(502) + 공통 | ○ | ○ | R-MSG-006·007 |
 
 - 공통 = `TOKEN_REQUIRED`·`TOKEN_INVALID`(401), `LEVEL_TOO_LOW`(403), `RATE_LIMITED`(429), `CONFIG_INVALID`·`INTERNAL`(500). 미들웨어 순서·`getPrincipal`은 [auth.md](auth.md) §9.1.
 - 라우트 zod는 **타입만**: `{ text: z.string(), ooc: z.boolean() }`, `{ text: z.string() }`. trim·길이(코드 포인트)는 서비스가 판정한다(zod `.min/.max`는 UTF-16 단위라 CHECK·서비스와 어긋난다 — D-MSG-4와 같은 원칙). `ooc`를 필수로 할지 기본값 `false`를 둘지는 contract가 정한다(서비스는 boolean을 받는다).
@@ -302,6 +464,7 @@ INSERT INTO messages (room_id, speaker, kind, text, author_mb_id, author_name, c
 - `Message`에 `authorMbId`를 넣지 않는다(쓰기 응답 포함).
 - R-MSG-008 확인: contract 라우트 테스트에서 토큰 A로 쓴 메시지를 **토큰 B(다른 `mb_id`)**로 수정·삭제해 성공함을 확인한다.
 - 수정 응답에 "수정됨" 표시 필드는 요구가 없어 두지 않는다(api.md §호환성 표의 선택 필드 후보).
+- (S3) 상세 계약(판정 순서·화면 타임아웃 75초 이상·`executionCtx` 지연 접근)은 [llm.md](llm.md) 「contract 인계 요구 명세」가 정본이다.
 
 ## 10. 요구 추적표
 
@@ -316,7 +479,14 @@ INSERT INTO messages (room_id, speaker, kind, text, author_mb_id, author_name, c
 | R-ROOM-005 | §2.2·§4 | SRV-T-140·146·148 | ✅ |
 | R-NFR-002 | §4, §8 수동 | 수동 curl | ✅(측정은 구현 후) |
 | R-API-004 | §2 `Message` | [db.md](db.md) SRV-T-029 | 부분(본문 검증은 contract) |
-| R-MSG-003·006·007 | §2.3 | S3 | ❌(S3 예정) |
+| R-MSG-003 🔒 | §2.3·§4.2·§9 | SRV-T-191~195·200 | ✅(설계) |
+| R-MSG-006 🔒 | §2.3·§4.2·§9 | SRV-T-203~206 | ✅(설계) |
+| R-MSG-007 🔒 | §2.3·§4.2·§4.3, [db.md](db.md) §2.3 | SRV-T-196·198·199·201·207, [db.md](db.md) SRV-T-187~189 | ✅(설계) |
+| R-ROOM-005 (재작성) | §2.3 저장 행 | SRV-T-191·203 | ✅(설계) |
+| R-NFR-001 🔒 | §4.2 시간 상한, [llm.md](llm.md) §4.2 | SRV-T-208, [llm.md](llm.md) SRV-T-183 | ✅(설계) |
+| R-NFR-003 🔒 (speak 몫) | §4.3 | SRV-T-199 | ✅(설계) |
+| R-ENV-003 (speak 시점) | §2.3 판정 ② | SRV-T-197 | ✅(설계) |
+| R-MEM-002 🔒 | §2.3 `afterSpeak` 자리 | SRV-T-202 | 부분(S4에서 요약 구현) |
 
 ## 11. 설계 결정 노트
 
@@ -333,17 +503,29 @@ INSERT INTO messages (room_id, speaker, kind, text, author_mb_id, author_name, c
 | D-MSG-9 | 잘못된 메시지 id는 `NOT_FOUND` | `VALIDATION_ERROR` | 경로의 자원 식별자다. 방 id(아무 문자열 → 404)와 같은 취급 |
 | D-MSG-10 | `addUserMessage`는 `Principal` 전체가 아닌 `Pick<Principal, 'mbId' \| 'displayName'>` | `Principal` | 필요한 두 필드만 의존. 테스트 픽스처가 간단하다 |
 | D-MSG-11 | 발화 저장의 방 존재 확인을 INSERT 조건(`WHERE EXISTS`)에 넣음 | `exists` 후 INSERT | 왕복 1회, 방 삭제와 경합해도 외래 키 오류(500) 대신 `NOT_FOUND` |
+| D-MSG-12 (S3) | speak에 `author` 인자 없음, 캐릭터 메시지 `author_*` NULL | `MessageAuthor`를 받아 `author_*`에 누른 사람 기록 | 요구에 "누가 눌렀는지 저장"이 없다. 기록하면 `authorName`이 응답에 실려 화면이 캐릭터 말풍선에 유저 이름을 보일 위험이 있다. 등급·레이트리밋은 미들웨어가 이미 처리 |
+| D-MSG-13 (S3) | regenerate에 `MessageAuthor`·`background` 없음 | speak와 같은 시그니처 | 작성자를 바꾸지 않고, 메시지 수가 늘지 않아 요약 훅도 필요 없다 |
+| D-MSG-14 (S3) | 키 확인(`deps.llm()`)을 잠금 **전**에 | 잠금 뒤 | 설정 오류가 잠금 쓰기 비용을 쓰지 않는다. 판정 순서가 `VALIDATION → CONFIG → NOT_FOUND/409`로 고정된다 |
+| D-MSG-15 (S3) | regenerate의 "마지막" 판정은 잠금 뒤 1회, 교체는 기존 `updateText`(조건 없음) | 교체 문장에 "아직 마지막일 때만" 조건 추가 | 유저 발화는 잠금 대상이 아니다(R-MSG-007). 요구 판정 시점은 요청 처리 시점이다. 조건부 교체는 새 SQL·새 실패 코드 처리가 필요해 요구 밖이다(아래 확인 필요) |
+| D-MSG-16 (S3) | 생성 중 방 삭제(speak)·대상 삭제(regenerate)는 `NOT_FOUND` | 생성 결과를 버리고 성공 처리 / 500 | 자원이 없어졌다는 뜻이 정확하다. 고아 행이 생기지 않는다([rooms.md](rooms.md) §11 인계 처리) |
+| D-MSG-17 (S3) | 해제는 항상 `finally`에서 시도(방이 삭제됐어도) | 방 삭제 시 해제 건너뛰기([rooms.md](rooms.md) §11 인계 문구) | 해제 문장은 행이 없으면 0행이라 무해하다. 분기를 없애 실수(잠금 누수)를 막는다 |
+| D-MSG-18 (S3) | 해제 실패는 로그만 남기고 원래 결과·에러를 유지 | 해제 실패를 500으로 | 이미 저장된 대사를 실패로 보이면 화면 재시도로 중복 대사가 생긴다. 잠금은 90초 뒤 풀린다 |
+| D-MSG-19 (S3) | speak·regenerate는 `generate.ts`로 분리 | `service.ts`에 추가 | `service.ts`가 400줄·함수 50줄 한계에 걸리지 않게. 잠금 공용 헬퍼를 한 파일에 둔다 |
 
 확인 필요:
 
 - R-MSG-008(§9-5) 기본값 "누구나"를 적용했다.
 - D-MSG-7(본문 trim)은 요구 문구에 없다. 앞뒤 공백을 보존해야 하는 사용 사례가 있으면 알려 달라(그 경우에도 공백뿐인 본문은 거부를 권고).
+- (S3) D-MSG-15: regenerate 생성 중 유저가 발화를 덧붙이면 재작성된 캐릭터 메시지가 더는 마지막이 아니게 된다. 화면이 생성 중 입력창을 막는지(R-CHAT-005 "버튼 잠금"의 범위)와 함께 판단이 필요하다. 막지 않는다면 "교체 시점에도 마지막일 때만" 조건을 요구로 승격할 수 있다(db에 조건부 교체 함수 1개 추가).
 
 ## 변경 이력
 
 | 날짜 | 내용 |
 |---|---|
 | 2026-10-05 | S1 초안 작성 |
+| 2026-10-06 | S3 설계: §2.3 예정 시그니처를 본문으로 승격(speak `author` 인자 제거, regenerate `background` 제거), `MessagesDeps`에 `logger`·`contextMessages`·`llm`·`afterSpeak?`, `generate.ts` 추가, §4.2 흐름·§4.3 경합, §5 S3 에러, §8.2 SRV-T-191~209, §9·§10 갱신, D-MSG-12~19 |
 | 2026-10-05 | S1 구현 동기화(상태 확정): 페이지 단위 테스트 위치 `server/test/messages-page.test.ts`, `MessagePage`는 `@shared/types` `MessagesPage` 별칭, `NormalizedPageQuery` 재노출. S2 설계: `addUserMessage`(S1 문서의 `appendUserMessage` 개명)·`editMessage`·`deleteMessage` 본문 확정, `MessagesDeps`에 `now`, `text.ts` 추가, `AuthContext` → `MessageAuthor`(Principal 일부), D-MSG-6~11 |
 
 파급(공개 API 변경): `MessagesDeps`에 `now` 필수 추가 → 호출자 `server/src/services.ts`(`createServices`), `server/test/messages.test.ts` 11행·68행의 `createMessagesService({ db })`를 `{ db, now }`로 고친다. 라우트(`server/src/routes/messages.ts`)의 `listMessages` 호출은 영향 없다.
+
+파급(S3 공개 API 변경): `MessagesDeps`에 필수 `logger`·`contextMessages`·`llm` 추가 → 호출자 `server/src/services.ts`(`createServices`, 델타는 [llm.md](llm.md) §3.3), `server/test/messages.test.ts`의 `createMessagesService({ db, now })` 호출(테스트 헬퍼로 묶어 기본 `FakeProvider`·수집 로거·`contextMessages 40`을 넣는다). `MessagesService`에 `speak`·`regenerate` 추가 → 라우트(`server/src/routes/messages.ts` 등, contract 소유)가 E9·E12를 추가한다. 기존 4개 함수 시그니처는 바뀌지 않는다.

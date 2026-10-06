@@ -4,13 +4,14 @@ import { beforeEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
 import { AppError } from '../src/app-error'
 import { createDb, type Db } from '../src/db'
 import { createMessagesService } from '../src/messages'
-import { insertLine, insertLines, insertRoom, resetDb } from './helpers'
+import { IDLE_GENERATE_DEPS, insertLine, insertLines, insertRoom, resetDb } from './helpers'
 
 const NOW = 1_800_000_000_000
 
 beforeEach(resetDb)
 
-const service = () => createMessagesService({ db: createDb(env.DB), now: () => NOW })
+const service = () =>
+  createMessagesService({ ...IDLE_GENERATE_DEPS, db: createDb(env.DB), now: () => NOW })
 
 const codeOf = async (p: Promise<unknown>): Promise<string> => {
   try {
@@ -68,7 +69,11 @@ describe('listMessages', () => {
     }
     const db = { rooms: { exists: trap }, messages: { pageDesc: trap } } as unknown as Db
     expect(
-      await codeOf(createMessagesService({ db, now: () => NOW }).listMessages('a', { limit: 0 })),
+      await codeOf(
+        createMessagesService({ ...IDLE_GENERATE_DEPS, db, now: () => NOW }).listMessages('a', {
+          limit: 0,
+        }),
+      ),
     ).toBe('VALIDATION_ERROR')
     expect(calls).toBe(0)
   })
@@ -79,7 +84,8 @@ const AUTHOR_A = { mbId: 'mb_a', displayName: '시엘 팬텀하이브' }
 const AUTHOR_B = { mbId: 'mb_b', displayName: '닉네임' }
 const T2 = 999
 
-const writer = (now = T2) => createMessagesService({ db: createDb(env.DB), now: () => now })
+const writer = (now = T2) =>
+  createMessagesService({ ...IDLE_GENERATE_DEPS, db: createDb(env.DB), now: () => now })
 
 const trapMessagesDb = () => {
   const calls = { n: 0 }
@@ -138,7 +144,7 @@ describe('addUserMessage', () => {
 
   it('SRV-T-143 addUserMessage_validates_text_before_db', async () => {
     const { calls, db } = trapMessagesDb()
-    const guarded = createMessagesService({ db, now: () => T2 })
+    const guarded = createMessagesService({ ...IDLE_GENERATE_DEPS, db, now: () => T2 })
     for (const text of ['', '  \n ', 'a'.repeat(2001), '😀'.repeat(2001)]) {
       expect(await codeOf(guarded.addUserMessage('a', { text, ooc: false }, AUTHOR_A))).toBe(
         'VALIDATION_ERROR',
@@ -197,7 +203,7 @@ describe('editMessage · deleteMessage', () => {
 
   it('SRV-T-147 editMessage_rejects_bad_id_text_or_unknown_message', async () => {
     const { calls, db } = trapMessagesDb()
-    const guarded = createMessagesService({ db, now: () => T2 })
+    const guarded = createMessagesService({ ...IDLE_GENERATE_DEPS, db, now: () => T2 })
     for (const id of [0, -1, 1.5, Number.NaN]) {
       expect(await codeOf(guarded.editMessage(id, { text: 'x' }))).toBe('NOT_FOUND')
     }
@@ -224,7 +230,7 @@ describe('editMessage · deleteMessage', () => {
 
   it('SRV-T-149 deleteMessage_throws_NOT_FOUND_for_bad_or_unknown_id', async () => {
     const { calls, db } = trapMessagesDb()
-    const guarded = createMessagesService({ db, now: () => T2 })
+    const guarded = createMessagesService({ ...IDLE_GENERATE_DEPS, db, now: () => T2 })
     for (const id of [0, Number.NaN])
       expect(await codeOf(guarded.deleteMessage(id))).toBe('NOT_FOUND')
     expect(calls.n).toBe(0)

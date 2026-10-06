@@ -1,3 +1,4 @@
+import type { CharacterId } from '@shared/types'
 import { z } from 'zod'
 
 /** 경로 :id — 문자열 그대로. 존재 판정은 서비스(NOT_FOUND) */
@@ -38,3 +39,9 @@ export const userMessageBody = z.object({ text: z.string(), ooc: z.boolean() })
 
 /** PATCH /api/messages/:id 본문 */
 export const editMessageBody = z.object({ text: z.string() })
+
+/** CharacterId 와 같은 두 값. 캐릭터는 2명 고정(확정사항 §1) */
+const CHARACTER_IDS = ['sebastian', 'ciel'] as const satisfies readonly CharacterId[]
+
+/** POST /api/rooms/:id/speak 본문. 두 값 밖 → 400 VALIDATION_ERROR(기본 문구) (api.md §4.13) */
+export const speakBody = z.object({ character: z.enum(CHARACTER_IDS) })
