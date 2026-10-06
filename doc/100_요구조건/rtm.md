@@ -1,6 +1,6 @@
 # 종단간 요구 추적 매트릭스 (rtm.md)
 
-> 작성 2026-10-05 · 소유 task-manager(메인 세션 대행). **S1 완료 2026-10-05 · S2 완료 2026-10-06 · S3 완료 2026-10-06 · S3b 완료 2026-10-06 · S3c 완료 2026-10-06 · S3d 승인 ① 2026-10-06(설계 착수)** — 행 상태 `완료(S1)`/`완료(S2)`. CR-001(R-CHAT-002 개정)은 S2에서 재검증. 다중 묶음 요구(S1~S4 등)는 S1 범위만 완료. 요구는 `requirements.md`. 상태: `초안` → `설계` → `구현` → `완료`. 해당 없음은 `-`. 테스트ID는 설계 단계에서 채운다(`SRV-T-*` server · `API-T-*` contract · `TC-RM-*`/`TC-CH-*` 화면).
+> 작성 2026-10-05 · 소유 task-manager(메인 세션 대행). **S1 완료 2026-10-05 · S2 완료 2026-10-06 · S3 완료 2026-10-06 · S3b 완료 2026-10-06 · S3c 완료 2026-10-06 · S3d 완료 2026-10-07** — 행 상태 `완료(S1)`/`완료(S2)`. CR-001(R-CHAT-002 개정)은 S2에서 재검증. 다중 묶음 요구(S1~S4 등)는 S1 범위만 완료. 요구는 `requirements.md`. 상태: `초안` → `설계` → `구현` → `완료`. 해당 없음은 `-`. 테스트ID는 설계 단계에서 채운다(`SRV-T-*` server · `API-T-*` contract · `TC-RM-*`/`TC-CH-*` 화면).
 > 묶음(S1~S5)은 requirements.md §0.
 
 | 요구ID | 묶음 | 요구 요약 | ui(화면·요소) | contract(엔드포인트) | server(모듈·함수) | env 키 | 테스트ID | 상태 |
@@ -77,9 +77,9 @@
 | R-NFR-003 | S2·S3 | 🔒 동시 1건·레이트리밋 | - | 409 · 429 | messages.lock · auth.rateLimit | RATE_LIMIT_PER_MIN | | 완료(S2) |
 | R-NFR-004 | S1 | 🔒 비밀값 미노출 | ui/dist grep | - | 로거 | - | | 완료(S1) |
 | R-NFR-005 | S1 | CPU 10ms 전제 | - | - | 설계 전제 | - | | 완료(S1) |
-| R-MSG-009 | S3d | 🔒 speak 'auto' — 서버가 화자 1명 선택·생성 | chat: Composer→speak(auto) | POST speak {character:'auto'} · SpeakTarget | messages.speak(auto) · llm.selectSpeaker | LLM_* | | 설계 |
-| R-LLM-008 | S3d | 화자 선택 2단계·8초·기본 화자 규칙 | - | - | llm.selectSpeaker · prompt | LLM_TIMEOUT_MS | | 설계 |
-| R-CHAT-014 | S3d | 🔒 전송 → 자동 응답 원자 전이·중립 … 말풍선·재시도 | chat: Composer·PendingBubble(neutral)·state/chat | speak(auto) | - | - | | 설계 |
+| R-MSG-009 | S3d | 🔒 speak 'auto' — 서버가 화자 1명 선택·생성 | chat: Composer→speak(auto) | POST speak {character:'auto'} · SpeakTarget | messages.speak(auto) · llm.selectSpeaker | LLM_* | SRV-T-270~278·281 · API-T-109~111 · TC-CH-098·100·034 | 완료(S3d) |
+| R-LLM-008 | S3d | 화자 선택 2단계·8초·기본 화자 규칙 | - | - | llm.selectSpeaker · prompt | LLM_TIMEOUT_MS | SRV-T-261~269·279·280 · TC-CH-070(불변) | 완료(S3d) |
+| R-CHAT-014 | S3d | 🔒 전송 → 자동 응답 원자 전이·중립 … 말풍선·재시도 | chat: Composer·PendingBubble(neutral)·state/chat | speak(auto) | - | - | TC-CH-098~109 · 033·036·038·075·090 · 캡처 20261007-0004 6장 | 완료(S3d) |
 | R-SET-001 | S3c | 🔒 주인 = mbId ∈ OWNER_MB_IDS(지인만), 아니면 403 OWNER_ONLY | App isOwner | OWNER_ONLY errors.ts · api.md §3.2 | auth.isOwner · requireOwner | OWNER_MB_IDS | SRV-T-236~238 · API-T-091~103(401/403/200) · TC-RM-033~038 | 완료(S3c) |
 | R-SET-002 | S3c | 🔒 설정 본체 world + 2명×11필드, strict·상한 | state/settings.ts 사전 검사 | shared/settings.ts 필드 상수·상한 | settings/schema.ts(zod) | - | API-T-105~107(shared 벡터·문구 13행) · SRV-T-240~243 · TC-ST-005~009 | 완료(S3c) |
 | R-SET-003 | S3c | 🔒 D1 character_settings 1행, 시드 대체, version | settings: 하단 줄 version·isDefault | CharacterSettingsResponse | settings/service · db/character-settings · migrations/0003 · generate.ts 주입 | DB | SRV-T-239·244~248·260 · 0003 로컬 적용 · SRV-T-256~258(저장→다음 speak) | 완료(S3c) |
@@ -102,6 +102,6 @@
 | S3 | 13 (MSG 3·LLM 6·CHAT 2(005·007 재작성)·NFR 2) + CHAT-004·011·003 S3분 | 13 | vitest 709/709(`npx vitest run` 2026-10-06, shared 24·server 233·ui 452) · typecheck·lint 0건 · 빌드 dry-run exit 0 · `ui/src/chat/test/result.md` S3 절(자동 29 PASS, 수동 TC-CH-092 부분) · `doc/300_검증/screenshots/20261006-1318/`(7장: 버튼·임시 말풍선·speak 후·실패/재시도·재작성 메뉴·읽기 전용) · 종단 curl(fake): speak 201 · 무토큰 401 · regenerate 200 · api.md §12.2 S3 4자 대조표 |
 | S3b | 1 (LLM-007) + API-002 개정(14종)·ENV-002 4키 | 1 | vitest 763/763(`npx vitest run` 2026-10-06, shared 25·server 276·ui 462) · typecheck·lint·build 0 · 마이그레이션 0002 로컬 적용 · 종단: speak 201 → est_krw 강제 100000 → 429 LLM_BUDGET_EXCEEDED + Retry-After → 유저 발화 201 · `ui/src/chat/test/result.md` S3b 절 · api.md §12.3 |
 | S3c | 12 (SET-001~012) + 개정 LLM-002·003·API-001·002·AUTH-003·ENV-002 | 12 | vitest(`npx vitest run` 2026-10-06): shared 138 · server 318 · ui 592 · typecheck 3 워크스페이스 0 · lint 0 · 빌드 0(ui vite + server dry-run) · 0003 로컬 적용 · `ui/src/settings/test/result.md`(자동 TC 38 PASS, 수동 3 대기) · `ui/src/rooms/test/result.md` S3c 절(OwnerGate 7) · `doc/300_검증/screenshots/20261006-2033/`(10장) · 종단 curl(fake): 주인 GET 200 · 비주인 403 OWNER_ONLY · 무토큰 401 · api.md §12.4 S3c 4자 대조표 실물 · verify PASS `doc/300_검증/verify-S3c-20261006-2059.md`(C0·H0·M1·L8, vitest 1048/1048) |
-| S3d | 3 (MSG-009·LLM-008·CHAT-014) + 개정 CHAT-002·006·AUTH-004·LLM-003·MSG-003·NFR-001 | | |
+| S3d | 3 (MSG-009·LLM-008·CHAT-014) + 개정 CHAT-002·006·AUTH-004·LLM-003·MSG-003·NFR-001 | 3 | vitest(2026-10-07): shared 140 · server 343 · ui 660(×2) · typecheck 3곳·lint·build 0 · `ui/src/chat/test/result.md` S3d 절(113/113, 캡처 `doc/300_검증/screenshots/20261007-0004/` 6장) · 종단 실키: /user authorName 「어떠한 의지」·speak auto 201(지목 mention ms 0 / 모델 선택) · api.md §12.5 실물 · verify PASS `doc/300_검증/verify-S3d-20261007-0029.md` |
 | S4 | | | |
 | S5 | | | |
