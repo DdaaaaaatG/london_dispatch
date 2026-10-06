@@ -1,6 +1,6 @@
 {
   "slug": "london-dispatch-build",
-  "phase": "3-implement",
+  "phase": "1-requirements-approved",
   "orchestrator": "main-session-as-task-manager (사용자 지시 2026-10-05)",
   "slices": [
     "S1 저장+읽기전용",
@@ -11,7 +11,7 @@
     "S4 장기기억",
     "S5 전달·배포"
   ],
-  "current_slice": "S3b",
+  "current_slice": "S3c",
   "scope": {
     "requirements_doc": "doc/100_요구조건/requirements.md",
     "rtm": "doc/100_요구조건/rtm.md",
@@ -36,7 +36,8 @@
       "S2": "2026-10-05T23:24",
       "S3": "2026-10-06T12:10",
       "S3b": "2026-10-06T14:35"
-    }
+    },
+    "requirements_s3c": "2026-10-06T16:25"
   },
   "completed": {
     "server": [
@@ -150,7 +151,7 @@
     "prettier",
     "concurrently"
   ],
-  "next": "S3(AI 발화) 설계 진행 중(2026-10-06 착수, 메인 세션이 task-manager 대행): server-designer(llm.md 신규·messages speak/regenerate·db 잠금 델타) → contract-designer(api.md v0.4 E9·E12) → ui-designer(chat v1.7: 캐릭터 버튼·임시 말풍선·재작성) → ui-design-checker → 승인 ②(S3) → 구현(contract-impl shared → server-impl ∥ ui-test-designer → contract-impl routes/api → ui-implementer → ui-tester → manual). Gemini 키는 지인 전달 전까지 FakeProvider",
+  "next": "다음 세션: S3c 착수 — ① 메인 세션이 요구 문서에 R-SET-001~012 등록·🔒 개정 7건 반영(문안 doc/200_설계/architecture/s3c-02-전반설계.md §7·§8, 확정사항·CLAUDE.md §9·R-API-001/002·R-LLM-002/003·R-AUTH-003·rtm.md) ② s3c-03-인계패킷.md §1부터 위임: server-designer ∥ contract-designer → ui-layout-designer → ui-designer → ui-design-checker → 승인 ②(S3c) → 구현. 주인 mb_id는 사용자에게 받아 Secrets(OWNER_MB_IDS)·로컬 .dev.vars",
   "blockers": [],
   "cr_candidates": [
     "2026-10-06 chat S2 F-CH-23(메시지 삭제): 삭제로 방이 비면 focusLog()가 언마운트 직후 동기 호출되어 포커스가 ‹ 뒤로로 빠질 수 있음 — S3 F-CH-41(ready 커밋 뒤 포커스) 방식으로 통일 검토. S3 완료 후 ui-debug(보강)로"
@@ -191,7 +192,8 @@
     "2026-10-06 사용자 지정 🔒 R-LLM-007: 월 AI 비용 상한 10만원(추정치 그대로, 토큰×단가×환율 D1 누적). 초과 시 그 달 speak·regenerate만 429 LLM_BUDGET_EXCEEDED(에러 코드 14종째, R-API-002 개정), 읽기·유저 발화 계속, 다음 달 1일 KST 자동 해제. 시점: S3 커밋 후 S3b로 S4 앞에",
     "2026-10-06 사용자 지정 🔒 S3c 캐릭터 설정: 범위는 캐릭터 관련 항목만(나이·장르/원작(흑집사)·말투·성격·샘플 대사 등, 세바스찬·시엘 2명 고정), 설정 화면은 **갠홈 주인만** 보고 편집(식별 방식은 설계에서 결정 — 토큰 level 10 또는 지정 mb_id), JSON 내보내기/가져오기(API 키 등 비밀값 절대 미포함, E.No.S world+characters 구조 호환 부분집합), 저장은 D1(server/characters/*.json은 기본값 시드로 강등). 순서 S3b 뒤·S4 앞. 횡단(관리 화면·R-API-001 엔드포인트 고정 개정·§9-3a 개정)이라 system-architect 먼저. 참고 원본: E.No.S v2.51.html(사용자 제작 로컬 앱) — 내보낸 JSON에 Gemini 키 평문 포함 → 키 폐기·재발급 권고함",
     "2026-10-06 S3 커밋 3건(e7c8a3e server · a969ba8 chat · bc5776d docs). push 403(자격 증명 캐시 Woon-Lee) → 사용자 승인 후 캐시 삭제·재푸시 성공 8cc0221..bc5776d (2026-10-06)",
-    "2026-10-06 S3 ui 설계 판정: PendingBubble 별도 컴포넌트(Bubble 스타일 모듈 import) · 리듀서 pending 필드 + speakStarted/Succeeded/Failed/Discarded · canSpeak = canSend && editingId===null(인라인 수정 중 캐릭터 버튼 disabled — S2와 다른 동작, test-designer 인계) · 재작성은 S2 액션 재사용 · NOT_LAST_MESSAGE 시 첫 페이지 재조회 · 스킬 문구와 다른 결정 D-16(SPEAK_IN_PROGRESS 3초 자동 해제 없음 등) → 스킬 갱신 TODO"
+    "2026-10-06 S3 ui 설계 판정: PendingBubble 별도 컴포넌트(Bubble 스타일 모듈 import) · 리듀서 pending 필드 + speakStarted/Succeeded/Failed/Discarded · canSpeak = canSend && editingId===null(인라인 수정 중 캐릭터 버튼 disabled — S2와 다른 동작, test-designer 인계) · 재작성은 S2 액션 재사용 · NOT_LAST_MESSAGE 시 첫 페이지 재조회 · 스킬 문구와 다른 결정 D-16(SPEAK_IN_PROGRESS 3초 자동 해제 없음 등) → 스킬 갱신 TODO",
+    "2026-10-06 승인 ①(S3c 캐릭터 설정) 확정: 요구 R-SET-001~012 + 🔒 개정 7건(L1 관리 화면 없음→설정 화면 1개 · L2 저장 D1/JSON은 시드 · L3 R-LLM-003 조립 확장 · L4 R-API-001 +GET/PUT /api/settings/characters · L5 에러 15종 OWNER_ONLY 403 · L6 설정 GET 토큰 필요 예외 · L7 화면 셋·server settings/ 모듈). 주인 식별 = 토큰 mbId를 OWNER_MB_IDS 목록과 대조(Secrets, 비우면 전원 403; 주인 ID는 사용자가 추후 전달). 권고 6건 승인(outputRules 편집 안 함 · GET 1회 탐침 · 상한 초과 가져오기 거부 · 내보내기=저장값 · 필드 상한 02 §8 · 복원 버튼 없음). 설계 착수는 다음 세션(사용자: 집에서 이어서)"
   ],
   "installed": {
     "typescript": "5.9.3",

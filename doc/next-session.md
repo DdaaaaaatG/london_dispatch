@@ -17,14 +17,18 @@
 - 이 세션의 dev 서버는 백그라운드 한도(1~2시간)로 자동 종료된다. 종료 후 **고아 workerd/Vite 프로세스가 포트 3000·5173을 잡고 옛 설정으로 응답**할 수 있다 — 이상하면 `netstat -ano | findstr :3000`으로 PID 확인 후 taskkill(/T /F).
 - 브라우저 MCP(Chrome 확장) 미연결 시 캡처는 Chrome 헤드리스 + CDP 스크립트(세션 스크래치패드 `shoot.mjs`·`shoot-s3.mjs`, Node 22 내장 WebSocket, 추가 설치 없음)로 했다. 스크립트는 저장소 밖이라 다음 세션엔 없다 — 필요하면 같은 방식으로 다시 만든다(약 100줄).
 - prettier `--check`가 23개 미변경 파일을 지적한다: 새 클론이 `core.autocrlf=true`라 CRLF로 체크아웃된 산물(`.prettierrc` `endOfLine: lf`). 코드 문제 아님. §3-9 결정 대기.
-- git: `main` 단일 브랜치, 원격 `origin`. S3 커밋 3건 푸시 완료(bc5776d). S3b 완료(커밋 대기 — 사용자 확인 후 /sync).
+- git: `main` 단일 브랜치, 원격 `origin`. S3 커밋 3건 푸시 완료(bc5776d). S3b 커밋·푸시 완료(290f5c4). S3c는 승인 ①까지(아키텍처 문서 커밋).
 
 ## 2. 남은 일
 
 ### 2-1. 우선
 1. (완료) S3 푸시 2026-10-06 — 원격 main = bc5776d. 자격 증명 캐시 정리 후 성공. 참고: 전역 `.gitconfig`에 `http.sslVerify=false`(TLS 검증 꺼짐) — 사용자에게 복구 권고함.
 2. (완료) **S3b 월 AI 비용 상한** 2026-10-06 — 구현·테스트(763/763)·종단 확인 끝. 커밋은 사용자 확인 후 `/sync`. 운영 전 지인이 `wrangler.toml [vars]`의 단가·환율·예산을 확인하고, Google Cloud 예산 알림(10만원)을 걸도록 S5 handoff에 포함.
-3. **S3c(캐릭터 설정 화면, 사용자 지정 🔒 2026-10-06)** — 캐릭터 관련 항목만(나이·장르/원작·말투·성격·샘플 대사 등), **갠홈 주인만** 보고 편집, JSON 내보내기/가져오기(비밀값 미포함, E.No.S 구조 호환 부분집합), 저장 D1. 관리 화면·엔드포인트 고정(R-API-001)·§9-3a 개정이 걸리는 횡단 건이라 `system-architect`로 구조 분석·전반 설계·계층 패킷을 먼저 받는다. 참고 원본 `C:/Users/Woon/Documents/카카오톡 받은 파일/json/E.No.S v2.51.html`(저장소 밖, 읽기만).
+3. **S3c(캐릭터 설정 화면) — 승인 ① 확정 2026-10-06, 설계 착수 전.** 산출: `doc/200_설계/architecture/s3c-01-구조분석.md`·`s3c-02-전반설계.md`·`s3c-03-인계패킷.md`. 다음 세션 할 일 순서:
+   1. 메인 세션: 요구 문서에 R-SET-001~012 등록(02 §8 초안 전사, 🔒 유지) + 🔒 개정 7건 반영(문안 02 §7): 확정사항 §5·§9-3a·CLAUDE.md §9("관리 화면 없음"→"캐릭터 설정 화면 1개") · R-API-001(+GET/PUT `/api/settings/characters`) · R-API-002(15종 `OWNER_ONLY` 403) · R-LLM-002(D1 저장, JSON은 시드)·R-LLM-003(조립 확장) · R-AUTH-003(설정 GET 토큰 필요 예외) · 확정사항 §4 폴더(server/src/settings/, ui/src/settings/) · rtm.md S3c 행.
+   2. 03 인계패킷 §1부터 위임: server-designer ∥ contract-designer → ui-layout-designer → ui-designer → ui-design-checker → 승인 ②(S3c) → contract-impl(shared) → server-impl ∥ ui-test-designer → contract-impl(routes·ui/api, client에 PUT 추가) → ui-impl → ui-tester → manual → verify. 예상 약 3시간.
+   3. 사용자 결정 확정분: 주인 식별 = 토큰 mbId ↔ `OWNER_MB_IDS`(Secrets, 로컬은 `.dev.vars`; 비우면 전원 403) · 출력 규칙 편집 안 함 · 주인 판정은 화면 시작 시 GET 1회 탐침 · 가져오기 상한 초과 거부 · 내보내기는 저장값 · 필드 상한 02 §8 · 복원 버튼 없음. **주인 회원 ID는 사용자가 알려 줘야 함**(갠홈 그누보드 mb_id).
+   4. 확인 필요: 갠홈 iframe `sandbox` 속성 유무(있으면 `allow-downloads` 필요 — S5 embed-guide에 포함). 내보내기는 Blob 다운로드 + 복사용 텍스트 영역 병행 설계.
 4. **S4(장기기억) 설계부터**: server-designer(memory.md 신규 — `summarizeIfNeeded`·`afterSpeak` 훅 연결·`source_until_id` 전진·중복 방지 R-MEM-003·`memory.get/put`) → contract-designer(E13·E14 GET/PUT memory, api.md v0.5) → ui-designer(chat ⋯ 메뉴 "장기기억" 항목 + M1 MemorySheet, R-CHAT-012) → ui-design-checker → 승인 ②(S4) → 구현(shared → server → routes/api ∥ 시나리오 → 화면 → 테스트 → 매뉴얼).
 5. **S5(전달·배포)**: `doc/handoff/`(contract-designer: 임베드 안내·토큰 PHP 조각·SECRET 전달 절차) · `server/scripts/token-test.ts`(`npm run token:test`, server-manager) · Cloudflare 지인 계정 셋팅(D1 생성·Secrets `TOKEN_SECRET`·`LLM_API_KEY`·플랜) · `/deploy`.
 
