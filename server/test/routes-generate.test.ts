@@ -9,7 +9,7 @@ import { createApp } from '../src/app'
 import type { Env } from '../src/env'
 import { FAKE_DEFAULT_TEXT } from '../src/llm'
 import { apiRoutes } from '../src/routes'
-import { insertLine, insertRoom, resetDb } from './helpers'
+import { insertLine, insertRoom, insertUsage, resetDb, usageRow } from './helpers'
 import { signTestToken } from './token'
 
 const NOW = 1_700_000_000_000
@@ -70,14 +70,25 @@ const speak = (body: Body, opts: { e?: Env; room?: string; contentType?: string 
 const regenerate = (id: number | string, opts: { e?: Env; body?: Body } = {}) =>
   call('POST', `/api/messages/${id}/regenerate`, opts)
 
-/** 계약 에러 본문: code · message 두 키, status 는 표대로. message 를 돌려준다 */
+/** 429 두 코드만 retryAfterSec(+ Retry-After 헤더)를 갖는다. 값은 코드별 — NOW 기준 40 / 1356400 */
+const RETRY_AFTER: Partial<Record<ErrorCode, number>> = {
+  RATE_LIMITED: 40,
+  LLM_BUDGET_EXCEEDED: 1_356_400,
+}
+
+/** 계약 에러 본문: code · message 두 키(429 두 코드는 retryAfterSec 포함), status 는 표대로. message 를 돌려준다 */
 const expectError = async (res: Response, code: ErrorCode): Promise<string> => {
   expect(res.status).toBe(ERROR_STATUS[code])
   const body = await res.json<Record<string, Record<string, unknown>>>()
   expect(Object.keys(body)).toEqual(['error'])
-  const keys = code === 'RATE_LIMITED' ? ['code', 'message', 'retryAfterSec'] : ['code', 'message']
+  const retry = RETRY_AFTER[code]
+  const keys = retry === undefined ? ['code', 'message'] : ['code', 'message', 'retryAfterSec']
   expect(Object.keys(body.error ?? {}).sort()).toEqual(keys)
   expect(body.error?.code).toBe(code)
+  if (retry !== undefined) {
+    expect(body.error?.retryAfterSec).toBe(retry)
+    expect(res.headers.get('Retry-After')).toBe(String(retry))
+  }
   return String(body.error?.message)
 }
 
@@ -361,5 +372,82 @@ describe('POST /api/messages/:id/regenerate', () => {
     await expectError(res, 'LLM_FAILED')
     expect(await textOf(firstId)).toBe('원문')
     await expectUntouched(1, 100)
+  })
+})
+
+describe('S3b 월 예산 게이트 (R-LLM-007)', () => {
+  const MONTH = '2023-11'
+  const OVER = 100_000
+  const BUDGET_TEXT = '이번 달 AI 사용 한도에 닿았습니다. 다음 달에 다시 시도해 주세요.'
+
+  it('API-T-085 speak_returns_429_budget_exceeded_with_retry_after', async () => {
+    await insertUsage(MONTH, OVER)
+    const res = await speak({ character: 'sebastian' })
+    expect(res.headers.get('Content-Security-Policy')).toContain('frame-ancestors')
+    const raw = await res.clone().text()
+    expect(raw).not.toMatch(/estKrw|est_krw|monthlyBudget|"100000"/i)
+    const message = await expectError(res, 'LLM_BUDGET_EXCEEDED')
+    expect(message).toBe(BUDGET_TEXT)
+    expect(message).toBe(ERROR_MESSAGES.LLM_BUDGET_EXCEEDED)
+    await expectUntouched(1, 100)
+    expect((await usageRow(MONTH))?.calls).toBe(1)
+
+    await resetDb()
+    await insertRoom(ROOM, '방', 1, 100)
+    await insertLine(ROOM, '원문', 5)
+    await insertUsage(MONTH, 99_999.9)
+    expect((await speak({ character: 'sebastian' })).status).toBe(201)
+  })
+
+  it('API-T-086 speak_budget_gate_order', async () => {
+    await insertUsage(MONTH, OVER)
+    await expectError(await speak({ character: 'meirin' }), 'VALIDATION_ERROR')
+    await expectError(await speak({ character: 'ciel' }, { e: noKeyEnv() }), 'CONFIG_INVALID')
+    await expectError(await speak({ character: 'ciel' }, { room: 'nope' }), 'LLM_BUDGET_EXCEEDED')
+    await lockRoom(NOW + 1)
+    await expectError(await speak({ character: 'ciel' }), 'LLM_BUDGET_EXCEEDED')
+  })
+
+  it('API-T-087 regenerate_budget_gate_order_and_keeps_text', async () => {
+    await insertUsage(MONTH, OVER)
+    await expectError(await regenerate(999_999), 'NOT_FOUND')
+    const userId = await insertMessage('user', 'line', '유저', 6)
+    await expectError(await regenerate(userId), 'NOT_CHARACTER_MESSAGE')
+    // firstId 는 이제 마지막이 아니다 — 그래도 예산이 먼저
+    await expectError(await regenerate(firstId), 'LLM_BUDGET_EXCEEDED')
+    const lastId = await insertMessage('ciel', 'line', '마지막', 7)
+    await expectError(await regenerate(lastId), 'LLM_BUDGET_EXCEEDED')
+    expect(await textOf(lastId)).toBe('마지막')
+    expect(await textOf(firstId)).toBe('원문')
+    expect(await roomRow()).toEqual({ updated_at: 100, speaking_until: null })
+    await expectError(await regenerate(lastId, { e: noKeyEnv() }), 'CONFIG_INVALID')
+  })
+
+  it('API-T-088 budget_exceeded_only_on_generate_paths', async () => {
+    await insertUsage(MONTH, OVER)
+    const health = await call('GET', '/api/health', { auth: false })
+    expect(health.status).toBe(200)
+    expect(JSON.stringify(await health.json())).not.toMatch(/usage|budget|estKrw/i)
+    expect((await call('GET', '/api/rooms', { auth: false })).status).toBe(200)
+    expect((await call('GET', `/api/rooms/${ROOM}/messages`, { auth: false })).status).toBe(200)
+    expect((await call('POST', '/api/rooms', { body: { title: '새 방' } })).status).toBe(201)
+    const user = { text: '안녕', ooc: false }
+    expect((await call('POST', `/api/rooms/${ROOM}/user`, { body: user })).status).toBe(201)
+    const edit = await call('PATCH', `/api/messages/${firstId}`, { body: { text: '고침' } })
+    expect(edit.status).toBe(200)
+    expect((await call('DELETE', `/api/messages/${firstId}`)).status).toBe(204)
+  })
+
+  it('API-T-089 budget_rejections_count_toward_rate_limit', async () => {
+    await insertUsage(MONTH, OVER)
+    const e = baseEnv({ RATE_LIMIT_PER_MIN: '2' })
+    await expectError(await speak({ character: 'ciel' }, { e }), 'LLM_BUDGET_EXCEEDED')
+    await expectError(await speak({ character: 'ciel' }, { e }), 'LLM_BUDGET_EXCEEDED')
+    await expectError(await speak({ character: 'ciel' }, { e }), 'RATE_LIMITED')
+  })
+
+  it('API-T-090 budget_uses_current_kst_month_only', async () => {
+    await insertUsage('2023-10', OVER)
+    expect((await speak({ character: 'sebastian' })).status).toBe(201)
   })
 })

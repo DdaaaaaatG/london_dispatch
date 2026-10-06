@@ -1,9 +1,9 @@
 # API 계약 (api.md)
 
-- 상태: **초안 v0.4** · 최종 갱신 2026-10-06 · 소유 contract-designer
-- 묶음: **S1 상세 확정**(구현 완료) = `GET /api/health` · `GET /api/rooms` · `GET /api/rooms/:id/messages` · `GET /embed`. **S2 상세 확정**(구현 전) = 토큰 규약(§2) · `POST /api/rooms` · `PATCH`·`DELETE /api/rooms/:id` · `POST /api/rooms/:id/user` · `PATCH`·`DELETE /api/messages/:id` · 쓰기 레이트리밋(§6). **S3 상세 확정**(구현 전, v0.4) = 생성 공통 규칙(§4.12) · `POST /api/rooms/:id/speak`(E9, §4.13) · `POST /api/messages/:id/regenerate`(E12, §4.14). 나머지(S4 memory)는 §4.0 표에 행만 두고 S4에서 상세를 정한다.
+- 상태: **초안 v0.4.1** · 최종 갱신 2026-10-06 · 소유 contract-designer
+- 묶음: **S1 상세 확정**(구현 완료) = `GET /api/health` · `GET /api/rooms` · `GET /api/rooms/:id/messages` · `GET /embed`. **S2 상세 확정**(구현 전) = 토큰 규약(§2) · `POST /api/rooms` · `PATCH`·`DELETE /api/rooms/:id` · `POST /api/rooms/:id/user` · `PATCH`·`DELETE /api/messages/:id` · 쓰기 레이트리밋(§6). **S3 상세 확정**(구현 전, v0.4) = 생성 공통 규칙(§4.12) · `POST /api/rooms/:id/speak`(E9, §4.13) · `POST /api/messages/:id/regenerate`(E12, §4.14). **S3b 상세 확정**(구현 전, v0.4.1) = 월 AI 비용 상한(R-LLM-007 🔒) — 에러 코드 14종째 `LLM_BUDGET_EXCEEDED`(§3.2) · 429 두 종류 구분(§3.4) · E9·E12 판정 순서(§4.12~§4.14) · 레이트리밋 카운트(§6.1). 엔드포인트·타입·경로 추가 없음. 나머지(S4 memory)는 §4.0 표에 행만 두고 S4에서 상세를 정한다.
 - 이 문서가 단일 소스다: **api.md → `shared/src/*` → `server/src/routes/*` → `ui/src/api/*` → `doc/handoff/*`(S5)**. 넷이 어긋나면 contract 결함이다(확정사항 §3).
-- 입력: `doc/000_프로젝트_확정사항.md` §1·§2·§3·§5.2~§5.4·§6, `doc/100_요구조건/requirements.md` §3·§4·§5·§7(R-LLM-002)·§8·§9, `doc/200_설계/server/{index,env,db,rooms,messages}.md`, `doc/200_설계/architecture/ui-layout-01-rooms-chat.md`. (v0.4) `doc/200_설계/server/llm.md` 「contract 인계 요구 명세」·§2.3·§2.6·§4.2·§5, `messages.md` §2.3·§4.2·§4.3·§5·§9, `db.md` §2.3, `ui/src/chat/design.md` §8.3·§14.
+- 입력: `doc/000_프로젝트_확정사항.md` §1·§2·§3·§5.2~§5.4·§6, `doc/100_요구조건/requirements.md` §3·§4·§5·§7(R-LLM-002)·§8·§9, `doc/200_설계/server/{index,env,db,rooms,messages}.md`, `doc/200_설계/architecture/ui-layout-01-rooms-chat.md`. (v0.4) `doc/200_설계/server/llm.md` 「contract 인계 요구 명세」·§2.3·§2.6·§4.2·§5, `messages.md` §2.3·§4.2·§4.3·§5·§9, `db.md` §2.3, `ui/src/chat/design.md` §8.3·§14. (v0.4.1) `requirements.md` R-LLM-007·R-API-002(2026-10-06 개정), `llm.md` §11 D-LLM-16~23·§12·「contract 인계」 S3b 절, `messages.md` §4.2·§5, `index.md` §2.4·§5.1·§5.2.
 - 절 구성: §1~§10은 contract-design-strategy §13 고정 절이다(번호 변경 금지). §11~§15는 구현 설계 부록이다.
 
 ---
@@ -49,6 +49,18 @@ S3 추가(v0.4):
 | 화면 쪽 | `ui/src/api/{messages,index}.ts` | `speak` · `regenerate` |
 | 갠홈 쪽 | `doc/handoff/*` | 영향 없음 |
 
+S3b 추가(v0.4.1):
+
+| 당사자 | 파일 | S3b 추가 |
+|---|---|---|
+| 문서(정본) | `doc/200_설계/contract/api.md` | §3.2 14행째 · §3.1·§3.4·§3.5 · §4.12~§4.14 판정·에러 행 · §5.2·§5.3 · §6.1 S3b 행 · §8 handoff 예정 · §11.11 · §12.3 · §13.3 · §14.12·§14.13 · §15.11 · 「ui 인계 메모」 S3b · 「contract-implementer 인계 목록」 |
+| 공용 타입 | `shared/src/types.ts` | **타입 변경 없음.** `ApiErrorBody.error.retryAfterSec?` 문서주석만 두 코드로 넓힌다 |
+| 에러 코드 | `shared/src/errors.ts` | `LLM_BUDGET_EXCEEDED` — `ERROR_CODES` · `ERROR_STATUS` · `ERROR_MESSAGES` 3곳 |
+| 경로 · 캐릭터 · 길이 | `endpoints.ts` · `characters.ts` · `limits.ts` | 변경 없음 |
+| 서버 쪽 | `server/src/routes/*` | 변경 없음(서비스가 throw, server `onError`가 변환) |
+| 화면 쪽 | `ui/src/api/*` | 코드·시그니처 변경 없음. `isErrorCode`가 shared를 따라 14종을 받는다. `retryAfterSec`는 계속 `RATE_LIMITED`에만 싣는다(§3.4) |
+| 갠홈 쪽 | `doc/handoff/*` | S5에 AI 비용 추정 안내 1단락(§8) |
+
 ### 1.2 경계 규칙
 
 - **단방향.** 화면·컴포넌트·state는 `@/api`(= `ui/src/api/index.ts`)만 import한다. `fetch`를 `ui/src/api/` 밖에서 쓰면 경계 위반이다.
@@ -65,6 +77,7 @@ S3 추가(v0.4):
 - 구현 순서는 §11.4를 따른다.
 - (v0.4, 2026-10-06) S3 4자는 **전부 아직 없다.** `shared/src/endpoints.ts`에 speak·regenerate 경로가 없고 routes에 핸들러가 없어 두 경로는 지금 `404 NOT_FOUND`다. server 쪽도 `server/src/llm/`·`messages.speak`·`regenerate`가 없다(설계만 있음).
 - (v0.4) S2 routes 테스트의 실제 파일은 `server/test/routes-write.test.ts`다. §14.5 제목의 `routes.test.ts` 표기와 다르다(계약 영향 없음, analyst 확인용).
+- (v0.4.1, 2026-10-06) S3 4자는 구현됐다(§12.2). **S3b 4자는 전부 아직 없다.** `shared/src/errors.ts`는 13종이고(`shared/test/errors.test.ts` API-T-040이 `toHaveLength(13)`), `server/src/llm/usage.ts`·`Llm.ensureBudget`도 없다. `shared/src/types.ts`·`server/src/app-error.ts`·`server/src/app.ts`·`ui/src/api/client.ts`의 `retryAfterSec` 주석은 "RATE_LIMITED 전용"이다. 다만 `app.ts` `errorResponse`는 코드 종류를 보지 않고 `err.retryAfterSec`이 있으면 본문·`Retry-After`를 붙인다. routes 테스트 `expectContractError`(`routes-write.test.ts`·`routes-generate.test.ts` 두 벌)는 `RATE_LIMITED`만 3키를 허용한다(§14.12에서 갱신).
 
 ### 1.4 묶음별 범위
 
@@ -73,6 +86,7 @@ S3 추가(v0.4):
 | S1 | §3 에러 코드 13종 전부, §4.1~§4.4, §5 shared 4파일, §11 routes·ui/api, §12~§14 |
 | S2 (**v0.3 확정**) | §2 토큰 상세(형식·전달·검증 순서·`TokenPayload`·화면 보관·전환·교차 벡터), §4.5~§4.11 쓰기 엔드포인트(방 생성·변경·삭제, user 저장, 메시지 수정·삭제), §6 레이트리밋, §11.5~§11.6 routes·ui/api 설계 |
 | S3 (**v0.4 확정**) | §4.12 생성 공통(70초 상한·화면 타임아웃 규약·잠금·레이트리밋 카운트), §4.13 speak, §4.14 regenerate, §5.2·§5.4 델타(`SpeakBody`·경로 2개), §11.8~§11.10 routes·ui/api 설계, 「ui 인계 메모」 |
+| S3b (**v0.4.1 확정**) | §3.2 14종째 코드, §3.4 429 두 종류 구분, §4.12~§4.14 판정 순서·에러 행, §6.1 카운트, §8 handoff 메모 예정, §11.11 구현 부록, 「ui 인계 메모」 S3b. 엔드포인트 추가 0 |
 | S4 | memory GET·PUT |
 | S5 | §8 handoff 3종 |
 
@@ -168,6 +182,7 @@ type TokenPayload = {
 | 쓰기 가능 | `viewer.canWrite = 토큰 있음`. `false`이면 쓰기 UI를 렌더하지 않는다(R-CHAT-008, R-ROOMS-002, R-CHAT-004) |
 | 읽기 전용 전환 | 쓰기 래퍼 결과가 `isAuthFailure(error)`(= `TOKEN_REQUIRED` · `TOKEN_INVALID` · `LEVEL_TOO_LOW`)이면 화면 state가 토큰을 버리고 `canWrite = false`로 바꾼다. 쓰기 UI가 언마운트되고 읽기 전용 안내가 뜬다(R-CHAT-011). 되돌리기는 새로 고침뿐이다(갠홈이 새 토큰을 발급) |
 | `RATE_LIMITED` | 전환하지 않는다. "잠시 후" 안내만 한다. `error.retryAfterSec`가 있으면 화면이 쓸 수 있다(§3.4) |
+| `LLM_BUDGET_EXCEEDED` (S3b) | 전환하지 않는다. 이번 달 한도 안내만 한다. 래퍼는 이 코드에 `retryAfterSec`를 싣지 않는다(§3.4 429 구분) |
 | 그 밖의 에러 | 전환하지 않는다(`VALIDATION_ERROR`·`NOT_FOUND`·`NETWORK`·`INTERNAL` 등) |
 | 노출 금지 | 토큰을 `console`·화면·에러 문구·저장소에 남기지 않는다(R-AUTH-006) |
 
@@ -226,11 +241,15 @@ V7  eyJtYl9pZCI6InRlc3RlcjAxIiwibmljayI6Ilx1ZDE0Y1x1YzJhNFx1ZDEzMCIsImNoX25hbWUi
 | Content-Type | `application/json`(`/embed` 정적 파일 제외) |
 | `message` | 사용자에게 그대로 보여도 되는 **한국어 한 문장**. 내부 경로·SQL·스택·키 이름·제공사 원문 금지 |
 | 코드↔status | **코드 1개 = status 1개.** 같은 코드가 다른 status로 나가면 결함 |
-| `error`의 키 (S2) | 정확히 `code`·`message` 둘이다. **예외는 `RATE_LIMITED` 하나**: `retryAfterSec`(정수 ≥ 1, 다음 분 창까지 남은 초)가 더 붙고, 같은 값이 응답 헤더 `Retry-After`에도 실린다(R-AUTH-005, server index.md §5.1) |
+| `error`의 키 (S2) | 정확히 `code`·`message` 둘이다. **예외는 429 두 코드**(v0.4.1): `RATE_LIMITED`(다음 분 창까지 남은 초, R-AUTH-005)와 `LLM_BUDGET_EXCEEDED`(다음 달 1일 00:00 KST까지 남은 초, R-LLM-007)에는 `retryAfterSec`(정수 ≥ 1)가 더 붙고, 같은 값이 응답 헤더 `Retry-After`에도 실린다(server index.md §5.1). 그 밖의 코드에는 붙지 않는다 |
 | 성공 본문 없음 (S2) | `DELETE` 두 개(E6·E11)는 `204 No Content`로 답하고 본문·`Content-Type`이 없다. 나머지 성공 응답은 전부 JSON 본문이 있다 |
 
 ```json
 { "error": { "code": "RATE_LIMITED", "message": "요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.", "retryAfterSec": 40 } }
+```
+
+```json
+{ "error": { "code": "LLM_BUDGET_EXCEEDED", "message": "이번 달 AI 사용 한도에 닿았습니다. 다음 달에 다시 시도해 주세요.", "retryAfterSec": 2196000 } }
 ```
 
 ```json
@@ -239,8 +258,9 @@ V7  eyJtYl9pZCI6InRlc3RlcjAxIiwibmljayI6Ilx1ZDE0Y1x1YzJhNFx1ZDEzMCIsImNoX25hbWUi
 
 - 서버는 상황별 문구를 쓸 수 있다(예: `NOT_FOUND` → `방을 찾을 수 없습니다.`). `ERROR_MESSAGES`는 상황 문구가 없을 때 쓰는 **기본 문구**이자 화면의 폴백이다.
 - 화면에 보일 문구는 화면의 `labels.ts`가 `code`로 정한다(R-CHAT-011, ts-rules 에러 처리). 서버 `message`는 참고값이다.
+- (v0.4.1) **모르는 코드를 받은 옛 화면.** 14종째 코드를 모르는 화면 번들은 `LLM_BUDGET_EXCEEDED`를 §3.4 "모르는 코드" 행대로 `INTERNAL`(`ERROR_MESSAGES.INTERNAL`)로 정규화한다. 깨지거나 reject하지 않는다. 화면 번들은 같은 Worker의 Static Assets(`/embed`)로 서버와 함께 배포되므로, 이 상황은 배포 직전에 열어 둔 iframe에서만 생기고 새로 고치면 사라진다.
 
-### 3.2 에러 코드 13종 (R-API-002 🔒 — `shared/src/errors.ts`가 정본, 이 표는 전사)
+### 3.2 에러 코드 14종 (R-API-002 🔒, 2026-10-06 개정 13→14 — `shared/src/errors.ts`가 정본, 이 표는 전사)
 
 | 코드 | status | 기본 message | 발생 조건 | 내는 곳 | 처음 쓰는 묶음 |
 |---|---|---|---|---|---|
@@ -255,10 +275,12 @@ V7  eyJtYl9pZCI6InRlc3RlcjAxIiwibmljayI6Ilx1ZDE0Y1x1YzJhNFx1ZDEzMCIsImNoX25hbWUi
 | `NOT_CHARACTER_MESSAGE` | 400 | 캐릭터 메시지만 다시 생성할 수 있습니다. | 재작성 대상이 유저 메시지(R-MSG-006) | messages.regenerate | S3(v0.4 확정) |
 | `LLM_FAILED` | 502 | AI 응답을 받지 못했습니다. 다시 시도해 주세요. | 제공사 호출 최종 실패 — 네트워크·타임아웃·5xx는 1회 재시도 뒤, 429·그 밖 4xx·응답 형식 오류는 즉시, 재시도 예산 부족(R-LLM-005) | llm → messages가 그대로 전파 | S3(v0.4 확정) |
 | `LLM_EMPTY` | 502 | AI 응답이 비어 있습니다. 다시 시도해 주세요. | 후처리 결과가 빈 문자열(R-LLM-004), 또는 제공사가 차단·후보 없음으로 답함(llm.md D-LLM-6) | llm → messages가 그대로 전파 | S3(v0.4 확정) |
+| `LLM_BUDGET_EXCEEDED` | 429 | 이번 달 AI 사용 한도에 닿았습니다. 다음 달에 다시 시도해 주세요. | 이번 달(KST, 월 키 `YYYY-MM`) 추정 AI 비용 누적 ≥ `LLM_MONTHLY_BUDGET_KRW`(기본 100000원). speak·regenerate에서 **잠금 선점·제공사 호출 전**에 판정. 본문 `retryAfterSec` + 헤더 `Retry-After`(§3.1)(R-LLM-007) | llm `usage.ts`(`Llm.ensureBudget`) → messages가 그대로 전파 | S3b(v0.4.1 확정) |
 | `CONFIG_INVALID` | 500 | 서버 설정이 올바르지 않습니다. 관리자에게 알려 주세요. | `parseEnv` 실패(모든 경로, `/embed`·health 포함). `LLM_API_KEY` 누락(speak·regenerate만)(R-ENV-003) | env · 부트스트랩 | S1 |
 | `INTERNAL` | 500 | 서버 내부 오류가 발생했습니다. 잠시 후 다시 시도해 주세요. | 그 밖의 예상 못 한 오류(D1 장애 등) | onError | S1 |
 
 - 13종은 S1에 한 번에 확정한다. S2~S4의 기본 문구는 착수 시 다듬을 수 있다(문구 변경 = 비파괴).
+- (v0.4.1) 14종째 `LLM_BUDGET_EXCEEDED`는 R-API-002 개정(2026-10-06 사용자 승인, R-LLM-007)으로 더했다. 문구는 요구 원문 그대로이고 서버는 상황 문구 없이 기본 문구만 보낸다(llm.md §12.10). 내는 엔드포인트는 E9·E12뿐이다. 읽기·방 쓰기·유저 발화·수정·삭제는 이 코드를 내지 않는다. 13종의 status·문구는 바뀌지 않았다.
 - (v0.4) S3 5코드의 문구는 v0.1 기본 문구를 **그대로 확정**한다. 다섯 문구 모두 화면이 그대로 띄울 수 있는 한 문장이고 제공사 이름·HTTP 상태·차단 사유·키 이름이 없다(R-LLM-005). 서버는 이 다섯 코드에 상황 문구를 쓰지 않고 기본 문구만 보낸다(llm.md §5, messages.md §5).
 - `CONFIG_INVALID`·`INTERNAL`·`VALIDATION_ERROR` 기본 문구는 server env.md §5와 index.md §5.1의 문구와 같다.
 
@@ -274,14 +296,25 @@ V7  eyJtYl9pZCI6InRlc3RlcjAxIiwibmljayI6Ilx1ZDE0Y1x1YzJhNFx1ZDEzMCIsImNoX25hbWUi
 | 2xx + JSON 본문 | `{ ok: true, value: 본문 }` |
 | `204`(S2, 본문 없음) | `{ ok: true, value: undefined }` — 본문을 읽지 않는다. `DELETE` 래퍼만 `Result<void>`로 받는다 |
 | 2xx(204 제외) + 본문이 JSON이 아님 | `{ ok: false, error: { code: 'INTERNAL', message: ERROR_MESSAGES.INTERNAL } }` |
-| 4xx·5xx + 계약 형식 본문(`code`가 13종, `message`가 빈 문자열이 아님) | `{ ok: false, error: { code, message } }`(본문 값 그대로) |
-| (S2) 위 경우 + `code === 'RATE_LIMITED'` + `retryAfterSec`가 1 이상 정수 | `error`에 `retryAfterSec`를 함께 싣는다. 값이 없거나 형식이 틀리면 키를 빼고, 다른 코드에 붙어 오면 버린다. `Retry-After` 헤더는 읽지 않는다(본문이 단일 소스) |
-| 4xx·5xx + `code`는 13종인데 `message`가 없거나 비어 있음 | `{ code, message: ERROR_MESSAGES[code] }` |
+| 4xx·5xx + 계약 형식 본문(`code`가 14종, `message`가 빈 문자열이 아님) | `{ ok: false, error: { code, message } }`(본문 값 그대로) |
+| (S2) 위 경우 + `code === 'RATE_LIMITED'` + `retryAfterSec`가 1 이상 정수 | `error`에 `retryAfterSec`를 함께 싣는다. 값이 없거나 형식이 틀리면 키를 빼고, 다른 코드에 붙어 오면 버린다. (v0.4.1) `LLM_BUDGET_EXCEEDED`에 붙어 온 값도 **버린다**(아래 429 구분). `Retry-After` 헤더는 읽지 않는다(본문이 단일 소스) |
+| 4xx·5xx + `code`는 14종인데 `message`가 없거나 비어 있음 | `{ code, message: ERROR_MESSAGES[code] }` |
 | 4xx·5xx + 계약 형식이 아님(HTML 오류 페이지, 모르는 코드) | `{ code: 'INTERNAL', message: ERROR_MESSAGES.INTERNAL }` |
 | `fetch` 자체 실패(오프라인·DNS·연결 거부) | `{ code: 'NETWORK', message: '서버에 연결할 수 없습니다.' }` |
 
 - 래퍼는 **어떤 경우에도 throw·reject하지 않는다.** 화면은 `result.ok` 분기만 쓰고 `try/catch`를 쓰지 않는다.
 - (v0.4) **요청 타임아웃은 없다.** `request`는 `AbortSignal`·타이머를 쓰지 않고 응답이 올 때까지 기다린다. speak·regenerate는 서버가 70초 안에 성공·실패로 끝내므로(R-NFR-001) 화면은 서버 종결에 의존한다. 나중에 타임아웃을 넣으면 두 호출은 **75초 이상**이어야 한다(§4.12).
+
+429 두 종류 구분 (v0.4.1 — R-CHAT-011 · R-LLM-007):
+
+| 코드 | 뜻 | 서버 본문 `retryAfterSec` | ui/api `ApiError.retryAfterSec` | 화면 처리 |
+|---|---|---|---|---|
+| `RATE_LIMITED` | 이 회원(`mb_id`)이 1분에 너무 많이 썼다 | 1~60초 | 싣는다 | "잠시 후" 안내. 자동 재시도 없음(§6.1) |
+| `LLM_BUDGET_EXCEEDED` | 서버 전체가 이번 달 AI 비용 한도에 닿았다 | 1초~최대 2678400초(31일) | **싣지 않는다** | 실패 말풍선 + 한도 문구. 「재시도」를 눌러도 다음 달 전에는 같은 429다. **카운트다운·자동 재시도 금지** |
+
+- 둘은 status가 같으므로 **`code`로 구분한다.** status 429만 보고 분기하면 결함이다.
+- 래퍼가 `LLM_BUDGET_EXCEEDED`의 `retryAfterSec`를 버리는 이유: 화면에서 이 값을 쓸 곳은 카운트다운·자동 재시도뿐인데 둘 다 금지다. 래퍼에서 버리면 화면이 잘못 쓸 수 없다. 해제 날짜 안내가 요구되면 ui 요구로 올리고 `toRetryAfter` 허용 코드를 넓힌다(선택 필드라 비파괴).
+- `isAuthFailure`는 두 코드 모두 `false`다. 읽기 전용 전환 대상이 아니다.
 
 ### 3.5 에러 변환 위치
 
@@ -289,7 +322,7 @@ V7  eyJtYl9pZCI6InRlc3RlcjAxIiwibmljayI6Ilx1ZDE0Y1x1YzJhNFx1ZDEzMCIsImNoX25hbWUi
 - zod 검증 실패는 라우트의 `validate` 훅이 `AppError('VALIDATION_ERROR', 400, ERROR_MESSAGES.VALIDATION_ERROR)`를 throw한다(§11.2). zod-validator 기본 실패 응답은 계약 형식이 아니라서 쓰지 않는다.
 - 매칭 없는 경로와 메서드는 `notFound`가 `404 NOT_FOUND`(`요청한 주소를 찾을 수 없습니다.`)로 닫는다. S1 시점에 `POST /api/rooms` 같은 미구현 쓰기 경로도 이 응답이다.
 - (S2) `GET /api/rooms/:id`·`PUT /api/rooms/:id`·`GET /api/messages/:id`처럼 경로는 있으나 메서드가 등록되지 않은 요청도 `404 NOT_FOUND`다(405를 쓰지 않는다). S4 경로(memory)는 그 묶음 전까지 이 응답이다. (v0.4) S3 경로도 구현 전까지는 `404`이고, 구현 뒤에도 `GET`·`PUT /api/rooms/:id/speak`, `GET /api/messages/:id/regenerate`처럼 POST가 아닌 메서드는 `404`다.
-- (S2) `RATE_LIMITED`의 `retryAfterSec`·`Retry-After`도 `onError`가 `AppError`의 선택 필드에서 옮긴다. 라우트·미들웨어는 헤더를 만들지 않는다(server index.md D-IDX-11).
+- (S2) `RATE_LIMITED`의 `retryAfterSec`·`Retry-After`도 `onError`가 `AppError`의 선택 필드에서 옮긴다. 라우트·미들웨어는 헤더를 만들지 않는다(server index.md D-IDX-11). (v0.4.1) `LLM_BUDGET_EXCEEDED`도 같은 경로다 — 서비스가 `new AppError('LLM_BUDGET_EXCEEDED', undefined, { retryAfterSec })`를 throw하고 `onError`가 옮긴다. `onError`는 코드 종류를 보지 않으므로 server 진입점 코드는 바뀌지 않는다(index.md §2.4 S3b · SRV-T-233).
 - (S2) 본문 JSON이 깨졌으면 Hono가 `HTTPException(400)`을 던지고 `onError`가 `400 VALIDATION_ERROR`(기본 문구)로 바꾼다. `Content-Type`이 JSON이 아니면 본문을 `{}`로 보고 zod가 실패해 같은 `400`이 나간다(hono 4.13 validator 동작).
 
 ---
@@ -639,8 +672,9 @@ AI가 대사를 만드는 두 쓰기다. 주방에 화구가 방마다 하나뿐
 | 진행 상태 | 응답은 끝날 때 한 번에 온다. 스트리밍·진행 상태 조회·취소 엔드포인트는 없다(R-API-001) |
 | 동시 1건 (R-MSG-007 🔒 · R-NFR-003 🔒) | 같은 방의 speak·regenerate는 **하나의 잠금**(`rooms.speaking_until`, 만료 90초)을 나눠 쓴다. 이미 생성 중이면 `409 SPEAK_IN_PROGRESS`. 다른 방끼리는 막지 않는다. 유저 발화·수정·삭제(E8·E10·E11)와 방 삭제(E6)는 잠금을 보지 않는다 |
 | 잠금 해제 | 서버가 성공·실패와 무관하게 응답 전에 푼다. 해제 실패나 연결 끊김으로 남은 잠금은 최대 90초 뒤 저절로 풀린다(messages.md §4.3). 그동안 그 방의 생성 요청은 `409`다 |
-| 레이트리밋 | 요청 1건 = 1회. 쓰기 6종과 **같은 분당 한도**를 나눠 쓴다. 인증 통과 뒤 세므로 `400`·`404`·`409`·`500 CONFIG_INVALID`·`502`로 끝나도 1회다. `401`·`403`은 세지 않는다(§6.1 S3 행) |
+| 레이트리밋 | 요청 1건 = 1회. 쓰기 6종과 **같은 분당 한도**를 나눠 쓴다. 인증 통과 뒤 세므로 `400`·`404`·`409`·`500 CONFIG_INVALID`·`502`·(v0.4.1) `429 LLM_BUDGET_EXCEEDED`로 끝나도 1회다. `401`·`403`은 세지 않는다(§6.1 S3 행) |
 | AI 호출 | 요청당 제공사 호출 1~2회(1회 재시도, R-LLM-005). 래퍼는 자동 재시도하지 않는다. 「재시도」는 사용자가 누르는 새 요청이다(R-CHAT-005) |
+| 월 비용 상한 (R-LLM-007 🔒, v0.4.1) | 서버가 제공사 응답의 토큰 사용량 × 단가 × 환율로 **추정 원화**를 월(KST) 단위로 누적한다. 누적이 `LLM_MONTHLY_BUDGET_KRW`(기본 100000) 이상이면 이 두 엔드포인트만 **키 확인 다음·잠금 선점 전·제공사 호출 전**에 `429 LLM_BUDGET_EXCEEDED`로 거절한다. 다음 달 1일 00:00 KST에 저절로 풀린다. 읽기·다른 쓰기는 영향이 없다. 사용량·예산을 보는 엔드포인트는 없고 health에도 싣지 않는다(R-API-001). 성공 응답 모양은 바뀌지 않는다 |
 | 응답 메시지 | 기존 `Message` 그대로. `speaker`는 `'sebastian'`·`'ciel'`, `kind: 'line'`, `authorName: null`. 누가 눌렀는지는 저장·응답하지 않는다(messages.md D-MSG-12). 이름·아바타는 화면이 `CHARACTERS[speaker]`로 그린다(R-LLM-002, §5.5) |
 | `text` | 제공사 응답의 후처리 결과(앞머리 이름표 제거·양끝 공백·연속 빈 줄 정리, R-LLM-004). 최대 2000자(코드 포인트, llm.md D-LLM-9). 빈 결과면 `502 LLM_EMPTY` |
 | 응답 뒤 작업 | S3에는 없다. S4 장기기억 요약(R-MEM-002)이 성공 응답 뒤 백그라운드로 붙어도 응답 형태·status는 바뀌지 않는다 |
@@ -650,12 +684,16 @@ AI가 대사를 만드는 두 쓰기다. 주방에 화구가 방마다 하나뿐
 | 코드 | status | message | 조건 | 판정 위치 |
 |---|---|---|---|---|
 | `CONFIG_INVALID` | 500 | 기본 문구 | `LLM_PROVIDER = google`인데 `LLM_API_KEY`가 없음. **이 두 엔드포인트만** 실패하고 읽기·다른 쓰기는 정상이다(R-ENV-003). `fake` 제공사는 키가 없어도 된다 | 서비스(`deps.llm()`, 잠금 전) |
+| `LLM_BUDGET_EXCEEDED` (v0.4.1) | 429 | 기본 문구 + 본문 `retryAfterSec` + 헤더 `Retry-After` | 이번 달 추정 누적 ≥ 예산(§3.2). `retryAfterSec` = 다음 달 1일 00:00 KST까지 초(올림, 최소 1). 예: `2026-10-06T05:00:00Z` → `2196000` | 서비스(`llm.ensureBudget()`, `CONFIG_INVALID` 다음·잠금 전) |
 | `SPEAK_IN_PROGRESS` | 409 | 기본 문구 | 같은 방에서 speak·regenerate가 진행 중(잠금 만료 전) | 서비스(잠금 선점) |
 | `LLM_FAILED` | 502 | 기본 문구 | 제공사 호출 최종 실패(§3.2 표) | llm |
 | `LLM_EMPTY` | 502 | 기본 문구 | 제공사 차단·후보 없음, 또는 후처리 결과가 빈 문자열 | llm |
 
 - `502`이면 저장하지 않는다. 메시지 수·방 `updatedAt`이 그대로이고 잠금은 풀린다(server SRV-T-198).
 - 응답 `message`에 제공사 이름·HTTP 상태·차단 사유·키 이름을 싣지 않는다. 원인은 서버 로그(`llm_failed`)에만 있다(R-LLM-005 · R-NFR-004).
+- (v0.4.1) `429 LLM_BUDGET_EXCEEDED`이면 잠금·제공사 호출·저장이 모두 0회다. 메시지 수·방 `updatedAt`·`speaking_until`이 그대로다(server SRV-T-225·226). 응답 본문에 누적액·예산·사용률을 싣지 않는다.
+- (v0.4.1) 게이트의 D1 읽기가 실패하면 통과시키지 않고 `500 INTERNAL`이다(llm.md D-LLM-22, 닫힌 실패).
+- (v0.4.1) 예산 직전에 다른 방의 생성 여러 건이 동시에 게이트를 지나면 모두 진행해 예산을 조금 넘을 수 있다(llm.md §12.8, 수용). 추정은 실제 청구와 다를 수 있다(§8).
 
 ### 4.13 `POST /api/rooms/:id/speak` (E9) — 캐릭터 1턴 생성
 
@@ -672,8 +710,8 @@ AI가 대사를 만드는 두 쓰기다. 주방에 화구가 방마다 하나뿐
 | 레이트리밋 | 1회 |
 | 소요 | 최대 70초(§4.12) |
 | server | `messages.speak(roomId: string, input: SpeakInput, background: Background): Promise<Message>` — `SpeakInput = SpeakBody`, 라우트가 `background = { waitUntil: task => c.executionCtx.waitUntil(task) }`를 넘긴다(messages.md §2.3) |
-| 요구ID | R-MSG-003 · R-MSG-007 · R-ROOM-005 · R-NFR-001 · R-NFR-003 · R-LLM-002 · R-LLM-004 · R-LLM-005 · R-CHAT-005 |
-| 테스트 | API-T-050 ~ 053(쓰기 표에 추가) · 070 ~ 077 · 084 |
+| 요구ID | R-MSG-003 · R-MSG-007 · R-ROOM-005 · R-NFR-001 · R-NFR-003 · R-LLM-002 · R-LLM-004 · R-LLM-005 · R-CHAT-005 · (v0.4.1) R-LLM-007 |
+| 테스트 | API-T-050 ~ 053(쓰기 표에 추가) · 070 ~ 077 · 084 · (v0.4.1) 085 · 086 · 088 ~ 090 |
 
 판정 순서(server 설계 고정 — messages.md §4.2. 앞 단계에서 실패하면 뒤 단계는 보지 않는다):
 
@@ -683,11 +721,13 @@ AI가 대사를 만드는 두 쓰기다. 주방에 화구가 방마다 하나뿐
 | 2 | 레이트리밋(§6.1) — 여기서 1회 소모 | `429 RATE_LIMITED` |
 | 3 | 본문 `character`(라우트 zod) | `400 VALIDATION_ERROR` |
 | 4 | LLM 설정(`LLM_API_KEY`) | `500 CONFIG_INVALID` |
+| 4b | (S3b) 월 비용 상한 — D1 읽기 1행. 잠금·제공사 호출 0회 | `429 LLM_BUDGET_EXCEEDED` |
 | 5 | 방 존재 · 잠금 선점(한 batch) | `404 NOT_FOUND` / `409 SPEAK_IN_PROGRESS` |
 | 6 | 제공사 호출 · 후처리 | `502 LLM_FAILED` / `502 LLM_EMPTY` |
 | 7 | 저장(생성 중 방이 삭제됐으면 저장하지 않는다) | `404 NOT_FOUND` |
 
 - 그래서 없는 방에 잘못된 `character`를 보내면 `400`이고, 키가 없는 서버에 없는 방으로 보내면 `500 CONFIG_INVALID`다.
+- (v0.4.1) 예산 초과 중에는 없는 방이나 잠긴 방으로 보내도 `429 LLM_BUDGET_EXCEEDED`다(방 존재 확인·잠금 선점이 한 batch라 게이트 뒤에 있다). 잘못된 `character`는 여전히 `400`, 키 없는 서버는 여전히 `500 CONFIG_INVALID`다.
 
 에러(이 엔드포인트만):
 
@@ -695,6 +735,7 @@ AI가 대사를 만드는 두 쓰기다. 주방에 화구가 방마다 하나뿐
 |---|---|---|---|
 | `VALIDATION_ERROR` | 400 | `요청 형식이 올바르지 않습니다.` | `character` 없음 · 두 값이 아닌 문자열(`'Sebastian'`·`'meirin'`·`''` 포함) · 문자열이 아님(`1`·`null`) · 본문 JSON 깨짐 · `Content-Type`이 JSON 아님 |
 | `NOT_FOUND` | 404 | `방을 찾을 수 없습니다.` | 없는 방(삭제된 방 포함) · 생성 중 방이 삭제됨(고아 메시지 없음) |
+| `LLM_BUDGET_EXCEEDED` (v0.4.1) | 429 | 기본 문구 | 판정 4b. 저장 없음. `retryAfterSec`·`Retry-After`는 §4.12 공통 |
 
 ```json
 { "character": "sebastian" }
@@ -730,8 +771,8 @@ AI가 대사를 만드는 두 쓰기다. 주방에 화구가 방마다 하나뿐
 | 레이트리밋 | 1회 |
 | 소요 | 최대 70초(§4.12) |
 | server | `messages.regenerate(messageId: number): Promise<Message>`(messages.md §2.3) |
-| 요구ID | R-MSG-006 · R-MSG-007 · R-ROOM-005 · R-NFR-001 · R-NFR-003 · R-LLM-004 · R-LLM-005 · R-CHAT-007(재작성) |
-| 테스트 | API-T-050 ~ 053(쓰기 표에 추가) · 074 · 075 · 078 ~ 084 |
+| 요구ID | R-MSG-006 · R-MSG-007 · R-ROOM-005 · R-NFR-001 · R-NFR-003 · R-LLM-004 · R-LLM-005 · R-CHAT-007(재작성) · (v0.4.1) R-LLM-007 |
+| 테스트 | API-T-050 ~ 053(쓰기 표에 추가) · 074 · 075 · 078 ~ 084 · (v0.4.1) 087 · 088 |
 
 판정 순서(server 설계 고정 — messages.md §4.2):
 
@@ -742,12 +783,14 @@ AI가 대사를 만드는 두 쓰기다. 주방에 화구가 방마다 하나뿐
 | 3 | id 형식(1 이상 안전 정수) · 메시지 존재 | `404 NOT_FOUND` |
 | 4 | 대상이 유저 메시지 | `400 NOT_CHARACTER_MESSAGE` |
 | 5 | LLM 설정 | `500 CONFIG_INVALID` |
+| 5b | (S3b) 월 비용 상한 — 잠금·제공사 호출 0회 | `429 LLM_BUDGET_EXCEEDED` |
 | 6 | 잠금 선점 → (잡았으면) 마지막 메시지 확인 | `409 SPEAK_IN_PROGRESS` → `409 NOT_LAST_MESSAGE` / 그사이 대상이 삭제됨 `404 NOT_FOUND` |
 | 7 | 제공사 호출 · 후처리 | `502 LLM_FAILED` / `502 LLM_EMPTY` |
 | 8 | 교체(생성 중 대상이 삭제됐으면 교체하지 않는다) | `404 NOT_FOUND` |
 
 - **두 409의 우선순위는 잠금이 먼저다.** 다른 생성이 진행 중이면 대상이 마지막이 아니어도 `SPEAK_IN_PROGRESS`다. 마지막 여부는 잠금을 잡은 뒤에만 본다.
 - 유저 메시지는 마지막이든 아니든 `400 NOT_CHARACTER_MESSAGE`다(4가 6보다 먼저). 키가 없는 서버에서도 유저 메시지는 `400`이다.
+- (v0.4.1) 예산 게이트(5b)는 대상 검사(3·4)와 키 확인(5) 뒤, 잠금(6) 앞이다. 예산 초과 중에도 없는 id는 `404`, 유저 메시지는 `400 NOT_CHARACTER_MESSAGE`다. 대상이 마지막이 아니거나 방이 잠겨 있어도 예산 초과면 `429 LLM_BUDGET_EXCEEDED`다(두 409는 잠금을 잡을 때 본다).
 - 마지막 여부는 잠금을 잡은 시점에 한 번 본다. 생성 중에 유저 발화가 뒤에 붙어도 교체는 된다(messages.md §4.3의 확인 필요 항목).
 
 에러(이 엔드포인트만):
@@ -757,6 +800,7 @@ AI가 대사를 만드는 두 쓰기다. 주방에 화구가 방마다 하나뿐
 | `NOT_FOUND` | 404 | `메시지를 찾을 수 없습니다.` | id 형식 위반(`abc`·`0`·`1.5`·`0x10`·`1e1`) · 없는 메시지 · 이미 삭제 · 생성 중 대상(또는 그 방) 삭제 |
 | `NOT_CHARACTER_MESSAGE` | 400 | `캐릭터 메시지만 다시 생성할 수 있습니다.` | 대상 `speaker === 'user'`(`kind` `line`·`ooc` 모두) |
 | `NOT_LAST_MESSAGE` | 409 | `방의 마지막 메시지만 다시 생성할 수 있습니다.` | 그 방에 대상보다 큰 id의 메시지가 있음 |
+| `LLM_BUDGET_EXCEEDED` (v0.4.1) | 429 | 기본 문구 | 판정 5b. 원래 대사가 그대로 남는다. `retryAfterSec`·`Retry-After`는 §4.12 공통 |
 
 요청: `POST /api/messages/72/regenerate`(본문 없음). 응답:
 
@@ -877,13 +921,14 @@ export type ApiErrorBody = {
   error: {
     code: ErrorCode
     message: string
-    /** RATE_LIMITED 에만 붙는다. 다음 분 창까지 남은 초(정수 ≥ 1). 같은 값이 Retry-After 헤더에도 실린다 (R-AUTH-005, S2) */
+    /** 429 두 코드에만 붙는다. RATE_LIMITED = 다음 분 창까지, LLM_BUDGET_EXCEEDED = 다음 달 1일 00:00 KST까지 남은 초(정수 ≥ 1). 같은 값이 Retry-After 헤더에도 실린다 (R-AUTH-005 · R-LLM-007) */
     retryAfterSec?: number
   }
 }
 ```
 
 - (S2) 추가는 본문 타입 4개와 `ApiErrorBody.error.retryAfterSec?` 하나다. 기존 타입·필드는 바꾸지 않았다.
+- (v0.4.1, S3b) **타입 변경 없음.** 위 `retryAfterSec?` 문서주석만 두 코드로 넓혔다. `ErrorCode`는 `ERROR_CODES`에서 유도되므로 저절로 14개가 된다.
 - `CreateRoomBody`와 `RenameRoomBody`는 모양이 같지만 엔드포인트별 계약이라 따로 둔다. 한쪽만 바뀌어도 다른 쪽에 번지지 않는다.
 - `TokenPayload`는 shared에 두지 않는다(§2.3).
 - `Message`·`RoomSummary`는 쓰기 응답에 그대로 쓴다. 새 응답 타입은 없다. `DELETE` 성공은 본문이 없다(`204`).
@@ -933,6 +978,7 @@ export const ERROR_CODES = [
   'NOT_CHARACTER_MESSAGE',
   'LLM_FAILED',
   'LLM_EMPTY',
+  'LLM_BUDGET_EXCEEDED',
   'CONFIG_INVALID',
   'INTERNAL',
 ] as const
@@ -954,6 +1000,7 @@ export const ERROR_STATUS: Readonly<Record<ErrorCode, ErrorStatus>> = {
   NOT_CHARACTER_MESSAGE: 400,
   LLM_FAILED: 502,
   LLM_EMPTY: 502,
+  LLM_BUDGET_EXCEEDED: 429,
   CONFIG_INVALID: 500,
   INTERNAL: 500,
 }
@@ -971,6 +1018,7 @@ export const ERROR_MESSAGES: Readonly<Record<ErrorCode, string>> = {
   NOT_CHARACTER_MESSAGE: '캐릭터 메시지만 다시 생성할 수 있습니다.',
   LLM_FAILED: 'AI 응답을 받지 못했습니다. 다시 시도해 주세요.',
   LLM_EMPTY: 'AI 응답이 비어 있습니다. 다시 시도해 주세요.',
+  LLM_BUDGET_EXCEEDED: '이번 달 AI 사용 한도에 닿았습니다. 다음 달에 다시 시도해 주세요.',
   CONFIG_INVALID: '서버 설정이 올바르지 않습니다. 관리자에게 알려 주세요.',
   INTERNAL: '서버 내부 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.',
 }
@@ -981,6 +1029,7 @@ export const isErrorCode = (value: unknown): value is ErrorCode =>
 ```
 
 - `Record<ErrorCode, …>`라서 코드를 추가하고 status·문구를 빠뜨리면 tsc가 실패한다.
+- (v0.4.1) `LLM_BUDGET_EXCEEDED`는 `LLM_EMPTY` 다음(요구 R-API-002 나열 순서)에 둔다. `ErrorStatus`에 429가 이미 있어 유니온은 그대로다. 파일 머리 주석의 "(R-API-002)"도 그대로다.
 
 ### 5.4 `shared/src/endpoints.ts` 전문 초안
 
@@ -1176,6 +1225,7 @@ export const normalizeText = (s: string): string => s.trim()
 | 대상 | `rateLimitWrites`가 붙은 요청 전부. S2는 E4·E5·E6·E8·E10·E11. S3 speak·regenerate도 같은 한도를 나눠 쓴다 |
 | 세는 시점 | `requireToken` 통과 직후, 본문 검증 전. 그래서 `400`·`404`로 끝난 요청도 1회다. 인증 실패(`401`·`403`)는 세지 않는다 |
 | S3 카운트 (v0.4) | speak·regenerate도 요청 1건 = 1회. `409 SPEAK_IN_PROGRESS`·`409 NOT_LAST_MESSAGE`·`400 NOT_CHARACTER_MESSAGE`·`500 CONFIG_INVALID`·`502 LLM_FAILED`·`502 LLM_EMPTY`로 끝나도 센다. 근거: ① 세는 시점이 핸들러 전이라 결과를 보고 되돌리는 경로가 없다(S2 규칙 그대로) ② `502`는 이미 제공사 호출을 1~2회 썼다 ③ 실패 뒤 연타가 제공사 할당량을 태우는 것을 분당 한도가 막는다. `401`·`403`은 여전히 세지 않는다 |
+| S3b 카운트 (v0.4.1) | `429 LLM_BUDGET_EXCEEDED`로 끝난 speak·regenerate도 1회다. 레이트리밋 미들웨어가 서비스(예산 게이트)보다 먼저 돌아 되돌릴 경로가 없다(S3 규칙 그대로). 분 한도를 넘긴 요청은 예산 상태와 무관하게 `429 RATE_LIMITED`다(미들웨어가 먼저). 예산 초과 중 버튼을 연타하면 `LLM_BUDGET_EXCEEDED`가 이어지다가 `RATE_LIMITED`로 바뀐다 — 두 429는 코드로 구분한다(§3.4) |
 | 읽기 | 세지 않는다(E2·E3·E7) |
 | 초과 응답 | `429 RATE_LIMITED`, 본문 `error.retryAfterSec`(정수 ≥ 1) + 헤더 `Retry-After`(같은 값). 핸들러·서비스는 실행되지 않는다 |
 | `retryAfterSec` | `max(1, ceil((windowStart + 60000 − nowMs) / 1000))`. 예: 창 시작 후 20초 → `40` |
@@ -1214,6 +1264,7 @@ export const normalizeText = (s: string): string => s.trim()
 - 저쪽 재적용이 필요한 변경: 토큰 payload 필드·서명 방식·`?t=` 파라미터 이름·임베드 주소. 이런 변경은 파괴 변경이며 §9에 "저쪽 재적용 필요"로 남긴다.
 - S1 변경은 handoff에 영향이 없다.
 - (v0.3) 토큰 형식·payload·`?t=` 이름이 §2.3·§2.5에서 확정됐다. `token-snippet.php.md`는 그 절을 그대로 따른다(§2.6). 아직 저쪽에 전달한 것이 없으므로 재적용 대상도 없다.
+- (v0.4.1, S3b — R-LLM-007) S5에서 handoff에 **AI 비용 상한 안내** 한 단락을 넣는다(위치는 `embed-guide.md` 운영 메모 절 예정, S5에서 확정). 원문은 llm.md 「contract 인계」 S3b 절의 handoff 메모다. 요지: ① 한도는 토큰 수 × 공개 단가 × 환율로 낸 **추정**이며 실제 청구와 다를 수 있다(단가 변경·환율·캐시 할인·무료 등급·부가세 미반영). ② 키를 발급한 Google 계정의 Cloud Billing에서 **월 10만원 예산 알림**을 따로 설정하기를 권고한다. 예산 알림은 메일만 보내고 사용을 막지 않는다. ③ 한도·단가·환율은 `wrangler.toml [vars]`의 `LLM_MONTHLY_BUDGET_KRW`·`LLM_PRICE_INPUT_USD_PER_M`·`LLM_PRICE_OUTPUT_USD_PER_M`·`KRW_PER_USD`를 고쳐 재배포하면 바뀐다(비밀값 아님). ④ 현황은 `wrangler tail`의 `llm_usage` 로그와 D1 `llm_usage` 테이블 조회로 본다. 토큰·`?t=`·임베드 주소가 그대로라 저쪽 재적용은 없다.
 
 ---
 
@@ -1228,6 +1279,8 @@ export const normalizeText = (s: string): string => s.trim()
 | v0.3.1 | 2026-10-05 | ui-designer 요청(메인 세션 승인). `shared/src/limits.ts` 신규: `ROOM_TITLE_MAX`·`MESSAGE_TEXT_MAX`·`MEMORY_SUMMARY_MAX`·`countCodePoints`·`normalizeText`(§5.7). 서버 서비스와 화면이 같은 길이 규칙을 import. §12.1 행, §13.1 행, API-T-046, S2-R4 | 추가(새 파일, 기존 export 변경 없음) | 아니오 |
 | v0.3.1 구현 | 2026-10-05 | S2 구현 완료(routes 쓰기 6종 · ui/api 쓰기 래퍼 6종 · `configureClient` · `isAuthFailure` · `retryAfterSec`). 테스트 API-T-050~066 · API-T-UI-011~018. 계약 내용 변경 없음 | 변경 없음 | 아니오 |
 | v0.4 | 2026-10-06 | S3 상세 확정. §4.12 생성 공통(70초 상한·화면 타임아웃 없음/두면 75초 이상·잠금·레이트리밋 카운트), §4.13 E9 speak, §4.14 E12 regenerate, §3.2 S3 5코드 문구 확정(v0.1 문구 유지), `SpeakBody`·`PATHS.roomSpeak/messageRegenerate`·`endpoints` 빌더 2개, routes `speakBody`·`messages.ts` 핸들러 2개, ui/api `speak`·`regenerate`, §12.2·§13.2·§14.9~§14.11·§15.8~§15.10, 「ui 인계 메모」 | 추가(기존 엔드포인트·타입·필드·에러 코드 변경 없음) | 아니오 |
+| v0.4.1 | 2026-10-06 | S3b 상세 확정(R-LLM-007 🔒 · R-API-002 개정 13→14종). §3.2 14종째 `LLM_BUDGET_EXCEEDED`(429, 요구 원문 문구, E9·E12만), §3.1·§3.4 `retryAfterSec` 대상 429 두 코드·429 두 종류 구분(ui/api는 `RATE_LIMITED`에만 싣는 현 동작 유지), §3.5, §4.12 월 비용 상한 행·공통 에러, §4.13 판정 4b·§4.14 판정 5b, §5.2 주석·§5.3 errors.ts 3곳, §6.1 S3b 카운트, §8 handoff 메모 예정, §11.11·§12.3·§13.3·§14.12·§14.13·§15.11, 「ui 인계 메모」 S3b, 「contract-implementer 인계 목록」. 엔드포인트·타입·경로 추가 없음 | 추가(에러 코드 1개 추가 = 비파괴. 옛 화면 번들은 §3.4대로 `INTERNAL`로 정규화) | 아니오 |
+| v0.4.1 구현 | 2026-10-06 | S3b 구현 완료. shared `errors.ts` 14종, routes·ui/api 소스 변경 없음(재사용), 테스트 API-T-040(갱신)·048·085~090·API-T-UI-022·023, `expectContractError` 두 벌 코드별 `retryAfterSec`(40 / 1356400). 계약 내용 변경 없음 | 변경 없음 | 아니오 |
 
 ---
 
@@ -1288,6 +1341,10 @@ export const normalizeText = (s: string): string => s.trim()
 | R-CHAT-005 🔒 | 캐릭터 버튼이 쓰는 `speak`, 「재시도」는 같은 호출, 소요 최대 70초 | §4.13 · §11.9 · 「ui 인계 메모」 | 신규 | 추가 | API-T-UI-019 · 020, 화면 TC | 계약 확정(S3) |
 | R-CHAT-007 🔒 (재작성) | 메뉴 재작성이 쓰는 `regenerate`, 표시 조건(캐릭터·마지막)과 `409 NOT_LAST_MESSAGE`의 관계 | §4.14 · 「ui 인계 메모」 | 신규 | 추가 | API-T-UI-019, 화면 TC | 계약 확정(S3) |
 | R-CHAT-011 (S3) | `SPEAK_IN_PROGRESS`(생성 중)·`LLM_FAILED`·`LLM_EMPTY`(재시도)·`CONFIG_INVALID`(관리자) 안내의 근거 코드. 생성 실패 코드는 읽기 전용 전환 대상 아님 | §2.4 · §4.12 · 「ui 인계 메모」 | 확장 | 추가 | API-T-UI-020, 화면 TC | 계약 확정(S3) |
+| R-API-002 🔒 (S3b 개정, 14종) | 14종째 `LLM_BUDGET_EXCEEDED` 429·요구 원문 문구, `retryAfterSec`가 붙는 코드는 429 두 개 | §3.1 · §3.2 · §3.4 · §5.2 · §5.3 | 확장 | 추가 | API-T-040(갱신) · 048 · 085, API-T-UI-022 · 023 | 확정(S3b) |
+| R-LLM-007 🔒 | E9·E12만 키 확인 다음·잠금·제공사 호출 전 `429 LLM_BUDGET_EXCEEDED`, `retryAfterSec` = 다음 달 1일 00:00 KST까지, 다른 엔드포인트 영향 없음, 조회 엔드포인트·health 노출 없음, handoff 추정 안내 | §3.2 · §4.12 · §4.13 · §4.14 · §8 | 확장 | 추가 | API-T-085 ~ 088 · 090, server SRV-T-210~233 | 확정(S3b) |
+| R-NFR-003 🔒 (S3b 몫) | 예산 거절도 레이트리밋 1회, 분 한도 초과가 먼저 | §6.1 | 확장 | 추가 | API-T-089 | 확정(S3b) |
+| R-CHAT-011 (S3b) | `LLM_BUDGET_EXCEEDED` 안내의 근거 코드, `RATE_LIMITED`와 코드로 구분, 카운트다운·자동 재시도 없음, 읽기 전용 전환 대상 아님 | §2.4 · §3.4 · 「ui 인계 메모」 | 확장 | 추가 | API-T-UI-022 · 023, 화면 TC | 계약 확정(S3b) |
 
 ---
 
@@ -1983,6 +2040,27 @@ export { appendUser, deleteMessage, editMessage, listMessages, regenerate, speak
 5. ui-implementer: 캐릭터 버튼·임시 말풍선·재작성 메뉴·S3 오류 문구(ui 설계 몫).
 6. 증거: `npx vitest run --project shared` · `--project server` · `--project ui` 결과와 세 워크스페이스 `tsc --noEmit` exit 0.
 
+### 11.11 S3b 구현 부록 (v0.4.1 — 엔드포인트·래퍼 추가 없음)
+
+| 파일 | 소유 | 변경 |
+|---|---|---|
+| `shared/src/errors.ts` | contract | `ERROR_CODES`에 `'LLM_BUDGET_EXCEEDED'`(`'LLM_EMPTY'` 다음) · `ERROR_STATUS.LLM_BUDGET_EXCEEDED = 429` · `ERROR_MESSAGES.LLM_BUDGET_EXCEEDED` = 요구 원문(§5.3). 3곳 |
+| `shared/src/types.ts` | contract | `ApiErrorBody.error.retryAfterSec?` 문서주석만(§5.2). 타입 변경 없음 |
+| `server/src/routes/*` | contract | **변경 없음.** 라우트는 판정 순서를 모른다. 미들웨어 순서(`requireToken → rateLimitWrites → validate`)가 §6.1 S3b 카운트를 이미 만족한다 |
+| `server/src/app.ts` · `app-error.ts` | server | 주석만 두 코드로 넓힘(index.md §2.4 S3b). `errorResponse`는 코드 종류를 보지 않으므로 코드 변경 없음 — contract는 재사용만 한다 |
+| `ui/src/api/client.ts` | contract | **코드 변경 없음.** `isErrorCode`가 shared를 따라 14종을 받고, `toRetryAfter`는 `RATE_LIMITED`에만 싣는다(§3.4 429 구분). `ApiError.retryAfterSec?` 주석 "RATE_LIMITED 에만"은 그대로 맞다 |
+| `ui/src/api/{messages,index}.ts` | contract | 변경 없음. `speak`·`regenerate` 시그니처·`Result<Message>` 그대로 |
+
+구현 순서:
+
+1. contract-implementer: `shared/src/errors.ts` 3곳 + `types.ts` 주석 + shared 테스트(API-T-040 갱신 · 048). server `AppError`가 `ErrorCode`로 이 코드를 받으려면 이것이 먼저다(llm.md §12.10).
+2. server-implementer: S3b(llm `usage.ts`·`ensureBudget`, db `llm_usage`·`0002_llm_usage.sql`·`helpers.ts insertUsage`, env 4키, messages 게이트 2줄, app 주석).
+3. contract-implementer: `server/test/routes-generate.test.ts` API-T-085~090 + `expectContractError` 두 벌(`routes-write.test.ts`·`routes-generate.test.ts`) 갱신(§14.12). 2 뒤.
+4. contract-implementer: `ui/src/api/api.test.ts` API-T-UI-022·023(§14.13). 1 뒤면 2·3과 무관.
+5. ui-implementer: `labels.ts` 문구 · 실패 말풍선 처리(ui 설계 몫).
+6. 증거: `npx vitest run --project shared` · `--project server` · `--project ui` 결과와 세 워크스페이스 `tsc --noEmit` exit 0.
+
+
 ---
 
 ## 12. 4자 대조표 (S1)
@@ -2035,13 +2113,16 @@ export { appendUser, deleteMessage, editMessage, listMessages, regenerate, speak
 | 토큰·레이트리밋 | §4.12 · §6.1 | — | `requireToken` · `rateLimitWrites` 2개 추가(라우트 단위 총 8개) | `auth: true` | 구현 일치. API-T-050~053(8개) · 077 |
 | 캐릭터 값 두 개 | §5.2 · §5.6 | `CharacterId` | `routes/schemas.ts` `CHARACTER_IDS` `satisfies readonly CharacterId[]` · `speakBody` | `SpeakBody` | 구현 일치. API-T-072 |
 
----|---|---|---|---|---|
-| `POST /api/rooms/:id/speak` `{ character }` → `201 Message` | §4.13 | (예정) `PATHS.roomSpeak` · `endpoints.roomSpeak(roomId)` · `SpeakBody` · 기존 `CharacterId` · `Message` | (예정) `messages.ts` `.post(PATHS.roomSpeak)` · `roomIdParam` · `speakBody` → `const body: SpeakBody` | (예정) `speak(roomId, body: SpeakBody)` → `Result<Message>` | 설계 일치(구현 전) |
-| `POST /api/messages/:id/regenerate` 본문 없음 → `200 Message` | §4.14 | (예정) `PATHS.messageRegenerate` · `endpoints.messageRegenerate(messageId: number)` | (예정) `messages.ts` `.post(PATHS.messageRegenerate)` · `messageIdParam` · json 검증 없음 | (예정) `regenerate(messageId: number)` 본문 없음 | 설계 일치(구현 전) |
-| 생성 에러 5코드 + `CONFIG_INVALID` | §3.2 · §4.12 | `ERROR_CODES` 변경 없음(이미 있음) | 서비스 throw → server `onError` | `toApiError` 변경 없음 | 설계 일치(기존 코드) |
-| 시간 상한 70초 · 화면 타임아웃 없음 | §4.12 | — | 없음(서비스·llm 예산) | `request` 타임아웃 없음 | 설계 일치 |
-| 토큰·레이트리밋 | §4.12 · §6.1 | — | (예정) `requireToken` · `rateLimitWrites` 2개 추가(라우트 단위 총 8개) | `auth: true` | 설계 일치(구현 전) |
-| 캐릭터 값 두 개 | §5.2 · §5.6 | `CharacterId` | (예정) `CHARACTER_IDS` `satisfies readonly CharacterId[]` | `SpeakBody` | 설계 일치(구현 전) |
+### 12.3 4자 대조표 (S3b — 구현 완료 2026-10-06, contract-implementer 실물 기준)
+
+| 계약 항목 | api.md | shared | routes | ui/api | 판정 |
+|---|---|---|---|---|---|
+| `LLM_BUDGET_EXCEEDED` 429 · 요구 원문 문구 | §3.2 | `shared/src/errors.ts` `ERROR_CODES`(17) · `ERROR_STATUS`(39) · `ERROR_MESSAGES`(57) | 변경 없음(서비스 throw → server `onError`). 테스트 `routes-generate.test.ts` API-T-085 | `client.ts` `isErrorCode`·`toApiError` 자동 수용. 테스트 `api.test.ts` API-T-UI-022 | ✅ |
+| 본문 `retryAfterSec` + `Retry-After` | §3.1 · §4.12 | `ApiErrorBody.error.retryAfterSec?`(`types.ts`) | 변경 없음. `expectContractError` 두 벌이 코드별 값(40 / 1356400)과 헤더 검증 | `toRetryAfter`(`client.ts` 75)가 `RATE_LIMITED`에만 싣는다. API-T-UI-022가 버림을 검증 | ✅ |
+| 판정 순서 4b(E9) · 5b(E12) | §4.13 · §4.14 | — | 변경 없음. API-T-086(speak 순서) · API-T-087(regenerate 순서·원문 유지) | — | ✅ |
+| 예산 거절도 레이트리밋 1회 · 분 한도 우선 | §6.1 | — | 기존 미들웨어 순서. API-T-089 | API-T-UI-023(두 429를 `code`로 구분) | ✅ |
+| 다른 엔드포인트·health 영향 없음 | §4.12 | — | 변경 없음. API-T-088 | 변경 없음 | ✅ |
+| 이번 달(KST)만 집계 | §4.12 | — | API-T-090 · 임계 직전(99999.9) 허용은 API-T-085 후반 | — | ✅ |
 
 ---
 
@@ -2097,6 +2178,20 @@ S1은 처음 만드는 계약이라 **전부 「추가」**다. ui·갠홈 영�
 - **파괴 변경 0건.** 기존 엔드포인트(E1~E8·E10·E11)의 요청·응답·에러·레이트리밋 한도 값은 바뀌지 않았다. speak·regenerate가 같은 분당 한도를 나눠 쓰므로 한 사람이 쓸 수 있는 다른 쓰기 횟수는 그만큼 준다.
 - 저쪽 재적용 없음. 토큰·`?t=`·임베드 주소는 그대로다.
 - 이후 바뀔 수 있는 자리: 생성 진행 상태·스트리밍이 요구되면 새 엔드포인트가 필요하다(R-API-001 개정). `Message`에 "생성 중" 같은 필드를 넣지 않는다.
+
+### 13.3 S3b 변경 분류 (v0.4.1)
+
+| 변경 | 분류 | 영향 받는 곳 | 비고 |
+|---|---|---|---|
+| 에러 코드 `LLM_BUDGET_EXCEEDED` 추가 | 추가(비파괴) | 옛 화면 번들은 `INTERNAL`로 정규화(§3.1) | 같은 Worker 배포라 새로 고치면 해소 |
+| `retryAfterSec`가 붙는 코드 1개 확대(서버 본문) | 추가(선택 필드) | 없음 — ui/api는 이 코드의 값을 버린다 | |
+| E9·E12 새 실패 경로(429) | 추가 | 기존 응답 불변 | 예산 미만이면 동작이 S3와 같다 |
+| `shared/test/errors.test.ts` 13 → 14 | 테스트 갱신 | API-T-040 | |
+| `expectContractError` 3키 허용 코드 확대 | 테스트 갱신 | `server/test/routes-write.test.ts` · `routes-generate.test.ts` | 소비자 영향 없음 |
+
+- **파괴 변경 0건.** 엔드포인트·경로·요청·성공 응답·기존 13종의 status·문구·레이트리밋 한도 값은 바뀌지 않았다.
+- 저쪽 재적용 없음. 토큰·`?t=`·임베드 주소는 그대로다. handoff는 S5에 안내 단락만 더한다(§8).
+
 
 ---
 
@@ -2283,6 +2378,36 @@ grep -rnE "\.use\(|get\('principal'\)" server/src/routes
 | API-T-UI-020 | `generate_wrappers_pass_s3_codes_and_never_reject` | 409 `SPEAK_IN_PROGRESS` · 409 `NOT_LAST_MESSAGE` · 400 `NOT_CHARACTER_MESSAGE` · 502 `LLM_FAILED` · 502 `LLM_EMPTY` · 500 `CONFIG_INVALID` 본문 → 같은 `code`·`message`, `isAuthFailure` 6개 모두 false. `fetch` throw → `NETWORK`, 502 HTML → `INTERNAL`. 어느 경우도 reject 없음 | R-API-002 · R-CHAT-011 |
 | API-T-UI-021 | `generate_wrappers_set_no_timeout`(단위 + 리뷰 grep) | 두 래퍼의 `fetch` 두 번째 인자에 `signal` 키 없음. `grep -nE "AbortController\|AbortSignal\|setTimeout" ui/src/api --include=*.ts`(테스트 파일 제외) 0건 | R-NFR-001 |
 
+### 14.12 S3b routes — `server/test/routes-generate.test.ts` (API-T-085 ~ 090)
+
+준비:
+
+- §14.9 준비 그대로(`LLM_PROVIDER: 'fake'`, `NOW = 1_700_000_000_000`). `NOW`는 KST `2023-11-15 07:13:20`이라 월 키는 `'2023-11'`이고, `retryAfterSec`는 `2023-12-01 00:00 KST`(= `2023-11-30T15:00:00Z`)까지라 항상 **1356400**이다.
+- 예산 초과 상태는 server `helpers.ts`의 `insertUsage('2023-11', 100000)`(db.md §2.4 · 기본 예산 100000)로 만든다. 직전 허용은 `insertUsage('2023-11', 99999.9)`.
+- `expectContractError(res, code)` 갱신(두 벌 모두): `RATE_LIMITED`·`LLM_BUDGET_EXCEEDED`만 `error` 키가 정확히 `code`·`message`·`retryAfterSec`이고 `Retry-After` 헤더가 같은 값이다. 값 검사는 코드별(`RATE_LIMITED` → 40, `LLM_BUDGET_EXCEEDED` → 1356400). 나머지 코드는 그대로 두 키다.
+
+| 테스트ID | 이름 | 입력 | 기대 | 요구 |
+|---|---|---|---|---|
+| API-T-085 | `speak_returns_429_budget_exceeded_with_retry_after` | 초과 시드, speak `sebastian` / 직전 시드(99999.9), speak | `expectContractError(res, 'LLM_BUDGET_EXCEEDED')`, message = 요구 원문, `retryAfterSec === 1356400`, `Retry-After: 1356400`, CSP 있음, 본문에 누적액·예산 키 없음. 메시지 0건 추가, 방 `updatedAt` 불변, `speaking_until` NULL, `llm_usage` `calls` 불변(제공사 0회) / 201 | R-LLM-007 · R-API-002 |
+| API-T-086 | `speak_budget_gate_order` | 초과 시드에서 ① `'meirin'` ② `google`·키 없음 + 시드 방 ③ 없는 방 ④ `speaking_until = NOW + 1`인 방 | ① 400 `VALIDATION_ERROR` ② 500 `CONFIG_INVALID` ③ 429 `LLM_BUDGET_EXCEEDED`(404 아님) ④ 429 `LLM_BUDGET_EXCEEDED`(409 아님) | R-LLM-007 · R-MSG-007 |
+| API-T-087 | `regenerate_budget_gate_order_and_keeps_text` | 초과 시드에서 ① 없는 id ② 유저 메시지 ③ 마지막 캐릭터 메시지 ④ 마지막이 아닌 캐릭터 메시지 ⑤ `google`·키 없음 + 마지막 캐릭터 메시지 | ① 404 ② 400 `NOT_CHARACTER_MESSAGE` ③ 429 `LLM_BUDGET_EXCEEDED`, 원문·방 `updatedAt` 불변, `speaking_until` NULL ④ 429(409 `NOT_LAST_MESSAGE` 아님) ⑤ 500 `CONFIG_INVALID` | R-LLM-007 · R-MSG-006 |
+| API-T-088 | `budget_exceeded_only_on_generate_paths` | 초과 시드에서 `GET /api/health` · `GET /api/rooms` · `GET …/messages` · `POST /api/rooms` · `POST …/user` · `PATCH /api/messages/:id` · `DELETE /api/messages/:id` | 200 · 200 · 200 · 201 · 201 · 200 · 204. health 본문 키는 S1과 같다(사용량·예산 키 없음) | R-LLM-007 · R-API-001 |
+| API-T-089 | `budget_rejections_count_toward_rate_limit` | `RATE_LIMIT_PER_MIN: '2'`, 초과 시드. 같은 토큰으로 speak 3회 | 429 `LLM_BUDGET_EXCEEDED` · 429 `LLM_BUDGET_EXCEEDED` · 429 `RATE_LIMITED`(`retryAfterSec` 40). 같은 429를 `code`로 구분 | R-NFR-003 · R-AUTH-005 · R-LLM-007 |
+| API-T-090 | `budget_uses_current_kst_month_only` | 지난달 행만 `insertUsage('2023-10', 100000)` | speak 201 | R-LLM-007 |
+
+- 정상 경로 2건(085 후반 · 090)보다 에러 입력이 많다(086·087만 9건).
+- 월 경계 정각·윤년·12월 넘김은 server SRV-T-210·211·214가 맡는다(라우트에서 시계를 바꾸지 않는다).
+
+### 14.13 S3b shared · ui/api
+
+| 테스트ID | 파일 | 이름 | 기대 | 요구 |
+|---|---|---|---|---|
+| API-T-040(갱신) | `shared/test/errors.test.ts` | `error_table_matches_contract` | 기대 표에 `LLM_BUDGET_EXCEEDED: 429` 추가, `toHaveLength(14)`, 설명 "계약 14종" | R-API-002 |
+| API-T-048 | `shared/test/errors.test.ts` | `errors_include_budget_exceeded` | `ERROR_CODES.indexOf('LLM_BUDGET_EXCEEDED') === ERROR_CODES.indexOf('LLM_EMPTY') + 1`, `ERROR_STATUS` 429, `ERROR_MESSAGES` = 요구 원문, `isErrorCode('LLM_BUDGET_EXCEEDED') === true` | R-API-002 · R-LLM-007 |
+| API-T-UI-022 | `ui/src/api/api.test.ts` | `budget_exceeded_passes_code_and_drops_retryAfterSec` | `speak`·`regenerate`에 429 `{ error: { code: 'LLM_BUDGET_EXCEEDED', message, retryAfterSec: 1356400 } }` → `ok: false`, 같은 `code`·`message`, `'retryAfterSec' in error === false`, `isAuthFailure` false, reject 없음. `message`가 빈 문자열이면 `ERROR_MESSAGES.LLM_BUDGET_EXCEEDED` | R-API-002 · R-CHAT-011 · R-LLM-007 |
+| API-T-UI-023 | `ui/src/api/api.test.ts` | `two_429_codes_are_distinguished_by_code` | 같은 status 429에 `RATE_LIMITED`+`40` → `retryAfterSec === 40`, `LLM_BUDGET_EXCEEDED`+`40` → 키 없음. 두 `error.code`가 다르다 | R-CHAT-011 · R-AUTH-005 |
+
+
 ---
 
 ## 15. server 의존 · 변경 요청 · 확인 필요
@@ -2407,9 +2532,30 @@ grep -rnE "\.use\(|get\('principal'\)" server/src/routes
 
 사용자 확인이 남은 server 쪽 사항(계약 구조는 같다): R-MSG-006 "마지막" 판정을 잠금 시점 1회로 하는 것(생성 중 유저 발화가 붙어도 교체된다 — messages.md §4.3 확인 필요).
 
+### 15.11 S3b server 의존 · 어긋난 점 · 확인 필요 (v0.4.1)
+
+사용하는 server 함수·타입(모두 server S3b 설계에 있음, 구현 전 — routes는 직접 부르지 않는다):
+
+| 항목 | 시그니처·형태 | 근거 |
+|---|---|---|
+| 예산 게이트 | `Llm.ensureBudget(): Promise<void>` — messages `speak`·`regenerate`가 `deps.llm()` 다음 줄에서 부른다 | llm.md §12.2·§12.7, messages.md §4.2 |
+| 거절 에러 | `new AppError('LLM_BUDGET_EXCEEDED', undefined, { retryAfterSec })` | llm.md §12.10 |
+| 응답 변환 | 기존 `onError`/`errorResponse`(본문 `error.retryAfterSec` + `Retry-After`) | index.md §2.4 · §5.1 · SRV-T-233 |
+| 설정 | `[vars]` 4키 `LLM_MONTHLY_BUDGET_KRW`·`LLM_PRICE_INPUT_USD_PER_M`·`LLM_PRICE_OUTPUT_USD_PER_M`·`KRW_PER_USD`(비밀값 아님) | env.md §3.1 · llm.md §6 |
+| 테스트 시드 | `helpers.ts` `insertUsage(month, estKrw, calls = 1)` | db.md §6 파일 표 |
+
+server 설계 변경 요청: **없음.** 판정 순서·문구·`retryAfterSec` 계산이 계약과 같다. 표기 차이만 있다 — llm.md 「contract 인계」 S3b 절은 판정 순서를 에러 묶음 번호(speak 2b, regenerate 3b)로 적고, 이 문서는 §4.13·§4.14 판정 표 번호(4b·5b)로 적는다. 순서 자체는 같다.
+
+확인 필요(계약이 정한 것 — 되돌리려면 알려 달라, 지금은 막지 않음):
+
+1. **ui/api가 `LLM_BUDGET_EXCEEDED`의 `retryAfterSec`를 버린다**(§3.4). 화면에 "N월 1일에 풀립니다" 같은 해제 날짜를 보이려면 ui 요구로 올려야 한다.
+2. **「재시도」는 눌러도 같은 429이고 레이트리밋 1회를 쓴다**(사전 확정 2 · §6.1 S3b 행). 연타하면 `RATE_LIMITED`로 바뀐다.
+3. **handoff 안내 단락의 위치·수신자**는 S5에서 정한다. 비용 설정을 고치는 사람은 Cloudflare·Gemini 키 소유자(지인)이고 갠홈 운영자와 다를 수 있다.
+
+
 ---
 
-## 「ui 인계 메모」 (S3 — 화면이 계약에서 알아야 할 것만)
+## 「ui 인계 메모」 (S3 · S3b — 화면이 계약에서 알아야 할 것만)
 
 | 주제 | 계약 |
 |---|---|
@@ -2423,8 +2569,22 @@ grep -rnE "\.use\(|get\('principal'\)" server/src/routes
 | `CONFIG_INVALID` (500) | 서버에 AI 설정이 없다. 재시도해도 안 된다. **관리자 안내**를 띄운다(`ERROR_MESSAGES.CONFIG_INVALID`). 읽기·유저 발화는 계속 된다 |
 | `NOT_FOUND` (404) | speak: 방이 사라졌다(생성 중 삭제 포함). regenerate: 대상 메시지가 사라졌다 |
 | `RATE_LIMITED` (429) | S2와 같다(`retryAfterSec`). 실패한 생성도 1회로 센다 |
+| `LLM_BUDGET_EXCEEDED` (429, S3b) | 이번 달 AI 사용 한도(서버 전체 공용)에 닿았다. 저장된 것이 없다(regenerate는 원래 대사 유지). **실패 말풍선 + 한도 문구**를 띄운다(`labels.ts`가 `code`로, 폴백 `ERROR_MESSAGES.LLM_BUDGET_EXCEEDED`). 「재시도」는 남겨도 되지만 다음 달 1일 00:00 KST 전까지는 같은 429이고 누를 때마다 레이트리밋 1회를 쓴다. **카운트다운·자동 재시도를 만들지 않는다** — 래퍼는 이 코드에 `retryAfterSec`를 싣지 않는다(§3.4). `RATE_LIMITED`와 status가 같으므로 **`code`로 구분**한다. 읽기 전용 전환 대상이 아니다(`isAuthFailure` false). 읽기·유저 발화·수정·삭제는 계속 된다 |
 | 인증 3코드 (401·403) | S2와 같다. `isAuthFailure`면 읽기 전용으로 전환한다 |
 | `NETWORK` · `INTERNAL` | 연결이 끊겼거나 서버 오류다. **speak는 서버에서 저장됐을 수도 있다**(응답만 못 받은 경우). 「재시도」 전에 최신 페이지를 다시 읽으면 중복을 피할 수 있다(ui 판단) |
 | 표시 | 응답 `speaker`로 `CHARACTERS[speaker]`의 `shortName`·`avatar`를 그린다. `authorName`은 `null`이다 |
 | 문구 | 화면 문구는 `labels.ts`가 `code`로 정한다. 서버 `message`는 폴백이다(§3.1) |
 
+---
+
+## 「contract-implementer 인계 목록」 (S3b — v0.4.1)
+
+| 순서 | 파일 | 식별자 | 할 일 | 테스트 |
+|---|---|---|---|---|
+| 1 | `shared/src/errors.ts` | `ERROR_CODES` · `ERROR_STATUS` · `ERROR_MESSAGES` | `LLM_BUDGET_EXCEEDED`를 `LLM_EMPTY` 다음에 추가, 429, 요구 원문 문구(§5.3) | API-T-040(갱신) · 048 |
+| 1 | `shared/src/types.ts` | `ApiErrorBody.error.retryAfterSec?` | 문서주석만 두 코드로(§5.2). 타입 불변 | tsc |
+| 3 | `server/test/routes-write.test.ts` · `server/test/routes-generate.test.ts` | `expectContractError` | 3키 허용을 `RATE_LIMITED`·`LLM_BUDGET_EXCEEDED`로, 값은 코드별(40 / 1356400)(§14.12) | 기존 전부 회귀 |
+| 3 | `server/test/routes-generate.test.ts` | — | API-T-085 ~ 090 추가(server S3b 구현 뒤 — `insertUsage`·`llm_usage` 필요) | API-T-085 ~ 090 |
+| 4 | `ui/src/api/api.test.ts` | `toRetryAfter`(변경 없음) | API-T-UI-022 · 023 추가 | API-T-UI-022 · 023 |
+| — | `server/src/routes/*` · `ui/src/api/*.ts` | — | **소스 변경 없음.** 바꾸면 계약 위반 | 리뷰: `git diff --stat server/src/routes ui/src/api` 에 `*.test.ts` 외 0건 |
+| 끝 | `doc/200_설계/contract/api.md` | §12.3 | 구현 후 실물 기준으로 대조표를 다시 채우고 §9에 "v0.4.1 구현" 행 | — |

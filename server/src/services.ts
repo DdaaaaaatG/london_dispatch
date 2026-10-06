@@ -12,7 +12,7 @@ import { createAuthService, type AuthService, type Principal } from './auth'
 import type { Db } from './db'
 import { requireLlmApiKey, type Config, type Env } from './env'
 import type { Logger } from './logger'
-import { createLlm, createProvider } from './llm'
+import { createLlm, createProvider, createUsageMeter } from './llm'
 import { createMessagesService, type MessagesService } from './messages'
 import { createRoomsService, type RoomsService } from './rooms'
 
@@ -79,6 +79,18 @@ export const createServices = (deps: ServiceDeps): Services => ({
         timeoutMs: deps.config.llmTimeoutMs,
         logger: deps.logger,
         now: deps.now,
+        // S3b: 월 비용 상한. db.llmUsage 가 UsageStore 포트를 구조적으로 만족한다
+        meter: createUsageMeter({
+          store: deps.db.llmUsage,
+          config: {
+            monthlyBudgetKrw: deps.config.llmMonthlyBudgetKrw,
+            priceInputUsdPerM: deps.config.llmPriceInputUsdPerM,
+            priceOutputUsdPerM: deps.config.llmPriceOutputUsdPerM,
+            krwPerUsd: deps.config.krwPerUsd,
+          },
+          logger: deps.logger,
+          now: deps.now,
+        }),
       }),
   }),
   getHealth: () => ({ ok: true, version: APP_VERSION }),

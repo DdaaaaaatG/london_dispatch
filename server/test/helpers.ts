@@ -8,6 +8,7 @@ export const resetDb = async (): Promise<void> => {
     env.DB.prepare('DELETE FROM messages'),
     env.DB.prepare('DELETE FROM rooms'),
     env.DB.prepare('DELETE FROM rate_limits'),
+    env.DB.prepare('DELETE FROM llm_usage'),
   ])
 }
 
@@ -50,3 +51,20 @@ export const IDLE_GENERATE_DEPS = {
     throw new Error('llm must not be created')
   },
 }
+
+/** S3b: 월 사용량 행을 직접 시드한다(예산 상태 만들기). month 는 KST 'YYYY-MM' */
+export const insertUsage = async (month: string, estKrw: number, calls = 1): Promise<void> => {
+  await env.DB.prepare(
+    'INSERT INTO llm_usage (month, calls, prompt_tokens, output_tokens, est_krw, updated_at) VALUES (?1, ?2, 0, 0, ?3, 1)',
+  )
+    .bind(month, calls, estKrw)
+    .run()
+}
+
+/** S3b: 월 사용량 행(없으면 null) */
+export const usageRow = async (
+  month: string,
+): Promise<{ calls: number; est_krw: number; updated_at: number } | null> =>
+  env.DB.prepare('SELECT calls, est_krw, updated_at FROM llm_usage WHERE month = ?1')
+    .bind(month)
+    .first<{ calls: number; est_krw: number; updated_at: number }>()

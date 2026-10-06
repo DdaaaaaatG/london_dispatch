@@ -4,8 +4,9 @@
  * [비동기] 없음(동기 순수 함수). 요청마다 1회 호출, 요청 간 캐시 없음
  * [에러] ConfigError{ code: CONFIG_INVALID, keys } — 키 이름만 담고 값·zod 메시지·cause 는 싣지 않는다
  * [설정] TOKEN_SECRET, LLM_API_KEY, TOKEN_MIN_LEVEL, LLM_PROVIDER, LLM_MODEL, LLM_TIMEOUT_MS,
- *        ALLOWED_FRAME_ANCESTORS, RATE_LIMIT_PER_MIN, CONTEXT_MESSAGES, MEMORY_SUMMARY_THRESHOLD, DB, ASSETS
- * [테스트] server/test/env.test.ts (SRV-T-001~011)
+ *        ALLOWED_FRAME_ANCESTORS, RATE_LIMIT_PER_MIN, CONTEXT_MESSAGES, MEMORY_SUMMARY_THRESHOLD,
+ *        LLM_MONTHLY_BUDGET_KRW, LLM_PRICE_INPUT_USD_PER_M, LLM_PRICE_OUTPUT_USD_PER_M, KRW_PER_USD, DB, ASSETS
+ * [테스트] server/test/env.test.ts (SRV-T-001~011, 231·232)
  */
 import type { D1Database, Fetcher } from '@cloudflare/workers-types'
 import { z } from 'zod'
@@ -32,9 +33,17 @@ export type Config = {
   readonly rateLimitPerMin: number
   readonly contextMessages: number
   readonly memorySummaryThreshold: number
+  /** S3b. 원, 정수 1~10000000 */
+  readonly llmMonthlyBudgetKrw: number
+  /** S3b. 입력 토큰 100만 개당 USD, 소수 0~100 */
+  readonly llmPriceInputUsdPerM: number
+  /** S3b. 출력(+사고) 토큰 100만 개당 USD, 소수 0~100 */
+  readonly llmPriceOutputUsdPerM: number
+  /** S3b. 원/USD, 소수 100~10000 */
+  readonly krwPerUsd: number
 }
 
-/** 바인딩 키 이름 전체(설정 10 + 리소스 2) */
+/** 바인딩 키 이름 전체(설정 14 + 리소스 2) */
 export const ENV_KEYS: readonly string[] = [
   'TOKEN_SECRET',
   'LLM_API_KEY',
@@ -46,6 +55,10 @@ export const ENV_KEYS: readonly string[] = [
   'RATE_LIMIT_PER_MIN',
   'CONTEXT_MESSAGES',
   'MEMORY_SUMMARY_THRESHOLD',
+  'LLM_MONTHLY_BUDGET_KRW',
+  'LLM_PRICE_INPUT_USD_PER_M',
+  'LLM_PRICE_OUTPUT_USD_PER_M',
+  'KRW_PER_USD',
   'DB',
   'ASSETS',
 ]
@@ -78,6 +91,22 @@ const intVar = (min: number, max: number, dflt: number) =>
     z
       .union([z.number(), z.string().regex(/^\d+$/).transform(Number)])
       .pipe(z.number().int().min(min).max(max))
+      .default(dflt),
+  )
+
+/** S3b 소수 변환기: 유한 number 이거나 ^\d+(\.\d{1,6})?$ 문자열만 받는다 */
+const decimalVar = (min: number, max: number, dflt: number) =>
+  z.preprocess(
+    blankToUndefined,
+    z
+      .union([
+        z.number(),
+        z
+          .string()
+          .regex(/^\d+(\.\d{1,6})?$/)
+          .transform(Number),
+      ])
+      .pipe(z.number().finite().min(min).max(max))
       .default(dflt),
   )
 
@@ -115,6 +144,10 @@ const schema = z.object({
   RATE_LIMIT_PER_MIN: intVar(1, 600, 20),
   CONTEXT_MESSAGES: intVar(1, 100, 40),
   MEMORY_SUMMARY_THRESHOLD: intVar(2, 1000, 60),
+  LLM_MONTHLY_BUDGET_KRW: intVar(1, 10_000_000, 100_000),
+  LLM_PRICE_INPUT_USD_PER_M: decimalVar(0, 100, 0.3),
+  LLM_PRICE_OUTPUT_USD_PER_M: decimalVar(0, 100, 2.5),
+  KRW_PER_USD: decimalVar(100, 10_000, 1400),
   DB: resource('prepare'),
   ASSETS: resource('fetch'),
 })
@@ -141,6 +174,10 @@ export const parseEnv = (raw: unknown): Config => {
     rateLimitPerMin: v.RATE_LIMIT_PER_MIN,
     contextMessages: v.CONTEXT_MESSAGES,
     memorySummaryThreshold: v.MEMORY_SUMMARY_THRESHOLD,
+    llmMonthlyBudgetKrw: v.LLM_MONTHLY_BUDGET_KRW,
+    llmPriceInputUsdPerM: v.LLM_PRICE_INPUT_USD_PER_M,
+    llmPriceOutputUsdPerM: v.LLM_PRICE_OUTPUT_USD_PER_M,
+    krwPerUsd: v.KRW_PER_USD,
   }
 }
 

@@ -4,10 +4,11 @@
  * [비동기] fetch 1회 + 응답 본문 읽기. AbortSignal.timeout(input.timeoutMs)가 본문 읽기까지 덮는다
  * [에러] LlmError{ network | timeout | http_5xx | http_429 | http_4xx | bad_response | blocked } — 제공사 오류 문장은 담지 않는다
  * [설정] apiKey(Secrets, 값으로 전달)·model(LLM_MODEL). URL·본문·로그에 키 없음
- * [테스트] server/test/llm-gemini.test.ts (SRV-T-174~179)
+ * [테스트] server/test/llm-gemini.test.ts (SRV-T-174~179, 218·219 — 200 응답 usageMetadata → usage, 차단·형식 불일치 에러에도 usage 부착)
  */
 import { z } from 'zod'
 import { LlmError, type GenerateInput, type GenerateOutput, type LlmProvider } from './provider'
+import type { LlmUsage } from './usage'
 
 export const GEMINI_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta'
 
@@ -31,6 +32,13 @@ const responseSchema = z.object({
     )
     .optional(),
   promptFeedback: z.object({ blockReason: z.string().optional() }).optional(),
+})
+const count = z.number().int().nonnegative().optional().catch(undefined)
+const usageSchema = z.object({
+  usageMetadata: z
+    .object({ promptTokenCount: count, candidatesTokenCount: count, thoughtsTokenCount: count })
+    .optional()
+    .catch(undefined),
 })
 const errorBodySchema = z.object({ error: z.object({ status: z.string().optional() }).optional() })
 
@@ -77,24 +85,38 @@ const classifyHttp = async (res: Response): Promise<LlmError> => {
   return new LlmError('http_4xx', opts)
 }
 
-/** 200 응답을 { text } 로 바꾼다. 차단·후보 없음은 blocked */
-const extractText = (data: z.infer<typeof responseSchema>): GenerateOutput => {
+/** 200 본문 JSON 에서 사용량을 꺼낸다. 객체·필드가 없거나 형식이 틀리면 그 값은 0 (S3b) */
+const readUsage = (json: unknown): LlmUsage => {
+  const parsed = usageSchema.safeParse(json)
+  const meta = parsed.success ? parsed.data.usageMetadata : undefined
+  return {
+    promptTokens: meta?.promptTokenCount ?? 0,
+    outputTokens: meta?.candidatesTokenCount ?? 0,
+    thoughtsTokens: meta?.thoughtsTokenCount ?? 0,
+  }
+}
+
+/** 200 응답을 { text, usage } 로 바꾼다. 차단·후보 없음은 blocked(usage 를 싣는다) */
+const extractText = (data: z.infer<typeof responseSchema>, usage: LlmUsage): GenerateOutput => {
   const blockReason = data.promptFeedback?.blockReason
   if (blockReason !== undefined) {
     const finishReason = enumOnly(blockReason)
-    throw new LlmError('blocked', finishReason !== undefined ? { finishReason } : undefined)
+    throw new LlmError('blocked', {
+      ...(finishReason !== undefined ? { finishReason } : {}),
+      usage,
+    })
   }
   const first = data.candidates?.[0]
-  if (first === undefined) throw new LlmError('blocked')
+  if (first === undefined) throw new LlmError('blocked', { usage })
   const text = (first.content?.parts ?? [])
     .filter(p => p.thought !== true && typeof p.text === 'string')
     .map(p => p.text)
     .join('')
-  if (text !== '') return { text }
+  if (text !== '') return { text, usage }
   const finish = first.finishReason
-  if (finish === undefined || NON_BLOCK_FINISH.has(finish)) return { text: '' }
+  if (finish === undefined || NON_BLOCK_FINISH.has(finish)) return { text: '', usage }
   const finishReason = enumOnly(finish)
-  throw new LlmError('blocked', finishReason !== undefined ? { finishReason } : undefined)
+  throw new LlmError('blocked', { ...(finishReason !== undefined ? { finishReason } : {}), usage })
 }
 
 const readSuccess = async (res: Response): Promise<GenerateOutput> => {
@@ -107,8 +129,9 @@ const readSuccess = async (res: Response): Promise<GenerateOutput> => {
       : new LlmError('bad_response', { cause: e })
   }
   const parsed = responseSchema.safeParse(json)
-  if (!parsed.success) throw new LlmError('bad_response')
-  return extractText(parsed.data)
+  const usage = readUsage(json)
+  if (!parsed.success) throw new LlmError('bad_response', { usage })
+  return extractText(parsed.data, usage)
 }
 
 export class GeminiProvider implements LlmProvider {

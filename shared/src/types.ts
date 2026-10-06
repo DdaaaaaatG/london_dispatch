@@ -89,7 +89,7 @@ export type ApiErrorBody = {
   error: {
     code: ErrorCode
     message: string
-    /** RATE_LIMITED 에만 붙는다. 다음 분 창까지 남은 초(정수 ≥ 1). 같은 값이 Retry-After 헤더에도 실린다 (R-AUTH-005, S2) */
+    /** 429 두 코드에만 붙는다. RATE_LIMITED = 다음 분 창까지, LLM_BUDGET_EXCEEDED = 다음 달 1일 00:00 KST까지 남은 초(정수 ≥ 1). 같은 값이 Retry-After 헤더에도 실린다 (R-AUTH-005 · R-LLM-007) */
     retryAfterSec?: number
   }
 }

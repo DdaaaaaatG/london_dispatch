@@ -3,13 +3,14 @@
  * [공개 API] createLlm(deps), withRetry, planRetryTimeout, LLM_BUDGET_MS, RETRY_BACKOFF_MS, MIN_RETRY_TIMEOUT_MS, 타입 Llm·LlmDeps·RetryClock
  * [비동기] 1차 → (network·timeout·5xx 면) 1초 대기 → 2차. LLM 단계 총 소요 ≤ LLM_BUDGET_MS(66초). 시계 now·sleep 주입 가능
  * [에러] AppError LLM_FAILED(502: network·timeout·5xx 재시도 후, 429·4xx·bad_response 즉시, 예산 부족) / LLM_EMPTY(502: blocked)
- * [설정] timeoutMs(config.llmTimeoutMs, 1000~60000)·logger·now — 컨테이너가 값으로 전달. 로그에는 상태 코드·분류·길이·ms 만(R-NFR-004)
- * [테스트] server/test/llm-client.test.ts (SRV-T-180~184)
+ * [설정] timeoutMs(config.llmTimeoutMs, 1000~60000)·logger·now·meter(S3b, UsageMeter — 시도마다 usage 누적·ensureBudget 위임) — 컨테이너가 값으로 전달. 로그에는 상태 코드·분류·길이·ms 만(R-NFR-004)
+ * [테스트] server/test/llm-client.test.ts (SRV-T-180~184, 221·222)
  */
 import { AppError } from '../app-error'
 import type { Logger } from '../logger'
 import { countCodePoints } from '@shared/limits'
 import { LlmError, type GenerateOutput, type LlmProvider, type Prompt } from './provider'
+import type { UsageMeter } from './usage'
 
 /** R-NFR-001: speak 전체 70초. LLM 단계 예산은 D1 왕복 여유 4초를 뺀 값 */
 export const LLM_BUDGET_MS = 66_000
@@ -73,6 +74,8 @@ export const withRetry = async (
 export type Llm = {
   /** 제공사 응답 원문 text(후처리 전). 실패 → AppError LLM_FAILED / LLM_EMPTY */
   complete: (prompt: Prompt) => Promise<string>
+  /** S3b. meter 가 있으면 meter.ensureBudget(), 없으면 즉시 resolve. 초과면 AppError LLM_BUDGET_EXCEEDED */
+  ensureBudget: () => Promise<void>
 }
 
 export type LlmDeps = {
@@ -83,6 +86,8 @@ export type LlmDeps = {
   now: () => number
   /** 기본 setTimeout 기반. 테스트는 가짜 시계와 함께 주입 */
   sleep?: (ms: number) => Promise<void>
+  /** S3b. 없으면 누적·게이트 없음(기존 테스트 하위 호환). 컨테이너는 항상 넣는다 */
+  meter?: UsageMeter
 }
 
 const defaultSleep = (ms: number): Promise<void> => new Promise(resolve => setTimeout(resolve, ms))
@@ -93,8 +98,24 @@ const toAppError = (err: LlmError): AppError =>
 
 /** Llm 을 만든다. 요청마다 새로 만든다(상태는 호출 안의 지역 변수뿐) */
 export const createLlm = (deps: LlmDeps): Llm => {
-  const { provider, timeoutMs, logger, now } = deps
+  const { provider, timeoutMs, logger, now, meter } = deps
   const clock: RetryClock = { now, sleep: deps.sleep ?? defaultSleep }
+
+  /** 시도 1회 + 사용량 누적(성공·차단·형식 불일치 응답 모두). 누적 실패는 meter 가 삼킨다 */
+  const attemptOnce = async (prompt: Prompt, t: number): Promise<GenerateOutput> => {
+    try {
+      const out = await provider.generate({
+        system: prompt.system,
+        turns: prompt.turns,
+        timeoutMs: t,
+      })
+      if (out.usage !== undefined) await meter?.record(out.usage)
+      return out
+    } catch (e) {
+      if (e instanceof LlmError && e.usage !== undefined) await meter?.record(e.usage)
+      throw e
+    }
+  }
 
   const complete = async (prompt: Prompt): Promise<string> => {
     const start = now()
@@ -104,7 +125,7 @@ export const createLlm = (deps: LlmDeps): Llm => {
       const out = await withRetry(
         (t, attemptNo) => {
           attempts = attemptNo
-          return provider.generate({ system: prompt.system, turns: prompt.turns, timeoutMs: t })
+          return attemptOnce(prompt, t)
         },
         timeoutMs,
         clock,
@@ -145,5 +166,8 @@ export const createLlm = (deps: LlmDeps): Llm => {
       throw appError
     }
   }
-  return { complete }
+  const ensureBudget = async (): Promise<void> => {
+    await meter?.ensureBudget()
+  }
+  return { complete, ensureBudget }
 }

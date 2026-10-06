@@ -1,6 +1,6 @@
 # index(Workers 진입점·공통 기반) 설계
 
-- 상태: S1 확정(구현 동기화) · S2 초안 · S3 초안(§2.3 컨테이너 델타) · 최종 갱신: 2026-10-06
+- 상태: S1 확정(구현 동기화) · S2 초안 · S3 초안(§2.3 컨테이너 델타) · S3b 초안(§2.3 meter 배선·§2.4·§5·§6.1 델타) · 최종 갱신: 2026-10-06
 - 묶음: S1 = `fetch` 진입·Hono 앱 조립·부트스트랩·보안 헤더·공통 에러 핸들러·로거·`/embed` 서빙·health 서비스·`wrangler.toml`. S2 = 서비스 컨테이너에 `auth`·`config` 주입, `AppEnv.Variables.principal`, 인증 미들웨어의 **라우트 단위** 적용 원칙, `RATE_LIMITED`의 `retryAfterSec` 응답 변환. `scheduled` 진입은 S2에서 **추가하지 않는다**(레이트리밋 정리는 요청 경로에서 — [auth.md](auth.md) D-AUTH-7). S4(요약)에서 필요하면 추가한다.
 - 라우트(`server/src/routes/`)는 contract 소유다. 이 문서는 **라우트를 정의하지 않고**, 라우트가 쓸 타입·서비스·규약만 정한다.
 - 관련 문서: [env.md](env.md), [db.md](db.md), [auth.md](auth.md), [rooms.md](rooms.md), [messages.md](messages.md).
@@ -146,6 +146,35 @@ messages: createMessagesService({ db, now, logger, contextMessages: config.conte
 - 읽기 경로(`/embed`·health·목록·히스토리)는 `llm()`을 부르지 않으므로 `LLM_API_KEY`가 없어도 동작한다(D-LLM-11).
 - 파급: `server/src/services.ts`의 `createServices`, `ServiceDeps` 변경 없음.
 
+`createServices` 배선 델타(S3b — [llm.md](llm.md) §12.2·§12.7, [db.md](db.md) §2.4):
+
+```ts
+import { createUsageMeter } from './llm'   // S3b
+
+const llm = (): Llm =>
+  createLlm({
+    provider: createProvider({ /* S3 그대로 */ }),
+    timeoutMs: config.llmTimeoutMs,
+    logger,
+    now,
+    meter: createUsageMeter({
+      store: db.llmUsage,                    // db LlmUsageRepo — llm UsageStore 포트를 구조적으로 만족
+      config: {
+        monthlyBudgetKrw: config.llmMonthlyBudgetKrw,
+        priceInputUsdPerM: config.llmPriceInputUsdPerM,
+        priceOutputUsdPerM: config.llmPriceOutputUsdPerM,
+        krwPerUsd: config.krwPerUsd,
+      },
+      logger,
+      now,
+    }),
+  })
+```
+
+- meter는 thunk 안에서 만든다. 읽기 경로는 만들지 않는다(D-LLM-11과 같은 이유, D-IDX-12).
+- `Services`·`AppEnv`·`ServiceDeps` 변경 없음. `getHealth`는 사용량·예산을 노출하지 않는다(R-LLM-007 "관리 화면 없음").
+- `scheduled` 진입은 추가하지 않는다. 월 해제는 월 키 전환이라 할 작업이 없다.
+
 ### 2.4 에러 기반 (`server/src/app-error.ts`)
 
 ```ts
@@ -180,6 +209,7 @@ export const toErrorBody = (
 
 - S1 문서의 `AppError(code, status, message)`는 구현에서 `AppError(code, message?, options?)`로 바뀌었다(status는 코드 1:1 표 `ERROR_STATUS`에서). 이 문서가 구현을 따른다.
 - `retryAfterSec`은 추가 필드라 기존 호출자(전부 `new AppError(code)` 또는 `(code, message)`)에 영향이 없다.
+- (S3b) `retryAfterSec` 주석의 적용 코드를 `RATE_LIMITED`·`LLM_BUDGET_EXCEEDED` 둘로 넓힌다(`app-error.ts` 문서주석·필드 주석). onError 변환은 코드 종류를 보지 않으므로 코드 변경 없음(SRV-T-233).
 
 ### 2.5 로거 (`server/src/logger.ts`)
 
@@ -319,6 +349,7 @@ Cloudflare 엣지 ─▶ fetch(request, env, ctx)
 | `ConfigError` | 500 | `CONFIG_INVALID` | `서버 설정이 올바르지 않습니다. 관리자에게 알려 주세요.` | `error` `config_invalid` `{ keys }`(키 이름만) |
 | 기타 `AppError` | `err.status` | `err.code` | `err.message` | status ≥ 500이면 `error` `app_error` `{ code }`, 4xx는 요청 로그로 충분 |
 | `AppError` + `retryAfterSec`(S2, `RATE_LIMITED`) | 429 | `RATE_LIMITED` | `err.message`. 본문 `error.retryAfterSec = err.retryAfterSec`, 응답 헤더 `Retry-After: <같은 값>` | 위와 같음(로그는 auth 서비스가 `rate_limited`로 남김) |
+| `AppError` + `retryAfterSec`(S3b, `LLM_BUDGET_EXCEEDED`) | 429 | `LLM_BUDGET_EXCEEDED` | `err.message`(기본 문구). 본문 `error.retryAfterSec`·헤더 `Retry-After` 규칙은 위 행과 같다 | 원인 로그는 llm `llm_budget_exceeded`([llm.md](llm.md) §6.1) |
 | Hono `HTTPException` status 400(본문 JSON 파싱 실패 등) | 400 | `VALIDATION_ERROR` | `요청 형식이 올바르지 않습니다.` | — |
 | 그 밖의 모든 에러(`HTTPException` 기타 포함) | 500 | `INTERNAL` | `서버 내부 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.` | `error` `unhandled_error` `{ errName, errMessage(300자) }` |
 | 매칭 없는 경로(`notFound`) | 404 | `NOT_FOUND` | `요청한 주소를 찾을 수 없습니다.` | — |
@@ -326,7 +357,7 @@ Cloudflare 엣지 ─▶ fetch(request, env, ctx)
 - 응답 본문은 항상 `toErrorBody(code, message)` = `{ error: { code, message } }`. 스택·SQL·경로·키 이름은 응답에 넣지 않는다.
 - 핸들러마다 try/catch로 응답을 만들지 않는다. 라우트·서비스는 throw만 한다.
 
-### 5.2 코드별 HTTP status (R-API-002 13종 — 서버가 쓰는 값, contract `api.md`와 일치해야 함)
+### 5.2 코드별 HTTP status (R-API-002 14종 — S3b 개정, 이전 13종 — 서버가 쓰는 값, contract `api.md`와 일치해야 함)
 
 | code | status | 처음 쓰는 묶음 |
 |---|---|---|
@@ -343,6 +374,7 @@ Cloudflare 엣지 ─▶ fetch(request, env, ctx)
 | `NOT_CHARACTER_MESSAGE` | 400 | S3 |
 | `LLM_FAILED` | 502 | S3 |
 | `LLM_EMPTY` | 502 | S3 |
+| `LLM_BUDGET_EXCEEDED` | 429 | S3b |
 
 - 코드 문자열·타입의 단일 소스는 `shared/src/errors.ts`(contract)다. 서버는 그 `ErrorCode` 타입을 import해 `AppError`에 쓴다.
 
@@ -380,6 +412,10 @@ ALLOWED_FRAME_ANCESTORS = "http://london-gossip.my https://london-gossip.my"
 RATE_LIMIT_PER_MIN = "20"
 CONTEXT_MESSAGES = "40"
 MEMORY_SUMMARY_THRESHOLD = "60"
+LLM_MONTHLY_BUDGET_KRW = "100000"           # S3b 월 AI 비용 상한(원, 추정) — R-LLM-007
+LLM_PRICE_INPUT_USD_PER_M = "0.3"           # S3b gemini-2.5-flash 입력 단가(USD/1M 토큰, 배포 전 확인)
+LLM_PRICE_OUTPUT_USD_PER_M = "2.5"          # S3b 출력+사고 단가(USD/1M 토큰)
+KRW_PER_USD = "1400"                        # S3b 원/달러 환율
 
 # D1 — 스키마는 migrations/*.sql (doc/200_설계/server/db.md §7)
 [[d1_databases]]
@@ -421,6 +457,7 @@ run_worker_first = true                     # 정적 파일 요청도 Worker 를
 | SRV-T-160 | `onError_adds_retryAfterSec_body_and_header` (S2) | 시험 라우트가 `AppError('RATE_LIMITED', undefined, { retryAfterSec: 45 })` → 429, 본문 `{ error: { code: 'RATE_LIMITED', message, retryAfterSec: 45 } }`, 헤더 `Retry-After: 45`, CSP 있음. `retryAfterSec` 없는 `AppError`의 본문에는 키가 없다 | R-AUTH-005 · R-API-002 |
 | SRV-T-161 | `createServices_wires_auth_with_config_without_exposing_secret` (S2) | `createServices({ db: trap, logger, now, config })` → `services.auth` 존재, `getHealth()`는 DB 호출 0회. `JSON.stringify(services)`·`Object.keys(services.auth)`에 `tokenSecret` 값 없음 | R-ENV-001 · R-AUTH-006 |
 | SRV-T-162 | `request_log_never_contains_authorization_header` (S2) | `Authorization: Bearer SENTINEL_BEARER`로 읽기·쓰기 시험 라우트 요청 → 수집 로그 전체에 `SENTINEL_BEARER` 없음 | R-AUTH-006 · R-NFR-004 |
+| SRV-T-233 | `onError_maps_LLM_BUDGET_EXCEEDED_to_429_with_retry_after` (S3b) | 시험 라우트가 `AppError('LLM_BUDGET_EXCEEDED', undefined, { retryAfterSec: 2678400 })` → 429, 본문 `{ error: { code: 'LLM_BUDGET_EXCEEDED', message: <요구 원문>, retryAfterSec: 2678400 } }`, 헤더 `Retry-After: 2678400`, CSP 있음. shared 14종 추가 뒤 실행 | R-LLM-007 · R-API-002 |
 
 - 에러 경로(081·082·083·084·085·086 일부) 수가 정상 경로(080 일부·087·089)보다 많다.
 - 라우트별 통합 테스트(`GET /api/rooms` 등)는 contract 몫(`server/test/routes/`).
@@ -487,6 +524,8 @@ run_worker_first = true                     # 정적 파일 요청도 Worker 를
 | R-AUTH-006 🔒 | §3.1 ①, §3.3 | SRV-T-088·161·162, [auth.md](auth.md) SRV-T-120 | ✅ |
 | R-AUTH-003 🔒 (S2) | §3.1.1, §9.1 인증 | [auth.md](auth.md) SRV-T-116·119, contract 전건 대조 | ✅(전건 적용은 contract 테스트) |
 | R-AUTH-005 (S2) | §2.4 `retryAfterSec`, §5.1 | SRV-T-160, [auth.md](auth.md) SRV-T-118 | ✅ |
+| R-LLM-007 🔒 (S3b) | §2.3 meter 배선, §2.4, §5.1·§5.2, §6.1 `[vars]` | SRV-T-233, [llm.md](llm.md) SRV-T-210~222 | ✅(설계) |
+| R-API-002 🔒 (S3b 14종) | §5.2 | SRV-T-233 | 부분(shared 추가는 contract) |
 | R-NFR-004 🔒 | §3.3, §5.1, §8 번들 검사 | SRV-T-081·083·088·162, 수동 grep | ✅ |
 | R-NFR-005 | §4 CPU 예산 | 수동(`wrangler dev` CPU 시간) | ✅ |
 
@@ -505,6 +544,7 @@ run_worker_first = true                     # 정적 파일 요청도 Worker 를
 | D-IDX-9 (S2) | 인증 미들웨어는 라우트 단위, 전역 아님 | 전역 미들웨어에서 메서드로 분기 | 읽기 경로는 토큰 없이 열려야 하고(R-AUTH-003), 경로·메서드 분기를 진입점에 두면 라우트 표와 이중 관리가 된다. 누락은 `getPrincipal` 닫힌 실패 + contract 전건 대조 테스트로 잡는다 |
 | D-IDX-10 (S2) | `ServiceDeps.config`로 `Config`를 받고 팩토리마다 필요한 필드만 전달 | 각 값을 `ServiceDeps`에 펼침 | `bootstrap`이 한 줄로 유지된다. `Config`는 컨테이너 생성 함수 안에서만 보이고 `Services`·`Variables`에는 실리지 않는다(D-IDX-7 유지, SRV-T-161) |
 | D-IDX-11 (S2) | `retryAfterSec`을 `AppError` 선택 필드로, onError가 본문·`Retry-After` 헤더로 변환 | 레이트리밋 전용 에러 클래스 + 미들웨어가 직접 응답 | 응답 생성은 onError 한 곳(D-IDX-6)이라는 원칙을 지킨다. 필드 하나 추가라 기존 호출자 영향 없음 |
+| D-IDX-12 (S3b) | 사용량 meter를 llm 지연 생성 thunk 안에서 만들어 `createLlm`에 주입 | `Services`에 `usage` 서비스 노출 / `ServiceDeps`에 meter | 쓰는 곳이 llm뿐이다. 라우트가 사용량을 볼 요구가 없다(관리 화면·health 노출 없음). 읽기 경로 비용 0 |
 
 확인 필요:
 
@@ -519,6 +559,7 @@ run_worker_first = true                     # 정적 파일 요청도 Worker 를
 | 2026-10-05 | S1 초안 작성 |
 | 2026-10-05 | S1 구현 동기화(상태 확정): `AppError(code, message?, options?)`(status는 `ERROR_STATUS`), `HealthStatus = HealthResponse`, `compatibility_date = 2026-08-15`. S2 설계: `ServiceDeps.config`·`Services.auth`·`Variables.principal?`, §3.1.1 인증 미들웨어 라우트 단위 원칙, `retryAfterSec` 변환(§2.4·§5.1), 로그 이벤트, SRV-T-160~162, D-IDX-9~11. `scheduled`는 S2에서 추가하지 않음 |
 | 2026-10-06 | S3 델타: §2.3 `createServices` 배선에 `llm` 지연 생성(`() => Llm`)과 messages deps 확장(`logger`·`contextMessages`·`llm`)을 반영([llm.md](llm.md) §3.3) |
+| 2026-10-06 | S3b 델타: §2.3 `createUsageMeter` 배선(`store: db.llmUsage`·Config 4필드), §2.4 `retryAfterSec` 적용 코드 확대, §5.1 행·§5.2 14종, §6.1 `[vars]` 4줄, SRV-T-233, §10 R-LLM-007·R-API-002, D-IDX-12 |
 
 파급(공개 API 변경): `ServiceDeps`에 `config` 필수 추가 → 호출자 `server/src/app.ts` `bootstrap`(1줄), `server/test/app.test.ts` 188행의 `createServices({ db: trap, logger, now })`에 `config`(예: `parseEnv(env)` 결과)를 넣는다. `Services`·`AppEnv.Variables`·`AppError`·`toErrorBody`는 필드 추가뿐이라 기존 routes(`health.ts`·`rooms.ts`·`messages.ts`)·`validate.ts` 영향 없음.
 
@@ -527,3 +568,5 @@ run_worker_first = true                     # 정적 파일 요청도 Worker 를
 - `Referrer-Policy: no-referrer` 헤더. `/embed?t=<토큰>` 화면이 외부 리소스(웹폰트 등)를 부를 때 브라우저 기본 정책(`strict-origin-when-cross-origin`)은 이미 쿼리를 보내지 않지만, 명시하면 토큰 유출 경로가 하나 더 닫힌다. R-NFR-004로 역추적 가능하나 요구 문구에 없어 보류.
 - CSP에 `frame-ancestors` 외 지시어(`default-src 'self'` 등) 추가. 요구는 frame-ancestors만이다.
 - `[observability] enabled = true`(Workers Logs 보관). 지금은 `wrangler tail` 실시간 수집뿐이다.
+
+파급(S3b): `services.ts` `createServices`의 `llm` thunk에 `meter` 1항목. `ServiceDeps`·`Services`·`AppEnv` 변경 없음. `server/wrangler.toml [vars]` 4줄 추가(§6.1 전문 반영). `app-error.ts`는 주석만. `Db.llmUsage` 추가로 `app.test.ts` `trap` 가짜 `Db` 갱신은 [db.md](db.md) 파급 문단.

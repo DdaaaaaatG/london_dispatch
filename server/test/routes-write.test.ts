@@ -63,17 +63,22 @@ const ok = async (call: Call, over: Record<string, unknown> = {}, e?: Env): Prom
 
 const read = (path: string): Promise<Response> => send({ method: 'GET', path }, null)
 
-/** 429 만 retryAfterSec 를 갖는다. 나머지는 code · message 두 키 (api.md §3.1) */
+/** 429 두 코드(RATE_LIMITED · LLM_BUDGET_EXCEEDED)만 retryAfterSec 를 갖는다. 나머지는 code · message 두 키 (api.md §3.1) */
+const RETRY_AFTER: Partial<Record<ErrorCode, number>> = {
+  RATE_LIMITED: 40,
+  LLM_BUDGET_EXCEEDED: 1_356_400,
+}
 const expectContractError = async (res: Response, code: ErrorCode): Promise<string> => {
   expect(res.status).toBe(ERROR_STATUS[code])
   const body = await res.json<Record<string, Record<string, unknown>>>()
   expect(Object.keys(body)).toEqual(['error'])
-  const keys = code === 'RATE_LIMITED' ? ['code', 'message', 'retryAfterSec'] : ['code', 'message']
+  const retry = RETRY_AFTER[code]
+  const keys = retry === undefined ? ['code', 'message'] : ['code', 'message', 'retryAfterSec']
   expect(Object.keys(body.error ?? {}).sort()).toEqual(keys)
   expect(body.error?.code).toBe(code)
-  if (code === 'RATE_LIMITED') {
-    expect(body.error?.retryAfterSec).toBe(40)
-    expect(res.headers.get('Retry-After')).toBe('40')
+  if (retry !== undefined) {
+    expect(body.error?.retryAfterSec).toBe(retry)
+    expect(res.headers.get('Retry-After')).toBe(String(retry))
   }
   expect(String(body.error?.message)).not.toBe('')
   return String(body.error?.message)

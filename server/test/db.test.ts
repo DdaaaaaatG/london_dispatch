@@ -455,3 +455,64 @@ describe('S3 잠금·단건·요약', () => {
     expect(await db.memory.getSummary('a')).toBe('')
   })
 })
+
+// ---- S3b (SRV-T-223·224) — doc/200_설계/server/db.md §8 ----
+describe('llm_usage (S3b)', () => {
+  it('SRV-T-223 migration_0002_creates_llm_usage_with_checks', async () => {
+    expect(await columns('llm_usage')).toEqual([
+      ['month', 'TEXT', 0, 1],
+      ['calls', 'INTEGER', 1, 0],
+      ['prompt_tokens', 'INTEGER', 1, 0],
+      ['output_tokens', 'INTEGER', 1, 0],
+      ['est_krw', 'REAL', 1, 0],
+      ['updated_at', 'INTEGER', 1, 0],
+    ])
+    const insert = (month: string, calls: number, est: number) =>
+      env.DB.prepare(
+        'INSERT INTO llm_usage (month, calls, prompt_tokens, output_tokens, est_krw, updated_at) VALUES (?1, ?2, 0, 0, ?3, 1)',
+      )
+        .bind(month, calls, est)
+        .run()
+    await expect(insert('bad', 1, 0)).rejects.toThrow()
+    await expect(insert('2026-1', 1, 0)).rejects.toThrow()
+    await expect(insert('2026-10', 1, -1)).rejects.toThrow()
+    await expect(insert('2026-10', 0, 0)).rejects.toThrow()
+    await insert('2026-10', 1, 0)
+  })
+
+  it('SRV-T-224 llmUsage_add_accumulates_and_get_reads', async () => {
+    const db = createDb(env.DB)
+    expect(await db.llmUsage.get('2026-10')).toBeNull()
+    const first = await db.llmUsage.add(
+      '2026-10',
+      { promptTokens: 100, outputTokens: 20, estKrw: 0.112 },
+      1,
+    )
+    expect(first).toEqual({
+      month: '2026-10',
+      calls: 1,
+      promptTokens: 100,
+      outputTokens: 20,
+      estKrw: 0.112,
+    })
+    const second = await db.llmUsage.add(
+      '2026-10',
+      { promptTokens: 100, outputTokens: 20, estKrw: 0.112 },
+      2,
+    )
+    expect([second.calls, second.promptTokens, second.outputTokens]).toEqual([2, 200, 40])
+    expect(second.estKrw).toBeCloseTo(0.224, 9)
+    const raw = await env.DB.prepare('SELECT updated_at AS u FROM llm_usage WHERE month = ?1')
+      .bind('2026-10')
+      .first<{ u: number }>()
+    expect(raw?.u).toBe(2)
+    const other = await db.llmUsage.add(
+      '2026-11',
+      { promptTokens: 1, outputTokens: 1, estKrw: 0 },
+      3,
+    )
+    expect(other.calls).toBe(1)
+    expect(await db.llmUsage.get('2026-10')).toEqual(second)
+    expect(await db.llmUsage.get('2026-09')).toBeNull()
+  })
+})

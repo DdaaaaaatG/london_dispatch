@@ -4,12 +4,22 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AppError } from '../src/app-error'
 import { createDb, type Db } from '../src/db'
 import { ConfigError, parseEnv } from '../src/env'
-import { buildSpeakPrompt, createLlm, FakeProvider, type FakeStep, type Llm } from '../src/llm'
+import {
+  budgetRetryAfterSec,
+  buildSpeakPrompt,
+  createLlm,
+  createUsageMeter,
+  FAKE_USAGE,
+  FakeProvider,
+  kstMonthKey,
+  type FakeStep,
+  type Llm,
+} from '../src/llm'
 import { LlmError } from '../src/llm/provider'
 import { createLogger } from '../src/logger'
 import { createMessagesService, SPEAK_LOCK_MS, type MessagesService } from '../src/messages'
 import { createServices } from '../src/services'
-import { insertLine, insertRoom, resetDb } from './helpers'
+import { insertLine, insertRoom, insertUsage, resetDb, usageRow } from './helpers'
 
 const T0 = 1_000_000
 
@@ -29,6 +39,8 @@ type SetupOptions = {
   now?: number
   contextMessages?: number
   wrapDb?: (db: Db) => Db
+  /** S3b: 월 비용 meter 를 단다(예산 100000원 · 기본 단가) */
+  meter?: boolean
   afterSpeak?: (e: { roomId: string; messageId: number }) => Promise<void>
 }
 
@@ -52,6 +64,21 @@ const setup = (steps: FakeStep[] = [], opts: SetupOptions = {}): Setup => {
       sleep: async ms => {
         clock.t += ms
       },
+      ...(opts.meter === true
+        ? {
+            meter: createUsageMeter({
+              store: db.llmUsage,
+              config: {
+                monthlyBudgetKrw: 100000,
+                priceInputUsdPerM: 0.3,
+                priceOutputUsdPerM: 2.5,
+                krwPerUsd: 1400,
+              },
+              logger,
+              now,
+            }),
+          }
+        : {}),
     })
   const svc = createMessagesService({
     db,
@@ -540,5 +567,165 @@ describe('regenerate', () => {
     await svc.listMessages('a', {})
     await svc.deleteMessage(m.id)
     expect(llm).not.toHaveBeenCalled()
+  })
+})
+
+// ---- S3b (SRV-T-225~230) — doc/200_설계/server/messages.md §8.3 ----
+describe('월 비용 게이트 (S3b)', () => {
+  beforeEach(resetDb)
+  const MONTH = kstMonthKey(T0)
+
+  /** acquireSpeakLock 호출 수를 세는 Db 래퍼 */
+  const spyLock = () => {
+    const calls = { acquire: 0 }
+    const wrapDb = (db: Db): Db => ({
+      ...db,
+      rooms: {
+        ...db.rooms,
+        acquireSpeakLock: (...args: Parameters<Db['rooms']['acquireSpeakLock']>) => {
+          calls.acquire += 1
+          return db.rooms.acquireSpeakLock(...args)
+        },
+      },
+    })
+    return { calls, wrapDb }
+  }
+
+  const errOf = async (p: Promise<unknown>): Promise<AppError> => {
+    try {
+      await p
+    } catch (e) {
+      expect(e).toBeInstanceOf(AppError)
+      return e as AppError
+    }
+    throw new Error('expected AppError')
+  }
+
+  it('SRV-T-225 speak_rejects_LLM_BUDGET_EXCEEDED_before_lock_and_llm', async () => {
+    await insertRoom('a', 'A', 1, 100)
+    await insertUsage(MONTH, 100000, 7)
+    const { calls, wrapDb } = spyLock()
+    const s = setup([], { meter: true, wrapDb })
+    const err = await errOf(s.svc.speak('a', { character: 'ciel' }, s.bg))
+    expect([err.code, err.status]).toEqual(['LLM_BUDGET_EXCEEDED', 429])
+    expect(err.retryAfterSec).toBe(budgetRetryAfterSec(T0))
+    expect(s.fake.calls).toHaveLength(0)
+    expect(calls.acquire).toBe(0)
+    expect(await lockOf('a')).toBeNull()
+    expect(await countOf('a')).toBe(0)
+    expect(await updatedAtOf('a')).toBe(100)
+    expect(await usageRow(MONTH)).toMatchObject({ calls: 7, est_krw: 100000, updated_at: 1 })
+
+    // 키 확인이 게이트보다 먼저: google + 키 없음 → CONFIG_INVALID
+    const svc = createServices({
+      db: createDb(env.DB),
+      logger: createLogger(() => undefined),
+      now: () => T0,
+      config: parseEnv({
+        TOKEN_SECRET: 'test-secret-value',
+        LLM_PROVIDER: 'google',
+        DB: env.DB,
+        ASSETS: { fetch: () => undefined },
+      }),
+    }).messages
+    const cfg = await svc.speak('a', { character: 'ciel' }, s.bg).catch((e: unknown) => e)
+    expect(cfg).toBeInstanceOf(ConfigError)
+  })
+
+  it('SRV-T-226 regenerate_rejects_LLM_BUDGET_EXCEEDED_after_target_checks', async () => {
+    await insertRoom('a', 'A', 1, 100)
+    const userId = await insertUser('a', '유저', 1)
+    const lineId = await insertLine('a', '원문', 2)
+    await insertUsage(MONTH, 100000)
+    const { calls, wrapDb } = spyLock()
+    const s = setup([], { meter: true, wrapDb })
+    const err = await errOf(s.svc.regenerate(lineId))
+    expect(err.code).toBe('LLM_BUDGET_EXCEEDED')
+    expect(err.retryAfterSec).toBe(budgetRetryAfterSec(T0))
+    const text = await env.DB.prepare('SELECT text FROM messages WHERE id = ?1')
+      .bind(lineId)
+      .first<{ text: string }>()
+    expect(text?.text).toBe('원문')
+    expect(calls.acquire).toBe(0)
+    expect(s.fake.calls).toHaveLength(0)
+    expect(await codeOf(s.svc.regenerate(userId))).toBe('NOT_CHARACTER_MESSAGE')
+    expect(await codeOf(s.svc.regenerate(lineId + 999))).toBe('NOT_FOUND')
+    expect(calls.acquire).toBe(0)
+  })
+
+  it('SRV-T-227 speak_allows_just_below_budget_then_rejects_next', async () => {
+    await insertRoom('a', 'A', 1, 100)
+    await insertUsage(MONTH, 99999.95, 4)
+    const s = setup([{ text: '한 번 더' }, { text: '두 번째' }], { meter: true })
+    const first = await s.svc.speak('a', { character: 'ciel' }, s.bg)
+    expect(first.speaker).toBe('ciel')
+    const row = await usageRow(MONTH)
+    expect(row?.calls).toBe(5)
+    expect(row?.est_krw).toBeCloseTo(99999.95 + 0.112, 6)
+    expect(await codeOf(s.svc.speak('a', { character: 'ciel' }, s.bg))).toBe('LLM_BUDGET_EXCEEDED')
+    expect(s.fake.calls).toHaveLength(1)
+  })
+
+  it('SRV-T-228 speak_accumulates_per_attempt_including_failed_responses', async () => {
+    await insertRoom('a', 'A', 1, 100)
+    const a = setup(
+      [{ error: new LlmError('http_5xx', { usage: FAKE_USAGE }) }, { text: '성공' }],
+      { meter: true },
+    )
+    await a.svc.speak('a', { character: 'ciel' }, a.bg)
+    let row = await usageRow(MONTH)
+    expect(row?.calls).toBe(2)
+    expect(row?.est_krw).toBeCloseTo(0.224, 9)
+
+    await resetDb()
+    await insertRoom('a', 'A', 1, 100)
+    const b = setup([{ error: new LlmError('blocked', { usage: FAKE_USAGE }) }], { meter: true })
+    expect(await codeOf(b.svc.speak('a', { character: 'ciel' }, b.bg))).toBe('LLM_EMPTY')
+    row = await usageRow(MONTH)
+    expect(row?.calls).toBe(1)
+
+    await resetDb()
+    await insertRoom('a', 'A', 1, 100)
+    const c = setup([{ error: new LlmError('http_4xx') }], { meter: true })
+    expect(await codeOf(c.svc.speak('a', { character: 'ciel' }, c.bg))).toBe('LLM_FAILED')
+    expect(await usageRow(MONTH)).toBeNull()
+  })
+
+  it('SRV-T-229 non_generate_paths_ignore_budget', async () => {
+    await insertRoom('a', 'A', 1, 100)
+    await insertUsage(MONTH, 100000, 9)
+    const llm = vi.fn((): Llm => {
+      throw new Error('llm touched')
+    })
+    const svc = createMessagesService({
+      db: createDb(env.DB),
+      now: () => T0,
+      logger: createLogger(() => undefined),
+      contextMessages: 40,
+      llm,
+    })
+    const m = await svc.addUserMessage(
+      'a',
+      { text: '안녕', ooc: false },
+      { mbId: 'm', displayName: 'n' },
+    )
+    await svc.listMessages('a', {})
+    await svc.editMessage(m.id, { text: '수정' })
+    await svc.deleteMessage(m.id)
+    expect(llm).not.toHaveBeenCalled()
+    expect(await usageRow(MONTH)).toMatchObject({ calls: 9, est_krw: 100000 })
+  })
+
+  it('SRV-T-230 speak_resumes_in_next_kst_month', async () => {
+    await insertRoom('a', 'A', 1, 100)
+    await insertUsage('2026-10', 100000)
+    const s = setup([{ text: '새 달' }], {
+      meter: true,
+      now: Date.parse('2026-10-31T15:00:00.000Z'),
+    })
+    const m = await s.svc.speak('a', { character: 'ciel' }, s.bg)
+    expect(m.speaker).toBe('ciel')
+    expect(await usageRow('2026-11')).toMatchObject({ calls: 1 })
+    expect(await usageRow('2026-10')).toMatchObject({ calls: 1, est_krw: 100000 })
   })
 })

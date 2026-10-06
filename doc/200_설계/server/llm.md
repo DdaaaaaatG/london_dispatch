@@ -1,7 +1,7 @@
 # llm 모듈 설계
 
-- 상태: 초안 · 최종 갱신: 2026-10-06
-- 묶음: **S3**(AI 발화). R-LLM-001~006 · R-ENV-003(키 누락 시점) · R-NFR-001(70초 종결). S4 요약(R-MEM-002)은 이 모듈의 `Llm.complete`를 재사용한다(요약 프롬프트·후처리는 S4 memory 설계).
+- 상태: 초안 · S3b 초안(§12) · 최종 갱신: 2026-10-06
+- 묶음: **S3**(AI 발화). R-LLM-001~006 · R-ENV-003(키 누락 시점) · R-NFR-001(70초 종결). S4 요약(R-MEM-002)은 이 모듈의 `Llm.complete`를 재사용한다(요약 프롬프트·후처리는 S4 memory 설계). **S3b**(월 비용 상한) = R-LLM-007 🔒 · R-API-002 개정(14종째 `LLM_BUDGET_EXCEEDED`) — §12. 응답마다 사용량을 누적하고 speak·regenerate 앞에 예산 게이트를 둔다. S4 요약 호출도 같은 누적 경로(`Llm.complete`)를 탄다.
 - 입력: `doc/000_프로젝트_확정사항.md` §2·§3·§4·§5.2~5.5·§9-3a·§9-4, `doc/100_요구조건/requirements.md`(R-LLM·R-MSG·R-ENV·R-MEM·R-NFR), `rtm.md` S3 행, [env.md](env.md)·[db.md](db.md)·[messages.md](messages.md)·[index.md](index.md)·[auth.md](auth.md), `server/src/{env,app-error,services,app,logger}.ts`, `shared/src/{characters,errors,types,limits}.ts`, api.md §3·§4.0, `doc/state.json` decisions.
 - 관련 문서: [messages.md](messages.md) §2.3·§4.2(speak·regenerate가 이 모듈을 부르는 흐름), [db.md](db.md) §2.3(잠금·조회 함수), [env.md](env.md)(LLM 키 4종).
 
@@ -46,6 +46,7 @@ export { FakeProvider, FAKE_DEFAULT_TEXT, type FakeStep } from './fake'
 
 ```ts
 import type { LlmProviderName } from '../env'
+import type { LlmUsage } from './usage'   // S3b
 
 /** 대화 한 턴. 제공사 고유 역할명(Gemini 'model')은 어댑터가 바꾼다 */
 export type LlmTurn = { readonly role: 'user' | 'assistant'; readonly text: string }
@@ -55,7 +56,8 @@ export type GenerateInput = {
   readonly turns: readonly LlmTurn[]
   readonly timeoutMs: number
 }
-export type GenerateOutput = { readonly text: string }
+/** S3b: usage 는 선택(하위 호환). Gemini 200 응답이면 항상 채운다(§12.5) */
+export type GenerateOutput = { readonly text: string; readonly usage?: LlmUsage }
 /** 조립된 프롬프트(타임아웃 제외). buildSpeakPrompt 결과. S4 요약 프롬프트도 같은 형태 */
 export type Prompt = { readonly system: string; readonly turns: readonly LlmTurn[] }
 
@@ -80,9 +82,11 @@ export class LlmError extends Error {
   readonly providerStatus?: string
   /** blocked 일 때 blockReason·finishReason enum */
   readonly finishReason?: string
+  /** S3b. 실패했어도 제공사가 사용량을 돌려준 경우(200 + 차단·형식 불일치) */
+  readonly usage?: LlmUsage
   constructor(
     reason: LlmFailReason,
-    options?: { httpStatus?: number; providerStatus?: string; finishReason?: string; cause?: unknown },
+    options?: { httpStatus?: number; providerStatus?: string; finishReason?: string; cause?: unknown; usage?: LlmUsage },
   )
 }
 ```
@@ -247,6 +251,8 @@ export const isCharacterId = (value: unknown): value is CharacterId
 | `CHARACTER_PROFILES` · `COMMON_PROMPT` | — | 상수 | — | R-LLM-002 |
 | `isCharacterId` | `unknown` | `boolean` | — | R-MSG-003 |
 | `FakeProvider` | `steps?` | `LlmProvider` + `calls` | 각본의 `LlmError` | R-LLM-001 |
+| `Llm.ensureBudget` (S3b) | — | `Promise<void>` | `LLM_BUDGET_EXCEEDED`(429, `retryAfterSec`) — meter 없으면 즉시 resolve | R-LLM-007 |
+| `createUsageMeter` 외 S3b 함수 | §12.2 | §12.2 | §12.2 | R-LLM-007 |
 
 ## 3. 내부 구조
 
@@ -265,6 +271,8 @@ export const isCharacterId = (value: unknown): value is CharacterId
 | `server/test/llm-prompt.test.ts` | 캐릭터·프롬프트·후처리 SRV-T-163~173 | — |
 | `server/test/llm-gemini.test.ts` | Gemini 어댑터·factory·Fake SRV-T-174~179·185·186 | — |
 | `server/test/llm-client.test.ts` | 재시도·예산·로그 SRV-T-180~184 | — |
+| `server/src/llm/usage.ts` (S3b) | `createUsageMeter`·`kstMonthKey`·`nextKstMonthStartMs`·`budgetRetryAfterSec`·`estimateKrw`·`KST_OFFSET_MS`, 타입 `LlmUsage`·`UsageStore`(저장소 포트) 등(§12.2) | 110 |
+| `server/test/llm-usage.test.ts` (S3b) | 월 키·수식·게이트·누적 SRV-T-210~217 | — |
 
 - 의존: `../env`(타입 `LlmProviderName`만), `../app-error`, `../logger`(타입), `@shared/types`·`@shared/characters`·`@shared/limits`, `zod`. **db·messages·rooms·memory·auth import 금지**(llm은 DB를 모른다 — 스킬 §1).
 - 상태: `FakeProvider.calls`(인스턴스 필드)뿐. 모듈 전역 가변 상태 없음. 인스턴스는 요청마다 만든다.
@@ -501,6 +509,7 @@ speak 전체   ≤ D1 사전(잠금 batch 1 + 조회 2 병렬) + LLM_BUDGET_MS +
 | `ConfigError`(env) | `CONFIG_INVALID` | 500 | `서버 설정이 올바르지 않습니다. 관리자에게 알려 주세요.` | `google`인데 `LLM_API_KEY` 없음 — `deps.llm()` 호출 시점 |
 | `CharacterFileError`(Error) | — | — | (응답 없음 — 시작 실패) | 캐릭터 JSON 형식·이름 불일치 |
 | `LlmError`(모듈 내부) | — | — | — | 모듈 밖으로 나가지 않는다. `createLlm`이 위 두 코드로 바꾼다 |
+| `AppError`(S3b, `usage.ts`) | `LLM_BUDGET_EXCEEDED` | 429 | `이번 달 AI 사용 한도에 닿았습니다. 다음 달에 다시 시도해 주세요.`(기본 문구, 요구 원문) | 이번 달(KST) 추정 누적 ≥ `LLM_MONTHLY_BUDGET_KRW`. `retryAfterSec` = 다음 달 1일 00:00 KST까지 초(§12.10) |
 
 - `AppError`의 `cause`에 `LlmError`를 싣지 않는다. 진단은 `createLlm`이 남기는 로그(§6.1)로 한다.
 - 메시지는 `ERROR_MESSAGES` 기본 문구를 쓴다(`new AppError('LLM_FAILED')`). 제공사 상태·원인을 응답에 넣지 않는다(R-LLM-005).
@@ -515,8 +524,12 @@ speak 전체   ≤ D1 사전(잠금 batch 1 + 조회 2 병렬) + LLM_BUDGET_MS +
 | `LLM_MODEL` | `llmModel` | `[vars]` | ✕ | `gemini-2.5-flash` | Gemini URL |
 | `LLM_TIMEOUT_MS` | `llmTimeoutMs` | `[vars]` | ✕ | 60000(1000~60000) | `createLlm` t1 |
 | `CONTEXT_MESSAGES` | `contextMessages` | `[vars]` | ✕ | 40(1~100) | messages(조회 개수) — llm은 받은 `history`를 그대로 쓴다 |
+| `LLM_MONTHLY_BUDGET_KRW` (S3b) | `llmMonthlyBudgetKrw` | `[vars]` | ✕ | 100000(정수 1~10000000) | `ensureBudget`·로그 |
+| `LLM_PRICE_INPUT_USD_PER_M` (S3b) | `llmPriceInputUsdPerM` | `[vars]` | ✕ | 0.3(소수 0~100) | `estimateKrw` |
+| `LLM_PRICE_OUTPUT_USD_PER_M` (S3b) | `llmPriceOutputUsdPerM` | `[vars]` | ✕ | 2.5(소수 0~100) | `estimateKrw` |
+| `KRW_PER_USD` (S3b) | `krwPerUsd` | `[vars]` | ✕ | 1400(소수 100~10000) | `estimateKrw` |
 
-- llm 모듈은 바인딩을 읽지 않는다. 컨테이너가 `parseEnv` 결과에서 골라 값으로 넘긴다(§3.3). **env 변경 없음.**
+- llm 모듈은 바인딩을 읽지 않는다. 컨테이너가 `parseEnv` 결과에서 골라 값으로 넘긴다(§3.3). S3은 env 변경 없음. **S3b는 키 4개를 더한다**(위 표 S3b 행, [env.md](env.md) §2 S3b 델타·§3.1).
 - `fake` 제공사는 키가 필요 없다. `requireLlmApiKey`가 `''`을 돌려주고 `FakeProvider`는 그 값을 쓰지 않는다. 키 없는 로컬 개발은 `.dev.vars`에 `LLM_PROVIDER=fake`([env.md](env.md) §6).
 
 ### 6.1 로그 규칙
@@ -526,6 +539,9 @@ speak 전체   ≤ D1 사전(잠금 batch 1 + 조회 2 병렬) + LLM_BUDGET_MS +
 | `llm_attempt_failed` | `warn` | `provider`, `attempt`(1·2), `reason`, `httpStatus?`, `providerStatus?`, `finishReason?`, `ms` | 시도마다 실패 시 |
 | `llm_failed` | `error` | `provider`, `code`(`LLM_FAILED`·`LLM_EMPTY`), `reason`, `attempts`, `budget`(예산 부족으로 재시도 생략이면 true), `ms` | 최종 실패 시 1회 |
 | `llm_done` | `info` | `provider`, `attempts`, `outChars`, `ms` | 성공 시 |
+| `llm_usage` (S3b) | `info` | `month`, `calls`, `estKrw`(정수 원), `budgetKrw`, `pct`(누적 ÷ 예산 × 100 내림) | 누적 성공마다 |
+| `llm_usage_record_failed` (S3b) | `warn` | `month`, `errName` | 누적 실패(D1 오류) |
+| `llm_budget_exceeded` (S3b) | `warn` | `month`, `estKrw`(정수 원), `budgetKrw` | 게이트 거절 |
 
 - **금지**: API 키, 요청 URL, 요청 본문·프롬프트 전문(`system`·`turns`), 응답 전문, 제공사 에러 `message` 문장, 캐릭터 JSON 문구. 길이(`outChars`)·코드·ms만.
 - `logger.ts`의 금지 키(`prompt`·`text`·`summary`·`apiKey`…)는 2차 방어다. 1차는 위 필드 목록만 쓰는 것이다.
@@ -533,7 +549,7 @@ speak 전체   ≤ D1 사전(잠금 batch 1 + 조회 2 병렬) + LLM_BUDGET_MS +
 
 ## 7. DB 스키마·마이그레이션
 
-없음. llm은 DB를 쓰지 않는다. 메시지 텍스트 상한 CHECK가 없으므로(D-DB-3) 후처리가 2000자 상한을 지킨다(§7.2 V7).
+llm은 D1을 직접 쓰지 않는다. S3b 사용량은 저장소 포트 `UsageStore`(§12.2)로 받고, 테이블 `llm_usage`·마이그레이션 `0002_llm_usage.sql`은 [db.md](db.md) §2.4·§7.5가 정한다. 그 밖에는 없음. 메시지 텍스트 상한 CHECK가 없으므로(D-DB-3) 후처리가 2000자 상한을 지킨다(§7.2 V7).
 
 ### 7.1 프롬프트 조립 규칙 (R-LLM-003 · R-LLM-006)
 
@@ -724,6 +740,8 @@ llm은 엔드포인트를 직접 갖지 않는다. 문서 끝 「contract 인계
 | R-NFR-004 | §6.1 | SRV-T-174·176·184 | ✅ |
 | R-NFR-005 | §4.2·§7.1 | 리뷰 | ✅ |
 | R-MEM-002 | `Llm.complete` 일반형(§2.3) | S4 | 부분(훅 자리는 [messages.md](messages.md) §2.3) |
+| R-LLM-007 🔒 (S3b) | §12 전체, §2.1·§2.7·§5·§6·§6.1 델타 | SRV-T-210~222, [messages.md](messages.md) SRV-T-225~230, [db.md](db.md) SRV-T-223·224, [env.md](env.md) SRV-T-231·232 | ✅(설계) |
+| R-API-002 개정 (S3b, 14종) | §12.10, 「contract 인계」 S3b 절 | [index.md](index.md) SRV-T-233 | 부분(shared 추가는 contract) |
 
 ## 11. 설계 결정 노트
 
@@ -744,6 +762,14 @@ llm은 엔드포인트를 직접 갖지 않는다. 문서 끝 「contract 인계
 | D-LLM-13 | 키는 `x-goog-api-key` 헤더 | `?key=` 쿼리 | 요구 R-LLM-001. URL이 어디 찍혀도 키가 없다 |
 | D-LLM-14 | 제공사 에러 문장은 로그에 남기지 않고 `error.status` enum만 | 문장을 로그에(R-LLM-005 "제공사 메시지는 로그에만") | 문장이 요청 내용 일부를 되풀이할 수 있다. enum + HTTP status로 원인 구분이 충분하다. 요구 문구와 결이 달라 보고 사항에 적는다 |
 | D-LLM-15 | `withRetry`가 시계(`now`·`sleep`)를 주입받음 | `vi.useFakeTimers` | workerd에서 `AbortSignal.timeout`은 가짜 타이머로 제어되지 않는다. 시계 주입이면 실제 대기 없이 70초 상한을 결정적으로 검증한다(R-NFR-001 수용 기준 "fake timer 테스트"를 가짜 시계로 충족) |
+| D-LLM-16 (S3b) | 누적·게이트는 llm `usage.ts`, 저장은 llm이 정의한 포트 `UsageStore`를 db `LlmUsageRepo`가 구조적으로 만족 | llm이 `../db` import / messages가 누적 | llm은 DB를 모른다는 의존 규칙(§3)을 지킨다. 재시도 시도 단위 사용량은 `withRetry` 안에서만 보이므로 누적 지점은 llm이어야 한다 |
+| D-LLM-17 (S3b) | `est_krw`는 REAL, 호출마다 반올림하지 않고 더함. 로그만 정수 원 | 호출마다 정수 원 반올림 / 마이크로원 INTEGER | 호출 1건이 약 0.1~20원(§12.4)이라 원 단위 반올림은 평범한 speak(4.06원)에서 약 2%, Fake(0.112원)는 0으로 사라진다. double 누적 오차는 10만 규모에서 1e-9원 미만. 마이크로원 정수는 정확하지만 단위 변환만 늘고 판정 결과는 같다 |
+| D-LLM-18 (S3b) | 게이트를 `Llm.ensureBudget()`으로 노출하고 messages는 `deps.llm()` 다음 줄에서 부름 | `GenerateDeps`에 meter 별도 주입 / 라우트 미들웨어 | 지연 생성 thunk 하나에 키 확인·게이트가 묶여 배선이 한 곳이다. `MessagesDeps` 시그니처가 바뀌지 않는다. 미들웨어는 업무 판단을 라우트 쪽에 둬 계층 규칙에 어긋난다 |
+| D-LLM-19 (S3b) | 누적은 시도 함수 안에서 `await`, 실패는 삼키고 warn | `waitUntil` 백그라운드 | llm은 실행 컨텍스트를 모른다. 같은 요청 안에서 끝나야 다음 요청의 게이트가 바로 본다. 비용은 시도당 D1 쓰기 1회로 R-NFR-001의 D1 여유 4초 안 |
+| D-LLM-20 (S3b) | 200 응답이면 `usageMetadata`가 없거나 필드가 틀려도 0으로 채워 누적(`calls` +1). 4xx·5xx·전송 실패는 누적 안 함 | usage 없으면 누적 안 함 | `calls`가 실제 받은 응답 수와 맞는다. 오류 응답은 본문에 사용량이 없고 청구 대상도 아니다 |
+| D-LLM-21 (S3b) | `retryAfterSec` = 다음 달 1일 00:00 KST까지 초(올림, 최소 1), 본문 + `Retry-After` 헤더 | 생략 | 429의 표준 의미와 맞고 S2 onError 경로를 그대로 쓴다. 화면이 해제 시점을 알 수 있다. 화면 자동 재시도·카운트다운에는 쓰지 않는다(「contract 인계」 S3b) |
+| D-LLM-22 (S3b) | 게이트의 D1 읽기 실패는 전파(500 `INTERNAL`, 닫힌 실패) | 열린 실패(통과) | 열어 두면 상한이 뚫린다. D1이 죽었으면 잠금·저장도 어차피 실패한다 |
+| D-LLM-23 (S3b) | 월 키는 `epoch ms + 9시간`을 UTC 게터로 읽어 계산 | `Intl.DateTimeFormat('ko-KR', { timeZone })` / 타임존 라이브러리 | 한국은 서머타임이 없어 고정 오프셋이 정확하다. 새 패키지 금지, 런타임 ICU 의존 없음 |
 
 확인 필요:
 
@@ -754,6 +780,293 @@ llm은 엔드포인트를 직접 갖지 않는다. 문서 끝 「contract 인계
 제안(설계 미반영, 사용자 판단):
 
 - 모델이 둘째 줄부터 상대 캐릭터 대사(`시엘: …`)를 쓰면 그 줄부터 잘라내는 후처리(D-LLM-7 대안). 실제 응답에서 자주 보이면 R-LLM-004 개정으로 승격.
+
+## 12. S3b 월 비용 상한 (R-LLM-007 🔒)
+
+### 12.1 목적
+
+- 매 제공사 응답의 `usageMetadata`로 **추정 원화**를 계산해 이번 달(KST) D1 `llm_usage` 행에 더한다.
+- 누적이 `LLM_MONTHLY_BUDGET_KRW` 이상이면 speak·regenerate를 **잠금 선점 전·LLM 호출 전**에 `429 LLM_BUDGET_EXCEEDED`로 거절한다. 읽기·유저 발화·수정·삭제는 이 게이트를 지나지 않는다.
+- 다음 달 1일 00:00 KST에 월 키가 바뀌어 저절로 풀린다. 해제 작업(Cron·리셋 쿼리)은 없다.
+- 비유: 월 한도가 있는 교통카드. 개찰구(게이트)는 탈 때 잔액만 보고, 요금은 내릴 때(응답을 받을 때) 찍힌다. 그래서 마지막 몇 번은 한도를 조금 넘길 수 있다.
+- 범위 밖(요구 없음): 사용자별 상한, 관리 API·화면, 알림 메일, health 노출.
+
+### 12.2 공개 API (`server/src/llm/usage.ts` 신규)
+
+```ts
+import type { Logger } from '../logger'
+
+/** 응답 1건의 토큰 수. 어댑터가 제공사 형식에서 옮긴다. 0 이상 정수 */
+export type LlmUsage = {
+  readonly promptTokens: number     // Gemini promptTokenCount
+  readonly outputTokens: number     // Gemini candidatesTokenCount
+  readonly thoughtsTokens: number   // Gemini thoughtsTokenCount (사고 토큰 — 출력 단가로 청구)
+}
+
+/** 단가·환율. 컨테이너가 Config 에서 골라 넘긴다 */
+export type UsagePricing = {
+  readonly priceInputUsdPerM: number
+  readonly priceOutputUsdPerM: number
+  readonly krwPerUsd: number
+}
+export type UsageMeterConfig = UsagePricing & { readonly monthlyBudgetKrw: number }
+
+/** 월 누적 행. db LlmUsageTotals 와 같은 모양(구조적 호환) */
+export type UsageTotals = {
+  readonly month: string            // 'YYYY-MM' (KST)
+  readonly calls: number
+  readonly promptTokens: number
+  readonly outputTokens: number     // candidates + thoughts 합
+  readonly estKrw: number           // 소수 보존(D-LLM-17)
+}
+export type UsageDelta = {
+  readonly promptTokens: number
+  readonly outputTokens: number     // candidates + thoughts
+  readonly estKrw: number
+}
+
+/** 저장소 포트. db.llmUsage(LlmUsageRepo)가 구조적으로 만족한다 — llm 은 db 를 import 하지 않는다(D-LLM-16) */
+export type UsageStore = {
+  readonly add: (month: string, delta: UsageDelta, nowMs: number) => Promise<UsageTotals>
+  readonly get: (month: string) => Promise<UsageTotals | null>
+}
+
+export type UsageMeter = {
+  /** 이번 달 누적 ≥ 예산이면 AppError('LLM_BUDGET_EXCEEDED', undefined, { retryAfterSec }). 저장소 오류는 전파(D-LLM-22) */
+  readonly ensureBudget: () => Promise<void>
+  /** 응답 1건 누적. 절대 throw 하지 않는다(실패는 warn 로그) */
+  readonly record: (usage: LlmUsage) => Promise<void>
+}
+
+export type UsageMeterDeps = {
+  store: UsageStore
+  config: UsageMeterConfig
+  logger: Logger
+  now: () => number
+}
+
+/** 9시간 */
+export const KST_OFFSET_MS = 32_400_000
+export const kstMonthKey = (nowMs: number): string                   // 'YYYY-MM'
+export const nextKstMonthStartMs = (nowMs: number): number           // 다음 달 1일 00:00 KST 의 epoch ms
+export const budgetRetryAfterSec = (nowMs: number): number           // ceil((next − now) / 1000), 최소 1
+export const estimateKrw = (usage: LlmUsage, pricing: UsagePricing): number
+export const createUsageMeter = (deps: UsageMeterDeps): UsageMeter
+```
+
+`client.ts` 델타(§2.3):
+
+```ts
+import type { UsageMeter } from './usage'
+
+export type Llm = {
+  complete: (prompt: Prompt) => Promise<string>
+  /** S3b. meter 가 있으면 meter.ensureBudget(), 없으면 즉시 resolve */
+  ensureBudget: () => Promise<void>
+}
+export type LlmDeps = {
+  // …S3 필드 그대로
+  /** S3b. 없으면 누적·게이트 없음(기존 테스트 하위 호환). 컨테이너는 항상 넣는다 */
+  meter?: UsageMeter
+}
+```
+
+`provider.ts` 델타는 §2.1 코드(`GenerateOutput.usage?`·`LlmError.usage?`), `fake.ts` 델타는 §12.6, `gemini.ts` 델타는 §12.5.
+
+| 이름 | 인자 | 반환 | 실패 조건(에러 코드) | 요구ID |
+|---|---|---|---|---|
+| `kstMonthKey` | `nowMs` | `'YYYY-MM'` | — | R-LLM-007 |
+| `nextKstMonthStartMs` | `nowMs` | epoch ms | — | R-LLM-007 |
+| `budgetRetryAfterSec` | `nowMs` | 정수 ≥ 1 | — | R-LLM-007 |
+| `estimateKrw` | `LlmUsage, UsagePricing` | 원(소수) | — | R-LLM-007 |
+| `createUsageMeter` | `UsageMeterDeps` | `UsageMeter` | — | R-LLM-007 |
+| `UsageMeter.ensureBudget` | — | `Promise<void>` | `LLM_BUDGET_EXCEEDED`(429, `retryAfterSec`), D1 오류 전파(→ 500 `INTERNAL`) | R-LLM-007 · R-API-002 |
+| `UsageMeter.record` | `LlmUsage` | `Promise<void>` | 없음(삼키고 warn) | R-LLM-007 |
+| `Llm.ensureBudget` | — | `Promise<void>` | `LLM_BUDGET_EXCEEDED` | R-LLM-007 |
+
+- `index.ts` 재노출 추가: `createUsageMeter`, `kstMonthKey`, `nextKstMonthStartMs`, `budgetRetryAfterSec`, `estimateKrw`, `KST_OFFSET_MS`, `FAKE_USAGE`, 타입 `LlmUsage`·`UsagePricing`·`UsageMeterConfig`·`UsageTotals`·`UsageDelta`·`UsageStore`·`UsageMeter`·`UsageMeterDeps`.
+- 의존: `usage.ts`는 `../app-error`·`../logger`(타입)만. db·messages import 없음(§3 규칙 유지).
+
+### 12.3 월 키·해제 시각 (타임존 라이브러리 없이)
+
+```ts
+const kst = new Date(nowMs + KST_OFFSET_MS)       // UTC 게터로 읽으면 KST 벽시계
+kstMonthKey(nowMs)         = `${kst.getUTCFullYear()}-${String(kst.getUTCMonth() + 1).padStart(2, '0')}`
+nextKstMonthStartMs(nowMs) = Date.UTC(kst.getUTCFullYear(), kst.getUTCMonth() + 1, 1) - KST_OFFSET_MS
+                             // 12월 → 다음 해 1월 넘김은 Date.UTC 가 처리
+budgetRetryAfterSec(nowMs) = Math.max(1, Math.ceil((nextKstMonthStartMs(nowMs) - nowMs) / 1000))
+```
+
+- 한국은 서머타임이 없어 고정 오프셋 +9시간이 정확하다(D-LLM-23). `Intl`·`toLocaleString`은 쓰지 않는다.
+- 게이트·누적 모두 그 순간의 `now()`로 월 키를 정한다. 9월 마지막 순간에 시작한 요청의 응답이 10월에 오면 10월로 누적된다(차이는 호출 1~2건).
+
+| 입력(UTC) | `kstMonthKey` | `nextKstMonthStartMs`(UTC) | `budgetRetryAfterSec` |
+|---|---|---|---|
+| `2026-09-30T14:59:59.999Z` | `2026-09` | `2026-09-30T15:00:00.000Z` | 1 |
+| `2026-09-30T15:00:00.000Z` | `2026-10` | `2026-10-31T15:00:00.000Z` | 2678400 |
+| `2026-10-06T05:00:00.000Z` | `2026-10` | `2026-10-31T15:00:00.000Z` | 2196000 |
+| `2026-12-31T15:00:00.000Z` | `2027-01` | `2027-01-31T15:00:00.000Z` | 2678400 |
+| `2028-02-28T15:00:00.000Z`(윤년) | `2028-02` | `2028-02-29T15:00:00.000Z` | 86400 |
+
+### 12.4 추정 수식·정밀도
+
+```
+estKrw = ( promptTokens × priceInputUsdPerM + (outputTokens + thoughtsTokens) × priceOutputUsdPerM ) ÷ 1,000,000 × krwPerUsd
+```
+
+- 저장: `llm_usage.est_krw REAL`. 호출마다 **반올림하지 않고** 더한다(D-LLM-17).
+- 판정: 저장된 소수 값 그대로 `estKrw >= monthlyBudgetKrw`.
+- 로그: `estKrw`는 `Math.round`한 정수 원, `pct`는 `Math.floor(estKrw ÷ monthlyBudgetKrw × 100)`.
+
+| 예 | prompt | output | thoughts | 기본 단가·환율의 추정 |
+|---|---|---|---|---|
+| Fake 고정값 | 100 | 20 | 0 | (30 + 50) ÷ 10⁶ × 1400 = **0.112원** |
+| 평범한 speak(가정) | 3000 | 300 | 500 | (900 + 2000) ÷ 10⁶ × 1400 = **4.06원** |
+| 최대 컨텍스트(가정) | 30000 | 300 | 1000 | (9000 + 3250) ÷ 10⁶ × 1400 = 17.15원 |
+
+- 10만원은 평범한 speak 약 2만 4천 회/월(하루 약 800회)이다.
+- 기본 단가는 gemini-2.5-flash 2025년 공개값(입력 $0.30/M, 출력 $2.50/M — 사고 토큰 포함)이다. **확인 필요**(§12.13).
+- 캐시 할인(`cachedContentTokenCount`)은 반영하지 않는다. 추정이 실제보다 크게 나오는 쪽이라 상한 목적에 안전하다.
+
+### 12.5 Gemini `usageMetadata` 파싱 (`gemini.ts` 델타)
+
+```ts
+const count = z.number().int().nonnegative().optional().catch(undefined)
+const usageSchema = z.object({
+  usageMetadata: z
+    .object({ promptTokenCount: count, candidatesTokenCount: count, thoughtsTokenCount: count })
+    .optional()
+    .catch(undefined),
+})
+/** 200 본문 JSON 에서 사용량을 꺼낸다. 객체·필드가 없거나 형식이 틀리면 그 값은 0 */
+const readUsage = (json: unknown): LlmUsage
+```
+
+| 응답 | `usage` 위치 | 누적 |
+|---|---|---|
+| 200 + 텍스트 | `GenerateOutput.usage` | ○ |
+| 200 + `finishReason` `STOP`·`MAX_TOKENS` + 텍스트 없음 | `{ text: '', usage }`(후처리가 `LLM_EMPTY`) | ○ |
+| 200 + 차단(`blockReason`·후보 없음·차단 `finishReason`) | `LlmError('blocked', { usage })` | ○ |
+| 200 + JSON이지만 `responseSchema` 불일치 | `LlmError('bad_response', { usage })` | ○ |
+| 200 + `usageMetadata` 없음·필드 일부 없음·음수·문자열 | 없는·틀린 필드는 0 | ○(`calls` +1, D-LLM-20) |
+| 200 + JSON 아님 / 본문 읽기 timeout | 없음 | ✕ |
+| 4xx·429·5xx | 없음(오류 본문에 사용량이 없다) | ✕ |
+| fetch 단계 network·timeout | 없음 | ✕ |
+
+- `readUsage`는 `responseSchema`와 따로 파싱한다. 후보 형식이 틀려도 사용량은 건진다.
+- 토큰 수는 숫자라 로그 금지 규칙(§6.1)과 충돌하지 않지만, 개별 토큰 수는 로그에 남기지 않는다(D1 행에 있다).
+
+### 12.6 Fake 고정값 (`fake.ts` 델타)
+
+```ts
+export const FAKE_USAGE: LlmUsage = { promptTokens: 100, outputTokens: 20, thoughtsTokens: 0 }
+
+export type FakeStep =
+  | { readonly text: string; readonly usage?: LlmUsage }   // usage 생략 → FAKE_USAGE
+  | { readonly error: LlmError }                           // error.usage 가 있으면 누적된다
+  | ((input: GenerateInput) => Promise<GenerateOutput>)    // 반환값 그대로
+```
+
+- 각본이 떨어진 기본 응답도 `{ text: FAKE_DEFAULT_TEXT, usage: FAKE_USAGE }`.
+- 로컬 `LLM_PROVIDER=fake`도 로컬 D1 `llm_usage`에 누적된다. 0.112원/회라 기본 예산에 닿으려면 약 89만 회가 필요하다.
+
+### 12.7 흐름 (게이트·누적)
+
+```
+messages.speak / regenerate                       (판정 순서 전체는 messages.md §4.2)
+  ├ llm = deps.llm()                              ── CONFIG_INVALID
+  ├ await llm.ensureBudget()                      ── S3b 게이트
+  │     └ meter.ensureBudget
+  │          month = kstMonthKey(now())
+  │          row   = await store.get(month)                         D1 읽기 1행(PK)
+  │          (row?.estKrw ?? 0) >= monthlyBudgetKrw
+  │             → warn llm_budget_exceeded
+  │             → throw AppError('LLM_BUDGET_EXCEEDED', undefined, { retryAfterSec: budgetRetryAfterSec(now()) })
+  ├ (잠금 선점 · 컨텍스트 조회 — messages/db)
+  ├ await llm.complete(prompt)
+  │     └ withRetry ─ 시도 n:
+  │          try   { out = await provider.generate(…); if (out.usage) await meter.record(out.usage); return out }
+  │          catch (e) { if (e instanceof LlmError && e.usage) await meter.record(e.usage); throw e }
+  │          meter.record(usage)
+  │             month = kstMonthKey(now())
+  │             delta = { promptTokens, outputTokens: outputTokens + thoughtsTokens, estKrw: estimateKrw(usage, pricing) }
+  │             try   { totals = await store.add(month, delta, now()); info llm_usage }
+  │             catch { warn llm_usage_record_failed }                   ← 절대 throw 하지 않는다
+  └ (저장 · 해제 — messages)
+```
+
+- 누적은 `withRetry`의 **시도 함수 안**이다. 재시도 2회면 2번 누적된다.
+- 누적은 `await`한다(D-LLM-19). 시도당 D1 쓰기 1회(수십 ms)이며 R-NFR-001의 D1 여유 4초 안이다. 가짜 시계 테스트에서 D1은 시계를 올리지 않는다.
+- `llm_done`·`llm_failed` 로그는 그대로다. 누적 로그는 별도 이벤트다(§6.1).
+- S4 요약도 `Llm.complete`를 쓰므로 같은 경로로 누적된다. 요약 전에 `ensureBudget`을 부를지는 S4 memory 설계가 정한다. 권고는 "부르고, 초과면 요약을 건너뛰고 로그만"이다(speak 응답에는 영향 없음).
+
+### 12.8 동시성·한계
+
+| 상황 | 결과 | 근거 |
+|---|---|---|
+| 다른 방 speak N건이 예산 직전에 동시 통과 | 모두 진행, 최대 약 N × 2회분 초과 | 게이트는 읽기만 하고 잠그지 않는다(허용·문서화). 같은 방은 방 잠금으로 1건 |
+| 동시 누적 2건 | 둘 다 반영(유실 없음) | 가산 UPSERT 한 문장. D1이 쓰기를 직렬 실행([db.md](db.md) §3.6) |
+| 누적 D1 실패 | speak 결과 유지, 그 호출은 집계에서 빠짐(과소 추정) | `llm_usage_record_failed` warn으로 추적 |
+| 게이트 D1 실패 | 500 `INTERNAL` | D-LLM-22(닫힌 실패) |
+| 요청 중 월 경계 | 게이트는 전월 키, 누적은 응답 시각의 키 | 차이는 호출 1~2건 |
+| 실제 청구와 차이 | 캐시 할인·무료 등급·단가 변경·환율·부가세가 반영되지 않음 | 추정이다. handoff 메모(「contract 인계」 S3b 절) |
+
+### 12.9 로그·현황 확인
+
+- 로그 이벤트는 §6.1의 S3b 3행이다. 관리 화면·health 노출은 없다.
+- 현황은 `wrangler tail`의 `llm_usage` 로그와 D1 조회로 본다. 조회 예(로컬):
+
+```
+npx wrangler d1 execute DB --local --command "SELECT month, calls, prompt_tokens, output_tokens, est_krw FROM llm_usage ORDER BY month DESC"
+```
+
+- 운영 조회(`--remote`)는 SELECT만 쓰고 배포 담당이 실행한다.
+
+### 12.10 에러
+
+| 에러 클래스 | shared 에러 코드 | HTTP | 한국어 메시지 | 원인 |
+|---|---|---|---|---|
+| `AppError` | `LLM_BUDGET_EXCEEDED`(신규 14종째) | 429 | `이번 달 AI 사용 한도에 닿았습니다. 다음 달에 다시 시도해 주세요.`(기본 문구, 요구 원문) | 이번 달 KST 추정 누적 ≥ `LLM_MONTHLY_BUDGET_KRW` |
+
+- 생성: `new AppError('LLM_BUDGET_EXCEEDED', undefined, { retryAfterSec })`. onError가 본문 `error.retryAfterSec`·헤더 `Retry-After`로 옮긴다(S2 경로 재사용 — [index.md](index.md) §2.4·§5.1 S3b 델타).
+- shared에 코드가 들어가기 전에는 `AppError`의 `ErrorCode` 타입이 이 코드를 받지 않는다. 구현 순서는 contract-implementer(shared) → server-implementer.
+
+### 12.11 설정
+
+§6 표의 S3b 4행. 검증·변환은 [env.md](env.md) §3.1 S3b 행. llm은 값으로만 받는다. 배선은 [index.md](index.md) §2.3 S3b 델타.
+
+### 12.12 테스트 (SRV-T-210~222)
+
+`server/test/llm-usage.test.ts` 신규(순수 함수 + 가짜 `UsageStore` + 수집 로거), `llm-gemini.test.ts`·`llm-client.test.ts`에 추가. 시각은 고정 epoch ms 상수. D1 통합은 [db.md](db.md) SRV-T-223·224와 [messages.md](messages.md) SRV-T-225~230.
+
+| 테스트ID | 이름 | 입력 | 기대 | 요구 |
+|---|---|---|---|---|
+| SRV-T-210 | `kstMonthKey_and_nextKstMonthStartMs_match_vectors` | §12.3 표 5행 | 표대로 | R-LLM-007 |
+| SRV-T-211 | `budgetRetryAfterSec_is_ceil_and_at_least_1` | 경계 1ms 전 / 경계 정각 / 경계 0.5초 전 | 1 / 2678400 / 1. 모두 정수 | R-LLM-007 |
+| SRV-T-212 | `estimateKrw_matches_formula_vectors` | §12.4 표 3행, 단가 0 | 표 값(`toBeCloseTo`, 소수 9자리), thoughts가 출력 단가로 계산됨, 단가 0 → 0 | R-LLM-007 |
+| SRV-T-213 | `ensureBudget_allows_below_and_rejects_at_or_above_budget` | 예산 100000. 가짜 store: 행 없음 / `estKrw 99999.999` / `100000` / `100000.5` | 통과·통과·`AppError` `code 'LLM_BUDGET_EXCEEDED'`·`status 429`·`retryAfterSec === budgetRetryAfterSec(now)`·같은 결과. `store.get` 인자 = 현재 KST 월. 거절 때만 `llm_budget_exceeded` warn(필드 §6.1) | R-LLM-007 |
+| SRV-T-214 | `ensureBudget_unlocks_on_next_kst_month` | store에 `2026-10` 행 `estKrw` = 예산. now `2026-10-31T14:59:59.999Z` / `2026-10-31T15:00:00.000Z` | 429 / 통과(`get('2026-11')` 호출) | R-LLM-007 |
+| SRV-T-215 | `ensureBudget_propagates_store_error` | `get`이 reject | 같은 에러 전파(`LLM_BUDGET_EXCEEDED` 아님) | R-LLM-007 |
+| SRV-T-216 | `record_adds_delta_and_logs_usage_fields_only` | `{ 100, 20, thoughts 7 }`, 기본 단가 | `store.add(month, { promptTokens 100, outputTokens 27, estKrw ≈ 0.1365 }, now)` 1회. info `llm_usage` 필드 키가 정확히 `month·calls·estKrw·budgetKrw·pct`, `estKrw` 정수 | R-LLM-007 · R-NFR-004 |
+| SRV-T-217 | `record_never_throws_when_store_fails` | `add`가 reject | resolve, warn `llm_usage_record_failed { month, errName }`, info 0건 | R-LLM-007 |
+| SRV-T-218 | `gemini_parses_usageMetadata_into_usage` | 200 텍스트 + 3필드 / 필드 일부 없음 / 객체 없음 / 음수·문자열 값 | 그대로 / 없는 필드 0 / 전부 0 / 틀린 필드 0 | R-LLM-007 |
+| SRV-T-219 | `gemini_attaches_usage_to_blocked_and_bad_response_only` | 200 `blockReason` + usage / 200 `candidates: 'x'` + usage / 500·429·400 / 200 `'not json'` | `LlmError.usage` 있음 / 있음 / 없음 / 없음 | R-LLM-007 |
+| SRV-T-220 | `FakeProvider_returns_FAKE_USAGE_and_honors_step_usage` | 기본 응답, `{ text }`, `{ text, usage }`, `{ error: new LlmError('blocked', { usage }) }` | `FAKE_USAGE` / `FAKE_USAGE` / 각본 값 / throw된 에러의 `usage` 보존 | R-LLM-007 |
+| SRV-T-221 | `createLlm_records_usage_per_attempt` | meter 스파이. 각본 `[http_5xx(usage 없음), { text }]` / `[blocked(usage)]` / `[http_5xx(usage), { text }]` / meter 없음 | `record` 1회 / 1회 후 `LLM_EMPTY` / 2회(재시도 2번 누적) / SRV-T-180과 같은 결과 | R-LLM-007 |
+| SRV-T-222 | `createLlm_keeps_result_when_record_fails_and_delegates_ensureBudget` | 실제 `createUsageMeter` + `add` reject store / `ensureBudget`: meter 없음·있음 | `complete`가 텍스트 반환 + warn 1건 / 즉시 resolve·`meter.ensureBudget` 1회 | R-LLM-007 |
+
+- 에러 경로(213 일부·214·215·217·219·221 일부·222) 7 ≥ 정상 경로 6.
+- 수동(§8.1에 추가):
+  - [ ] 실제 Gemini 3회 speak 뒤 로컬 D1 `llm_usage` 행의 `calls 3`, `est_krw`가 수 원 단위인지 확인. `wrangler tail` 로그 `llm_usage`에 토큰 개별 값·본문 없음.
+  - [ ] `.dev.vars`에 `LLM_MONTHLY_BUDGET_KRW=1`을 넣고 speak 몇 회 → 429 `LLM_BUDGET_EXCEEDED`, 응답 헤더 `Retry-After`, 같은 화면에서 유저 발화·수정·삭제·목록은 성공.
+
+### 12.13 확인 필요
+
+- **단가 기본값**: gemini-2.5-flash 입력 $0.30/M·출력 $2.50/M은 2025년 공개값이다. 배포 전 Google 가격표로 확인하고 다르면 `[vars]`만 바꾼다.
+- **환율 1400**: 자동 갱신하지 않는다. 크게 바뀌면 `[vars]` `KRW_PER_USD`를 고쳐 재배포한다.
+- **무료 등급 키**: 지인 키가 무료 등급이면 실제 청구는 0이지만 추정은 쌓여 상한에 걸린다. 그 경우 단가를 0으로 두면 게이트가 사실상 꺼진다(env 범위가 0을 허용 — [env.md](env.md) D-ENV-9).
+- **S4 요약 게이트**: §12.7 권고. S4 memory 설계에서 확정.
+- **요구 R-ENV-002 키 목록**: 4개 키가 R-ENV-002 행에 아직 없다(R-LLM-007에만 있음). 「메인 세션 보고 사항」 5.
 
 ---
 
@@ -810,8 +1123,36 @@ contract-designer가 api.md §4.0 E9·E12 행을 확정하고 상세 절로 옮�
 
 - 라우트 주의: `c.executionCtx`는 **콜백 안에서만** 읽는다(`p => c.executionCtx.waitUntil(p)`). S3에서 훅이 no-op이라 콜백이 불리지 않으므로, `app.request()`에 실행 컨텍스트를 넘기지 않는 기존 라우트 테스트 방식이 그대로 돈다. S4에서 훅이 생기면 라우트 테스트는 `cloudflare:test`의 `createExecutionContext()`를 넘긴다.
 - 화면 쪽 409 두 코드 구분: `SPEAK_IN_PROGRESS`는 "잠시 후 다시", `NOT_LAST_MESSAGE`는 다시 눌러도 안 된다(재작성 메뉴는 마지막 캐릭터 메시지에만 — R-CHAT-007).
-- 새 에러 코드 없음(13종 안). shared 추가는 `SpeakBody` 타입 1개와 `PATHS`의 speak·regenerate 경로 2개(2026-10-06 현재 `shared/src/endpoints.ts`에 없음 — 이름 예: `roomSpeak`·`messageRegenerate`, contract가 정한다).
+- (S3 기준) 새 에러 코드 없음(13종 안). S3b가 14종째 `LLM_BUDGET_EXCEEDED`를 더한다(아래 S3b 절). shared 추가는 `SpeakBody` 타입 1개와 `PATHS`의 speak·regenerate 경로 2개(2026-10-06 현재 `shared/src/endpoints.ts`에 없음 — 이름 예: `roomSpeak`·`messageRegenerate`, contract가 정한다).
 - E12 판정 순서 4의 두 409는 잠금 선점 결과가 먼저다. 다른 생성이 진행 중이면 대상이 마지막이 아니어도 `SPEAK_IN_PROGRESS`가 나간다.
+
+### S3b 델타 — 월 비용 상한 (R-LLM-007 · R-API-002 개정)
+
+| 항목 | 값 |
+|---|---|
+| shared 에러 코드 | `LLM_BUDGET_EXCEEDED` 추가(14종째). `ERROR_CODES`에서 `LLM_EMPTY` 다음(요구 R-API-002 나열 순서) |
+| `ERROR_STATUS` | 429(`ErrorStatus` 유니온에 이미 있음) |
+| `ERROR_MESSAGES` | `이번 달 AI 사용 한도에 닿았습니다. 다음 달에 다시 시도해 주세요.`(요구 원문) |
+| 응답 본문 | `{ error: { code: 'LLM_BUDGET_EXCEEDED', message, retryAfterSec } }`. `retryAfterSec`은 다음 달 1일 00:00 KST까지 초(정수 ≥ 1, 최대 2678400) |
+| 응답 헤더 | `Retry-After: <retryAfterSec>` |
+| 내는 엔드포인트 | E9 speak, E12 regenerate만 |
+| 레이트리밋 | 거절도 `rateLimitWrites` 1회로 센다(미들웨어가 서비스보다 먼저 — S3 규약 유지) |
+| health | 사용량·예산을 노출하지 않는다 |
+
+판정 순서 갱신(E9·E12 에러 표에 행 추가):
+
+| 엔드포인트 | 순서 |
+|---|---|
+| E9 speak | `VALIDATION_ERROR`(1) → `CONFIG_INVALID`(2) → **`LLM_BUDGET_EXCEEDED`(2b)** → `NOT_FOUND`·`SPEAK_IN_PROGRESS`(3) → `LLM_*`(4) → `NOT_FOUND` 저장 시점(5) |
+| E12 regenerate | `NOT_FOUND`(1) → `NOT_CHARACTER_MESSAGE`(2) → `CONFIG_INVALID`(3) → **`LLM_BUDGET_EXCEEDED`(3b)** → `SPEAK_IN_PROGRESS`·`NOT_LAST_MESSAGE`(4) → `LLM_*`·`NOT_FOUND`(5) |
+
+- 예산 초과 중 없는 방에 speak하면 404가 아니라 429가 나간다. 방 존재 확인이 잠금 선점과 한 batch라 게이트 뒤에 있다.
+- shared `ApiErrorBody.retryAfterSec` 설명이 `RATE_LIMITED` 전용이면 `RATE_LIMITED`·`LLM_BUDGET_EXCEEDED` 둘로 넓힌다.
+- 화면 주의: 이 값은 수십 일이다. `RATE_LIMITED`처럼 초 카운트다운·자동 재시도에 쓰지 않는다. 문구를 그대로 안내한다. `ui/src/api` 래퍼가 `retryAfterSec`을 `RATE_LIMITED`일 때만 싣는 현 동작(API-T-UI-014)을 유지할지는 contract가 정한다.
+
+handoff 메모(contract-designer가 S5 `doc/handoff/`로 옮길 단락):
+
+> 이 서버는 Gemini 사용량을 "토큰 수 × 공개 단가 × 환율"로 **추정**해, 한 달 추정액이 10만원(기본값)에 닿으면 캐릭터 버튼을 다음 달 1일 0시(한국 시간)까지 막는다. 추정은 실제 청구와 다를 수 있다. 단가 변경·환율·캐시 할인·무료 등급·부가세는 반영되지 않는다. 키를 발급한 Google 계정의 Cloud Billing에서 **월 10만원 예산 알림**을 따로 설정하기를 권고한다. 예산 알림은 메일만 보내고 사용을 막지 않는다. 한도·단가·환율은 `wrangler.toml [vars]`의 `LLM_MONTHLY_BUDGET_KRW`·`LLM_PRICE_INPUT_USD_PER_M`·`LLM_PRICE_OUTPUT_USD_PER_M`·`KRW_PER_USD`를 고쳐 재배포하면 바뀐다. 현황은 `wrangler tail` 로그 `llm_usage`와 D1 `llm_usage` 테이블 조회로 본다.
 
 ## 「메인 세션 보고 사항」
 
@@ -819,6 +1160,7 @@ contract-designer가 api.md §4.0 E9·E12 행을 확정하고 상세 절로 옮�
 2. **확정사항 avatar 구문**: 위임문대로 메인 세션 정정 대상이다. state.json 결정에는 "확정사항 §5 문구 정정 완료"로 적혀 있으나, 2026-10-06 현재 확정사항 152행 "프로필 이미지 경로(avatar)"와 §9-3a 행 "id·name·avatar·persona·speech·rules"가 남아 있다. 두 곳 모두 정정 필요. R-LLM-002 개정판의 `common.json`(`world`, `outputRules[]`)도 확정사항 §5.4·§9-3a에 없어 보충을 권고한다.
 3. **문서 동기화**: (2026-10-06 처리됨) [index.md](index.md) §2.3 `createServices`에 §3.3 델타를 반영했다.
 4. **스킬 문구 불일치(server-design-strategy·server-rules)**: §6 `GenerateInput { messages, maxTokens }`·`generate(): Promise<string>` → 요구 R-LLM-001 `{ system, turns, timeoutMs } → { text }`. §6 "429 재시도" → 요구는 네트워크·5xx·타임아웃만. §3 에러 코드 `LLM_TIMEOUT`·`LLM_PROVIDER_ERROR`·`LLM_AUTH_ERROR`·`LLM_RATE_LIMITED`와 §6 `LLM_EMPTY_OUTPUT` → shared 13종에는 `LLM_FAILED`·`LLM_EMPTY`뿐(내부 분류는 `LlmError.reason`). §7.2 "시스템 프롬프트에 장기기억" → 데이터 블록(D-LLM-10). §7.5 `MAX_PROMPT_CHARS` → 미도입(D-LLM-8). §8 `Character { profileImage }`·`WORLD` → JSON 개정판. server-rules.md 예시 `new AppError('ROOM_NOT_FOUND', 404, …)` → 실제 `new AppError(code, message?, options?)`. 메인 세션 배치 갱신 권고.
+5. **(S3b) 요구 R-ENV-002 키 목록 개정 필요**: `LLM_MONTHLY_BUDGET_KRW`·`LLM_PRICE_INPUT_USD_PER_M`·`LLM_PRICE_OUTPUT_USD_PER_M`·`KRW_PER_USD`가 R-LLM-007에는 있으나 R-ENV-002의 `[vars]` 목록에 없다. 설계는 R-LLM-007을 따라 넣었다([env.md](env.md) §3.1). 요구 문서(메인 세션 소유)에 4개 키를 더하기를 권고한다.
 
 ## 변경 이력
 
@@ -827,3 +1169,6 @@ contract-designer가 api.md §4.0 E9·E12 행을 확정하고 상세 절로 옮�
 | 2026-10-06 | S3 초안 작성(신규) |
 | 2026-10-06 | 구현 동기화: 재시도 판정을 `t2 < 2000`에서 "남은 예산 < 2000"으로 정정(§2.3·§4.2·D-LLM-3, §4.2 표에 `timeoutMs 1000` 행 추가). 테스트 파일을 `llm-{prompt,gemini,client}.test.ts` 3개로 분리 반영(§3·§8) |
 | 2026-10-06 | 보정: §7.1 사용자 턴 마지막 줄을 조사 없는 형태(`다음 발화자: {shortName}. 이 인물로서 한 턴만 말하라.`)로 바꾸고 스냅샷·SRV-T-169 설명을 맞춤, §11 조사 확인 항목 삭제. 보고 사항 3(index.md 동기화) 처리됨 |
+| 2026-10-06 | S3b 설계: §12 월 비용 상한(`usage.ts` 공개 API·월 키·수식·Gemini `usageMetadata` 파싱·Fake 고정값·흐름·동시성·로그·SRV-T-210~222), §2.1 `GenerateOutput.usage?`·`LlmError.usage?`, §2.7·§3·§5·§6·§6.1·§7·§10 델타, D-LLM-16~23, 「contract 인계」 S3b 절(14종째 코드·429 본문·`Retry-After`·handoff 메모), 보고 사항 5 |
+
+파급(S3b 공개 API 변경): `GenerateOutput.usage?`·`LlmError.usage?`·`LlmDeps.meter?`는 선택 필드라 기존 호출자 타입에 영향이 없다. 단 Fake·Gemini가 이제 `usage`를 채우므로 결과 객체 전체를 `toEqual({ text })`로 단언하는 테스트(`server/test/llm-gemini.test.ts` 66·212·215행)는 `{ text, usage }` 또는 `.text` 비교로 고친다(`llm-client.test.ts` 182행은 `withRetry` 직접 각본이라 영향 없음 — 구현 시 확인). `Llm`에 `ensureBudget` 필수 추가 → `Llm`을 만드는 곳은 `createLlm`뿐이다(2026-10-06 `server/test`에 `complete:` 직접 구현 0건). `index.ts` 재노출 추가. 컨테이너 배선은 [index.md](index.md) §2.3 S3b 델타.

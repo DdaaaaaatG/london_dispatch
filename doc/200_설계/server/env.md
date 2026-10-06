@@ -1,7 +1,7 @@
 # env 모듈 설계
 
-- 상태: 확정(S1 구현 동기화) · 최종 갱신: 2026-10-06
-- 묶음: S1(저장 + 읽기 전용). 이 문서의 공개 API는 전부 S1에서 구현되었다(`requireLlmApiKey`는 S1에서 만들고 S3 speak가 호출). **S2 변경 없음**: S2가 쓰는 `TOKEN_SECRET`·`TOKEN_MIN_LEVEL`·`RATE_LIMIT_PER_MIN`은 이미 `Config`(`tokenSecret`·`tokenMinLevel`·`rateLimitPerMin`)에 있고, [auth.md](auth.md) §6이 값으로 받는다. **S3 변경 없음**: S3가 쓰는 `llmProvider`·`llmModel`·`llmTimeoutMs`·`contextMessages`와 `requireLlmApiKey`는 이미 구현되어 있다. 컨테이너가 speak·regenerate 시점에만 `requireLlmApiKey`를 부르는 지연 생성 함수로 감싼다([llm.md](llm.md) §3.3, R-ENV-003). `requireLlmApiKey`는 `LLM_PROVIDER=fake`이면 키를 요구하지 않고 `''`을 돌려주며, `FakeProvider`는 그 값을 쓰지 않는다(키 없는 로컬 개발·테스트용).
+- 상태: 확정(S1 구현 동기화) · S3b 초안(키 4개 — §2 S3b 델타·§3.1·§6) · 최종 갱신: 2026-10-06
+- 묶음: S1(저장 + 읽기 전용). 이 문서의 공개 API는 전부 S1에서 구현되었다(`requireLlmApiKey`는 S1에서 만들고 S3 speak가 호출). **S2 변경 없음**: S2가 쓰는 `TOKEN_SECRET`·`TOKEN_MIN_LEVEL`·`RATE_LIMIT_PER_MIN`은 이미 `Config`(`tokenSecret`·`tokenMinLevel`·`rateLimitPerMin`)에 있고, [auth.md](auth.md) §6이 값으로 받는다. **S3 변경 없음**: S3가 쓰는 `llmProvider`·`llmModel`·`llmTimeoutMs`·`contextMessages`와 `requireLlmApiKey`는 이미 구현되어 있다. 컨테이너가 speak·regenerate 시점에만 `requireLlmApiKey`를 부르는 지연 생성 함수로 감싼다([llm.md](llm.md) §3.3, R-ENV-003). `requireLlmApiKey`는 `LLM_PROVIDER=fake`이면 키를 요구하지 않고 `''`을 돌려주며, `FakeProvider`는 그 값을 쓰지 않는다(키 없는 로컬 개발·테스트용). **S3b 변경**: 월 비용 상한(R-LLM-007 🔒) 키 4개 `LLM_MONTHLY_BUDGET_KRW`·`LLM_PRICE_INPUT_USD_PER_M`·`LLM_PRICE_OUTPUT_USD_PER_M`·`KRW_PER_USD`(전부 `[vars]`, 비밀 아님)와 소수 변환기 `decimalVar`를 더한다.
 - 관련 문서: [index.md](index.md)(호출 지점·부트스트랩), [db.md](db.md)(`DB` 바인딩 소비), [auth.md](auth.md)(토큰·레이트리밋 설정 소비), [rooms.md](rooms.md), [messages.md](messages.md).
 
 ## 1. 목적
@@ -73,6 +73,35 @@ export const requireLlmApiKey = (config: Config): string
 - `Env`에 설정 키를 **일부러 넣지 않는다.** `wrangler types`가 만드는 전체 `Env` 인터페이스는 이 프로젝트에서 쓰지 않는다(쓰면 다른 파일에서 `c.env.TOKEN_SECRET`이 타입상 허용됨). 타입은 `@cloudflare/workers-types`만 쓴다.
 - 테스트 전용 바인딩(`TEST_MIGRATIONS`, [db.md](db.md) §8)은 `Env`·`ENV_KEYS`에 넣지 않는다. `parseEnv`는 모르는 키를 무시한다(strict 스키마 금지).
 
+### S3b 델타 — `Config`·`ENV_KEYS`·스키마 (R-LLM-007)
+
+```ts
+export type Config = {
+  // …기존 10필드 그대로
+  /** S3b. 원, 정수 1~10000000 */
+  readonly llmMonthlyBudgetKrw: number
+  /** S3b. 입력 토큰 100만 개당 USD, 소수 0~100 */
+  readonly llmPriceInputUsdPerM: number
+  /** S3b. 출력(+사고) 토큰 100만 개당 USD, 소수 0~100 */
+  readonly llmPriceOutputUsdPerM: number
+  /** S3b. 원/USD, 소수 100~10000 */
+  readonly krwPerUsd: number
+}
+
+// ENV_KEYS: 설정 14 + 리소스 2 = 16. 'MEMORY_SUMMARY_THRESHOLD' 뒤, 'DB' 앞에 4개
+//   'LLM_MONTHLY_BUDGET_KRW', 'LLM_PRICE_INPUT_USD_PER_M', 'LLM_PRICE_OUTPUT_USD_PER_M', 'KRW_PER_USD'
+
+// schema 추가 행
+LLM_MONTHLY_BUDGET_KRW: intVar(1, 10_000_000, 100_000),
+LLM_PRICE_INPUT_USD_PER_M: decimalVar(0, 100, 0.3),
+LLM_PRICE_OUTPUT_USD_PER_M: decimalVar(0, 100, 2.5),
+KRW_PER_USD: decimalVar(100, 10_000, 1400),
+```
+
+- 공개 함수 시그니처(`parseEnv`·`requireLlmApiKey`)는 바뀌지 않는다. `Config`에 필드 4개, `ENV_KEYS`에 이름 4개가 늘 뿐이다.
+- 교차 검사는 없다. 4개 키는 `LLM_API_KEY` 유무와 무관하게 항상 파싱한다. 형식 오류는 다른 `[vars]` 키와 같이 모든 요청 500 `CONFIG_INVALID`다.
+- 쓰는 곳은 컨테이너의 meter 배선뿐이다([index.md](index.md) §2.3 S3b, [llm.md](llm.md) §12.11).
+
 ## 3. 내부 구조
 
 | 파일 | 책임 |
@@ -97,6 +126,10 @@ export const requireLlmApiKey = (config: Config): string
 | `RATE_LIMIT_PER_MIN` | `[vars]` | ✕ | string\|number | 20 | 정수 1~600 | `rateLimitPerMin` | S2 auth |
 | `CONTEXT_MESSAGES` | `[vars]` | ✕ | string\|number | 40 | 정수 1~100 | `contextMessages` | S3 llm·S4 memory |
 | `MEMORY_SUMMARY_THRESHOLD` | `[vars]` | ✕ | string\|number | 60 | 정수 2~1000, **`> CONTEXT_MESSAGES`**(교차 규칙, 위반 시 두 키 모두 보고) | `memorySummaryThreshold` | S4 memory |
+| `LLM_MONTHLY_BUDGET_KRW` (S3b) | `[vars]` | ✕ | string\|number | 100000 | 정수 1~10000000(원) | `llmMonthlyBudgetKrw` | S3b llm |
+| `LLM_PRICE_INPUT_USD_PER_M` (S3b) | `[vars]` | ✕ | string\|number | 0.3 | 소수 0~100(`decimalVar`) | `llmPriceInputUsdPerM` | S3b llm |
+| `LLM_PRICE_OUTPUT_USD_PER_M` (S3b) | `[vars]` | ✕ | string\|number | 2.5 | 소수 0~100(`decimalVar`) | `llmPriceOutputUsdPerM` | S3b llm |
+| `KRW_PER_USD` (S3b) | `[vars]` | ✕ | string\|number | 1400 | 소수 100~10000(`decimalVar`) | `krwPerUsd` | S3b llm |
 | `DB` | `[[d1_databases]]` | ✕ | D1Database | **필수** | 객체이고 `prepare`가 함수 | — (`Env.DB`로 index가 직접 전달) | S1 db |
 | `ASSETS` | `[assets]` | ✕ | Fetcher | **필수** | 객체이고 `fetch`가 함수 | — (`Env.ASSETS`로 index가 직접 전달) | S1 index |
 
@@ -104,6 +137,7 @@ export const requireLlmApiKey = (config: Config): string
 
 - `[vars]` 문자열: 앞뒤 공백 제거 → 빈 문자열이면 **누락으로 보고 기본값** 적용. 값이 있는데 형식이 틀리면 기본값으로 넘어가지 않고 `CONFIG_INVALID`.
 - 숫자 키: `number`(TOML 정수·테스트 바인딩)이거나 `^\d+$` 문자열만 받는다. `"1e3"`·`"5.0"`·`"-1"`·`" 5 "`(trim 후 `"5"`는 허용) 처리 기준이 명확하도록 `z.coerce`는 쓰지 않는다.
+- (S3b) 소수 키(`decimalVar`): 유한한 `number`이거나 `^\d+(\.\d{1,6})?$` 문자열만 받는다. `".3"`·`"1e-1"`·`"-0.1"`·`"0,3"`·소수 7자리 이상은 `CONFIG_INVALID`. 정수 문자열(`"1400"`)도 받는다.
 - 기본값의 단일 소스는 이 스키마다. `wrangler.toml [vars]`는 같은 값을 전사한다(키가 빠져도 동작은 같다).
 
 스키마 스케치(구현 참고, 문법은 설치된 zod 버전에 맞춘다):
@@ -118,6 +152,19 @@ const intVar = (min: number, max: number, dflt: number) =>
       .default(dflt),
   )
 const secret = z.preprocess(v => (v === '' ? undefined : v), z.string())
+```
+
+S3b 소수 변환기:
+
+```ts
+const decimalVar = (min: number, max: number, dflt: number) =>
+  z.preprocess(
+    blankToUndefined,
+    z
+      .union([z.number(), z.string().regex(/^\d+(\.\d{1,6})?$/).transform(Number)])
+      .pipe(z.number().finite().min(min).max(max))
+      .default(dflt),
+  )
 ```
 
 ### 3.2 `ConfigError` 생성 규칙 (값 유출 차단)
@@ -174,6 +221,10 @@ fetch(request, env, ctx)                      ← Workers 런타임
 | `RATE_LIMIT_PER_MIN` | ○ 기본 20 | ○ `"20"` | 주석 | ✕ |
 | `CONTEXT_MESSAGES` | ○ 기본 40 | ○ `"40"` | 주석 | ✕ |
 | `MEMORY_SUMMARY_THRESHOLD` | ○ 기본 60 | ○ `"60"` | 주석 | ✕ |
+| `LLM_MONTHLY_BUDGET_KRW` (S3b) | ○ 기본 100000 | ○ `"100000"` | 주석 | ✕ |
+| `LLM_PRICE_INPUT_USD_PER_M` (S3b) | ○ 기본 0.3 | ○ `"0.3"` | 주석 | ✕ |
+| `LLM_PRICE_OUTPUT_USD_PER_M` (S3b) | ○ 기본 2.5 | ○ `"2.5"` | 주석 | ✕ |
+| `KRW_PER_USD` (S3b) | ○ 기본 1400 | ○ `"1400"` | 주석 | ✕ |
 | `DB` | 존재 검사 | `[[d1_databases]] binding = "DB"` | ✕ | ✕ |
 | `ASSETS` | 존재 검사 | `[assets] binding = "ASSETS"` | ✕ | ✕ |
 
@@ -210,6 +261,10 @@ LLM_API_KEY=
 # RATE_LIMIT_PER_MIN=20                  토큰(mb_id) 단위 쓰기 요청 분당 상한. 확정사항 §9-6
 # CONTEXT_MESSAGES=40                    speak 에 넣는 최근 메시지 수(1~100)
 # MEMORY_SUMMARY_THRESHOLD=60            이 수를 넘으면 오래된 구간을 요약한다(CONTEXT_MESSAGES 보다 커야 함)
+# LLM_MONTHLY_BUDGET_KRW=100000          월 AI 비용 상한(원, 추정). 닿으면 다음 달 1일 0시(KST)까지 캐릭터 버튼 429. R-LLM-007
+# LLM_PRICE_INPUT_USD_PER_M=0.3          입력 토큰 100만 개당 USD(gemini-2.5-flash 공개 단가 — 배포 전 확인)
+# LLM_PRICE_OUTPUT_USD_PER_M=2.5         출력+사고 토큰 100만 개당 USD
+# KRW_PER_USD=1400                       원/달러 환율(자동 갱신 없음)
 ```
 
 ## 7. DB 스키마·마이그레이션
@@ -222,7 +277,7 @@ LLM_API_KEY=
 
 | 테스트ID | 이름(`동작_조건_기대`) | 입력 | 기대 | 요구 |
 |---|---|---|---|---|
-| SRV-T-001 | `parseEnv_applies_defaults_when_only_required_present` | `TOKEN_SECRET`·`DB`·`ASSETS`만 | 기본값 8개가 §3.1과 같음, `llmApiKey === undefined` | R-ENV-002 |
+| SRV-T-001 | `parseEnv_applies_defaults_when_only_required_present` | `TOKEN_SECRET`·`DB`·`ASSETS`만 | 기본값 12개(S3b 4개 포함)가 §3.1과 같음, `llmApiKey === undefined` | R-ENV-002 |
 | SRV-T-002 | `parseEnv_converts_numeric_strings_and_numbers` | `TOKEN_MIN_LEVEL: '7'` / `7` / `' 7 '` | 셋 다 `7` | R-ENV-002 |
 | SRV-T-003 | `parseEnv_throws_CONFIG_INVALID_when_required_missing` | `TOKEN_SECRET` 없음 / `''`, `DB` 없음, `ASSETS` 없음(각각) | `ConfigError`, `code === 'CONFIG_INVALID'`, `status === 500`, `keys`가 해당 키 1개 | R-ENV-003 |
 | SRV-T-004 | `parseEnv_throws_when_number_out_of_range` | 표 기반: `TOKEN_MIN_LEVEL` 0·11, `LLM_TIMEOUT_MS` 999·60001, `RATE_LIMIT_PER_MIN` 0·601, `CONTEXT_MESSAGES` 0·101, `MEMORY_SUMMARY_THRESHOLD` 1·1001, `'5.0'`·`'1e3'`·`'-1'` | 각 `keys`에 해당 키 | R-ENV-002·003 |
@@ -233,6 +288,8 @@ LLM_API_KEY=
 | SRV-T-009 | `ConfigError_never_contains_values` | `TOKEN_SECRET: SENTINEL`, `LLM_PROVIDER: 'SENTINEL_PROVIDER'` | `JSON.stringify(err)`·`err.message`·`String(err.keys)`·`err.cause`에 감시 문자열 없음, `err.cause === undefined` | R-ENV-003 · R-NFR-004 |
 | SRV-T-010 | `requireLlmApiKey_throws_when_google_without_key` | google+키 없음 / google+키 / fake+키 없음 | `ConfigError(['LLM_API_KEY'])` / 키 반환 / `''` 반환 | R-ENV-003 |
 | SRV-T-011 | `env_keys_match_wrangler_vars_and_dev_vars_example` | `?raw` import로 `wrangler.toml`·`.dev.vars.example` 텍스트를 읽어 키 집합 추출 | `[vars]` 키 = 설정 키 − 비밀 2개, `.dev.vars.example` 활성 키 = 비밀 2개, 주석 키 = `[vars]` 키 | R-ENV-002 |
+| SRV-T-231 | `parseEnv_reads_budget_and_price_keys_with_decimals` (S3b) | 4키 없음 / `'50000'`·`'0.075'`·`'0'`·`'1385.5'` / 숫자 `0.3` / `' 2.5 '` | 기본값 100000·0.3·2.5·1400 / 50000·0.075·0·1385.5 / 0.3 / 2.5 | R-LLM-007 · R-ENV-002 |
+| SRV-T-232 | `parseEnv_rejects_invalid_budget_and_price_keys` (S3b) | 표 기반: 예산 `0`·`10000001`·`'1e5'`·`'5.5'`·`'-1'`, 단가 `'-0.1'`·`'.3'`·`'1e-1'`·`'100.1'`·`'0.1234567'`, 환율 `'99'`·`'10000.5'`·`'abc'`·`NaN` | 각 `keys`에 해당 키 1개, 값은 에러에 없음 | R-ENV-002·003 |
 
 - 에러 경로(SRV-T-003~007·009·010 일부) 수가 정상 경로(001·002·008·011)보다 많다.
 - SRV-T-011은 workerd 안에서 `?raw` import가 안 되면 vitest 별도 node 프로젝트로 돌리거나 verify 단계 grep 대조로 대체한다(구현 시 확인).
@@ -240,7 +297,7 @@ LLM_API_KEY=
 수동·리뷰 체크:
 
 - [ ] `grep -rnE "process\.env|import\.meta\.env" server/src` 결과가 0건(R-ENV-001).
-- [ ] `grep -rnE "TOKEN_SECRET|LLM_API_KEY|TOKEN_MIN_LEVEL|LLM_PROVIDER|LLM_MODEL|LLM_TIMEOUT_MS|ALLOWED_FRAME_ANCESTORS|RATE_LIMIT_PER_MIN|CONTEXT_MESSAGES|MEMORY_SUMMARY_THRESHOLD" server/src` 결과가 `server/src/env.ts`뿐(R-ENV-001).
+- [ ] `grep -rnE "TOKEN_SECRET|LLM_API_KEY|TOKEN_MIN_LEVEL|LLM_PROVIDER|LLM_MODEL|LLM_TIMEOUT_MS|ALLOWED_FRAME_ANCESTORS|RATE_LIMIT_PER_MIN|CONTEXT_MESSAGES|MEMORY_SUMMARY_THRESHOLD|LLM_MONTHLY_BUDGET_KRW|LLM_PRICE_INPUT_USD_PER_M|LLM_PRICE_OUTPUT_USD_PER_M|KRW_PER_USD" server/src` 결과가 `server/src/env.ts`뿐(R-ENV-001).
 - [ ] `server/.dev.vars`에서 `TOKEN_SECRET`을 비우고 `wrangler dev` → `curl /api/rooms`가 500 `CONFIG_INVALID`, 터미널 로그에 키 이름만 보임(R-ENV-003).
 - [ ] `wrangler dev` 로그에서 요청당 CPU 시간이 수 ms 이하인지 확인(R-NFR-005).
 
@@ -262,6 +319,8 @@ env 모듈은 엔드포인트를 노출하지 않는다. contract가 알아야 �
 | R-ENV-001 🔒 | §2(`Env` 타입 제한)·§4·§8 수동 grep | SRV-T-011, 리뷰 grep | ✅ |
 | R-ENV-002 🔒 | §3.1·§6.1·§6.2 | SRV-T-001·002·004·006·007·011 | ✅ |
 | R-ENV-003 | §2·§3.2·§5 | SRV-T-003·004·005·008·009·010 | ✅ |
+| R-LLM-007 🔒 (S3b 키) | §2 S3b 델타·§3.1·§6.1·§6.2 | SRV-T-231·232·011 | ✅(설계) |
+| R-ENV-002 🔒 (S3b 키 4개) | §3.1·§6.1 | SRV-T-011·231 | 부분(요구 R-ENV-002 키 목록 개정 대기 — [llm.md](llm.md) 보고 사항 5) |
 | R-NFR-004 🔒 | §3.2(값 미적재) | SRV-T-009 | 부분(로그 전반은 [index.md](index.md)) |
 | R-NFR-005 | §4(파싱 비용) | 수동 CPU 확인 | 부분(전체는 index.md) |
 
@@ -276,6 +335,8 @@ env 모듈은 엔드포인트를 노출하지 않는다. contract가 알아야 �
 | D-ENV-5 | `MEMORY_SUMMARY_THRESHOLD > CONTEXT_MESSAGES` 교차 검사 | 검사 없음 | R-MEM-002는 "최근 CONTEXT_MESSAGES개를 제외한 구간"을 요약하므로 임계가 같거나 작으면 요약 구간이 비어 기능이 조용히 죽는다. 형식 오류로 본다 |
 | D-ENV-6 | `LLM_PROVIDER` 허용값은 `google`·`fake` 둘 | `anthropic`·`openai` 포함 | R-LLM-001 구현 2종. 다른 제공사는 어댑터 추가 시 값도 추가 |
 | D-ENV-7 | `LLM_TIMEOUT_MS` 상한 60000 | 상한 없음 | R-NFR-001(70초 종결). 재시도 포함 총 예산 배분은 S3 llm 설계 |
+| D-ENV-8 (S3b) | 소수 변환기 `decimalVar`(정규식 문자열·유한 number만, `z.coerce` 금지) | 단가를 마이크로달러 정수 키로 | 요구 R-LLM-007이 키 이름(`…_USD_PER_M`)과 공개 단가(소수)를 정했다. 형식을 좁게 받는 `intVar` 원칙(§3.1 변환 규칙)을 그대로 따른다 |
+| D-ENV-9 (S3b) | 범위: 예산 1~10000000원, 단가 0~100, 환율 100~10000 | 범위 없음 | 자릿수 실수(예 환율 `14000`, 단가 `250`)를 배포 시점에 잡는다. 단가 0은 허용한다(무료 등급 키면 실제 청구 0 — [llm.md](llm.md) §12.13). 예산 0은 막는다(0이면 버튼이 항상 막혀 설정 실수로 보인다) |
 
 확인 필요:
 
@@ -293,3 +354,6 @@ env 모듈은 엔드포인트를 노출하지 않는다. contract가 알아야 �
 | 2026-10-05 | S1 초안 작성 |
 | 2026-10-05 | S1 구현 동기화(상태 확정). 공개 API·키 표는 `server/src/env.ts`와 일치해 본문 변경 없음. S2는 env 변경 없음(머리말에 명시), `.dev.vars.example` 확인 필요 항목 해결 처리 |
 | 2026-10-06 | S3 확인: env 변경 없음(머리말에 명시). `requireLlmApiKey` 호출 지점·fake 제공사 동작을 [llm.md](llm.md) §3.3에 연결 |
+| 2026-10-06 | S3b 설계: 키 4개(`LLM_MONTHLY_BUDGET_KRW`·`LLM_PRICE_INPUT_USD_PER_M`·`LLM_PRICE_OUTPUT_USD_PER_M`·`KRW_PER_USD`) — §2 S3b 델타(`Config`·`ENV_KEYS` 16개·스키마 행), §3.1 행·`decimalVar` 규칙·스케치, §6.1 대조표, §6.2 주석 4줄, SRV-T-231·232, SRV-T-001 기본값 수, §8 grep 목록, D-ENV-8·9 |
+
+파급(S3b): `Config`에 필드 4개, `ENV_KEYS`에 4개 추가. `parseEnv` 결과를 구조 비교하는 테스트(SRV-T-001)와 `ENV_KEYS` 길이를 단언하는 테스트가 있으면 갱신한다. `server/wrangler.toml [vars]`에 4줄([index.md](index.md) §6.1 S3b), `server/.dev.vars.example`에 주석 4줄(§6.2)을 더해야 SRV-T-011이 통과한다. `Config`를 직접 만드는 테스트 픽스처(`parseEnv` 대신 객체 리터럴)가 있으면 4필드를 넣는다.

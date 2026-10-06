@@ -249,6 +249,25 @@ describe('S2 앱 계층', () => {
     expect(plain.headers.get('Retry-After')).toBeNull()
   })
 
+  it('SRV-T-233 onError_maps_LLM_BUDGET_EXCEEDED_to_429_with_retry_after', async () => {
+    const routes = new Hono<AppEnv>()
+    routes.get('/t/budget', () => {
+      throw new AppError('LLM_BUDGET_EXCEEDED', undefined, { retryAfterSec: 2678400 })
+    })
+    const app = createApp({ routes, logSink: () => {}, now: () => NOW })
+    const res = await call(app, '/t/budget')
+    expect(res.status).toBe(429)
+    expect(res.headers.get('Retry-After')).toBe('2678400')
+    expect(res.headers.get('Content-Security-Policy')).toBe(`frame-ancestors ${ANCESTORS}`)
+    expect(await res.json()).toEqual({
+      error: {
+        code: 'LLM_BUDGET_EXCEEDED',
+        message: '이번 달 AI 사용 한도에 닿았습니다. 다음 달에 다시 시도해 주세요.',
+        retryAfterSec: 2678400,
+      },
+    })
+  })
+
   it('SRV-T-161 createServices_wires_auth_with_config_without_exposing_secret', () => {
     const trap = new Proxy(
       {},

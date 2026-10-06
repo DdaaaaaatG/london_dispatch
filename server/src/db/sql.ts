@@ -1,6 +1,6 @@
 /**
  * [목적] SQL 문자열 상수(S1 조회 + S2 쓰기·레이트리밋). 문자열 연결·보간 금지, 값은 전부 bind (R-DB-003). 설계 db.md §3.1·§3.2
- * [공개 API] S3 SQL_ROOMS_ACQUIRE_SPEAK_LOCK·RELEASE_SPEAK_LOCK, SQL_MESSAGES_BY_ID, SQL_MEMORY_SUMMARY_BY_ROOM / S1 SQL_ROOMS_LIST_SUMMARIES·EXISTS·TOUCH, SQL_MESSAGES_PAGE_LATEST·BEFORE / S2 SQL_ROOMS_INSERT·UPDATE_TITLE·SUMMARY_BY_ID·DELETE·TOUCH_BY_MESSAGE, SQL_MEMORY_DELETE_BY_ROOM, SQL_MESSAGES_DELETE_BY_ROOM·INSERT_IF_ROOM·UPDATE_TEXT·DELETE, SQL_RATE_LIMITS_HIT·PURGE_BEFORE
+ * [공개 API] S3b SQL_LLM_USAGE_ADD·BY_MONTH / S3 SQL_ROOMS_ACQUIRE_SPEAK_LOCK·RELEASE_SPEAK_LOCK, SQL_MESSAGES_BY_ID, SQL_MEMORY_SUMMARY_BY_ROOM / S1 SQL_ROOMS_LIST_SUMMARIES·EXISTS·TOUCH, SQL_MESSAGES_PAGE_LATEST·BEFORE / S2 SQL_ROOMS_INSERT·UPDATE_TITLE·SUMMARY_BY_ID·DELETE·TOUCH_BY_MESSAGE, SQL_MEMORY_DELETE_BY_ROOM, SQL_MESSAGES_DELETE_BY_ROOM·INSERT_IF_ROOM·UPDATE_TEXT·DELETE, SQL_RATE_LIMITS_HIT·PURGE_BEFORE
  * [비동기] 없음
  * [에러] 없음
  * [설정] 없음
@@ -78,3 +78,18 @@ export const SQL_ROOMS_RELEASE_SPEAK_LOCK =
 export const SQL_MESSAGES_BY_ID = `SELECT ${MESSAGE_COLUMNS} FROM messages WHERE id = ?1`
 
 export const SQL_MEMORY_SUMMARY_BY_ROOM = 'SELECT summary FROM memory WHERE room_id = ?1'
+
+// ---- S3b ----
+/** 월 행에 1회분 가산. 조건 없는 UPSERT — 이미 쓴 비용은 항상 기록한다(D-DB-20) */
+export const SQL_LLM_USAGE_ADD = `INSERT INTO llm_usage (month, calls, prompt_tokens, output_tokens, est_krw, updated_at)
+VALUES (?1, 1, ?2, ?3, ?4, ?5)
+ON CONFLICT (month) DO UPDATE SET
+  calls = calls + 1,
+  prompt_tokens = prompt_tokens + excluded.prompt_tokens,
+  output_tokens = output_tokens + excluded.output_tokens,
+  est_krw = est_krw + excluded.est_krw,
+  updated_at = excluded.updated_at
+RETURNING month, calls, prompt_tokens, output_tokens, est_krw`
+
+export const SQL_LLM_USAGE_BY_MONTH =
+  'SELECT month, calls, prompt_tokens, output_tokens, est_krw FROM llm_usage WHERE month = ?1'

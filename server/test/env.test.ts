@@ -32,6 +32,10 @@ describe('parseEnv', () => {
       rateLimitPerMin: 20,
       contextMessages: 40,
       memorySummaryThreshold: 60,
+      llmMonthlyBudgetKrw: 100000,
+      llmPriceInputUsdPerM: 0.3,
+      llmPriceOutputUsdPerM: 2.5,
+      krwPerUsd: 1400,
     })
     expect(c.llmApiKey).toBeUndefined()
   })
@@ -173,5 +177,57 @@ describe('키 대조', () => {
     expect(activeKeys(devVarsExample).sort()).toEqual([...secrets].sort())
     const commented = [...new Set(commentKeys(devVarsExample))].sort()
     expect(commented).toEqual(nonSecret)
+  })
+})
+
+// ---- S3b (SRV-T-231·232) — doc/200_설계/server/env.md §8 ----
+describe('S3b 예산·단가 키', () => {
+  it('SRV-T-231 parseEnv_reads_budget_and_price_keys_with_decimals', () => {
+    const pick = (c: Config) => [
+      c.llmMonthlyBudgetKrw,
+      c.llmPriceInputUsdPerM,
+      c.llmPriceOutputUsdPerM,
+      c.krwPerUsd,
+    ]
+    expect(pick(parseEnv(base))).toEqual([100000, 0.3, 2.5, 1400])
+    expect(
+      pick(
+        parseEnv({
+          ...base,
+          LLM_MONTHLY_BUDGET_KRW: '50000',
+          LLM_PRICE_INPUT_USD_PER_M: '0.075',
+          LLM_PRICE_OUTPUT_USD_PER_M: '0',
+          KRW_PER_USD: '1385.5',
+        }),
+      ),
+    ).toEqual([50000, 0.075, 0, 1385.5])
+    expect(parseEnv({ ...base, LLM_PRICE_INPUT_USD_PER_M: 0.3 }).llmPriceInputUsdPerM).toBe(0.3)
+    expect(parseEnv({ ...base, LLM_PRICE_OUTPUT_USD_PER_M: ' 2.5 ' }).llmPriceOutputUsdPerM).toBe(
+      2.5,
+    )
+  })
+
+  it.each([
+    ['LLM_MONTHLY_BUDGET_KRW', 0],
+    ['LLM_MONTHLY_BUDGET_KRW', 10_000_001],
+    ['LLM_MONTHLY_BUDGET_KRW', '1e5'],
+    ['LLM_MONTHLY_BUDGET_KRW', '5.5'],
+    ['LLM_MONTHLY_BUDGET_KRW', '-1'],
+    ['LLM_PRICE_INPUT_USD_PER_M', '-0.1'],
+    ['LLM_PRICE_INPUT_USD_PER_M', '.3'],
+    ['LLM_PRICE_OUTPUT_USD_PER_M', '1e-1'],
+    ['LLM_PRICE_OUTPUT_USD_PER_M', '100.1'],
+    ['LLM_PRICE_OUTPUT_USD_PER_M', '0.1234567'],
+    ['KRW_PER_USD', '99'],
+    ['KRW_PER_USD', '10000.5'],
+    ['KRW_PER_USD', 'abc'],
+    ['KRW_PER_USD', Number.NaN],
+  ])('SRV-T-232 parseEnv_rejects_invalid_budget_and_price_keys %s=%s', (key, value) => {
+    expect(keysOf({ ...base, [key]: value })).toEqual([key])
+    try {
+      parseEnv({ ...base, [key]: value })
+    } catch (e) {
+      expect(JSON.stringify(e) + String((e as Error).message)).not.toContain('abc')
+    }
   })
 })

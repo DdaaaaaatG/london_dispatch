@@ -3,16 +3,22 @@ import { describe, expect, it } from 'vitest'
 import { AppError } from '../src/app-error'
 import {
   createLlm,
+  createUsageMeter,
+  FAKE_USAGE,
   FakeProvider,
   LLM_BUDGET_MS,
   planRetryTimeout,
   type FakeStep,
+  type LlmUsage,
   type Prompt,
+  type UsagePricing,
+  type UsageMeter,
 } from '../src/llm'
 import { GeminiProvider } from '../src/llm/gemini'
 import { LlmError, type LlmFailReason } from '../src/llm/provider'
 import { createLogger } from '../src/logger'
 
+const PRICING: UsagePricing = { priceInputUsdPerM: 0.3, priceOutputUsdPerM: 2.5, krwPerUsd: 1400 }
 const PROMPT: Prompt = { system: 'SYS', turns: [{ role: 'user', text: 'TURN' }] }
 
 /** 가짜 시계: now 는 변수 값, sleep 은 값을 올린다 */
@@ -219,5 +225,92 @@ describe('로그 (R-NFR-004)', () => {
     const everything = [...ok.lines, ...bad.lines, error.message, JSON.stringify(error)].join('\n')
     for (const s of SENTINELS) expect(everything).not.toContain(s)
     expect(error.cause).toBeUndefined()
+  })
+})
+
+// ---- S3b (SRV-T-221·222) — doc/200_설계/server/llm.md §12.12 ----
+describe('S3b 시도별 누적·게이트 위임', () => {
+  const USAGE = { promptTokens: 10, outputTokens: 2, thoughtsTokens: 1 }
+
+  const withMeter = (steps: (clock: Clock) => FakeStep[]) => {
+    const clock = makeClock()
+    const provider = new FakeProvider(steps(clock))
+    const recorded: LlmUsage[] = []
+    let gates = 0
+    const meter: UsageMeter = {
+      record: async u => {
+        recorded.push(u)
+      },
+      ensureBudget: async () => {
+        gates += 1
+      },
+    }
+    const logger = createLogger(() => undefined)
+    const llm = createLlm({
+      provider,
+      timeoutMs: 60_000,
+      logger,
+      now: clock.now,
+      sleep: clock.sleep,
+      meter,
+    })
+    return { llm, recorded, gates: () => gates, provider }
+  }
+
+  it('SRV-T-221 createLlm_records_usage_per_attempt', async () => {
+    // 1) 5xx(usage 없음) → 성공: 성공 응답 1회만 누적
+    const a = withMeter(() => [{ error: new LlmError('http_5xx') }, { text: 'ok' }])
+    expect(await a.llm.complete(PROMPT)).toBe('ok')
+    expect(a.recorded).toEqual([FAKE_USAGE])
+    // 2) blocked(usage) → LLM_EMPTY, 1회 누적
+    const b = withMeter(() => [{ error: new LlmError('blocked', { usage: USAGE }) }])
+    expect((await appError(b.llm.complete(PROMPT))).code).toBe('LLM_EMPTY')
+    expect(b.recorded).toEqual([USAGE])
+    // 3) 5xx(usage) → 성공: 재시도 2번 모두 누적
+    const c = withMeter(() => [
+      { error: new LlmError('http_5xx', { usage: USAGE }) },
+      { text: 'ok' },
+    ])
+    expect(await c.llm.complete(PROMPT)).toBe('ok')
+    expect(c.recorded).toEqual([USAGE, FAKE_USAGE])
+    // 4) meter 없음: SRV-T-180 과 같은 결과
+    const d = setup(c2 => [failAfter(c2, 1000, new LlmError('http_5xx')), { text: '좋아' }])
+    expect(await d.llm.complete(PROMPT)).toBe('좋아')
+    expect(d.provider.calls).toHaveLength(2)
+  })
+
+  it('SRV-T-222 createLlm_keeps_result_when_record_fails_and_delegates_ensureBudget', async () => {
+    const clock = makeClock()
+    const lines: string[] = []
+    const logger = createLogger((_l, line) => lines.push(line))
+    const meter = createUsageMeter({
+      store: {
+        get: async () => null,
+        add: async () => {
+          throw new Error('d1 down')
+        },
+      },
+      config: { ...PRICING, monthlyBudgetKrw: 100000 },
+      logger,
+      now: clock.now,
+    })
+    const llm = createLlm({
+      provider: new FakeProvider([{ text: '결과' }]),
+      timeoutMs: 60_000,
+      logger,
+      now: clock.now,
+      sleep: clock.sleep,
+      meter,
+    })
+    expect(await llm.complete(PROMPT)).toBe('결과')
+    const events = lines.map(l => (JSON.parse(l) as { event: string }).event)
+    expect(events.filter(e => e === 'llm_usage_record_failed')).toHaveLength(1)
+    expect(events).toContain('llm_done')
+    // ensureBudget: meter 없음 → 즉시 resolve
+    await expect(setup(() => []).llm.ensureBudget()).resolves.toBeUndefined()
+    // meter 있음 → meter.ensureBudget 1회
+    const spy = withMeter(() => [])
+    await spy.llm.ensureBudget()
+    expect(spy.gates()).toBe(1)
   })
 })

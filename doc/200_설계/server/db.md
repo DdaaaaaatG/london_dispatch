@@ -1,7 +1,7 @@
 # db 모듈 설계
 
-- 상태: S1 확정(구현 동기화) · S2 초안 · S3 초안(§2.3·§3.5) · 최종 갱신: 2026-10-06
-- 묶음: S1 = 스키마(4테이블 전부)·마이그레이션 `0001_init.sql`·읽기 함수. S2 = 방 생성·이름 변경·연쇄 삭제, 메시지 추가·수정·삭제, 레이트리밋 카운터(§2.1의 "S2" 표시). S3 = speak 잠금 선점·해제, 메시지 단건 조회, 장기기억 summary 읽기(§2.3 — **마이그레이션 없음**). S4용은 §2.2에 예정 시그니처만.
+- 상태: S1 확정(구현 동기화) · S2 초안 · S3 초안(§2.3·§3.5) · S3b 초안(§2.4·§3.6·§7.5) · 최종 갱신: 2026-10-06
+- 묶음: S1 = 스키마(4테이블 전부)·마이그레이션 `0001_init.sql`·읽기 함수. S2 = 방 생성·이름 변경·연쇄 삭제, 메시지 추가·수정·삭제, 레이트리밋 카운터(§2.1의 "S2" 표시). S3 = speak 잠금 선점·해제, 메시지 단건 조회, 장기기억 summary 읽기(§2.3 — **마이그레이션 없음**). S4용은 §2.2에 예정 시그니처만. S3b = 월 AI 사용량 누적 `llm_usage`(§2.4 — **마이그레이션 `0002_llm_usage.sql`**, R-LLM-007 🔒).
 - 관련 문서: [env.md](env.md)(`DB` 바인딩), [index.md](index.md)(`createDb` 호출 지점), [rooms.md](rooms.md), [messages.md](messages.md), [auth.md](auth.md)(레이트리밋).
 
 ## 1. 목적
@@ -157,6 +157,49 @@ export type MemoryRepo = {
 - 잠금 선점·해제는 `updated_at`을 바꾸지 않는다(잠금은 대화 활동이 아니다 — R-ROOM-005 목록 밖).
 - **마이그레이션 불필요.** `rooms.speaking_until`(NULL 허용)과 `memory` 테이블은 `0001_init.sql`에 이미 있다(§7.1). 새 인덱스도 필요 없다(잠금은 PK 조회, `getById`도 PK, `getSummary`는 `memory` PK).
 
+### 2.4 S3b 확정 — 월 AI 사용량 (`llm_usage`, R-LLM-007)
+
+```ts
+// server/src/db/llm-usage.ts — 신규
+export type LlmUsageTotals = {
+  month: string          // 'YYYY-MM' (KST). 계산은 llm 모듈, db 는 받은 문자열을 쓴다
+  calls: number
+  promptTokens: number
+  outputTokens: number   // candidates + thoughts
+  estKrw: number         // REAL, 소수 보존
+}
+export type LlmUsageDelta = { promptTokens: number; outputTokens: number; estKrw: number }
+export type LlmUsageRepo = {
+  /** month 행에 1회분을 더한다(없으면 만든다). UPSERT 1문장, 갱신 뒤 누적 행 반환 */
+  add: (month: string, delta: LlmUsageDelta, nowMs: number) => Promise<LlmUsageTotals>
+  /** month 행. 없으면 null */
+  get: (month: string) => Promise<LlmUsageTotals | null>
+}
+export const createLlmUsageRepo = (binding: D1Database): LlmUsageRepo
+
+// server/src/db/types.ts — 행 타입 추가
+export type LlmUsageRow = {
+  month: string
+  calls: number
+  prompt_tokens: number
+  output_tokens: number
+  est_krw: number
+}
+
+// server/src/db/index.ts — Db 에 추가, 타입 재노출 LlmUsageRepo·LlmUsageTotals·LlmUsageDelta
+  /** S3b */
+  readonly llmUsage: LlmUsageRepo
+```
+
+| 이름 | 묶음 | 인자 | 반환 | 실패 | 요구ID |
+|---|---|---|---|---|---|
+| `llmUsage.add` | S3b | `month, delta, nowMs` | `LlmUsageTotals` | D1 오류 전파, `RETURNING` 행 없음 → `AppError INTERNAL`(호출자 `meter.record`가 삼킨다) | R-LLM-007 |
+| `llmUsage.get` | S3b | `month` | `LlmUsageTotals \| null` | 전파(게이트가 500으로 — [llm.md](llm.md) D-LLM-22) | R-LLM-007 |
+
+- `LlmUsageRepo`는 llm의 저장소 포트 `UsageStore`([llm.md](llm.md) §12.2)를 구조적으로 만족한다. db는 llm을 import하지 않는다(R-DB-005). 컨테이너가 `db.llmUsage`를 그대로 넘긴다([index.md](index.md) §2.3 S3b).
+- 월 1행(연 12행)이라 정리(purge) 함수가 없다.
+- 시각은 `nowMs` 인자만 쓴다(§3 규칙). 월 키도 llm이 만든다.
+
 ## 3. 내부 구조
 
 | 파일 | 책임 |
@@ -168,9 +211,11 @@ export type MemoryRepo = {
 | `server/src/db/messages.ts` | `createMessagesRepo(binding)`, `toMessage(row)`(파일 export, index 미노출) |
 | `server/src/db/rate-limits.ts` | S2 `createRateLimitsRepo(binding)` |
 | `server/src/db/memory.ts` | S3 `createMemoryRepo(binding)` — `getSummary`(S4가 확장) |
+| `server/src/db/llm-usage.ts` | S3b `createLlmUsageRepo(binding)` — `add`·`get`, `toLlmUsageTotals(row)` |
 | `server/migrations/0001_init.sql` | 초기 스키마(§7) |
-| `server/test/db.test.ts` | SRV-T-020~031(S1), SRV-T-121~128(S2), SRV-T-187~190(S3) |
-| `server/test/helpers.ts` | `resetDb`(자식 먼저 + `rate_limits`)·`insertRoom`·`insertLine`·`insertLines` |
+| `server/migrations/0002_llm_usage.sql` | S3b `llm_usage` 테이블(§7.5) |
+| `server/test/db.test.ts` | SRV-T-020~031(S1), SRV-T-121~128(S2), SRV-T-187~190(S3), SRV-T-223·224(S3b) |
+| `server/test/helpers.ts` | `resetDb`(자식 먼저 + `rate_limits` + S3b `llm_usage`), S3b `insertUsage(month, estKrw, calls = 1)`·`insertRoom`·`insertLine`·`insertLines` |
 
 - 의존: `@cloudflare/workers-types`(타입), `@shared/types`(타입), `../app-error`. 서비스 모듈(`rooms/`·`messages/`·`auth/` 등) import 금지(R-DB-005).
 - 상태 없음. 전역 연결 객체·`PRAGMA` 설정 없음.
@@ -300,6 +345,34 @@ export const SQL_MEMORY_SUMMARY_BY_ROOM = 'SELECT summary FROM memory WHERE room
 
 - 선점 batch는 트랜잭션이다. UPDATE와 존재 확인 사이에 방이 삭제될 틈이 없어 `'busy'`·`'missing'` 구분이 정확하다.
 - `RETURNING id`는 S2 `UPDATE … RETURNING`(`SQL_MESSAGES_UPDATE_TEXT`)과 같은 D1 기능이다.
+
+### 3.6 S3b SQL 상수와 결과 해석
+
+```ts
+/** 월 행에 1회분 가산. 조건 없는 UPSERT — 이미 쓴 비용은 항상 기록한다(D-DB-20) */
+export const SQL_LLM_USAGE_ADD = `INSERT INTO llm_usage (month, calls, prompt_tokens, output_tokens, est_krw, updated_at)
+VALUES (?1, 1, ?2, ?3, ?4, ?5)
+ON CONFLICT (month) DO UPDATE SET
+  calls = calls + 1,
+  prompt_tokens = prompt_tokens + excluded.prompt_tokens,
+  output_tokens = output_tokens + excluded.output_tokens,
+  est_krw = est_krw + excluded.est_krw,
+  updated_at = excluded.updated_at
+RETURNING month, calls, prompt_tokens, output_tokens, est_krw`
+
+export const SQL_LLM_USAGE_BY_MONTH =
+  'SELECT month, calls, prompt_tokens, output_tokens, est_krw FROM llm_usage WHERE month = ?1'
+```
+
+| 함수 | 문장 | 결과 해석 |
+|---|---|---|
+| `add(month, delta, nowMs)` | `ADD.bind(month, delta.promptTokens, delta.outputTokens, delta.estKrw, nowMs).first<LlmUsageRow>()` | 행 → `toLlmUsageTotals`, `null` → `AppError INTERNAL` |
+| `get(month)` | `BY_MONTH.bind(month).first<LlmUsageRow>()` | `null` 또는 `toLlmUsageTotals(row)` |
+
+- `rate_limits` HIT(D-DB-10)와 같은 UPSERT·`RETURNING` 관례다. 다만 `DO UPDATE … WHERE` 조건이 없다. 한도 판정은 llm 게이트가 읽기로 따로 한다.
+- 가산 갱신 한 문장이라 동시 누적에도 유실이 없다(D1이 쓰기를 직렬 실행).
+- `est_krw`에 JS 정수(예 `0`)를 bind해도 컬럼 REAL 친화도가 실수로 저장한다. 읽은 값은 JS `number`.
+- 비용: speak 1회 = 읽기 1행(게이트, PK) + 쓰기 1~2행(시도 수, PK). 무료 한도(일 쓰기 10만 행)에 영향이 작다.
 
 ## 4. 비동기·동시성
 
@@ -460,6 +533,29 @@ CREATE INDEX IF NOT EXISTS idx_rooms_updated_at ON rooms (updated_at);
 | `RATE_LIMITS_HIT` | `rate_limits` PK | 충분 |
 | `RATE_LIMITS_PURGE_BEFORE`(`window_start`만) | 없음 — 전체 훑기 | 표 행 수 ≈ 최근 1~2분 활동 회원 수라 인덱스 불필요([auth.md](auth.md) D-AUTH-7) |
 
+### 7.5 S3b `server/migrations/0002_llm_usage.sql` 전문
+
+```sql
+-- 0002_llm_usage.sql — 월 AI 사용량 누적 (R-LLM-007). 설계 doc/200_설계/server/db.md §2.4·§7.5
+-- month 는 KST 'YYYY-MM'(llm 모듈이 계산). 시각은 epoch ms INTEGER(R-DB-001 규칙)
+CREATE TABLE IF NOT EXISTS llm_usage (
+  month          TEXT    PRIMARY KEY
+                         CHECK (length(month) = 7 AND month GLOB '[0-9][0-9][0-9][0-9]-[01][0-9]'),
+  calls          INTEGER NOT NULL CHECK (calls >= 1),
+  prompt_tokens  INTEGER NOT NULL CHECK (prompt_tokens >= 0),
+  output_tokens  INTEGER NOT NULL CHECK (output_tokens >= 0),
+  est_krw        REAL    NOT NULL CHECK (est_krw >= 0),
+  updated_at     INTEGER NOT NULL
+);
+-- 인덱스 없음: 조회·갱신 모두 PK(month)
+```
+
+- 파일 생성: `npx wrangler d1 migrations create DB llm_usage` → 번호 `0002`가 붙은 파일의 내용을 위 전문으로 바꾼다(§7.3).
+- 멱등: `IF NOT EXISTS`. `0001_init.sql`은 수정하지 않는다(R-DB-002).
+- 적용: §7.3 그대로. 로컬은 `migrate:local`, 테스트는 `readD1Migrations`가 0001·0002를 순서대로 읽는다, 운영은 `/deploy` 안 `--remote`.
+- 다른 테이블과 외래 키가 없다. 월 합계는 방에 속하지 않으므로 방 삭제 batch(§3.3)와 무관하다.
+- 되돌리기는 새 번호 마이그레이션으로만.
+
 ## 8. 테스트 계획
 
 `server/test/db.test.ts`. `@cloudflare/vitest-pool-workers` 0.22가 테스트 파일마다 격리한 D1(`cloudflare:test`의 `env.DB`)에 setup이 마이그레이션을 적용한다. 각 테스트는 `resetDb()` 후 고정 `nowMs`로 데이터를 넣는다.
@@ -505,6 +601,8 @@ CREATE INDEX IF NOT EXISTS idx_rooms_updated_at ON rooms (updated_at);
 | SRV-T-188 | `rooms_acquireSpeakLock_returns_missing_for_unknown_room` | 없는 id → `'missing'`, 다른 방 `speaking_until` 불변 | R-MSG-007 |
 | SRV-T-189 | `rooms_releaseSpeakLock_clears_only_own_lock` | 내 `untilMs` → `true`, NULL. 다른 `untilMs`(만료 후 남이 재선점) → `false`, 값 불변. 없는 방 → `false` | R-MSG-007 |
 | SRV-T-190 | `messages_getById_and_memory_getSummary` | `getById`: 키 7개(`authorMbId` 없음)·없는 id `null`. `getSummary`: 행 있음 → 문자열(`''` 포함), 행 없음 → `null` | R-MSG-006 · R-LLM-003 · R-DB-005 |
+| SRV-T-223 | `migration_0002_creates_llm_usage_with_checks` | `PRAGMA table_info(llm_usage)` 6열(이름·타입·NOT NULL·PK가 §7.5와 같음). `month 'bad'`·`'2026-1'`·`est_krw -1`·`calls 0` INSERT → 각각 throw(CHECK) | R-DB-002 · R-LLM-007 |
+| SRV-T-224 | `llmUsage_add_accumulates_and_get_reads` | `add('2026-10', { 100, 20, 0.112 }, 1)` → `{ calls 1, promptTokens 100, outputTokens 20, estKrw 0.112 }`. 두 번째 `add(…, 2)` → `calls 2`·토큰 합·`estKrw` ≈ 0.224(`toBeCloseTo`)·행 `updated_at 2`. `'2026-11'`은 독립. `get` 없는 월 → `null`, 있는 월 → 마지막 `add` 반환과 같음 | R-LLM-007 · R-DB-003 |
 
 수동·리뷰 체크:
 
@@ -546,6 +644,8 @@ db는 contract에 직접 노출되지 않는다. contract가 알아야 할 데�
 | R-MSG-007 🔒 · R-NFR-003 (S3) | §2.3·§3.5 `acquireSpeakLock`·`releaseSpeakLock` | SRV-T-187~189 | ✅(설계) |
 | R-MSG-006 🔒 (S3) | §2.3 `getById`, `pageDesc` 재사용 | SRV-T-190 | ✅(설계) |
 | R-LLM-003 🔒 (S3) | §2.3 `memory.getSummary`, `pageDesc` 재사용 | SRV-T-190 | ✅(설계) |
+| R-LLM-007 🔒 (S3b) | §2.4·§3.6·§7.5 | SRV-T-223·224 | ✅(설계) |
+| R-DB-002 (S3b) | §7.5 `0002_llm_usage.sql` | SRV-T-223, 리뷰 | ✅(설계) |
 
 ## 11. 설계 결정 노트
 
@@ -568,6 +668,11 @@ db는 contract에 직접 노출되지 않는다. contract가 알아야 할 데�
 | D-DB-15 (S3) | 해제는 `speaking_until = untilMs`일 때만 | 무조건 NULL | 만료 뒤 다른 요청이 다시 건 잠금을 지우지 않는다. 같은 방의 다음 선점은 이전 잠금 만료 뒤에만 가능하므로 `untilMs`가 겹치지 않는다(다음 값 = 더 늦은 now + 90000) |
 | D-DB-16 (S3) | 최근 N개·마지막 판정에 `pageDesc` 재사용 | `recent`·`last` 신규 함수 | 같은 SQL·인덱스. 공개 API를 늘리지 않는다 |
 | D-DB-17 (S3) | 새 마이그레이션 없음 | `0002_*.sql` | 필요한 컬럼·테이블이 `0001`에 모두 있다. 인덱스도 PK·기존 인덱스로 충분 |
+| D-DB-18 (S3b) | 월 1행 집계 테이블 `llm_usage(month PK)` | 호출마다 로그 행 INSERT 후 SUM | 게이트가 PK 조회 1행, 누적이 쓰기 1행이다. 행이 연 12개라 정리가 필요 없다. 호출별 이력은 요구에 없다 |
+| D-DB-19 (S3b) | `est_krw REAL`(소수 보존) | 정수 원 / 마이크로원 INTEGER | [llm.md](llm.md) D-LLM-17 |
+| D-DB-20 (S3b) | 누적은 조건 없는 UPSERT | `rate_limits`처럼 `WHERE est_krw < 한도` 조건부 | 응답을 받은 시점에 비용은 이미 났다. 누적을 거절하면 과소 추정이 된다. 판정은 다음 요청의 게이트가 한다 |
+| D-DB-21 (S3b) | `LlmUsageRepo` 타입을 db에 두고 llm `UsageStore` 포트와 모양을 맞춤 | `shared`에 공용 타입 | 계약 타입이 아니라 shared 대상이 아니다. 컨테이너에서 대입할 때 타입 검사가 두 모양의 일치를 보장한다 |
+| D-DB-22 (S3b) | 마이그레이션 `0002_llm_usage.sql` 새 파일 | `0001` 수정 | R-DB-002. 적용된 파일은 수정 금지 |
 
 확인 필요:
 
@@ -584,7 +689,10 @@ db는 contract에 직접 노출되지 않는다. contract가 알아야 할 데�
 | 2026-10-05 | S1 초안 작성 |
 | 2026-10-05 | S1 구현 동기화(상태 확정): 도메인 타입은 `@shared/types` 재노출, `toMessage`는 파일 export(index 미노출), `AppError(code, message?)` 시그니처, vitest 0.22 `cloudflareTest` 설정, `test/helpers.ts`. S2 설계: §2.1 S2 함수 8종·`NewMessage`·`RateLimitsRepo`, §3.2 SQL, §3.3 batch 구성, §7.4 인덱스 영향 없음, D-DB-8~12. 기존 §2.2의 S2 예정 시그니처(`rename`·`insertStmt`·`findById`·`updateTextStmt`·`deleteStmt`)는 위 함수로 대체 |
 | 2026-10-06 | S3 설계: §2.3(`acquireSpeakLock`·`releaseSpeakLock`·`getById`·`MemoryRepo.getSummary`·`Db.memory`), §3.5 SQL·batch 해석, §4.2 speak·regenerate 비용, SRV-T-187~190, D-DB-13~17. 마이그레이션 없음 |
+| 2026-10-06 | S3b 설계: §2.4 `LlmUsageRepo`(`add`·`get`)·`Db.llmUsage`·`LlmUsageRow`, §3 파일 표(`llm-usage.ts`·`0002`·helpers), §3.6 UPSERT·조회 SQL, §7.5 `0002_llm_usage.sql` 전문, SRV-T-223·224, §10 R-LLM-007·R-DB-002, D-DB-18~22 |
 
 파급(공개 API 변경): `Db`에 `rateLimits` 추가 → `Db`를 직접 구현하는 테스트 가짜 객체(`server/test/app.test.ts` 188행 근처 `trap`, `rooms.test.ts`·`messages.test.ts`의 가짜 `Db`)가 타입 오류가 나면 `rateLimits`를 추가한다. 기존 S1 함수 시그니처는 바뀌지 않는다.
 
 파급(S3 공개 API 변경): `Db`에 `memory` 추가 → `Db`를 직접 구현하는 테스트 가짜 객체(`server/test/app.test.ts`의 `trap`, `rooms.test.ts`·`messages.test.ts`의 가짜 `Db`)에 `memory`를 추가한다. `RoomsRepo`·`MessagesRepo`는 함수 추가만이라 기존 호출자 영향 없다. 서비스 호출자는 [messages.md](messages.md) §2.3뿐.
+
+파급(S3b 공개 API 변경): `Db`에 `llmUsage` 추가 → `Db`를 직접 구현하는 테스트 가짜 객체(`server/test/app.test.ts`의 `trap`, `rooms.test.ts`·`messages.test.ts`·`auth.test.ts`의 가짜 `Db`)에 `llmUsage`를 추가한다. `server/test/helpers.ts` `resetDb`에 `DELETE FROM llm_usage`를 더하고 `insertUsage` 헬퍼를 추가한다. 기존 저장소 함수 시그니처는 바뀌지 않는다. 호출자는 [index.md](index.md) §2.3 S3b 배선(컨테이너)뿐이다.

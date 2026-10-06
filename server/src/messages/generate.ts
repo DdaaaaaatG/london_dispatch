@@ -1,8 +1,8 @@
 /**
  * [목적] 캐릭터 1턴 생성(speak, R-MSG-003)과 마지막 캐릭터 메시지 재작성(regenerate, R-MSG-006). 방 단위 잠금(R-MSG-007)·updated_at 갱신(R-ROOM-005)·응답 뒤 훅 자리(R-MEM-002). 설계 messages.md §2.3·§4.2·§4.3
  * [공개 API] createGenerateOps(deps) -> { speak, regenerate }, SPEAK_LOCK_MS, 타입 SpeakInput·Background·AfterSpeakEvent·AfterSpeakHook·GenerateDeps·GenerateOps
- * [비동기] llm() 확인 → 잠금 선점 → Promise.all(pageDesc ∥ getSummary) → llm.complete → 저장 → finally 해제(실패는 warn 로그만). afterSpeak 는 background.waitUntil 로 등록
- * [에러] VALIDATION_ERROR·NOT_FOUND·SPEAK_IN_PROGRESS·NOT_LAST_MESSAGE·NOT_CHARACTER_MESSAGE, llm 의 LLM_FAILED·LLM_EMPTY 와 CONFIG_INVALID 는 그대로 전파
+ * [비동기] llm() 확인 → ensureBudget(S3b) → 잠금 선점 → Promise.all(pageDesc ∥ getSummary) → llm.complete → 저장 → finally 해제(실패는 warn 로그만). afterSpeak 는 background.waitUntil 로 등록
+ * [에러] VALIDATION_ERROR·NOT_FOUND·SPEAK_IN_PROGRESS·NOT_LAST_MESSAGE·NOT_CHARACTER_MESSAGE, llm 의 LLM_FAILED·LLM_EMPTY·LLM_BUDGET_EXCEEDED(S3b, 429)와 CONFIG_INVALID 는 그대로 전파
  * [설정] contextMessages(config.contextMessages)와 llm 지연 생성 함수를 deps 값으로 받는다. 바인딩을 읽지 않는다
  * [테스트] server/test/messages-generate.test.ts (SRV-T-191~209)
  */
@@ -93,6 +93,7 @@ export const createGenerateOps = (deps: GenerateDeps): GenerateOps => {
     const character: unknown = input?.character
     if (!isCharacterId(character)) throw new AppError('VALIDATION_ERROR', CHARACTER_INVALID_MESSAGE)
     const llm = deps.llm()
+    await llm.ensureBudget()
     const startMs = now()
     const saved = await withSpeakLock(roomId, roomNotFound, async () => {
       const [rowsDesc, summary] = await Promise.all([
@@ -123,6 +124,7 @@ export const createGenerateOps = (deps: GenerateDeps): GenerateOps => {
     if (target.speaker === 'user') throw new AppError('NOT_CHARACTER_MESSAGE')
     const character = target.speaker
     const llm = deps.llm()
+    await llm.ensureBudget()
     const startMs = now()
     const saved = await withSpeakLock(target.roomId, messageNotFound, async () => {
       const [rowsDesc, summary] = await Promise.all([

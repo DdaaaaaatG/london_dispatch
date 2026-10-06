@@ -1,4 +1,4 @@
-/** [계약] api.md §14.2 API-T-040·041 · [요구] R-API-002 */
+/** [계약] api.md §14.2 API-T-040·041·048 · [요구] R-API-002 */
 import { describe, expect, it } from 'vitest'
 import { ERROR_CODES, ERROR_MESSAGES, ERROR_STATUS, isErrorCode } from '../src/errors'
 
@@ -14,14 +14,15 @@ const EXPECTED_STATUS = {
   NOT_CHARACTER_MESSAGE: 400,
   LLM_FAILED: 502,
   LLM_EMPTY: 502,
+  LLM_BUDGET_EXCEEDED: 429,
   CONFIG_INVALID: 500,
   INTERNAL: 500,
 } as const
 
 describe('API-T-040 error_table_matches_contract', () => {
-  it('코드 집합이 계약 13종과 같다', () => {
+  it('코드 집합이 계약 14종과 같다', () => {
     expect([...ERROR_CODES].sort()).toEqual(Object.keys(EXPECTED_STATUS).sort())
-    expect(ERROR_CODES).toHaveLength(13)
+    expect(ERROR_CODES).toHaveLength(14)
   })
 
   it('모든 코드에 status가 있고 계약 표와 같다', () => {
@@ -48,5 +49,16 @@ describe('API-T-041 isErrorCode_accepts_only_contract_codes', () => {
     expect(isErrorCode('not_found')).toBe(false)
     expect(isErrorCode(1)).toBe(false)
     expect(isErrorCode(undefined)).toBe(false)
+  })
+})
+
+describe('API-T-048 errors_include_budget_exceeded', () => {
+  it('LLM_EMPTY 다음에 있고 429·요구 원문 문구다', () => {
+    expect(ERROR_CODES.indexOf('LLM_BUDGET_EXCEEDED')).toBe(ERROR_CODES.indexOf('LLM_EMPTY') + 1)
+    expect(ERROR_STATUS.LLM_BUDGET_EXCEEDED).toBe(429)
+    expect(ERROR_MESSAGES.LLM_BUDGET_EXCEEDED).toBe(
+      '이번 달 AI 사용 한도에 닿았습니다. 다음 달에 다시 시도해 주세요.',
+    )
+    expect(isErrorCode('LLM_BUDGET_EXCEEDED')).toBe(true)
   })
 })

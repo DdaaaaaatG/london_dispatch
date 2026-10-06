@@ -2,7 +2,7 @@
  * [목적] 서비스·모듈이 throw 하는 유일한 에러와 에러 응답 본문 생성기 (R-API-002). 설계 index.md §2.4
  * [공개 API] AppError, isAppError, toErrorBody, 타입 AppErrorStatus·AppErrorOptions
  * [비동기] 없음(동기 순수 코드)
- * [에러] AppError{ code: ErrorCode, status: ERROR_STATUS[code], retryAfterSec?: RATE_LIMITED 전용(S2, R-AUTH-005) }
+ * [에러] AppError{ code: ErrorCode, status: ERROR_STATUS[code], retryAfterSec?: RATE_LIMITED·LLM_BUDGET_EXCEEDED 용(S2 R-AUTH-005, S3b R-LLM-007) }
  * [설정] 없음
  * [테스트] server/test/app.test.ts (SRV-T-082·083), db.test.ts (SRV-T-031)
  */
@@ -12,7 +12,7 @@ export type AppErrorStatus = ErrorStatus
 
 export type AppErrorOptions = {
   cause?: unknown
-  /** RATE_LIMITED 전용. 정수 ≥ 1. onError 가 본문·Retry-After 헤더로 옮긴다 (S2) */
+  /** RATE_LIMITED·LLM_BUDGET_EXCEEDED 용. 정수 ≥ 1. onError 가 본문·Retry-After 헤더로 옮긴다 (S2) */
   retryAfterSec?: number
 }
 
@@ -20,7 +20,7 @@ export type AppErrorOptions = {
 export class AppError extends Error {
   readonly code: ErrorCode
   readonly status: AppErrorStatus
-  /** RATE_LIMITED 전용(S2) */
+  /** RATE_LIMITED·LLM_BUDGET_EXCEEDED 용(S2·S3b) */
   readonly retryAfterSec?: number
 
   constructor(code: ErrorCode, message?: string, options?: AppErrorOptions) {

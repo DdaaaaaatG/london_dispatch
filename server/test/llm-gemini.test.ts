@@ -1,6 +1,6 @@
 // SRV-T-174~179·185·186 — doc/200_설계/server/llm.md §8 (제공사 어댑터)
 import { describe, expect, it } from 'vitest'
-import { createProvider, FAKE_DEFAULT_TEXT, FakeProvider } from '../src/llm'
+import { createProvider, FAKE_DEFAULT_TEXT, FAKE_USAGE, FakeProvider } from '../src/llm'
 import { GEMINI_BASE_URL, GeminiProvider } from '../src/llm/gemini'
 import { LlmError, type GenerateInput } from '../src/llm/provider'
 
@@ -63,7 +63,10 @@ describe('GeminiProvider 요청·응답', () => {
   it('SRV-T-175 gemini_joins_text_parts_and_maps_roles', async () => {
     const parts = [{ thought: true, text: '생각' }, { text: '가' }, { text: '나' }]
     const a = fakeFetch(() => json({ candidates: [{ content: { parts } }] }))
-    expect(await makeGemini(a.fetchFn).generate(INPUT)).toEqual({ text: '가나' })
+    expect(await makeGemini(a.fetchFn).generate(INPUT)).toEqual({
+      text: '가나',
+      usage: { promptTokens: 0, outputTokens: 0, thoughtsTokens: 0 },
+    })
     const b = fakeFetch(() => json({ candidates: [{ content: { parts: [{ text: 'x' }] } }] }))
     await makeGemini(b.fetchFn).generate({
       ...INPUT,
@@ -175,6 +178,7 @@ describe('GeminiProvider 요청·응답', () => {
     expect([e3.reason, e3.retryable, e3.finishReason]).toEqual(['blocked', false, 'SAFETY'])
     expect(await run({ candidates: [{ finishReason: 'STOP', content: { parts: [] } }] })).toEqual({
       text: '',
+      usage: { promptTokens: 0, outputTokens: 0, thoughtsTokens: 0 },
     })
   })
 
@@ -209,10 +213,79 @@ describe('createProvider · FakeProvider', () => {
       turns: [],
       timeoutMs: n * 1000,
     }))
-    expect(await fake.generate(inputs[0] as GenerateInput)).toEqual({ text: 'a' })
+    expect(await fake.generate(inputs[0] as GenerateInput)).toEqual({
+      text: 'a',
+      usage: FAKE_USAGE,
+    })
     const err = await failure(fake.generate(inputs[1] as GenerateInput))
     expect(err.reason).toBe('timeout')
-    expect(await fake.generate(inputs[2] as GenerateInput)).toEqual({ text: FAKE_DEFAULT_TEXT })
+    expect(await fake.generate(inputs[2] as GenerateInput)).toEqual({
+      text: FAKE_DEFAULT_TEXT,
+      usage: FAKE_USAGE,
+    })
     expect(fake.calls).toEqual(inputs)
+  })
+})
+
+// ---- S3b (SRV-T-218~220) — doc/200_설계/server/llm.md §12.12 ----
+describe('S3b usage 파싱·전달', () => {
+  const okBody = (extra: Record<string, unknown>) => ({
+    candidates: [{ content: { parts: [{ text: 'ok' }] } }],
+    ...extra,
+  })
+  const run = (body: unknown, status = 200) =>
+    makeGemini(fakeFetch(() => json(body, status)).fetchFn).generate(INPUT)
+
+  it('SRV-T-218 gemini_parses_usageMetadata_into_usage', async () => {
+    const full = await run(
+      okBody({
+        usageMetadata: { promptTokenCount: 11, candidatesTokenCount: 22, thoughtsTokenCount: 33 },
+      }),
+    )
+    expect(full.usage).toEqual({ promptTokens: 11, outputTokens: 22, thoughtsTokens: 33 })
+    const partial = await run(okBody({ usageMetadata: { promptTokenCount: 5 } }))
+    expect(partial.usage).toEqual({ promptTokens: 5, outputTokens: 0, thoughtsTokens: 0 })
+    expect((await run(okBody({}))).usage).toEqual({
+      promptTokens: 0,
+      outputTokens: 0,
+      thoughtsTokens: 0,
+    })
+    const bad = await run(
+      okBody({
+        usageMetadata: { promptTokenCount: -1, candidatesTokenCount: '7', thoughtsTokenCount: 3 },
+      }),
+    )
+    expect(bad.usage).toEqual({ promptTokens: 0, outputTokens: 0, thoughtsTokens: 3 })
+  })
+
+  it('SRV-T-219 gemini_attaches_usage_to_blocked_and_bad_response_only', async () => {
+    const usageMetadata = { promptTokenCount: 9, candidatesTokenCount: 1, thoughtsTokenCount: 2 }
+    const expected = { promptTokens: 9, outputTokens: 1, thoughtsTokens: 2 }
+    const blocked = await failure(run({ promptFeedback: { blockReason: 'SAFETY' }, usageMetadata }))
+    expect([blocked.reason, blocked.usage]).toEqual(['blocked', expected])
+    const bad = await failure(run({ candidates: 'x', usageMetadata }))
+    expect([bad.reason, bad.usage]).toEqual(['bad_response', expected])
+    for (const status of [500, 429, 400]) {
+      const e = await failure(run({ error: { status: 'UNAVAILABLE' }, usageMetadata }, status))
+      expect(e.usage).toBeUndefined()
+    }
+    const notJson = await failure(run('not json'))
+    expect(notJson.usage).toBeUndefined()
+  })
+
+  it('SRV-T-220 FakeProvider_returns_FAKE_USAGE_and_honors_step_usage', async () => {
+    const custom = { promptTokens: 1, outputTokens: 2, thoughtsTokens: 3 }
+    const errUsage = { promptTokens: 4, outputTokens: 5, thoughtsTokens: 6 }
+    const fake = new FakeProvider([
+      { text: 'x' },
+      { text: 'y', usage: custom },
+      { error: new LlmError('blocked', { usage: errUsage }) },
+    ])
+    const input: GenerateInput = { system: 's', turns: [], timeoutMs: 1000 }
+    expect((await fake.generate(input)).usage).toEqual(FAKE_USAGE)
+    expect((await fake.generate(input)).usage).toEqual(custom)
+    expect((await failure(fake.generate(input))).usage).toEqual(errUsage)
+    expect((await fake.generate(input)).usage).toEqual(FAKE_USAGE)
+    expect(FAKE_USAGE).toEqual({ promptTokens: 100, outputTokens: 20, thoughtsTokens: 0 })
   })
 })

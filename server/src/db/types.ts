@@ -57,3 +57,12 @@ export const toKind = (value: string): MessageKind => {
   if (value === 'line' || value === 'ooc') return value
   throw new AppError('INTERNAL', BAD_DATA_MESSAGE)
 }
+
+/** llm_usage 조회 행(S3b) */
+export type LlmUsageRow = {
+  month: string
+  calls: number
+  prompt_tokens: number
+  output_tokens: number
+  est_krw: number
+}

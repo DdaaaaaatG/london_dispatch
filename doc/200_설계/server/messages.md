@@ -1,7 +1,7 @@
 # messages 모듈 설계
 
-- 상태: S1 확정(구현 동기화) · S2 초안 · S3 초안(§2.3·§4.2·§4.3·§8.2) · 최종 갱신: 2026-10-06
-- 묶음: S1 = R-MSG-001(히스토리 페이지). S2 = R-MSG-002(유저 발화·지시 저장) · R-MSG-004(수정) · R-MSG-005(삭제) · R-MSG-008(권한). S3 = R-MSG-003·006·007(speak·regenerate·방당 잠금) · R-ROOM-005(재작성 갱신) · R-NFR-001·003 · R-MEM-002(훅 자리만, S3 no-op).
+- 상태: S1 확정(구현 동기화) · S2 초안 · S3 초안(§2.3·§4.2·§4.3·§8.2) · S3b 초안(§4.2 예산 게이트·§8.3) · 최종 갱신: 2026-10-06
+- 묶음: S1 = R-MSG-001(히스토리 페이지). S2 = R-MSG-002(유저 발화·지시 저장) · R-MSG-004(수정) · R-MSG-005(삭제) · R-MSG-008(권한). S3 = R-MSG-003·006·007(speak·regenerate·방당 잠금) · R-ROOM-005(재작성 갱신) · R-NFR-001·003 · R-MEM-002(훅 자리만, S3 no-op). S3b = R-LLM-007 🔒 월 예산 게이트(speak·regenerate 잠금 전 `llm.ensureBudget()` — 사용량 누적은 llm 안, [llm.md](llm.md) §12).
 - 관련 문서: [db.md](db.md)(`messages` 저장소), [rooms.md](rooms.md)(`updated_at` 갱신 규칙), [auth.md](auth.md)(`Principal`·쓰기 미들웨어), [index.md](index.md)(서비스 컨테이너·에러 핸들러), [llm.md](llm.md)(S3 프롬프트·제공사·재시도).
 
 ## 1. 목적
@@ -241,6 +241,7 @@ POST /api/rooms/:id/speak  [requireToken·rateLimitWrites]
   └ speak(roomId, { character }, background)
        ① isCharacterId(character) ── 아님 → VALIDATION_ERROR (DB·LLM 전)
        ② llm = deps.llm()          ── google + 키 없음 → ConfigError → 500 CONFIG_INVALID (잠금 전)
+       ②b await llm.ensureBudget() ── 이번 달(KST) 추정 누적 ≥ 예산 → 429 LLM_BUDGET_EXCEEDED (S3b · 잠금 0회 · LLM 0회)
        ③ startMs = now(); untilMs = startMs + SPEAK_LOCK_MS
           db.rooms.acquireSpeakLock(roomId, untilMs, startMs)
             'missing' → NOT_FOUND(방)   'busy' → SPEAK_IN_PROGRESS
@@ -265,6 +266,7 @@ POST /api/messages/:id/regenerate  [requireToken·rateLimitWrites]
        ② target = db.messages.getById(id) ── null → NOT_FOUND
           target.speaker === 'user' → NOT_CHARACTER_MESSAGE
        ③ llm = deps.llm()                ── CONFIG_INVALID
+       ③b await llm.ensureBudget()       ── LLM_BUDGET_EXCEEDED (S3b · 대상 검사 뒤 · 잠금 전)
        ④ acquireSpeakLock(target.roomId, …)  'missing' → NOT_FOUND(메시지)  'busy' → SPEAK_IN_PROGRESS
        ⑤ try {
             [rowsDesc, summary] = Promise.all([ pageDesc(roomId, contextMessages + 1), getSummary(roomId) ])
@@ -280,6 +282,9 @@ POST /api/messages/:id/regenerate  [requireToken·rateLimitWrites]
 ```
 
 - 잠금 선점 → 작업 → 해제는 `withSpeakLock(roomId, onMissing, task)` 하나로 두 흐름이 공유한다(try/finally가 한 곳).
+- (S3b) `ensureBudget`은 **키 확인 다음·잠금 선점 전**이다. 초과면 D1 읽기 1행만 쓰고 잠금·LLM·저장 0회로 끝난다(R-LLM-007 "LLM 호출 전 거절"). 판정 순서는 speak `VALIDATION → CONFIG → BUDGET → NOT_FOUND/409`, regenerate `NOT_FOUND → NOT_CHARACTER → CONFIG → BUDGET → 409`(D-MSG-20·21).
+- (S3b) 사용량 누적은 `llm.complete` 안에서 시도마다 일어나며 messages는 모른다([llm.md](llm.md) §12.7). 누적 실패는 speak 결과를 바꾸지 않는다.
+- (S3b) `MessagesDeps`·`GenerateDeps` 시그니처는 바뀌지 않는다. `Llm` 타입에 `ensureBudget`이 늘 뿐이다. `generate.ts`에 `await llm.ensureBudget()` 두 줄만 추가된다.
 - `releaseQuietly`가 해제 실패를 삼키는 이유: 해제 실패(D1 장애)로 이미 저장된 대사를 500으로 바꾸면 화면이 재시도해 같은 대사가 두 번 생긴다. 잠금은 90초 뒤 스스로 풀린다. 로그 `speak_lock_release_failed { roomId, errName }`(warn).
 - `runAfterSpeak`는 훅을 `try/catch`로 감싸 `after_speak_failed { roomId, errName }`(warn)만 남긴다. `waitUntil`에 넘긴 promise는 항상 resolve한다(R-MEM-002 "실패해도 speak 응답은 성공").
 - 시간 상한: 잠금 선점부터 해제까지 = D1 왕복(선점·조회·저장·해제) + LLM 단계(≤ 66초, [llm.md](llm.md) §4.2) ≤ 70초(R-NFR-001). `SPEAK_LOCK_MS` 90초는 이보다 20초 길다.
@@ -299,6 +304,8 @@ POST /api/messages/:id/regenerate  [requireToken·rateLimitWrites]
 | regenerate 중 같은 메시지 수정(`editMessage`) | 나중 쓰기가 이긴다 | 수정은 잠금을 쓰지 않는다(S2 규칙 유지) |
 | 잠금 만료(90초) 뒤 남은 요청의 해제 | 해제는 내 `untilMs`일 때만이라 남의 잠금을 지우지 않는다 | D-DB-15 |
 | 클라이언트 연결 끊김으로 Worker 실행 취소 | `finally`가 못 돌 수 있다. 잠금은 최대 90초 뒤 풀리고 그동안 그 방 생성은 409. 대사 저장 여부는 취소 시점에 따른다 | Workers 동작. 수동 확인 대상(§8.2) |
+| (S3b) 예산 직전, 다른 방 speak 여러 건 동시 | 모두 게이트 통과·진행, 예산을 약간 넘길 수 있다 | 게이트는 읽기만 한다. 허용·문서화([llm.md](llm.md) §12.8) |
+| (S3b) 예산 초과 상태에서 유저 발화·수정·삭제·조회 | 모두 정상 | 게이트는 speak·regenerate에만 있다(R-LLM-007) |
 
 ## 5. 에러 타입
 
@@ -318,6 +325,7 @@ POST /api/messages/:id/regenerate  [requireToken·rateLimitWrites]
 | `AppError` | `NOT_CHARACTER_MESSAGE` | 400 | 기본 문구 | 대상이 유저 메시지 | S3 |
 | `AppError`(llm) | `LLM_FAILED` · `LLM_EMPTY` | 502 | 기본 문구 | [llm.md](llm.md) §5 — messages는 그대로 전파 | S3 |
 | `ConfigError`(env) | `CONFIG_INVALID` | 500 | 기본 문구 | `deps.llm()`에서 `requireLlmApiKey` 실패 — 그대로 전파 | S3 |
+| `AppError`(llm `usage.ts`) | `LLM_BUDGET_EXCEEDED` | 429 | 기본 문구(`이번 달 AI 사용 한도에 닿았습니다. 다음 달에 다시 시도해 주세요.`) + `retryAfterSec` | `llm.ensureBudget()` 거절 — 그대로 전파 | S3b |
 
 - 토큰·등급·레이트리밋 에러는 라우트 미들웨어가 서비스 호출 전에 낸다([auth.md](auth.md) §5).
 - 에러 메시지에 유저 입력·`mbId`를 넣지 않는다(로그 `errMessage`로 새지 않게).
@@ -447,6 +455,22 @@ INSERT INTO messages (room_id, speaker, kind, text, author_mb_id, author_name, c
   - [ ] speak 중 탭을 닫은 뒤 다른 탭에서 같은 방 speak → 최대 90초 동안 409, 이후 성공(§4.3 연결 끊김 행 확인).
   - [ ] `wrangler dev` 로그 `speak_done`에 본문·`mbId` 없음.
 
+### 8.3 S3b 테스트 — `server/test/messages-generate.test.ts`에 추가
+
+준비: §8.2와 같고, `llm`을 `() => createLlm({ …, meter: createUsageMeter({ store: db.llmUsage, config: { monthlyBudgetKrw: 100000, priceInputUsdPerM: 0.3, priceOutputUsdPerM: 2.5, krwPerUsd: 1400 }, logger, now }) })`로 만든다. 예산 상태는 `llm_usage`에 직접 시드한다(`server/test/helpers.ts`에 `insertUsage(month, estKrw, calls?)` 추가 — [db.md](db.md) §3). 월 키는 `kstMonthKey(now())`.
+
+| 테스트ID | 이름 | 입력 | 기대 | 요구 |
+|---|---|---|---|---|
+| SRV-T-225 | `speak_rejects_LLM_BUDGET_EXCEEDED_before_lock_and_llm` | 이번 달 `est_krw 100000` 시드 / 같은 시드 + `google`·키 없는 `Config` | 429 `LLM_BUDGET_EXCEEDED`, `retryAfterSec === budgetRetryAfterSec(now)`, `fake.calls` 0, `acquireSpeakLock` 0회(Db 스파이), `speaking_until` NULL, 메시지 0건, 방 `updated_at`·`llm_usage` 행 불변 / `CONFIG_INVALID`(키 확인이 먼저) | R-LLM-007 · R-NFR-003 |
+| SRV-T-226 | `regenerate_rejects_LLM_BUDGET_EXCEEDED_after_target_checks` | 같은 시드. 마지막 캐릭터 메시지 / 유저 메시지 id / 없는 id | 429·원문 불변·잠금 0회·`fake.calls` 0 / `NOT_CHARACTER_MESSAGE` / `NOT_FOUND`(대상 검사가 게이트보다 먼저) | R-LLM-007 · R-MSG-006 |
+| SRV-T-227 | `speak_allows_just_below_budget_then_rejects_next` | 시드 `est_krw 99999.95`, speak 2회 | 1번째 201(누적 → 약 100000.062, `calls` 시드+1), 2번째 429·`fake.calls` 그대로 1 | R-LLM-007 |
+| SRV-T-228 | `speak_accumulates_per_attempt_including_failed_responses` | 각본 `[LlmError('http_5xx', { usage: FAKE_USAGE }), { text }]` / `[LlmError('blocked', { usage: FAKE_USAGE })]` / `[LlmError('http_4xx')]` | 성공·`calls` +2·`est_krw` +0.224 / `LLM_EMPTY`·`calls` +1 / `LLM_FAILED`·행 없음 | R-LLM-007 |
+| SRV-T-229 | `non_generate_paths_ignore_budget` | 예산 초과 시드에서 `listMessages`·`addUserMessage`·`editMessage`·`deleteMessage` | 모두 성공, `llm_usage` 불변, `llm()` 0회 | R-LLM-007 |
+| SRV-T-230 | `speak_resumes_in_next_kst_month` | `2026-10` 행 `est_krw` = 예산, now = `2026-10-31T15:00:00.000Z`(11월 1일 00:00 KST) | speak 201, `2026-11` 행 `calls 1`, `2026-10` 행 불변 | R-LLM-007 |
+
+- 에러 경로(225·226·228 일부) 3 ≥ 정상 경로(227·229·230) 3.
+- 수동: [llm.md](llm.md) §12.12 수동 2항목(예산 1원 설정 → 429, 다른 쓰기는 성공).
+
 ## 9. contract 요구 명세
 
 | 서비스 | 엔드포인트 후보 | 입력 | 출력 | 에러 | 토큰 | 레이트리밋 | 이유 |
@@ -455,8 +479,8 @@ INSERT INTO messages (room_id, speaker, kind, text, author_mb_id, author_name, c
 | `messages.addUserMessage(roomId, { text, ooc }, getPrincipal(c))` | `POST /api/rooms/:id/user` | 경로 `id`(문자열), 본문 `{ text: string; ooc: boolean }` | `Message` | `VALIDATION_ERROR`(400), `NOT_FOUND`(404) + 공통 | ○ | ○ | R-MSG-002 |
 | `messages.editMessage(Number(id), { text })` | `PATCH /api/messages/:id` | 경로 `id` → `Number()` 변환만, 본문 `{ text: string }` | `Message` | `VALIDATION_ERROR`(400), `NOT_FOUND`(404) + 공통 | ○ | ○ | R-MSG-004·008 |
 | `messages.deleteMessage(Number(id))` | `DELETE /api/messages/:id` | 경로 `id` → `Number()` 변환만 | 없음(`void`) | `NOT_FOUND`(404) + 공통 | ○ | ○ | R-MSG-005·008 |
-| `messages.speak(id, body, { waitUntil: p => c.executionCtx.waitUntil(p) })` (S3) | `POST /api/rooms/:id/speak` | 경로 `id`(문자열), 본문 `SpeakBody = { character: 'sebastian' \| 'ciel' }` | **201** `Message` | `VALIDATION_ERROR`(400), `CONFIG_INVALID`(500), `NOT_FOUND`(404), `SPEAK_IN_PROGRESS`(409), `LLM_FAILED`·`LLM_EMPTY`(502) + 공통 | ○ | ○ | R-MSG-003·007 |
-| `messages.regenerate(Number(id))` (S3) | `POST /api/messages/:id/regenerate` | 경로 `id` → `Number()`, 본문 없음(읽지 않음) | **200** `Message` | `NOT_FOUND`(404), `NOT_CHARACTER_MESSAGE`(400), `CONFIG_INVALID`(500), `SPEAK_IN_PROGRESS`·`NOT_LAST_MESSAGE`(409), `LLM_FAILED`·`LLM_EMPTY`(502) + 공통 | ○ | ○ | R-MSG-006·007 |
+| `messages.speak(id, body, { waitUntil: p => c.executionCtx.waitUntil(p) })` (S3) | `POST /api/rooms/:id/speak` | 경로 `id`(문자열), 본문 `SpeakBody = { character: 'sebastian' \| 'ciel' }` | **201** `Message` | `VALIDATION_ERROR`(400), `CONFIG_INVALID`(500), `NOT_FOUND`(404), `SPEAK_IN_PROGRESS`(409), `LLM_BUDGET_EXCEEDED`(429, S3b), `LLM_FAILED`·`LLM_EMPTY`(502) + 공통 | ○ | ○ | R-MSG-003·007 · R-LLM-007 |
+| `messages.regenerate(Number(id))` (S3) | `POST /api/messages/:id/regenerate` | 경로 `id` → `Number()`, 본문 없음(읽지 않음) | **200** `Message` | `NOT_FOUND`(404), `NOT_CHARACTER_MESSAGE`(400), `CONFIG_INVALID`(500), `SPEAK_IN_PROGRESS`·`NOT_LAST_MESSAGE`(409), `LLM_BUDGET_EXCEEDED`(429, S3b), `LLM_FAILED`·`LLM_EMPTY`(502) + 공통 | ○ | ○ | R-MSG-006·007 · R-LLM-007 |
 
 - 공통 = `TOKEN_REQUIRED`·`TOKEN_INVALID`(401), `LEVEL_TOO_LOW`(403), `RATE_LIMITED`(429), `CONFIG_INVALID`·`INTERNAL`(500). 미들웨어 순서·`getPrincipal`은 [auth.md](auth.md) §9.1.
 - 라우트 zod는 **타입만**: `{ text: z.string(), ooc: z.boolean() }`, `{ text: z.string() }`. trim·길이(코드 포인트)는 서비스가 판정한다(zod `.min/.max`는 UTF-16 단위라 CHECK·서비스와 어긋난다 — D-MSG-4와 같은 원칙). `ooc`를 필수로 할지 기본값 `false`를 둘지는 contract가 정한다(서비스는 boolean을 받는다).
@@ -487,6 +511,8 @@ INSERT INTO messages (room_id, speaker, kind, text, author_mb_id, author_name, c
 | R-NFR-003 🔒 (speak 몫) | §4.3 | SRV-T-199 | ✅(설계) |
 | R-ENV-003 (speak 시점) | §2.3 판정 ② | SRV-T-197 | ✅(설계) |
 | R-MEM-002 🔒 | §2.3 `afterSpeak` 자리 | SRV-T-202 | 부분(S4에서 요약 구현) |
+| R-LLM-007 🔒 (S3b 게이트) | §4.2 ②b·③b, §4.3, §5, §9 | SRV-T-225~230 | ✅(설계) |
+| R-NFR-003 🔒 (S3b — 429 경로) | §4.2 ②b | SRV-T-225 | ✅(설계) |
 
 ## 11. 설계 결정 노트
 
@@ -511,6 +537,8 @@ INSERT INTO messages (room_id, speaker, kind, text, author_mb_id, author_name, c
 | D-MSG-17 (S3) | 해제는 항상 `finally`에서 시도(방이 삭제됐어도) | 방 삭제 시 해제 건너뛰기([rooms.md](rooms.md) §11 인계 문구) | 해제 문장은 행이 없으면 0행이라 무해하다. 분기를 없애 실수(잠금 누수)를 막는다 |
 | D-MSG-18 (S3) | 해제 실패는 로그만 남기고 원래 결과·에러를 유지 | 해제 실패를 500으로 | 이미 저장된 대사를 실패로 보이면 화면 재시도로 중복 대사가 생긴다. 잠금은 90초 뒤 풀린다 |
 | D-MSG-19 (S3) | speak·regenerate는 `generate.ts`로 분리 | `service.ts`에 추가 | `service.ts`가 400줄·함수 50줄 한계에 걸리지 않게. 잠금 공용 헬퍼를 한 파일에 둔다 |
+| D-MSG-20 (S3b) | 예산 게이트는 키 확인 다음·잠금 선점 전 | 잠금 뒤 / 라우트 미들웨어 | R-LLM-007 "LLM 호출 전 거절"과 사전 확정(잠금 0회)을 지킨다. 초과 상태에서 잠금 쓰기·409 오판이 없다. 판단은 서비스에 둔다(라우트는 얇게). 키 확인을 먼저 두는 이유는 D-MSG-14와 같다(설정 오류가 가장 먼저 드러난다) |
+| D-MSG-21 (S3b) | regenerate는 대상 검사(`NOT_FOUND`·`NOT_CHARACTER_MESSAGE`) 뒤에 게이트 | 게이트를 맨 앞에 | 다시 눌러도 안 되는 요청에 "다음 달에 다시" 안내를 하지 않는다. 대상 검사는 D1 읽기 1회라 비용이 같다. `NOT_LAST_MESSAGE`는 잠금 뒤 판정이라 게이트 다음이 된다 |
 
 확인 필요:
 
@@ -524,8 +552,11 @@ INSERT INTO messages (room_id, speaker, kind, text, author_mb_id, author_name, c
 |---|---|
 | 2026-10-05 | S1 초안 작성 |
 | 2026-10-06 | S3 설계: §2.3 예정 시그니처를 본문으로 승격(speak `author` 인자 제거, regenerate `background` 제거), `MessagesDeps`에 `logger`·`contextMessages`·`llm`·`afterSpeak?`, `generate.ts` 추가, §4.2 흐름·§4.3 경합, §5 S3 에러, §8.2 SRV-T-191~209, §9·§10 갱신, D-MSG-12~19 |
+| 2026-10-06 | S3b 설계: §4.2 speak ②b·regenerate ③b 예산 게이트(`llm.ensureBudget()`), §4.3 경합 2행, §5 `LLM_BUDGET_EXCEEDED`, §8.3 SRV-T-225~230, §9 에러 목록, §10 R-LLM-007·R-NFR-003, D-MSG-20·21 |
 | 2026-10-05 | S1 구현 동기화(상태 확정): 페이지 단위 테스트 위치 `server/test/messages-page.test.ts`, `MessagePage`는 `@shared/types` `MessagesPage` 별칭, `NormalizedPageQuery` 재노출. S2 설계: `addUserMessage`(S1 문서의 `appendUserMessage` 개명)·`editMessage`·`deleteMessage` 본문 확정, `MessagesDeps`에 `now`, `text.ts` 추가, `AuthContext` → `MessageAuthor`(Principal 일부), D-MSG-6~11 |
 
 파급(공개 API 변경): `MessagesDeps`에 `now` 필수 추가 → 호출자 `server/src/services.ts`(`createServices`), `server/test/messages.test.ts` 11행·68행의 `createMessagesService({ db })`를 `{ db, now }`로 고친다. 라우트(`server/src/routes/messages.ts`)의 `listMessages` 호출은 영향 없다.
 
 파급(S3 공개 API 변경): `MessagesDeps`에 필수 `logger`·`contextMessages`·`llm` 추가 → 호출자 `server/src/services.ts`(`createServices`, 델타는 [llm.md](llm.md) §3.3), `server/test/messages.test.ts`의 `createMessagesService({ db, now })` 호출(테스트 헬퍼로 묶어 기본 `FakeProvider`·수집 로거·`contextMessages 40`을 넣는다). `MessagesService`에 `speak`·`regenerate` 추가 → 라우트(`server/src/routes/messages.ts` 등, contract 소유)가 E9·E12를 추가한다. 기존 4개 함수 시그니처는 바뀌지 않는다.
+
+파급(S3b): `MessagesDeps`·`GenerateDeps`·`MessagesService` 시그니처 변경 없음. `generate.ts`에 `await llm.ensureBudget()` 2줄과 문서주석 `[에러]`에 `LLM_BUDGET_EXCEEDED` 추가. `server/test/messages-generate.test.ts`의 `llm` 헬퍼는 meter 없이 만들어도 기존 SRV-T-191~209가 그대로 돈다(`LlmDeps.meter?` 선택). S3b 테스트만 meter를 넣는다.

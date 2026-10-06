@@ -1,6 +1,6 @@
 /**
  * [목적] 결정적 각본을 재생하는 가짜 제공사(R-LLM-001). 키 없는 로컬 개발·통합 테스트용. 설계 llm.md §2.2
- * [공개 API] FakeProvider, FAKE_DEFAULT_TEXT, 타입 FakeStep
+ * [공개 API] FakeProvider, FAKE_DEFAULT_TEXT, FAKE_USAGE(S3b), 타입 FakeStep
  * [비동기] generate 는 각본 함수가 있으면 그것을 await, 아니면 즉시 resolve
  * [에러] 각본의 LlmError 를 그대로 throw
  * [설정] 없음(fake 는 LLM_API_KEY 를 쓰지 않는다)
@@ -8,14 +8,18 @@
  */
 import type { GenerateInput, GenerateOutput, LlmProvider } from './provider'
 import type { LlmError } from './provider'
+import type { LlmUsage } from './usage'
 
 /** 한 번의 호출에 대한 각본. 함수형은 입력을 보고 결과를 정한다 */
 export type FakeStep =
-  | { readonly text: string }
+  | { readonly text: string; readonly usage?: LlmUsage }
   | { readonly error: LlmError }
   | ((input: GenerateInput) => Promise<GenerateOutput>)
 
 export const FAKE_DEFAULT_TEXT = '(가짜 응답) 잠시 생각에 잠긴다.'
+
+/** S3b: 각본이 usage 를 생략했을 때의 고정 사용량(약 0.112원/회) */
+export const FAKE_USAGE: LlmUsage = { promptTokens: 100, outputTokens: 20, thoughtsTokens: 0 }
 
 /** steps[n] 이 n번째 호출 결과. 각본이 떨어지면 FAKE_DEFAULT_TEXT */
 export class FakeProvider implements LlmProvider {
@@ -32,9 +36,9 @@ export class FakeProvider implements LlmProvider {
   async generate(input: GenerateInput): Promise<GenerateOutput> {
     const step = this.steps[this.calls.length]
     this.calls.push(input)
-    if (step === undefined) return { text: FAKE_DEFAULT_TEXT }
+    if (step === undefined) return { text: FAKE_DEFAULT_TEXT, usage: FAKE_USAGE }
     if (typeof step === 'function') return step(input)
     if ('error' in step) throw step.error
-    return { text: step.text }
+    return { text: step.text, usage: step.usage ?? FAKE_USAGE }
   }
 }
