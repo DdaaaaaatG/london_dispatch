@@ -1,4 +1,4 @@
-# chat 상세 설계 — 확정 문구·라벨 표 (분할 문서, v1.7)
+# chat 상세 설계 — 확정 문구·라벨 표 (분할 문서, v1.7 · §8.1.3 S3d v1.9.1 실물 동기화 2026-10-07)
 
 > 주 문서: `ui/src/chat/design.md`(RTM 포함). 이 파일은 주 문서 §8의 상세다(v1.7에서 40KB 한계로 이전, 절 번호는 그대로 §8.1~§8.3).
 > 단일 소스 코드는 `ui/src/chat/labels.ts`. S3 생성 실패 문구(옛 §8.4)는 `design/generate.md` §3.
@@ -14,7 +14,7 @@
 | `loading` · `empty` · `loadError` · `retry` | `대화를 불러오는 중` · `아직 대화가 없습니다` · `대화를 불러오지 못했습니다` · `다시 시도` | 첫 로드 StateView · 「다시 시도」 |
 | `olderLoading` · `olderError` | `이전 대화 불러오는 중` · `이전 대화를 불러오지 못했습니다` | B0 |
 | `oocPrefix` · `oocDecor` | `[지시]` · `—` | OOC 말풍선·메뉴 머리 |
-| ~~`unknownAuthor`~~ | ~~`이름 없음`~~ **삭제(S3d, CR-002)** — 대체 표시는 `userAuthorLabel(authorName)` → `USER_DISPLAY_NAME`. S3d 새 키 `autoPendingStatus`·`autoRetryAriaLabel`과 함수 `userAuthorLabel`은 `design/auto.md` §6(§8.1.3) | — |
+| ~~`unknownAuthor`~~ | ~~`이름 없음`~~ **삭제(S3d, CR-002)** — 대체 표시는 `userAuthorLabel(authorName)` → `USER_DISPLAY_NAME`. S3d 새 키 3개와 함수 `userAuthorLabel`은 아래 §8.1.3 | — |
 | `newMessages` · `newMessagesAriaLabel` | `새 메시지` · `새 메시지 보기, 맨 아래로 이동` | B1 |
 | `readOnlyNotice` | `열람 전용 - 대화 참여는 등급 회원만` | D |
 
@@ -53,6 +53,19 @@
 | `regeneratingNote` | `다시 쓰는 중…` | 재작성 중 대상 머리 줄 `role=status` |
 
 - (S3b) `LLM_BUDGET_EXCEEDED`는 **새 labels 키를 두지 않는다.** `speakErrorText`·`writeErrorText(…, 'regenerate')` 둘 다 "그 밖" 분기 `ERROR_MESSAGES[code]`로 `ERROR_MESSAGES.LLM_BUDGET_EXCEEDED`(요구 원문 `이번 달 AI 사용 한도에 닿았습니다. 다음 달에 다시 시도해 주세요.`)를 쓴다. 이 문구는 서버 응답 `message`와 같은 요구 원문이지만(api.md §3.2 — 서버는 기본 문구만 보낸다), **화면은 응답 `error.message` 필드를 읽지 않고 `code` → `ERROR_MESSAGES`로 정한다**(§8.3 규칙 유지). 래퍼가 `message`를 비워 받으면 같은 `ERROR_MESSAGES` 값으로 채우므로(API-T-UI-022) 결과 문구는 같다. 초 값(`retryAfterSec`)은 넣지 않는다(래퍼가 버린다). 표는 `design/generate.md` §3
+
+## 8.1.3 문구 (S3d, CR-002 — v1.9.1 `labels.ts` 실물 대조 일치)
+
+설계 본문은 `design/auto.md` §6. 아래는 `labels.ts`에 실제로 있는 키다.
+
+| 키 | 문구 | 쓰는 곳 |
+|---|---|---|
+| `autoPendingStatus` | `응답을 만드는 중` | 중립 "…" `role=status` 숨은 안내(PendingBody `statusText`) |
+| `autoRetryAriaLabel` | `응답 재시도` | 중립 실패 「재시도」 aria-label |
+| `editSaveLockedNote` | `응답을 만드는 중에는 저장할 수 없습니다` | 생성 중 잠긴 인라인 수정 저장 버튼의 숨은 안내(`aria-describedby`, InlineEditor 지역 `.srOnly`) |
+| `userAuthorLabel(authorName)`(함수, `labels` 객체 밖 named export) | 받은 값 그대로 · `null`·`''`이면 `USER_DISPLAY_NAME`(`어떠한 의지`, `@shared/characters`) | Bubble `UserBubble` 작성자 줄 · MessageMenuSheet `nameOf` user 분기 |
+
+- `unknownAuthor` 키는 `labels.ts`에서 삭제됐다(실물 확인). 「어떠한 의지」 리터럴은 `labels.ts`에 없다.
 
 ## 8.2 오류 상세 `errorDetail(code)` (읽기, S1)
 

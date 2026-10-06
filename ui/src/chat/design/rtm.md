@@ -5,7 +5,7 @@
 
 ## 15. RTM
 
-상태: ✅ = 가리킨 절에 실체 있음. `후속(Sn)` = 이번 묶음 범위 밖, 주 문서 §14에 자리만. 절 표기: `C` = components.md, `F` = functions.md, `A` = a11y.md, `L` = labels.md, `G` = generate.md, `D` = decisions.md(v1.7), `Y` = layout.md(v1.7.1), `AU` = auto.md(v1.9 S3d). 잠금 표는 `G §6`(v1.7.1, 옛 functions.md §4.3) · S3d 행은 `AU §4.1`. TC 상세는 `design/tc.md`, S3d TC 예약은 `AU §9`.
+상태: ✅ = 가리킨 절에 실체 있음. `후속(Sn)` = 이번 묶음 범위 밖, 주 문서 §14에 자리만. 절 표기: `C` = components.md, `F` = functions.md, `A` = a11y.md, `L` = labels.md, `G` = generate.md, `D` = decisions.md(v1.7), `Y` = layout.md(v1.7.1), `AU` = auto.md(v1.9 S3d). 잠금 표는 `G §6`(v1.7.1, 옛 functions.md §4.3) · S3d 행은 `AU §4.1`. TC 상세는 `design/tc.md`, S3d TC 예약·실물 위치는 `design/auto-tests.md` §9(v1.9.1, 옛 `AU §9`).
 
 | 요구ID | 설계 절 | api 계약 | 예정 TC | 상태 |
 |---|---|---|---|---|

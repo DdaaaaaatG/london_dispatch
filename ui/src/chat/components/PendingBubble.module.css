@@ -1,6 +1,6 @@
 /*
  * 설계 chat/design/components.md §2.12 — 상태 클래스만 둔다(모양은 Bubble.module.css 를 import 해서 쓴다).
- * 클래스: pending(항상) · failed(실패) · srOnly. 색은 토큰만.
+ * 클래스: pending(항상) · failed(실패) · neutral(S3d 중립) · srOnly. 색은 토큰만.
  */
 .pending {
   min-width: 0;
@@ -44,4 +44,24 @@
   overflow: hidden;
   clip: rect(0 0 0 0);
   white-space: nowrap;
+}
+
+/*
+ * S3d 중립(화자 미정) 변형 — design/auto.md §2.1. 유저 말풍선과 같은 가운데 세로 축이되 .user 클래스는 쓰지 않는다(배경색이 붙는다).
+ * 본문 상자는 Bubble 의 .body 1px 테두리가 그대로 걸리고 배경만 없다. 실패 테두리는 위 .failed .bodyBox 가 그대로 건다.
+ */
+.neutral {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+}
+
+.neutral .bodyBox {
+  max-width: var(--bubble-max-width);
+  background: transparent;
+}
+
+.neutral .retryRow {
+  justify-content: center;
 }

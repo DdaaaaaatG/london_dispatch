@@ -3,6 +3,7 @@
  * 변형 4종(CR-001): 세바스찬 왼쪽 · 시엘 오른쪽(화면만 거울, DOM 순서는 같다) · 유저 가운데 말풍선 · OOC 가운데 한 줄.
  * 루트 클래스(확정): 세바스찬 character sebastian · 시엘 character ciel · 유저 user · OOC ooc(speaker 가 캐릭터여도 캐릭터 키 없음).
  * 본문은 일반 텍스트(React 이스케이프)다. dangerouslySetInnerHTML·마크다운 해석 금지.
+ * S3d: 유저 작성자 줄은 authorName 그대로, 비었을 때만 USER_DISPLAY_NAME(userAuthorLabel, R-CHAT-002 🔒 · R-AUTH-004 🔒).
  * S3: isRegenerating(재작성 요청 중인 캐릭터 대사)이면 루트 regenerating · 본문 aria-busy · 머리 줄 "다시 쓰는 중…" role=status(기존 텍스트는 그대로).
  * S2: onOpenMenu 가 있을 때(쓰기 가능)만 롱프레스·우클릭·Shift+F10 핸들러와 tabIndex·aria 를 붙인다. 없으면(읽기 전용) 아무것도 붙이지 않는다.
  */
@@ -13,7 +14,7 @@ import type { CharacterId, Message } from '@shared/types'
 import { useLongPress } from '@/components/hooks/useLongPress'
 import { cx } from '@/components/utils/cx'
 import { formatTime, toIsoDateTime } from '@/components/utils/formatDate'
-import { labels } from '@/chat/labels'
+import { labels, userAuthorLabel } from '@/chat/labels'
 import styles from './Bubble.module.css'
 
 export type BubbleProps = {
@@ -86,7 +87,7 @@ const CharacterBubble = ({
 const UserBubble = ({ message, rootProps, menuClass }: VariantProps) => (
   <div className={cx(styles.root, styles.user, menuClass)} {...rootProps}>
     <div className={styles.head}>
-      <span className={styles.author}>{message.authorName ?? labels.unknownAuthor}</span>
+      <span className={styles.author}>{userAuthorLabel(message.authorName)}</span>
       <SentTime createdAt={message.createdAt} />
     </div>
     <p className={styles.body}>{message.text}</p>

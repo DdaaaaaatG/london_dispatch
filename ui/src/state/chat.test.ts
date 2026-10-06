@@ -17,6 +17,7 @@ import {
   canSend,
   canSpeak,
   isRegenerateTarget,
+  speakingCharacterOf,
   type MessageWrite,
   type PendingSpeak,
 } from '@/state/chat'
@@ -358,6 +359,181 @@ describe('S3 canSpeak · isRegenerateTarget (R-CHAT-005 · R-CHAT-007 · R-MSG-0
     expect(isRegenerateTarget(oocLast, 32)).toBe(false)
     expect(isRegenerateTarget(empty, 33)).toBe(false)
     expect(isRegenerateTarget(ready({ pending: FAILED_SEB }), 33)).toBe(true)
+  })
+})
+
+// ── S3d (TC-CH-053·085 확장 · TC-CH-099 순수) — design/auto.md §1.1 SpeakTarget 'auto' · §1.2 T27·T31 개정 · T35·T36 · §1.3 · F-CH-44 ──
+const SPEAK_AUTO: MessageWrite = { kind: 'speak', character: 'auto' }
+const GEN_AUTO: PendingSpeak = { character: 'auto', status: 'generating', error: null }
+const FAILED_AUTO: PendingSpeak = { character: 'auto', status: 'failed', error: LLM }
+const autoSpeaking = (over: Partial<ChatState> = {}) =>
+  ready({ writing: SPEAK_AUTO, pending: GEN_AUTO, ...over })
+const sending = (over: Partial<ChatState> = {}) => ready({ writing: SEND, ...over })
+const sent = (id: number): Message => ({ ...msg(id, '안녕'), speaker: 'user', authorName: '어떠한 의지' })
+
+describe('S3d chatReducer T35·T36 sendSucceeded (R-CHAT-006 · R-CHAT-014)', () => {
+  it('TC-CH-099: (순수) T35 send 중 sendSucceeded 맨 아래 근처 → 한 번에 메시지 붙임·unseen 0 + writing speak auto + pending auto generating', () => {
+    const before = sending()
+    const next = chatReducer(before, { type: 'sendSucceeded', message: sent(34), isNearBottom: true })
+    expect(ids(next.messages)).toEqual([31, 32, 33, 34])
+    expect(next.unseenCount).toBe(0)
+    expect(next.phase).toBe('ready')
+    expect(next.writing).toEqual({ kind: 'speak', character: 'auto' })
+    expect(next.pending).toEqual({ character: 'auto', status: 'generating', error: null })
+    expect(before.writing).toEqual(SEND) // 입력 불변(freeze)
+    expect(ids(before.messages)).toEqual([31, 32, 33])
+  })
+
+  it('TC-CH-099: (순수) T35 위쪽을 보는 중 → unseenCount += 1(T9 규칙)', () => {
+    const next = chatReducer(sending({ unseenCount: 2 }), {
+      type: 'sendSucceeded',
+      message: sent(34),
+      isNearBottom: false,
+    })
+    expect(next.unseenCount).toBe(3)
+    expect(next.pending).toEqual(GEN_AUTO)
+  })
+
+  it('TC-CH-099: (순수) T35 이전 pending(캐릭터 실패·중립 실패)은 새 중립 generating 으로 바뀐다', () => {
+    for (const prev of [FAILED_SEB, FAILED_CIEL, FAILED_AUTO]) {
+      const next = chatReducer(sending({ pending: prev }), {
+        type: 'sendSucceeded',
+        message: sent(34),
+        isNearBottom: true,
+      })
+      expect(next.pending).toEqual(GEN_AUTO)
+      expect(next.writing).toEqual(SPEAK_AUTO)
+    }
+  })
+
+  it('TC-CH-099: (순수) T35 는 editingId 를 건드리지 않는다(D-17 — 편집기는 열린 채 남는다)', () => {
+    const next = chatReducer(sending({ editingId: 32 }), {
+      type: 'sendSucceeded',
+      message: sent(34),
+      isNearBottom: true,
+    })
+    expect(next.editingId).toBe(32)
+    expect(next.writing).toEqual(SPEAK_AUTO)
+  })
+
+  it('TC-CH-099: (순수) T36 send 중이 아니면 같은 참조(ready · 캐릭터·auto 생성 중 · edit 중 · regenerate 중 · loading)', () => {
+    const states = [
+      ready(),
+      speaking(),
+      autoSpeaking(),
+      ready({ writing: EDIT32 }),
+      ready({ writing: REGEN33 }),
+      freeze(initialChatState),
+    ]
+    for (const s of states)
+      expect(chatReducer(s, { type: 'sendSucceeded', message: sent(34), isNearBottom: true })).toBe(
+        s,
+      )
+  })
+
+  it('TC-CH-099: (순수) T35 직후 상태에서 canSend·canSpeak 모두 false(끼어들기 0회 — 상태 쪽 조건)', () => {
+    const next = chatReducer(sending(), { type: 'sendSucceeded', message: sent(34), isNearBottom: true })
+    expect(canSend(next)).toBe(false)
+    expect(canSpeak(next)).toBe(false)
+    expect(canSend(sending())).toBe(false)
+    expect(canSpeak(sending())).toBe(false)
+  })
+})
+
+describe('S3d chatReducer SpeakTarget auto — T27·T28·T29·T31·T33·T25 (R-CHAT-014 · R-CHAT-005)', () => {
+  it('TC-CH-085: (S3d) T27 speakStarted auto(canSpeak) → writing speak auto · pending auto generating', () => {
+    const before = ready()
+    const next = chatReducer(before, { type: 'speakStarted', character: 'auto' })
+    expect(next.writing).toEqual(SPEAK_AUTO)
+    expect(next.pending).toEqual(GEN_AUTO)
+    expect(next.messages).toBe(before.messages)
+  })
+
+  it('TC-CH-085: (S3d) T27 이전 실패(캐릭터·중립)는 새 임시로 바뀐다 — 중립 실패 → auto 재시도 · 중립 실패 → 캐릭터 버튼', () => {
+    expect(
+      chatReducer(ready({ pending: FAILED_AUTO }), { type: 'speakStarted', character: 'auto' })
+        .pending,
+    ).toEqual(GEN_AUTO)
+    expect(
+      chatReducer(ready({ pending: FAILED_SEB }), { type: 'speakStarted', character: 'auto' })
+        .pending,
+    ).toEqual(GEN_AUTO)
+    expect(
+      chatReducer(ready({ pending: FAILED_AUTO }), { type: 'speakStarted', character: 'ciel' })
+        .pending,
+    ).toEqual({ character: 'ciel', status: 'generating', error: null })
+  })
+
+  it('TC-CH-085: (S3d) T28 auto 도 첫 로드 전·send 중·편집 중·이미 생성 중이면 같은 참조', () => {
+    for (const s of [freeze(initialChatState), sending(), ready({ editingId: 32 }), autoSpeaking()])
+      expect(chatReducer(s, { type: 'speakStarted', character: 'auto' })).toBe(s)
+  })
+
+  it('TC-CH-085: (S3d) T29 auto 생성 중 speakSucceeded(speaker=ciel) → 메시지 붙임 · writing·pending null', () => {
+    const reply: Message = { ...msg(34, '대사'), speaker: 'ciel' }
+    const next = chatReducer(autoSpeaking(), {
+      type: 'speakSucceeded',
+      message: reply,
+      isNearBottom: true,
+    })
+    expect(ids(next.messages)).toEqual([31, 32, 33, 34])
+    expect(next.messages[3]?.speaker).toBe('ciel')
+    expect(next.writing).toBeNull()
+    expect(next.pending).toBeNull()
+  })
+
+  it('TC-CH-085: (S3d) T31 auto 생성 중 speakFailed → writing null · pending = 중립 실패(character auto) + error', () => {
+    const next = chatReducer(autoSpeaking(), { type: 'speakFailed', error: LLM })
+    expect(next.writing).toBeNull()
+    expect(next.pending).toEqual(FAILED_AUTO)
+    expect(ids(next.messages)).toEqual([31, 32, 33])
+  })
+
+  it('TC-CH-085: (S3d) T33 speakDiscarded · T25 writeAccessRevoked — auto 생성 중·중립 실패도 writing·pending null', () => {
+    const discarded = chatReducer(autoSpeaking(), { type: 'speakDiscarded' })
+    expect(discarded.writing).toBeNull()
+    expect(discarded.pending).toBeNull()
+    for (const s of [autoSpeaking(), ready({ pending: FAILED_AUTO })]) {
+      const revoked = chatReducer(s, { type: 'writeAccessRevoked' })
+      expect(revoked.writing).toBeNull()
+      expect(revoked.pending).toBeNull()
+    }
+  })
+
+  it('TC-CH-085: (S3d) canSpeak — 중립 실패만 있으면 true, auto 생성 중이면 false', () => {
+    expect(canSpeak(ready({ pending: FAILED_AUTO }))).toBe(true)
+    expect(canSpeak(autoSpeaking())).toBe(false)
+    expect(canSend(autoSpeaking())).toBe(false)
+  })
+})
+
+describe('S3d T13·T15 — S1 저장 중·저장 실패에서 pending 유지 (R-CHAT-006 · auto.md §1.3)', () => {
+  it('TC-CH-053: (S3d) T13 writeStarted send 는 이전 pending(중립 실패·캐릭터 실패)을 같은 참조로 둔다', () => {
+    for (const prev of [FAILED_AUTO, FAILED_SEB]) {
+      const next = chatReducer(ready({ pending: prev }), { type: 'writeStarted', write: SEND })
+      expect(next.writing).toEqual(SEND)
+      expect(next.pending).toBe(prev)
+    }
+  })
+
+  it('TC-CH-053: (S3d) T15 send 실패 writeFinished → writing null, 이전 pending 그대로(speak 이탈 없음)', () => {
+    const next = chatReducer(sending({ pending: FAILED_AUTO }), { type: 'writeFinished' })
+    expect(next.writing).toBeNull()
+    expect(next.pending).toBe(FAILED_AUTO)
+  })
+})
+
+describe('S3d speakingCharacterOf (R-CHAT-013 · R-CHAT-005, F-CH-44)', () => {
+  it('TC-CH-099: (순수) speakingCharacterOf — 캐릭터 speak 이면 그 캐릭터, auto·send·regenerate·없음이면 null', () => {
+    expect(speakingCharacterOf(speaking())).toBe('sebastian')
+    expect(
+      speakingCharacterOf(ready({ writing: { kind: 'speak', character: 'ciel' } })),
+    ).toBe('ciel')
+    expect(speakingCharacterOf(autoSpeaking())).toBeNull()
+    expect(speakingCharacterOf(sending())).toBeNull()
+    expect(speakingCharacterOf(ready({ writing: REGEN33 }))).toBeNull()
+    expect(speakingCharacterOf(ready())).toBeNull()
+    expect(speakingCharacterOf(initialChatState)).toBeNull()
   })
 })
 

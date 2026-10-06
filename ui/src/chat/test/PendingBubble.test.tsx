@@ -1,16 +1,18 @@
 /**
  * chat S3 임시·실패 말풍선 부품 + speakErrorText 스펙 초안(TDD Red) — 단일 소스 ui/src/chat/test/scenarios.md
- * (TC-CH-069 부품 · TC-CH-073 부품 · TC-CH-074 부품 · TC-CH-086 speakErrorText)
- * 대상: ui/src/chat/components/PendingBubble.tsx (design/components.md §2.12) · ui/src/chat/labels.ts speakErrorText(F-CH-37)
+ * (TC-CH-069 부품 · TC-CH-073 부품 · TC-CH-074 부품 · TC-CH-086 speakErrorText · S3d TC-CH-099·102 부품(중립 'auto'))
+ * 대상: ui/src/chat/components/PendingBubble.tsx (design/components.md §2.12 · S3d design/auto.md §2.1) · ui/src/chat/labels.ts speakErrorText(F-CH-37)
  * - 클래스는 ui/vite.config.ts classNameStrategy 'non-scoped' 라 키 이름 그대로 단언한다.
- *   Bubble.module.css 를 import 해 쓰므로 root·character·sebastian/ciel·avatar·content·head·name·body 가 붙는다(DC-01).
- *   배경색·시엘 머리 줄 거울 배치(computed style)는 jsdom 이 계산하지 않는다 → 수동 MC-CH-16(TC-CH-092).
+ *   캐릭터 변형은 Bubble.module.css 를 import 해 쓰므로 root·character·sebastian/ciel·avatar·content·head·name·body 가 붙는다(DC-01).
+ *   중립 변형(S3d)은 루트 pending·neutral(+failed)만, Bubble 모듈의 root·character·sebastian·ciel·user 는 붙지 않는다.
+ *   배경색·시엘 머리 줄 거울 배치·중립 높이(computed style)는 jsdom 이 계산하지 않는다 → 수동 MC-CH-16(TC-CH-092) · MC-CH-19(TC-CH-109).
+ * - S3d: onRetry 인자 타입 CharacterId → SpeakTarget(@shared/types, contract 구현분 전제).
  */
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { ERROR_MESSAGES } from '@shared/errors'
-import type { CharacterId } from '@shared/types'
+import type { SpeakTarget } from '@shared/types'
 import type { ApiError, ApiErrorCode } from '@/api'
 import { PendingBubble, type PendingBubbleProps } from '@/chat/components/PendingBubble'
 import { speakErrorText } from '@/chat/labels'
@@ -21,12 +23,12 @@ const err = (code: ApiErrorCode, retryAfterSec?: number): ApiError =>
   retryAfterSec === undefined
     ? { code, message: SERVER_RAW }
     : { code, message: SERVER_RAW, retryAfterSec }
-const generating = (character: CharacterId): PendingSpeak => ({
+const generating = (character: SpeakTarget): PendingSpeak => ({
   character,
   status: 'generating',
   error: null,
 })
-const failed = (character: CharacterId, error: ApiError = err('LLM_FAILED')): PendingSpeak => ({
+const failed = (character: SpeakTarget, error: ApiError = err('LLM_FAILED')): PendingSpeak => ({
   character,
   status: 'failed',
   error,
@@ -36,7 +38,7 @@ const setup = (pending: PendingSpeak, over: Partial<PendingBubbleProps> = {}) =>
   const props: PendingBubbleProps = {
     pending,
     isRetryDisabled: false,
-    onRetry: vi.fn<(c: CharacterId) => void>(),
+    onRetry: vi.fn<(target: SpeakTarget) => void>(),
     ...over,
   }
   const view = render(
@@ -68,6 +70,7 @@ describe('PendingBubble 생성 중 (R-CHAT-005 · R-CHAT-002 · R-CHAT-013)', ()
       expect(root.classList.contains(character)).toBe(true)
       expect(root.classList.contains(other)).toBe(false)
       expect(root.classList.contains('failed')).toBe(false)
+      expect(root.classList.contains('neutral')).toBe(false)
       const img = root.querySelector('img') as HTMLImageElement
       expect(img.getAttribute('src')).toBe(avatar)
       expect(img.getAttribute('alt')).toBe('')
@@ -133,6 +136,76 @@ describe('PendingBubble 실패 (R-CHAT-005 · R-CHAT-011)', () => {
   it('TC-CH-090: (부품) isRetryDisabled → 「재시도」 disabled, 클릭해도 onRetry 0회', async () => {
     const { props } = setup(failed('ciel'), { isRetryDisabled: true })
     const retry = screen.getByRole('button', { name: '시엘 대사 재시도' }) as HTMLButtonElement
+    expect(retry.disabled).toBe(true)
+    await userEvent.setup().click(retry)
+    expect(props.onRetry).not.toHaveBeenCalled()
+  })
+})
+
+describe('PendingBubble 중립(auto) 변형 — S3d (R-CHAT-014 · R-CHAT-011 · R-CHAT-013)', () => {
+  /** 중립 루트에 붙으면 안 되는 화자·Bubble 모듈 클래스(auto.md §2.1 테스트 클래스 키) */
+  const SPEAKER_KEYS = ['root', 'character', 'sebastian', 'ciel', 'user'] as const
+
+  it('TC-CH-099: (부품) 중립 생성 중 — 루트 pending·neutral(화자 클래스 없음), img·이름·머리 줄·시각 없음, 본문 상자 body·bodyBox', () => {
+    const { root } = setup(generating('auto'))
+    expect(root.classList.contains('pending')).toBe(true)
+    expect(root.classList.contains('neutral')).toBe(true)
+    expect(root.classList.contains('failed')).toBe(false)
+    for (const k of SPEAKER_KEYS) expect(root.classList.contains(k)).toBe(false)
+    expect(root.querySelectorAll('img')).toHaveLength(0)
+    expect(root.querySelector('.name')).toBeNull()
+    expect(root.querySelector('.head')).toBeNull()
+    expect(root.querySelector('time')).toBeNull()
+    expect(root.querySelector('.body.bodyBox')).not.toBeNull()
+  })
+
+  it('TC-CH-099: (부품) 중립 생성 중 — 루트 role=status·aria-live=polite, 숨은 안내 "응답을 만드는 중", "…" aria-hidden, alert·버튼·메뉴 대상 없음', () => {
+    const { root, container } = setup(generating('auto'))
+    const status = screen.getByRole('status')
+    expect(status).toBe(root)
+    expect(status.getAttribute('aria-live')).toBe('polite')
+    expect(status.textContent).toContain('응답을 만드는 중')
+    expect(status.textContent).not.toContain('대사를 만드는 중')
+    expect(within(root).getByText('…').getAttribute('aria-hidden')).toBe('true')
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(screen.queryByRole('button')).toBeNull()
+    expect(container.querySelector('[tabindex]')).toBeNull()
+    expect(container.querySelector('[aria-haspopup]')).toBeNull()
+    expect(fireEvent.contextMenu(root)).toBe(true)
+  })
+
+  it.each([
+    ['LLM_FAILED', undefined],
+    ['CONFIG_INVALID', undefined],
+    ['RATE_LIMITED', 40],
+  ] as const)(
+    'TC-CH-102: (부품) 중립 실패 %s(retryAfterSec=%s) — pending·neutral·failed, role 없음, role=alert = speakErrorText, 「재시도」(이름 "응답 재시도") 항상 렌더 → onRetry("auto")',
+    async (code, sec) => {
+      const error = err(code, sec)
+      const { root, props } = setup(failed('auto', error))
+      for (const k of ['pending', 'neutral', 'failed']) expect(root.classList.contains(k)).toBe(true)
+      for (const k of SPEAKER_KEYS) expect(root.classList.contains(k)).toBe(false)
+      expect(root.querySelectorAll('img')).toHaveLength(0)
+      expect(root.getAttribute('role')).toBeNull()
+      expect(screen.queryByRole('status')).toBeNull()
+      const alert = screen.getByRole('alert')
+      expect(alert.textContent).toContain(speakErrorText(error))
+      expect(within(alert).getByText('!').getAttribute('aria-hidden')).toBe('true')
+      expect(screen.queryByText(SERVER_RAW)).toBeNull()
+      const retry = screen.getByRole('button', { name: '응답 재시도' }) as HTMLButtonElement
+      expect(retry.textContent).toBe('재시도')
+      expect(retry.disabled).toBe(false)
+      expect(root.querySelector('.retryRow')?.contains(retry)).toBe(true)
+      expect(screen.queryByRole('button', { name: /대사 재시도/ })).toBeNull()
+
+      await userEvent.setup().click(retry)
+      expect(vi.mocked(props.onRetry).mock.calls).toEqual([['auto']])
+    },
+  )
+
+  it('TC-CH-102: (부품) 중립 실패 isRetryDisabled → 「응답 재시도」 disabled, 클릭해도 onRetry 0회', async () => {
+    const { props } = setup(failed('auto'), { isRetryDisabled: true })
+    const retry = screen.getByRole('button', { name: '응답 재시도' }) as HTMLButtonElement
     expect(retry.disabled).toBe(true)
     await userEvent.setup().click(retry)
     expect(props.onRetry).not.toHaveBeenCalled()

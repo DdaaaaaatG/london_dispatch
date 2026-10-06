@@ -9,6 +9,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, render, screen } from '@testing-library/react'
+import { USER_DISPLAY_NAME } from '@shared/characters'
 import type { Message } from '@shared/types'
 import { listMessages } from '@/api/messages'
 import { Bubble, bubbleVariantOf } from '@/chat/components/Bubble'
@@ -112,9 +113,11 @@ describe('Bubble 유저 — 가운데 말풍선 (R-CHAT-002 · CR-001)', () => {
     expect(vi.mocked(listMessages)).not.toHaveBeenCalled()
   })
 
-  it('TC-CH-008: authorName=null → "이름 없음"', () => {
-    render(<Bubble message={make({ speaker: 'user', authorName: null, text: '익명 발화' })} />)
-    expect(screen.getByText('이름 없음')).not.toBeNull()
+  // S3d(CR-002, Q-08): 대체 표시 「이름 없음」(unknownAuthor) 폐기 → USER_DISPLAY_NAME(「어떠한 의지」). 받은 값 치환은 TC-CH-108
+  it.each([null, ''] as const)('TC-CH-008: (S3d) authorName=%j → USER_DISPLAY_NAME(어떠한 의지), 「이름 없음」 없음', authorName => {
+    render(<Bubble message={make({ speaker: 'user', authorName, text: '익명 발화' })} />)
+    expect(screen.getByText(USER_DISPLAY_NAME)).not.toBeNull()
+    expect(screen.queryByText('이름 없음')).toBeNull()
   })
 
   it('TC-CH-008: 본문은 일반 텍스트(HTML 해석 안 함)', () => {

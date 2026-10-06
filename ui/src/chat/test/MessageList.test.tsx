@@ -50,6 +50,8 @@ const renderList = (over: Partial<MessageListProps> = {}) => {
     isSpeakLocked: false,
     onRetrySpeak: vi.fn(),
     regeneratingId: null,
+    // S3d 필수 prop(auto.md §2.3 · components.md §2.1) — 생성 중 아님 기본값. 단언 변경 없음(Q-08)
+    isEditSaveLocked: false,
     ...over,
   }
   return { ...render(<MessageList {...props} />), props }

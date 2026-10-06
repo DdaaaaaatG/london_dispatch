@@ -1,12 +1,13 @@
 /**
  * 대화 상태 리듀서(순수) — 설계 chat/design/functions.md §1 · 전이표 T1~T34 · F-CH-12
- * 요구: R-CHAT-003 · R-CHAT-005 · R-CHAT-006 · R-CHAT-007 · R-CHAT-011 · R-MSG-001
+ * 요구: R-CHAT-003 · R-CHAT-005 · R-CHAT-006 · R-CHAT-007 · R-CHAT-011 · R-CHAT-014 · R-MSG-001
+ * S3d: 전송 저장 201 은 sendSucceeded(T35) 한 번으로 메시지 붙이기 + 자동 응답 시작(중립 'auto')을 원자 전이한다. 사이에 잠금이 풀린 상태가 없다.
  * S3: speak 는 speakStarted 로만 시작해 pending(임시 말풍선)과 writing 을 함께 건다. 끝은 T29~T33 으로만 맺는다.
  * 비유: writing 은 방 문 앞의 "사용 중" 팻말이다. 걸려 있는 동안은 다른 메시지 쓰기(전송·수정 저장·삭제)를 시작하지 않는다.
  * React·DOM 의존 없음(타입 import 만). 그대로 = 같은 객체 참조를 돌려준다.
  * 낙관적 갱신 없음: 쓰기 결과는 응답을 받은 뒤 T9·T17·T19 로만 반영한다.
  */
-import type { CharacterId, Message, MessagesPage } from '@shared/types'
+import type { CharacterId, Message, MessagesPage, SpeakTarget } from '@shared/types'
 import type { ApiError } from '@/api'
 
 /** 진행 중인 메시지 쓰기(한 번에 하나) */
@@ -14,12 +15,13 @@ export type MessageWrite =
   | { readonly kind: 'send' }
   | { readonly kind: 'edit'; readonly messageId: number }
   | { readonly kind: 'delete'; readonly messageId: number }
-  | { readonly kind: 'speak'; readonly character: CharacterId }
+  | { readonly kind: 'speak'; readonly character: SpeakTarget }
   | { readonly kind: 'regenerate'; readonly messageId: number }
 
 /** S3: 목록 끝 임시(생성 중)·실패 말풍선. 서버에 저장된 것이 아니다 */
 export type PendingSpeak = {
-  readonly character: CharacterId
+  /** S3d: 'auto' = 중립(화자 미정, 가운데). 캐릭터면 그 캐릭터 쪽 */
+  readonly character: SpeakTarget
   readonly status: 'generating' | 'failed'
   /** status === 'failed' 일 때만 값 */
   readonly error: ApiError | null
@@ -75,7 +77,8 @@ export type ChatAction =
   | { type: 'editStarted'; messageId: number }
   | { type: 'editCancelled' }
   | { type: 'writeAccessRevoked' }
-  | { type: 'speakStarted'; character: CharacterId }
+  | { type: 'speakStarted'; character: SpeakTarget }
+  | { type: 'sendSucceeded'; message: Message; isNearBottom: boolean }
   | { type: 'speakSucceeded'; message: Message; isNearBottom: boolean }
   | { type: 'speakFailed'; error: ApiError }
   | { type: 'speakDiscarded' }
@@ -105,6 +108,10 @@ export const canSend = (s: ChatState): boolean => s.phase === 'ready' && s.writi
 
 /** 인라인 수정이 열려 있으면 생성하지 않는다(DC-10). 캐릭터 버튼·「재시도」·T27 의 조건 */
 export const canSpeak = (s: ChatState): boolean => canSend(s) && s.editingId === null
+
+/** 진행 중 speak 의 캐릭터(포커스 복귀 F-CH-38 대상). 중립('auto')은 누른 버튼이 없으므로 null */
+export const speakingCharacterOf = (s: ChatState): CharacterId | null =>
+  s.writing?.kind === 'speak' && s.writing.character !== 'auto' ? s.writing.character : null
 
 /** 재작성 항목 표시 조건: 화면 목록 마지막이고 캐릭터 대사(line)다. 임시·실패 말풍선은 세지 않는다 */
 export const isRegenerateTarget = (s: ChatState, messageId: number): boolean => {
@@ -152,6 +159,20 @@ const onMessagesAppended = (
   }
 }
 
+/**
+ * T35·T36: 저장 201 → 같은 팻말로 자동 응답 시작. T9 규칙으로 메시지를 붙이고, writing 을 send → speak('auto') 로,
+ * pending 을 중립 generating 으로 한 번에 바꾼다(사이에 null 인 상태 없음). 이전 pending(캐릭터·중립 실패)은 이것으로 바뀐다.
+ * editingId 는 건드리지 않는다(D-17). 저장 중(send)이 아니면 그대로
+ */
+const onSendSucceeded = (state: ChatState, message: Message, isNearBottom: boolean): ChatState =>
+  state.phase === 'ready' && state.writing?.kind === 'send'
+    ? {
+        ...onMessagesAppended(state, [message], isNearBottom),
+        writing: { kind: 'speak', character: 'auto' },
+        pending: { character: 'auto', status: 'generating', error: null },
+      }
+    : state
+
 /** T13·T14: 첫 로드가 끝났고 다른 쓰기가 없을 때만 팻말을 건다. speak 는 speakStarted 로만 시작한다 */
 const onWriteStarted = (state: ChatState, write: MessageWrite): ChatState =>
   canSend(state) && write.kind !== 'speak' ? { ...state, writing: write } : state
@@ -161,7 +182,7 @@ const onWriteFinished = (state: ChatState): ChatState =>
   state.writing !== null && state.writing.kind !== 'speak' ? { ...state, writing: null } : state
 
 /** T27·T28: 실패 말풍선이 있었으면 새 임시 말풍선으로 바뀐다 */
-const onSpeakStarted = (state: ChatState, character: CharacterId): ChatState =>
+const onSpeakStarted = (state: ChatState, character: SpeakTarget): ChatState =>
   canSpeak(state)
     ? {
         ...state,
@@ -265,6 +286,8 @@ export const chatReducer = (state: ChatState, action: ChatAction): ChatState => 
       return onWriteAccessRevoked(state)
     case 'speakStarted':
       return onSpeakStarted(state, action.character)
+    case 'sendSucceeded':
+      return onSendSucceeded(state, action.message, action.isNearBottom)
     case 'speakSucceeded':
       return onSpeakSucceeded(state, action.message, action.isNearBottom)
     case 'speakFailed':

@@ -2,8 +2,16 @@
 
 - 기준: `ui/src/chat/design.md` v1.6(CR-001 Bubble 배치, ui-designer 반영 중 — components.md §2.2 v1.6 확인)(+ `design/components.md` · `design/functions.md` · `design/a11y.md` · `design/tc.md` v1.5) / `ui/src/chat/requirements.md` v1.4 / `doc/200_설계/contract/api.md` v0.3.1 / 공용 요소 단일 정의 `ui/src/rooms/design/components.md` §1
 - **v0.6 기준(S3 증분)**: `ui/src/chat/design.md` **v1.7**(§15 RTM) + `design/tc.md` v1.7 §3 · `design/generate.md` · `design/functions.md` §1·§4.3 · `design/components.md` §0·§2.6·§2.8·§2.11·§2.12·§3 · `design/labels.md` §8.1.2 · `design/a11y.md` / `ui/src/chat/requirements.md` **v1.7** / `doc/200_설계/contract/api.md` **v0.4**(§4.12~§4.14 · §11.9 · 「ui 인계 메모」)
-- 작성일: 2026-10-05(v0.6: 2026-10-06) · 작성: ui-test-designer · 모드: **증분**(S1 TC-CH-001~030 · S2 TC-CH-031~065 보존, **S3 TC-CH-066~095 추가**, **S3b TC-CH-096·097 추가**) · 상태: **초안 v0.7(S3b 월 AI 비용 한도 증분, 검증 전)** · S3b 기준: `design/generate.md` §3 `LLM_BUDGET_EXCEEDED` 행 · `design/tc.md` TC-CH-096·097 · `design/labels.md` §8.1.2 비고 · `doc/200_설계/contract/api.md` **v0.4.1** §3.2·§3.4 · rooms F-RM-22 v1.5.1(`toastToneOf`) · 공용 부품 danger 톤 클래스 키 = `danger` **확정**(메인 세션 결정 TK-09)
-- 묶음: **S1(읽기 전용 판)** + **S2(토큰 + 쓰기)** + **S3(AI 발화 speak · 재작성 regenerate)**. S1 TC의 토큰 분기는 "없음" 그대로다. S2 TC는 쓰기 UI마다 토큰 있음(TC-CH-031) ↔ 없음(TC-CH-003·021·022·023) 쌍과 전환(051·052)을 더한다. S3 TC는 캐릭터 버튼 있음(066) ↔ 없음(067·021) 쌍과 전환(076·084)을 더한다. S4(장기기억)는 「후속 이월」.
+- 작성일: 2026-10-05(v0.6: 2026-10-06) · 작성: ui-test-designer · 모드: **증분**(S1 TC-CH-001~030 · S2 TC-CH-031~065 보존, **S3 TC-CH-066~095 추가**, **S3b TC-CH-096·097 추가**) · 상태: **초안 v0.8(S3d 전송 뒤 자동 응답 증분, 검증 전)** · **S3d 기준**: `ui/src/chat/design/auto.md`(정본, 설계 v1.9) · `design/rtm.md` · `design/generate.md` §6 · `design/a11y.md` · `design/components.md` §2.1·§2.2·§2.7·§2.8·§2.12 · `design/tc.md` · `ui/src/chat/requirements.md` **v1.9**(§2 U-CH-13 · §5 확정 문구) · `doc/200_설계/contract/api.md` **v0.6** §4.3·§4.9·§4.13·§5.2·§5.5·「ui 인계 메모」(S3d) · CR-002 · (v0.7) S3b 기준: `design/generate.md` §3 `LLM_BUDGET_EXCEEDED` 행 · `design/tc.md` TC-CH-096·097 · `design/labels.md` §8.1.2 비고 · `doc/200_설계/contract/api.md` **v0.4.1** §3.2·§3.4 · rooms F-RM-22 v1.5.1(`toastToneOf`) · 공용 부품 danger 톤 클래스 키 = `danger` **확정**(메인 세션 결정 TK-09)
+- 묶음: **S1(읽기 전용 판)** + **S2(토큰 + 쓰기)** + **S3(AI 발화 speak · 재작성 regenerate)**. S1 TC의 토큰 분기는 "없음" 그대로다. S2 TC는 쓰기 UI마다 토큰 있음(TC-CH-031) ↔ 없음(TC-CH-003·021·022·023) 쌍과 전환(051·052)을 더한다. S3 TC는 캐릭터 버튼 있음(066) ↔ 없음(067·021) 쌍과 전환(076·084)을 더한다. S4(장기기억)는 「후속 이월」. **S3d** TC(098~109)는 새 쓰기 UI(중립 말풍선 · 「응답 재시도」 · 편집 저장 잠금 안내)마다 토큰 있음(099·102·107) ↔ 없음(106(c) · 108 읽기 전용) 쌍과 전환(106(a))을 더한다.
+- **S3d 공통 전제(추가 — S1·S2·S3 전제는 그대로 유지)**
+  - **정본·우선순위**: `design/auto.md`. 기존 TC 중 S3d로 단언이 바뀐 것(008 · 033 · 034 · 036 · 038 · 053 · 063 · 075 · 085 · 090, 폐기 088)은 「추적표 — S3d 추가분」 「대체·영향 TC (S3d)」 표가 바뀐 단언의 정본이다. 033·034·036·038은 본문을 갱신했고, 008·075·088·090은 TC 머리에 「S3d 개정」·「폐기」를 적었다(본문과 표가 다르면 표가 우선). 053·063·085는 단언 추가만 있어 본문을 두고 표에 적는다.
+  - **래퍼 모킹**: 전송 성공 경로가 있는 스펙(`Composer` · `SpeakFlow` · `AutoReply`)은 `speak` 기본값을 **영원히 대기**(`mockImplementation(() => new Promise(() => {}))`)로 둔다. 저장 201 뒤 자동 응답이 의도치 않게 결과·실패로 넘어가지 않게 한다. TC별 `mockReturnValueOnce(deferred)`가 먼저 쓰인다. `appendUser`가 성공으로 끝나는 TC가 없는 스펙(`AuthTransition` · `BubbleMenu` · `Regenerate` · `ChatScreen` · `RoomMenu` · rooms 쪽)은 바꾸지 않는다 — `speak`가 불리지 않는다.
+  - **계약 이름**: `SpeakTarget`(`@shared/types`) · `USER_DISPLAY_NAME`(`@shared/characters`, 값 `어떠한 의지`)을 import한다(contract 구현분 전제, api.md §12.5). 화면 문구: `autoPendingStatus` = `응답을 만드는 중` · `autoRetryAriaLabel` = `응답 재시도` · `speakRetry` = `재시도` · `editSaveLockedNote` = `응답을 만드는 중에는 저장할 수 없습니다`(requirements.md v1.9 §5).
+  - **픽스처(S3d, `AutoReply`)**: 말풍선 101~104(103은 옛 데이터 가정 authorName `미샤`) · 전송 응답 105 유저 line `안녕`(authorName `어떠한 의지`) · OOC 변형 105 · 자동 응답 106(세바스찬 `분부대로 하겠습니다, 도련님.` / 시엘 `오늘 저녁은 조용히 보내고 싶군.`) · 두 번째 전송 107 `다시`.
+  - **클래스 단언**: 중립 루트 = 지역 `pending` · `neutral`(+`failed`). Bubble 모듈 `root` · `character` · `sebastian` · `ciel` · `user`는 **없음**, `img` 0개(auto.md §2.1 테스트 클래스 키).
+  - **한 커밋 관찰(T35)**: 저장 응답 act 동안 세바스찬·시엘·⋯ 버튼의 `disabled` 속성 변화를 `MutationObserver`로 기록해 0건을 단언한다(사이 커밋에서 잠금이 풀렸다 다시 걸리면 기록이 남는다).
+  - **대기**: 저장·생성 응답은 deferred를 act 안에서 resolve한다. 화면 타이머가 없어 가짜 시계를 쓰지 않는다.
 - **S3 공통 전제(추가 — S1·S2 전제는 그대로 유지)**
   - **토큰**: 화면 단위는 `viewer=WRITER_VIEWER`(있음)·`READ_ONLY_VIEWER`(없음) props, App 통합(TC-CH-076)은 `initToken('?t=test-token')` → `clearToken()`. localStorage에 토큰을 넣지 않는다.
   - **래퍼 모킹**: `vi.mock('@/api/messages')` 목록에 **`speak`·`regenerate`**를 더한다(화면은 `@/api` 재노출을 import하므로 같은 mock이 걸린다, api.md §11.9). `speak(roomId, body)`·`regenerate(messageId)` → `Result<Message>`. 단언은 인자 배열 전체(`mock.calls`)로 한다.
@@ -78,7 +86,7 @@
 - Then ⓐ 세바스찬 루트 배치 클래스 = 정확히 `character` + `sebastian`(왼쪽), 시엘 = 정확히 `character` + `ciel`(오른쪽). 아바타 `img src="/embed/img/sebastian.png"`·`"/embed/img/ciel.png"`, `alt=""`. 이름 `세바스찬`·`시엘`(전체 이름 `미카엘리스`·`시엘 팬텀하이브` 없음). `<time dateTime="2026-10-05T09:05">09:05</time>`·`16:40`. DOM 순서는 둘 다 아바타 → 이름 → 시각 → 본문(시엘은 화면만 거울) ⓑ 표시 전용 — 상태 변경 없음 ⓒ `listMessages` 미호출
 - 스펙: `ui/src/chat/test/Bubble.test.tsx`
 
-### TC-CH-008 · 유저 말풍선(가운데 말풍선) · 종류: 자동 · 요구: R-CHAT-002 🔒(CR-001 개정) · 설계: C §2.2 v1.6 `user` 행 · §3.2 비고(일반 텍스트) · §8.1 `unknownAuthor` · 토큰: 없음
+### TC-CH-008 · 유저 말풍선(가운데 말풍선) · **S3d 개정(Q-08): `authorName` `null`·`''` → `어떠한 의지`, 「이름 없음」 없음 — 본문 Then의 `이름 없음` 단언을 대체. 정본은 「대체·영향 TC (S3d)」 표** · 종류: 자동 · 요구: R-CHAT-002 🔒(CR-001 개정) · 설계: C §2.2 v1.6 `user` 행 · §3.2 비고(일반 텍스트) · §8.1 `unknownAuthor` · 토큰: 없음
 - Given 유저 line(미샤 16:42) / `authorName=null` / 본문 `<b>굵게</b>`
 - When Bubble을 렌더한다
 - Then ⓐ 배치 클래스 = 정확히 `user`(가운데 말풍선, 캐릭터 키 없음), 아바타 없음, `[지시]` 없음, DOM 순서 작성자명 → 시각(16:42) → 본문. null이면 `이름 없음`. 본문 `<b>`가 요소로 해석되지 않고 글자 그대로 ⓑ 상태 변경 없음 ⓒ `listMessages` 미호출
@@ -230,16 +238,16 @@
 - Then ⓐ (a) 빈·공백 → `전송` disabled, 카운터 없음 · 2001 → disabled, 카운터 `2001/2000`(`over`), 입력 `aria-invalid="true"` · 2000 → enabled, 카운터 없음(`counterMode='overflow'`) (b)(c) disabled ⓑ 입력값은 넣은 그대로 ⓒ `appendUser` 0회
 - 스펙: `Composer.test.tsx`
 
-### TC-CH-033 · (S2) 전송 성공 · 종류: 자동 · 요구: R-CHAT-006 · R-CHAT-004 · R-AUTH-004 · R-MSG-002 · 설계: §6.3 · F-CH-17 · C §2.6 `submit` · §7 `appendUser` · 토큰: 있음
-- Given ready 4건, `appendUser` → `ok(105 미샤 '안녕')`
+### TC-CH-033 · (S2) 전송 성공 · **S3d 개정(Q-08)** · 종류: 자동 · 요구: R-CHAT-006 🔒(S3d 개정) · R-CHAT-014 🔒 · R-CHAT-004 · R-AUTH-004 🔒 · R-MSG-002 · 설계: §6.3 · AU §3 F-CH-17 ⑥ · C §2.6 `submit` · §7 `appendUser` · AU §2.2 · 토큰: 있음
+- Given ready 4건, `appendUser` → `ok(105 '안녕', authorName '어떠한 의지')`(서버 투영 값), `speak` 기본값 영원히 대기
 - When `안녕` 입력 → `전송` 클릭
-- Then ⓐ `li` 5개, 끝 말풍선 `user` 클래스·작성자명 `미샤`·본문 `안녕`. 입력값 `''`, 입력에 포커스, switch `OOC 끔` 유지 ⓑ 저장소 키는 `ld:lastRoomId`(=`r1`)뿐 ⓒ `appendUser` 1회, 인자 정확히 `['r1', { text: '안녕', ooc: false }]`. 두 모킹 모듈의 나머지 export 호출 합계 = 첫 `listMessages` 1회뿐(AI 호출 없음)
+- Then ⓐ `li` **6개**: 5번째 말풍선 `user` 클래스·작성자명 `어떠한 의지`(응답 값 그대로)·본문 `안녕`, 6번째 = 중립 "…"(`.pending.neutral`). 입력값 `''`, 입력에 포커스, switch `OOC 끔` 유지 ⓑ 저장소 키는 `ld:lastRoomId`(=`r1`)뿐 ⓒ `appendUser` 1회, 인자 정확히 `['r1', { text: '안녕', ooc: false }]` · **`speak` 1회 `['r1', { character: 'auto' }]`** · `regenerate` 0회 · 두 모킹 모듈에서 `appendUser`·`speak`를 뺀 나머지 export 호출 합계 = 첫 `listMessages` 1회뿐
 - 스펙: `Composer.test.tsx`
 
-### TC-CH-034 · (S2) OOC 토글 · 종류: 자동 · 요구: R-CHAT-004 · R-CHAT-006 · 설계: C §2.6 1행 · C §1.14 · §8.1.1 `oocOn`·`oocOff` · 토큰: 있음
-- Given ready, `appendUser` → `ok(106 ooc '체스 두기')`
+### TC-CH-034 · (S2) OOC 토글 · **S3d 개정(Q-08)** · 종류: 자동 · 요구: R-CHAT-004 · R-CHAT-006 🔒 · R-MSG-009 🔒 · 설계: C §2.6 1행 · C §1.14 · §8.1.1 `oocOn`·`oocOff` · AU §3 F-CH-17 ⑥ · 토큰: 있음
+- Given ready, `appendUser` → `ok(106 ooc '체스 두기')`, `speak` 영원히 대기
 - When switch 클릭 → `체스 두기` 입력 → 전송
-- Then ⓐ 클릭 뒤 `aria-checked="true"`·글자 `OOC 켬` → 전송 뒤 끝 말풍선 `ooc` 클래스·`[지시]` 포함, switch는 계속 `OOC 켬` ⓑ 입력 `''` ⓒ `appendUser` `['r1', { text: '체스 두기', ooc: true }]` 1회
+- Then ⓐ 클릭 뒤 `aria-checked="true"`·글자 `OOC 켬` → 전송 뒤 `li` **6개**, 5번째 `ooc` 클래스·`[지시]` 포함, 6번째 중립 "…", switch는 계속 `OOC 켬` ⓑ 입력 `''` ⓒ `appendUser` `['r1', { text: '체스 두기', ooc: true }]` 1회 · **`speak` `['r1', { character: 'auto' }]` 1회**(OOC 뒤에도 같은 동작, R-MSG-009)
 - 스펙: `Composer.test.tsx`
 
 ### TC-CH-035 · (S2) Enter·Shift+Enter·IME · 종류: 자동 · 요구: R-CHAT-004 · R-CHAT-013 · 설계: C §1.13 `onEnter`·IME · A 키보드 · 토큰: 있음
@@ -248,10 +256,10 @@
 - Then ⓐ (a)(b) 변화 없음 (c) 입력값 `가\n` (d) 전송 → 입력 `''` ⓑ — ⓒ (a)(b)(c) `appendUser` 0회 (d) 1회 `['r1', { text: '가\n', ooc: false }]`
 - 스펙: `Composer.test.tsx`
 
-### TC-CH-036 · (S2) 전송 중 중복 방지 · 종류: 자동 · 요구: R-CHAT-006 · R-CHAT-013 · 설계: F-CH-17 `writeInFlightRef` · F §1.1 T13·T14 · C §2.6 `isReadOnly` · A `aria-busy` · 토큰: 있음
-- Given `appendUser` 대기(deferred)
-- When (a) 전송 클릭 → 대기 중 클릭·Enter 2회 → resolve (b) 같은 `act` 안 `fireEvent.click(전송)` 2회
-- Then ⓐ 대기 중 `전송` disabled, 입력 `readOnly`, group `aria-busy="true"` → 응답 뒤 `aria-busy`≠`true`, `readOnly` 해제 ⓑ writing send → null(표시로 관찰) ⓒ (a)(b) `appendUser` 1회
+### TC-CH-036 · (S2) 전송 중 중복 방지 · **S3d 개정(Q-08)** · 종류: 자동 · 요구: R-CHAT-006 🔒 · R-CHAT-014 🔒 · R-CHAT-013 · 설계: F-CH-17 `writeInFlightRef` · F §1.1 T13·T14 · AU §1.2 T35 · AU §4.1 · C §2.6 `isReadOnly` · A `aria-busy` · AU §7 잠금 표시 · 토큰: 있음
+- Given `appendUser` 대기(deferred), (a) `speak` 대기(deferred)
+- When (a) 전송 클릭 → 대기 중 클릭·Enter 2회 → 저장 resolve(105) → 입력 `''` 확인 뒤 `다음` 입력 → speak resolve(세바스찬 107) (b) 같은 `act` 안 `fireEvent.click(전송)` 2회
+- Then ⓐ 저장 대기 중 `전송` disabled, 입력 `readOnly`, group `aria-busy="true"` → 저장 응답 뒤 `aria-busy`≠`true`, `readOnly` 해제, `다음` 입력되지만 **`전송` disabled 유지**(자동 응답 중) → speak 결과 뒤 `전송` 활성 ⓑ writing send → speak auto → null(표시로 관찰) ⓒ (a)(b) `appendUser` 1회 · (a) `speak` `['r1', { character: 'auto' }]` 1회
 - 스펙: `Composer.test.tsx`
 
 ### TC-CH-037 · (S2) 전송 실패(비인증) · 종류: 자동 · 요구: R-CHAT-011 · R-CHAT-006 · 설계: §6.6 · F-CH-16 · §8.3 · C §1.18 · §11.2 D-7 · 토큰: 있음
@@ -260,8 +268,8 @@
 - Then ⓐ E `role=alert` 문구·톤: `ERROR_MESSAGES.INTERNAL`(danger) · `요청이 너무 많습니다. 40초 후 다시 시도해 주세요.`(warning) · `ERROR_MESSAGES.RATE_LIMITED`(warning) · `방을 찾을 수 없습니다. 목록으로 돌아가 주세요.`(danger) · `서버에 연결할 수 없습니다.`(danger) · `메시지는 1~2000자로 입력해 주세요.`(danger). `SERVER-RAW-MESSAGE` 없음. 입력값 `안녕` 유지, `li` 4개, group·⋯ 그대로, `role=note` 없음. 1999ms 있음 → 2000ms 없음 ⓑ `onAuthFailure` 0회 ⓒ `appendUser` 1회
 - 스펙: `Composer.test.tsx`
 
-### TC-CH-038 · (S2) 전송 뒤 스크롤·배지 · 종류: 자동 · 요구: R-CHAT-003 · R-CHAT-006 · 설계: §6.3 · F-CH-17 `isNearBottom` · F-CH-08 조립 · C §3 뒤붙임 행 · F §1.1 T9·T11 · 토큰: 있음
-- Given 스크롤 mock(493). 내용 높이는 렌더된 말풍선 수에 연동한다: 4개일 때 3000, 새 말풍선(5번째)이 **커밋된 뒤** 3200. 첫 배치 `scrollTop=2507`. 응답 시점(붙이기 전) `isNearBottom` 측정은 3000 기준이다(TK-01)
+### TC-CH-038 · (S2) 전송 뒤 스크롤·배지 · **S3d 개정(Q-08): T35가 T9 규칙으로 붙이고 유저 말풍선 + 중립 "…"(li 2개)가 한 커밋 — Then (a)(b) `li` 6개 · ⓒ `speak` 1회 추가, 나머지 불변** · 종류: 자동 · 요구: R-CHAT-003 · R-CHAT-006 🔒 · R-CHAT-014 🔒 · 설계: §6.3 · F-CH-17 `isNearBottom` · F-CH-08 조립 · C §3 뒤붙임 행 · F §1.1 T9·T11 · AU §1.2 T35 · AU §2.3 `tailKey` · 토큰: 있음
+- Given 스크롤 mock(493). 내용 높이는 렌더된 말풍선 수에 연동한다: 4개일 때 3000, 새 말풍선이 **커밋된 뒤**(S3d: 유저 + 중립 "…" 6개) 3200. 첫 배치 `scrollTop=2507`. 응답 시점(붙이기 전) `isNearBottom` 측정은 3000 기준이다(TK-01). `speak` 영원히 대기
 - When (a) 그대로 전송 성공 (b) `scrollTop=1000` + scroll 후 전송 성공 → 배지 클릭
 - Then ⓐ (a) `scrollTop=3200`, 배지 없음 (b) `scrollTop=1000` 그대로, `button "새 메시지 보기, 맨 아래로 이동"`(글자 `새 메시지`) → 클릭 → `scrollTop=3200`, 배지 없음 ⓑ (a) unseen 0 (b) 1 → 0(배지로 관찰) ⓒ `appendUser` 1회, `listMessages` 1회(새 메시지 반영에 재요청 없음)
 - 스펙: `Composer.test.tsx`
@@ -483,7 +491,7 @@
 - Then ⓐ 실패 말풍선 alert 1개 문구: `이 방에서 이미 대사를 만들고 있습니다. 잠시 후 다시 시도해 주세요.` / `요청이 너무 많습니다. 40초 후 다시 시도해 주세요.` / `서버에 연결할 수 없습니다.` / `ERROR_MESSAGES.INTERNAL` / `서버 설정이 올바르지 않습니다. 관리자에게 알려 주세요.` — **모든 코드에 button `시엘 대사 재시도` 활성**(CONFIG_INVALID 포함). `SERVER-RAW-MESSAGE` 없음, `role=note` 없음 ⓑ pending failed(error = 받은 값) ⓒ `speak` 1회, `onAuthFailure` 0회
 - 스펙: `SpeakFlow.test.tsx` · `PendingBubble.test.tsx`(CONFIG_INVALID 부품)
 
-### TC-CH-075 · (S3) 실패 말풍선이 사라지는·남는 경우 · 종류: 자동 · 요구: R-CHAT-005 · 설계: F §1.1 T27 · §1.1 비고(실패 말풍선 유지 규칙) · generate §1 · 토큰: 있음
+### TC-CH-075 · (S3) 실패 말풍선이 사라지는·남는 경우 · **S3d 개정(Q-08): (b) 유저 전송 성공 → 실패 말풍선이 사라지고 목록 끝은 중립 "…"(T35 교체), 「세바스찬 대사 재시도」 없음, `speak` `[['r1',{sebastian}],['r1',{auto}]]` — 본문 (b)의 "남는다" 단언을 대체. (a)(c) 불변** · 종류: 자동 · 요구: R-CHAT-005 · R-CHAT-014 🔒 · 설계: F §1.1 T27 · §1.1 비고(실패 말풍선 유지 규칙 — S3d 전송만 예외) · AU §1.2 T35 · generate §1 · 토큰: 있음
 - Given 세바스찬 실패 말풍선 표시 중
 - When (a) 시엘 클릭(대기) (b) `안녕` 전송 → `ok(106)` (c) 언마운트 → 같은 방 재마운트
 - Then ⓐ (a) `.failed` 0개, `.pending` 1개이고 `ciel` 클래스 (b) li 6개, 106 `안녕`이 5번째, 끝 li는 여전히 `.failed` (c) `.pending` 0개 ⓑ (a) pending 시엘 generating (b) pending failed 유지 (c) 새 마운트 초기값 ⓒ (a) `speak` 2번째 인자 `['r1', { character: 'ciel' }]` (b) `appendUser` `[['r1', { text: '안녕', ooc: false }]]` (c) `speak` 1회 유지, `listMessages` 2회
@@ -506,6 +514,7 @@
 - When `아직 대화가 없습니다` 확인 → 세바스찬 클릭(대기) → 성공 resolve
 - Then ⓐ 클릭 직후 빈 문구 없음, `role=log` 안 li 1개 = 임시 말풍선 → 성공 뒤 li 1개(메시지), `.pending` 0개, `scrollTop = 2400 − 493 = 1907`(맨 아래) ⓑ 첫 배치는 성공 커밋에서 ⓒ `speak` 1회
 - 스펙: `SpeakFlow.test.tsx`
+- 비고: 2026-10-07 스펙 수정(CR-002) — 빈 문구 대기를 `findByRole('status')` → `findByText('아직 대화가 없습니다')`로 바꿨다. 전체 실행 부하 때 「불러오는 중」 status를 먼저 잡는 경합 때문이다. 판정 기준(ⓐ~ⓒ)은 그대로다
 
 ### TC-CH-079 · (S3) 재작성 표시 조건 · 종류: 자동 · 요구: R-CHAT-007 · R-MSG-006 · 설계: F §1.2 `isRegenerateTarget` · F-CH-35 · C §2.8 · §2.10 `canRegenerate` · labels `regenerate` · 토큰: 있음
 - Given Regenerate 픽스처 / 변형: 마지막 유저 line([70,72,73]) · 마지막 OOC([70,72,74]) · 실패 말풍선이 끝(시엘 speak `LLM_FAILED`) / (부품) `MessageMenuSheet canRegenerate` true·false, `isWriteBusy`
@@ -562,7 +571,7 @@
 - 스펙: `SpeakFlow.test.tsx` · `Regenerate.test.tsx`
 - 참고: TC-CH-029·063과 같이 React 19는 언마운트 뒤 dispatch를 경고 없이 무시한다. 판별 지점은 콜백·저장소·재조회 호출 수다.
 
-### TC-CH-088 · (S3) 전송은 AI 호출 없음(유지) · 종류: 자동 · 요구: R-CHAT-006 · 설계: F-CH-17 · A 키보드(Enter = 전송만) · 토큰: 있음
+### TC-CH-088 · (S3) 전송은 AI 호출 없음(유지) · **폐기(S3d, CR-002 · Q-08) → TC-CH-098로 대체** — R-CHAT-006 🔒 개정으로 저장 성공 뒤 `speak('auto')` 1회가 맞는 동작이다. 아래 본문은 이력 보존이며 스펙 it은 삭제했다(`Composer.test.tsx` 주석만) · 종류: 자동 · 요구: R-CHAT-006 · 설계: F-CH-17 · A 키보드(Enter = 전송만) · 토큰: 있음
 - Given ready 4건, `appendUser` → `ok(105 안녕)`, mock 목록에 `speak`·`regenerate` 포함
 - When (a) `안녕` 입력 → `전송` 클릭 (b) `안녕` 입력 → Enter (c) OOC switch 켬 → `안녕` 입력 → `전송` 클릭
 - Then ⓐ li 5개 ⓑ 저장 값은 TC-CH-033·034와 같음 ⓒ `appendUser` (a)(b) `[['r1', { text: '안녕', ooc: false }]]` (c) `[['r1', { text: '안녕', ooc: true }]]`, 세 경우 모두 **`speak`·`regenerate` 0회 명시**, 나머지 mock 합계 = 첫 `listMessages` 1회
@@ -574,7 +583,7 @@
 - Then ⓐ (a) 포커스 = `세바스찬 대사 생성` (b) 포커스 = 입력창. 중간(disabled 상태) 포커스 위치는 단언하지 않음(DC-05). (부품 경합, tc.md 083 행의 F-CH-38 항목) 생성 중 바깥으로 옮긴 뒤 해제 → 그 뒤 speak 아닌 잠금(`speakingCharacter=null`)이 body 포커스로 풀려도 포커스는 body 그대로(옛 버튼으로 끌려가지 않음) ⓑ lastSpeakerRef는 잠금 해제마다 비운다(F-CH-38 정정) ⓒ (a) `speak` 1회
 - 스펙: `SpeakFlow.test.tsx` · `SpeakButtons.test.tsx`
 
-### TC-CH-090 · (S3) 재시도 잠금 · 종류: 자동 · 요구: R-CHAT-005 · 설계: F §4.3 잠금 표 `send` 행 · C §2.1 `isSpeakLocked` · C §2.12 `isRetryDisabled` · 토큰: 있음
+### TC-CH-090 · (S3) 재시도 잠금 · **S3d 개정(Q-08): 저장 대기 중 「재시도」·세바스찬 disabled는 같음. 저장 응답 뒤에도 세바스찬·시엘 `disabled` 유지(자동 응답 중), 실패 말풍선은 중립 "…"로 바뀌어 「재시도」 없음, `speak` 총 2회(`[1]` = `['r1',{auto}]`) — 본문의 "응답 뒤 활성" 단언을 대체** · 종류: 자동 · 요구: R-CHAT-005 · R-CHAT-014 🔒 · 설계: F §4.3 잠금 표 `send` 행 · AU §4.1 · C §2.1 `isSpeakLocked` · C §2.12 `isRetryDisabled` · 토큰: 있음
 - Given 세바스찬 실패 말풍선, `appendUser` 대기 / (부품) `isRetryDisabled=true`
 - When `안녕` 전송 → resolve / (부품) 클릭
 - Then ⓐ 대기 중 `세바스찬 대사 재시도`·캐릭터 버튼 disabled → 응답 뒤 활성 ⓑ writing send → null ⓒ `speak` 1회 유지. (부품) `onRetry` 0회
@@ -623,6 +632,82 @@
 - When resolve → (가짜 시계) 60 000ms 경과
 - Then ⓐ 72 원 본문 `분부대로 하겠습니다, 도련님.` 그대로, `regenerating` 없음, alert(토스트) 1개 = 한도 문구, 클래스 `warning`(`danger` 아님), `/재시도/` 버튼 없음, `role=note` 없음·group 그대로(전환 없음) ⓑ writing null. 순수: `writeErrorText(LLM_BUDGET_EXCEEDED, 'regenerate')` = 한도 문구, `toastToneOf(LLM_BUDGET_EXCEEDED)` = `warning`(`LLM_FAILED`·`SPEAK_IN_PROGRESS`는 `danger` 유지) ⓒ `regenerate` `[[72]]`(60초 뒤에도 자동 재시도 없음), `listMessages` 1회(재조회 없음), `onAuthFailure` 0회
 - 스펙: `Regenerate.test.tsx`(통합 · writeErrorText 행) · 톤 순수 근거는 rooms **TC-RM-029**(`ui/src/state/writeRules.test.ts` 기존 `toastToneOf` 표에 행 추가 — 톤 테스트는 한 곳)
+
+### TC-CH-098 · (S3d) 전송 → 자동 응답 호출 · 종류: 자동 · 요구: R-CHAT-006 🔒 · R-CHAT-014 🔒 · R-MSG-009 🔒 · R-MSG-003 🔒 · 설계: AU §3 F-CH-17 ③·⑥ · F-CH-42 · AU §5 201 행 · A 키보드(S3d Enter) · 토큰: 있음
+- Given ready 4건, `appendUser`·`speak` 각각 deferred
+- When (a) `안녕` 입력 → 전송 클릭 (b) Enter (c) OOC 켬 → 클릭 → 저장 대기 확인 → 저장 resolve(105 / OOC 105)
+- Then ⓐ 표시 단언은 TC-CH-099(유저 말풍선·중립)·TC-CH-034(OOC)에 위임 — 이 TC는 호출 순서 전용 ⓑ writing send → speak auto(호출로 관찰) ⓒ 저장 응답 **전** `speak` 0회 · `appendUser` `[['r1', { text: '안녕', ooc }]]` → 저장 resolve **뒤** `speak` 정확히 `[['r1', { character: 'auto' }]]`, 본문 키 `['character']`뿐 · 캐릭터 값 speak 0회 · `regenerate`·`editMessage`·`deleteMessage` 0회 · `listMessages` 1회
+- 스펙: `AutoReply.test.tsx`
+
+### TC-CH-099 · (S3d) T35 한 커밋 — 저장 중 → 생성 중 · 종류: 자동 · 요구: R-CHAT-014 🔒 · R-CHAT-006 🔒 · R-CHAT-002 🔒 · R-CHAT-004 · R-CHAT-013 · 설계: AU §0 S1·S2 · §1.1 타입·F-CH-44 · §1.2 T35·T36 · §1.3 · §2.1 `NeutralPending`(생성 중)·CSS `neutral`·테스트 클래스 키 · §2.3 Composer·SpeakButtons·index `speakingCharacter` 배선 · §4.1 `send`·`speak+auto` 행 · §4.2-1 · §6 `pendingDots`·`autoPendingStatus` · §7 중립 생성 중·잠금 표시·포커스 · §8 D-18·D-20 · 토큰: 있음
+- Given ready 4건, `appendUser`·`speak` deferred
+- When `안녕` 입력 → 전송 클릭 → (S1 관찰) → 세바스찬·시엘·⋯ `disabled` 속성 관찰 시작 → 저장 resolve(105) → 입력에 `다음` → 103 contextmenu
+- Then ⓐ S1: `li` 4개(낙관 표시 없음), `.pending` 0, 세바스찬·시엘·전송·⋯ disabled, 입력 `readOnly`·값 `안녕`, group `aria-busy="true"` → S2(한 커밋): `disabled` 속성 변화 **0건**, `li` 6개, 5번째 `user`·`어떠한 의지`·`안녕`, 6번째 루트 `pending`·`neutral`(`root`·`character`·`sebastian`·`ciel`·`user`·`failed` 없음), `img`·`.name`·`time` 없음, log 안 `role=status`가 그 루트(`aria-live=polite`, 글자 `응답을 만드는 중`), `…` `aria-hidden`, tabindex·aria-haspopup·버튼 없음. 네 버튼 disabled 유지, 입력 `''`·`readOnly` 아님·포커스, `aria-busy`≠`true`, `다음` 입력되고 전송 disabled, 메뉴 dialog 없음 ⓑ 저장소 키 `ld:lastRoomId`뿐 · `onAuthFailure` 0 · writing `{speak,'auto'}`·pending `{auto,generating}`(표시로 관찰) ⓒ `appendUser` `[['r1', { text: '안녕', ooc: false }]]` · `speak` `[['r1', { character: 'auto' }]]`
+- 순수(같은 번호, `chat.test.ts`): T35 맨 아래 → 메시지 붙임·unseen 0·writing `{speak,'auto'}`·pending `{auto,generating,null}`·입력 불변 / 위쪽 → unseen +1 / 이전 pending(세바스찬·시엘·중립 실패) → auto generating / `editingId` 유지(D-17) / T36: ready·캐릭터 생성 중·auto 생성 중·edit·regenerate·loading → 같은 참조 / T35 뒤 `canSend`·`canSpeak` false / `speakingCharacterOf`: 세바스찬 speak → `sebastian`, 시엘 → `ciel`, auto·send·regenerate·없음·초기값 → null
+- 부품(`PendingBubble.test.tsx`): `generating('auto')` → 루트 `pending`·`neutral`, 화자 클래스 없음, img 0, `.name`·`.head`·`time` 없음, `.body.bodyBox` 있음 · role=status = 루트, `응답을 만드는 중` 포함·`대사를 만드는 중` 미포함, `…` aria-hidden, alert·버튼·tabindex·aria-haspopup 없음, contextmenu 기본 동작 유지
+- 스펙: `AutoReply.test.tsx` · `ui/src/state/chat.test.ts` · `PendingBubble.test.tsx`
+
+### TC-CH-100 · (S3d) 결과 자리 2종 · 종류: 자동 · 요구: R-CHAT-014 🔒 · R-CHAT-002 🔒 · R-MSG-009 🔒 · R-CHAT-007 · R-MSG-006 · 설계: AU §1.1 `speakSucceeded`(자리 = `message.speaker`) · §3 F-CH-42 성공 · F-CH-44 · §5 201 행·재작성 줄 · §7 포커스 · 토큰: 있음
+- Given 전송 → 저장 201 → 중립 "…"(TC-CH-099 결과), 입력 `''` 확인 뒤 `다음` 입력
+- When (a) speak resolve `speaker:'sebastian'` 106 (b) `speaker:'ciel'` 106 (c) (a) 뒤 결과 말풍선 contextmenu → 「재작성」
+- Then ⓐ (a)(b) `.pending` 0, `li` 6개, 마지막 루트 `character` + (a) `sebastian`(왼쪽, 아바타 `/embed/img/sebastian.png`, 이름 `세바스찬`) (b) `ciel`(오른쪽, `/embed/img/ciel.png`, `시엘`), 다른 캐릭터·`neutral` 없음, 본문 = 응답 text, 5번째 유저 `안녕` 유지, 세바스찬·시엘·전송·⋯ 활성, 포커스 입력창 그대로(캐릭터 버튼으로 옮기지 않음), 입력값 `다음` 유지 ⓑ writing·pending null(표시로 관찰) ⓒ (a)(b) `speak` `[['r1', { character: 'auto' }]]` 1회, `listMessages` 1회 (c) `regenerate` `[[106]]` 1회, `speak` 추가 0회
+- 스펙: `AutoReply.test.tsx`
+
+### TC-CH-101 · (S3d) 저장 실패 → AI 호출 0회 · 종류: 자동 · 요구: R-CHAT-006 🔒 · R-CHAT-011 · R-CHAT-014 🔒 · R-CHAT-008 🔒 · 설계: AU §3 F-CH-17 ⑤ · §1.3 (이탈) S1 저장 실패 · §5 실패 행 · 주 문서 §6.6 · 토큰: 있음 / 있음 → 없음
+- Given ready (c)만 세바스찬 실패 말풍선(`LLM_FAILED`) 표시 중
+- When `안녕` 전송 → `appendUser` 실패: (a) `INTERNAL` · `RATE_LIMITED`+40 (b) `TOKEN_INVALID`(하네스) (c) `INTERNAL`
+- Then ⓐ (a) E 토스트 `ERROR_MESSAGES.INTERNAL` / `요청이 너무 많습니다. 40초 후 다시 시도해 주세요.`, 입력 `안녕` 유지·readOnly 아님, `li` 4개, `.pending` 0, 세바스찬·시엘·전송 활성, note 없음 (b) note `열람 전용 - 대화 참여는 등급 회원만`, group 없음, `.pending` 0, `li` 4개, 첫 alert `인증이 만료되어 열람 전용으로 바뀌었습니다. 새로 고쳐 주세요.` (c) 토스트 + 목록 끝 루트 `pending`·`failed`·`sebastian`(중립 아님) 그대로, 「세바스찬 대사 재시도」 활성, `li` 5개 ⓑ (a) `onAuthFailure` 0 (b) 1 · writing null·pending 이전 값 그대로(순수 TC-CH-053 S3d) ⓒ `appendUser` 1회, `speak` 0회((c)는 처음 세바스찬 1회뿐), `regenerate` 0회
+- 스펙: `AutoReply.test.tsx`
+
+### TC-CH-102 · (S3d) 중립 실패 · 종류: 자동 · 요구: R-CHAT-014 🔒 · R-CHAT-011 · R-CHAT-005 🔒 · R-LLM-007 🔒 · R-CHAT-013 · 설계: AU §1.2 T31 · §2.1 `NeutralPending`(실패)·`neutral`·`retryRow` · §3 F-CH-42 ③ · F-CH-37 · §5 그 밖 행·레이트리밋 줄 · §6 `speakRetry`·`autoRetryAriaLabel` · §7 중립 실패·포커스 · generate §3 · 토큰: 있음
+- Given 전송 → 저장 201 → 중립 "…"
+- When speak(auto) 실패: `LLM_FAILED`(502) · `SPEAK_IN_PROGRESS`(409) · `RATE_LIMITED`(429, retryAfterSec 40) · `LLM_BUDGET_EXCEEDED`(429) · `NETWORK`
+- Then ⓐ `li` 6개, 마지막 루트 `pending`·`neutral`·`failed`(화자 클래스·img·role 속성 없음), log 안 status 없음, alert 1개(루트 안) 문구 각각 `생성에 실패했습니다.` · `이 방에서 이미 대사를 만들고 있습니다. 잠시 후 다시 시도해 주세요.` · `요청이 너무 많습니다. 40초 후 다시 시도해 주세요.` · `이번 달 AI 사용 한도에 닿았습니다. 다음 달에 다시 시도해 주세요.` · `서버에 연결할 수 없습니다.`, `SERVER-RAW-MESSAGE` 없음, 「재시도」(접근 이름 `응답 재시도`, 글자 `재시도`, 활성, 루트 안), 5번째 유저 `안녕` 유지, 세바스찬·시엘·⋯ 활성, 포커스 입력창 그대로, note 없음, 토스트 없음(alert 1개) ⓑ writing null·pending `{auto, failed, error}`(표시로 관찰) · `onAuthFailure` 0 ⓒ `speak` `[['r1', { character: 'auto' }]]` 1회(자동 재시도 없음)
+- 부품(`PendingBubble.test.tsx`): `failed('auto', err)` `LLM_FAILED`·`CONFIG_INVALID`·`RATE_LIMITED`+40 → 루트 `pending`·`neutral`·`failed`, 화자 클래스·img·role·status 없음, alert = `speakErrorText(error)`, `!` aria-hidden, `응답 재시도` 버튼(글자 `재시도`, `.retryRow` 안, 코드와 무관하게 항상) → 클릭 `onRetry` `[['auto']]`, `대사 재시도` 이름 버튼 없음 / `isRetryDisabled` → disabled·`onRetry` 0회
+- 순수(`chat.test.ts`, TC-CH-085 S3d): T31 auto → pending `{auto, failed, LLM_FAILED}`
+- 스펙: `AutoReply.test.tsx` · `PendingBubble.test.tsx`
+
+### TC-CH-103 · (S3d) 중립 재시도 · 종류: 자동 · 요구: R-CHAT-014 🔒 · R-CHAT-013 · R-MSG-003 🔒 · 설계: AU §3 F-CH-32 · F-CH-31 · §1.2 T27 · §2.3 ChatScreen `onRetrySpeak` → `retrySpeak` · §5 중립 실패 「재시도」 줄 · §7 포커스 · §8 D-19 · 토큰: 있음
+- Given 중립 실패(`LLM_FAILED`), 다음 speak deferred
+- When 「응답 재시도」 클릭(userEvent) → 응답 (a) 성공(시엘 106) (b) `LLM_FAILED`
+- Then ⓐ 클릭 직후 포커스 = 히스토리 log, 「응답 재시도」 없음, `.failed` 0, 중립 "…" 1개(목록 끝 같은 자리), status `응답을 만드는 중`, `li` 6개(유저 말풍선 추가 0), 세바스찬·시엘 disabled → 응답 뒤에도 포커스 log ⓑ writing speak auto(T27, 표시로 관찰) ⓒ `speak` `[['r1', { character: 'auto' }], ['r1', { character: 'auto' }]]`, `appendUser` 1회(재전송 없음)
+- 스펙: `AutoReply.test.tsx`
+
+### TC-CH-104 · (S3d) 끼어들기 0회 · 종류: 자동 · 요구: R-CHAT-014 🔒 · R-CHAT-006 🔒 · R-MSG-007 🔒 · 설계: AU §4.2 1~3 · §3 F-CH-17 ⑥(팻말 유지) · F-CH-42(팻말 해제) · §8 D-18 · §7 키보드 · 토큰: 있음
+- Given ready, `appendUser`·`speak` deferred, 입력 `안녕`
+- When ① 같은 act 안 `전송`·세바스찬·시엘·`전송` 클릭 → 세바스찬 클릭·Enter ② 저장 resolve 후 send 이어짐 뒤 **같은 act(커밋 전)** 세바스찬·시엘 클릭·Enter ③ 입력 `''` 확인 → `끼어들기` → 세바스찬·시엘·전송 클릭·Enter ④ speak resolve(세바스찬 106)
+- Then ⓐ ④ 뒤 세바스찬 활성 ⓑ 쓰기 팻말이 저장 시작부터 생성 끝까지 유지(호출로 관찰. 상태 쪽 조건은 TC-CH-099 한 커밋·순수 `canSend`·`canSpeak` false) ⓒ ① 뒤 `speak` 0회·`appendUser` 1회 → ② 뒤 `speak` `[['r1', { character: 'auto' }]]` → ③ 뒤 그대로, `appendUser` 1회, `regenerate` 0회 → ④ 뒤 `speak` 1회
+- 스펙: `AutoReply.test.tsx`
+
+### TC-CH-105 · (S3d) 중립 실패에서 나가는 길 · 종류: 자동 · 요구: R-CHAT-014 🔒 · R-CHAT-005 🔒 · R-CHAT-006 🔒 · 설계: AU §1.2 T27·T35(이전 pending 교체) · §1.3 · §5 중립 실패 출구 · generate §6 `null + 중립 실패` 행 · 토큰: 있음
+- Given 중립 실패(`LLM_FAILED`)
+- When (a) 「시엘」 클릭(speak deferred) (b) `다시` 전송 → 저장 대기 → 저장 resolve(107)
+- Then ⓐ (a) 중립·`.failed` 0, `.pending` 1 = 루트 `pending`·`character`·`ciel`, status `시엘 대사를 만드는 중`, `li` 6개 (b) 저장 대기 중 마지막 루트 `failed` 유지·「응답 재시도」 disabled → 201 뒤 `.failed` 0·「응답 재시도」 없음, `li` 7개, 6번째 `다시`, 마지막 루트 `pending`·`neutral`, status `응답을 만드는 중` ⓑ (a) T27 ciel (b) T13 pending 유지 → T35 교체(표시로 관찰) ⓒ (a) `speak` `[['r1', { character: 'auto' }], ['r1', { character: 'ciel' }]]` (b) `appendUser` `[['r1', { text: '안녕', ooc: false }], ['r1', { text: '다시', ooc: false }]]`, `speak` `[['r1', { character: 'auto' }], ['r1', { character: 'auto' }]]`
+- 스펙: `AutoReply.test.tsx`
+
+### TC-CH-106 · (S3d) 자동 응답 인증·방 없음·토큰 없음 · 종류: 자동 · 요구: R-CHAT-014 🔒 · R-CHAT-011 · R-CHAT-008 🔒 · R-CHAT-009 🔒 · R-ROOMS-004 · 설계: AU §3 F-CH-42 ①② · §1.2(T33·T25) · §5 인증 3종·NOT_FOUND 행 · §7 읽기 전용 행 · F-CH-39 · 토큰: 있음 → 없음 / 없음
+- Given (a)(b) 전송 → 저장 201 → 중립 "…"((a)는 하네스) (c) `READ_ONLY_VIEWER`
+- When (a) speak(auto) `TOKEN_INVALID` · `LEVEL_TOO_LOW` · `TOKEN_REQUIRED` (b) `NOT_FOUND` (c) 렌더만
+- Then ⓐ (a) `.pending` 0(DOM에 없음), group·`/세바스찬|시엘|응답 재시도/` 버튼 없음, note 안내, `li` 5개(유저 `안녕`·`어떠한 의지` 남음), alert 1개 = 코드별 전환 문구·`warning`, 포커스 ‹ (b) alert 없음, `.pending` 0 (c) group·전송·「응답 재시도」 없음, 중립 0, note 안내 ⓑ (a) `onAuthFailure` 1회 (b) `onBack` 1회, 그 시점 `ld:lastRoomId` 없음 (c) 저장소 키 `ld:lastRoomId`뿐(토큰 저장 없음) ⓒ (a)(b) `speak` `[['r1', { character: 'auto' }]]` 1회 (c) `appendUser`·`speak` 0회
+- 스펙: `AutoReply.test.tsx`
+
+### TC-CH-107 · (S3d) 편집기 열린 채 전송(D-17) · 종류: 자동 · 요구: R-CHAT-006 🔒 · R-CHAT-014 🔒 · R-CHAT-007 🔒 · R-CHAT-013 · 설계: AU §8 D-17 · §1.2 T35(`editingId` 유지) · §2.3 `isEditSaveLocked`·InlineEditor `isSaveLocked` · §6 `editSaveLockedNote` · §7 잠긴 저장 버튼 · components.md §2.7 · generate §6 편집 저장 열 · DC-10 · 토큰: 있음
+- Given 103 인라인 수정 열림(메뉴 「수정」)
+- When (a) `안녕` 전송 → 저장 201 → 편집 내용 `새 본문` → 저장 클릭 → speak resolve(세바스찬) → 취소 (b) 저장 201 → 편집 「취소」 → speak resolve(시엘) (부품) InlineEditor `isSaveLocked` true / false, 내용 `새 본문`
+- Then ⓐ (a) 편집기(group `메시지 수정`) 같은 요소로 유지, 편집 입력 `새 본문`·readOnly 아님, 저장 disabled + `aria-describedby` 대상 글자 `응답을 만드는 중에는 저장할 수 없습니다`, 취소 활성, 세바스찬·시엘 disabled → 결과 뒤 저장 활성·안내 글자 없음, 세바스찬·시엘 계속 disabled(편집기 열림, DC-10) → 취소 → 편집기 없음·세바스찬 활성 (b) 취소 즉시 편집기 없음, 중립 1개 유지, 세바스찬 disabled → 결과 뒤 세바스찬·시엘 활성 (부품 true) 저장 disabled·안내 연결, 취소 활성, 입력 readOnly 아님 (부품 false) 저장 활성·안내 없음 ⓑ `editingId` 유지(순수 TC-CH-099 T35) ⓒ (a)(b) `speak` `[['r1', { character: 'auto' }]]` 1회, `editMessage` 0회 (부품 true) `onSave` 0회·`onCancel` 1회 (부품 false) `onSave` `[['새 본문']]`
+- 스펙: `AutoReply.test.tsx`
+
+### TC-CH-108 · (S3d) 작성자 표기 · 종류: 자동(순수·부품·화면) · 요구: R-CHAT-002 🔒 · R-AUTH-004 🔒 · R-CHAT-008 🔒(읽기 전용 쪽) · 설계: AU §2.2 `userAuthorLabel`·Bubble·MessageMenuSheet `nameOf` · §3 F-CH-43 · §6 `unknownAuthor` 삭제 · §7 읽기 전용 행 · §8 D-21 · components.md §2.2 user 행·§2.8 · labels `messageMenuHeader` · 토큰: 무관(순수·부품) · 있음(메뉴) · 없음(읽기 전용)
+- Given 순수 함수 · Bubble 부품 · 103 `authorName` `미샤`/`null` 페이지 · 읽기 전용 + 105 `authorName null`
+- When `userAuthorLabel` 4값 · Bubble 렌더 4값 · 103 contextmenu · READ_ONLY 렌더
+- Then ⓐ Bubble: `어떠한 의지` → `어떠한 의지`, `미샤` → `미샤`(그리고 `어떠한 의지` 글자 없음 — 치환 금지), `null`·`''` → `어떠한 의지`, `이름 없음` 없음 / 메뉴 머리 `미샤 · …` · `어떠한 의지 · …`, `이름 없음` 없음 / 읽기 전용: 103 `미샤`, 105 `어떠한 의지` ⓑ `USER_DISPLAY_NAME === '어떠한 의지'` · `userAuthorLabel` 반환 `어떠한 의지`·`미샤`·`어떠한 의지`·`어떠한 의지` ⓒ 읽기 전용 `speak` 0회(순수·부품은 래퍼 미호출 — 모킹만)
+- 스펙: `AutoReply.test.tsx` · `Bubble.test.tsx`(TC-CH-008 S3d)
+
+### TC-CH-109 · (S3d) 390×565 자동 응답 판 스크린샷(수동) · 종류: 수동 · 요구: R-CHAT-013 · R-CHAT-014 🔒 · R-CHAT-002 🔒 · 설계: AU §0(구성안 ui-layout-03 §2.2·§2.4) · §2.1 CSS `neutral`·높이 · §7 · 토큰: 있음
+- Given 유효 토큰 주소, 맨 아래에서 대화 중인 방(개발 서버)
+- When `안녕` 전송 → ① 자동 생성 중 ② 자동 실패(가짜 제공자 실패 또는 `CONFIG_INVALID`) 스크린샷
+- Then ⓐ `manual-checklist.md` MC-CH-19 기대(중립 가운데·테두리만·배경 없음·약 48px, 실패 약 90px·「재시도」 가운데, 유저 머리 줄 `어떠한 의지 · 시각`) ⓑ — (화면 측정 전용, 상태는 TC-CH-099·102) ⓒ — (api 단언은 TC-CH-098)
+- 스펙: 없음(수동 — MC-CH-19)
 
 ## TC-FLOW
 
@@ -678,6 +763,98 @@ S1·S2 행. **ⓒ 호출 횟수는 단계 증분으로 읽는다**: 체인 안�
 
 ### TC-FLOW-CH-17 · U-CH-12 생성 요청 거절 → 안내·전환(S3) · Steps: TC-CH-066 → TC-CH-076(b)(App 통합 — 체인 끝 = 같은 화면 읽기 전용, 토큰 비움) · 분기: TC-CH-076(a) | TC-CH-084 | TC-CH-074(SPEAK_IN_PROGRESS·RATE_LIMITED — 전환 없음) | TC-CH-087
 - 쓰기 판(→ 캐릭터 버튼) → speak가 인증 실패(→ 임시 말풍선 제거, 쓰기 UI 제거, 전환 토스트 1회, ‹ 포커스, `getToken()` null). 분기: 인증 3종 각 문구 | 재작성 중 인증 실패 | 생성 중·과다 요청은 안내만 | 늦은 응답은 무시
+
+### TC-FLOW-CH-18 · U-CH-13 대사·지시 전송 → 자동 응답(S3d) · Steps: TC-CH-066 → TC-CH-098(a) → TC-CH-099 → TC-CH-100(a) · 분기(저장 응답 전): TC-CH-101 | TC-CH-104 · 분기(자동 응답 결과 — 각자 Given): ① 성공 TC-CH-100(b) | TC-CH-100(c) ② 실패 TC-CH-102 → TC-CH-103 | TC-CH-105 ③ 인증·방 없음 TC-CH-106(a)(b) · 그 밖 분기: TC-CH-034 | TC-CH-038 | TC-CH-107 | TC-CH-108 | TC-CH-063(S3d) · 시각: TC-CH-109
+- 상태 전달: 066(토큰 있음 판) → 098(a) 저장 201 → 099 결과(유저 말풍선 `어떠한 의지` + 중립 "…", writing speak auto)가 100의 Given → 100(a) 세바스찬 결과 말풍선·잠금 해제로 끝난다. **U-CH-08 폐기(CR-002)**: TC-FLOW-CH-08은 이력으로 남기고, S3d 이후 같은 사용자 흐름은 이 체인이 대신한다(FLOW-CH-08의 033 단계 "AI 호출 없음"은 더 이상 성립하지 않는다).
+
+## 추적표 — S3d 추가분 (v0.8)
+
+화면 TC는 저장 뒤 래퍼를 계약 인자로 부르는지(`speak(roomId, { character: 'auto' })`)·부르지 않는지를 단언한다. Bearer 부착은 래퍼 몫. 자동 TC 11개(098~108) · 수동 1개(109).
+
+### 대체·영향 TC (S3d) — 바뀐 단언의 정본
+
+| 기존 TC | S3d 처리 | 바뀐 단언 | 스펙 변경 |
+|---|---|---|---|
+| TC-CH-008 | **개정** | `authorName` `null`·`''` → `어떠한 의지`(`USER_DISPLAY_NAME` import 비교), 「이름 없음」 없음. 본문 Then의 `이름 없음` 단언을 대체 | `Bubble.test.tsx`(import 1줄 · it → it.each) |
+| TC-CH-033 | **개정**(본문 갱신) | `li` 5 → 6 · 작성자 `미샤` → 응답 값 `어떠한 의지` · `speak` `['r1',{auto}]` 1회 · 나머지 합계 필터에서 `speak` 제외 | `Composer.test.tsx` |
+| TC-CH-034 | **개정**(본문 갱신) | `li` 6 · 6번째 중립 · `speak` auto 1회(R-MSG-009) | `Composer.test.tsx` |
+| TC-CH-036 | **개정**(본문 갱신) | 저장 응답 뒤 readOnly·aria-busy 해제, 잠금(전송 disabled)은 유지 → speak 결과 뒤 해제 | `Composer.test.tsx` |
+| TC-CH-038 | **개정**(머리·Given 갱신) | (a)(b) `li` 6 · `speak` 1회. 스크롤·배지 수치 불변(T35 = T9 규칙) | `Composer.test.tsx` |
+| TC-CH-053 | **단언 추가** | T13 send 시작 시 이전 pending(중립·캐릭터 실패) 같은 참조 · T15 send 실패 시 pending 유지(auto.md §1.3). 기존 단언 불변 | `ui/src/state/chat.test.ts` |
+| TC-CH-063 | **단언 추가** | (S3d-a) 저장 대기 중 언마운트 → 저장 201 → `speak` 0회 · (S3d-b) 자동 응답 대기 중 언마운트 → 성공·`LLM_FAILED`·`TOKEN_INVALID`·`NOT_FOUND` → 콜백 0·저장소 그대로·재조회 없음. 기존 (a)~(c) 불변 | `AutoReply.test.tsx`(auto-tests.md §9.1 "또는 해당 스펙") |
+| TC-CH-075 | **개정** | (b) 실패 말풍선 → 유저 전송 성공 → 실패 말풍선 **사라짐** · 목록 끝 중립 "…" · `speak` `[sebastian, auto]`. (a)(c) 불변 | `SpeakFlow.test.tsx` |
+| TC-CH-085 | **단언 추가** | T27·T28·T29·T31·T33·T25 `'auto'` 케이스 · `canSpeak`(중립 실패 true · auto 생성 중 false). 기존 단언 불변 | `ui/src/state/chat.test.ts` |
+| TC-CH-088 | **폐기 → TC-CH-098** | 전송 = speak 0회 단언은 R-CHAT-006 🔒 개정으로 성립하지 않는다 | `Composer.test.tsx` it 삭제(주석) |
+| TC-CH-090 | **개정** | 저장 대기 중 disabled는 같음. 저장 응답 뒤에도 세바스찬·시엘 disabled(자동 응답 중) · 「재시도」 없음(중립 "…"로 교체) · `speak` 총 2회(`[1]` = auto) | `SpeakFlow.test.tsx` |
+| TC-CH-094 | 불변 | 편집 중 전송의 결과는 TC-CH-107 | 없음 |
+| TC-CH-040 · 079 | 불변 | 유저 fixture `authorName`이 값(`미샤`)이라 그대로. `null` 머리는 TC-CH-108 | 없음 |
+| TC-CH-011 · 014 · 019 | 영향(렌더 도우미) | `MessageList` S3d 필수 prop `isEditSaveLocked: false` 기본값. 단언 불변 | `MessageList.test.tsx` |
+| 전송 성공 경로 스펙 공통 | 영향 | `speak` 기본값 영원히 대기 | `Composer` · `SpeakFlow`(beforeEach). `AuthTransition`·`BubbleMenu`·`Regenerate`·`ChatScreen`은 저장 성공 TC가 없어 변경 없음 |
+| TC-CH-073 · 093 부품 | 영향(타입) | `PendingBubble` `onRetry` 인자 `SpeakTarget` — mock 타입만 | `PendingBubble.test.tsx` |
+| TC-FLOW-CH-08 | 대체 | U-CH-08 폐기 → TC-FLOW-CH-18 | 없음 |
+
+### 요구 ↔ TC (S3d)
+
+| 요구ID | TC | 비고 |
+|---|---|---|
+| R-CHAT-014 🔒 | TC-CH-098 · 099 · 100 · 102 · 103 · 104 · 105 · 106 · 107 · 109(수동) · 033 · 036 · 038 · 075 · 090 · 085(S3d) · 063(S3d) | 성공 2종 100 · 실패 102 · 재시도 103 · 끼어들기 0회 104(+099 한 커밋) · 캐릭터 버튼 유지 099·105 |
+| R-CHAT-006 🔒(S3d 개정) | TC-CH-098 · 099 · 101 · 104 · 107 · 033 · 034 · 036 · 038 · 053(S3d) · 063(S3d) | 저장 성공 → speak(auto) 1회 / 저장 실패 → 0회 |
+| R-CHAT-002 🔒(S3d 개정) | TC-CH-008 · 099 · 100 · 108 · 109(수동) | 작성자 표기 · 결과 자리 · 중립 가운데 |
+| R-MSG-009 🔒 | TC-CH-098 · 100 · 034 | 화면은 응답 `speaker`대로 배치 · OOC 뒤에도 같은 동작 |
+| R-AUTH-004 🔒(S3d 개정) | TC-CH-108 · 033 · 008 | 받은 값 그대로, 비었으면 고정 명칭 |
+| R-MSG-003 🔒(S3d `'auto'` 개정) | TC-CH-098 · 103 | 본문 `{ character: 'auto' }`뿐 |
+| R-LLM-008(데이터) | TC-CH-070(기존 — 화면 타이머 없음·70초 규칙 공통 경로) | 화면 영향은 소요 상한 불변뿐(rtm.md) — 새 TC 없음 |
+| R-CHAT-005 🔒(영향) | TC-CH-102 · 105 · 075 · 090 · 085(S3d) | 캐릭터 버튼으로 중립 실패 탈출 |
+| R-CHAT-011(영향) | TC-CH-101 · 102 · 106 | 저장 실패 S2 규칙 · 중립 실패 문구 · 인증 전환 |
+| R-CHAT-013 🔒(영향) | TC-CH-099 · 102 · 103 · 107 · 109(수동) | role=status/alert · 포커스 · aria-describedby |
+| R-CHAT-008 🔒 | TC-CH-106 · 101(b) · 108(읽기 전용) | 중립·「응답 재시도」 미렌더 |
+| R-CHAT-004 | TC-CH-099 · 036 | 잠금 |
+| R-CHAT-007 🔒 | TC-CH-107 · 100(c) | 편집 중 전송 · 자동 대사 재작성 |
+| R-CHAT-009 🔒 | TC-CH-106(c) | 토큰 저장 없음 |
+| R-MSG-002 | TC-CH-033 · 098 | 저장 인자 불변 |
+| R-MSG-006 · R-MSG-007 🔒 | TC-CH-100(c) · 104 | |
+| R-LLM-007 🔒 | TC-CH-102(`LLM_BUDGET_EXCEEDED`) | |
+| R-ROOMS-004 | TC-CH-106(b) | |
+
+### 설계 항목 ↔ TC (S3d, `design/auto.md`)
+
+| 설계 항목 | TC |
+|---|---|
+| §0 레이아웃 조각(S1 저장 중 · S2 중립 "…" · 결과 교체 · 중립 실패 · 유저 작성자 줄 · 하단 바 불변) | 099 · 100 · 102 · 108 · 109 |
+| §1.1 타입(`SpeakTarget` · `MessageWrite.speak` · `PendingSpeak` · `ChatAction`) · 초기값 10필드 불변 | 085(S3d) · 099(순수) · 015·053(기존 초기값) |
+| §1.1 `speakingCharacterOf`(F-CH-44) | 099(순수) · 100(포커스 이동 없음) |
+| §1.2 T27(개정) · T31(개정) | 085(S3d) · 103 · 102 |
+| §1.2 T35 · T36 | 099(순수·화면) · 105(b) · 075 |
+| §1.3 화면 상태 5단계 + 이탈 2행 | 099 · 100 · 102 · 106 · 101 · 053(S3d) |
+| §2.1 PendingBubble `NeutralPending` DOM(생성 중·실패) · `CharacterPending` 불변 | 099(부품) · 102(부품) · 069·073(기존) |
+| §2.1 CSS `neutral` · 높이 48/90 · 테스트 클래스 키 | 099 · 102(클래스) · 109(치수·색) |
+| §2.2 `userAuthorLabel` · Bubble · MessageMenuSheet `nameOf` · `unknownAuthor` 삭제 | 108 · 008 |
+| §2.3 index `speakingCharacter` · Composer 불변(입력 비움·포커스) · SpeakButtons 불변 | 099 · 100 |
+| §2.3 MessageList `onRetrySpeak` · ChatScreen `retrySpeak` | 103 |
+| §2.3 `renderHistory` pending 필터(중립 포함) | 106(a)(c) |
+| §2.3 `useAutoScroll` `tailKey`(`auto:generating`) | 038(a)(b) · 091(기존 규칙) |
+| §2.3 `isEditSaveLocked` · InlineEditor `isSaveLocked` | 107(화면·부품) |
+| §3 F-CH-17 ①~⑥ | ①② 032·035(기존) · ③ 098 · ④ 063(S3d-a) · ⑤ 101 · ⑥ 099·104 · T36 분기 = 099(순수 T36, 화면 도달 불가 — 설계 명시 방어) |
+| §3 F-CH-31(개정) · F-CH-42 runSpeak(성공 · ① 인증 · ② NOT_FOUND · ③ 그 밖 · 비활성) | 103 · 100 · 106(a) · 106(b) · 102 · 063(S3d-b) |
+| §3 F-CH-32(개정) | 103(auto → log) · 093(캐릭터, 기존) |
+| §3 F-CH-37 · F-CH-43 · F-CH-44 | 102 · 108 · 099 |
+| §4.1 잠금 표 3행 | `send` 099·036 · `speak+auto` 099·104 · `null` 100·102 |
+| §4.2 끼어들기 0회 1~4 | 1 → 099(MutationObserver) · 2 → 104 · 3 → 099+104 · 4 → 101 · 063(S3d-a) · 100 · 102 · 106 |
+| §5 파이프라인 분기(저장 실패 · 비활성 · 201 · speak 201 · 인증 · NOT_FOUND · 그 밖 · 중립 실패 출구 4 · 재작성 줄) | 101 · 063 · 099 · 100 · 106 · 106 · 102 · 103·105(a)(b)·063(S3d-b) · 100(c) |
+| §5 레이트리밋 2회 소모 · NETWORK 중복 한계 · confirm 없음 | 102(`RATE_LIMITED` 화면 쪽) · 비행동 항목(한계 기록) |
+| §6 문구 7키 | `pendingDots`·`autoPendingStatus` 099 · `speakRetry`·`autoRetryAriaLabel` 102 · `speakErrorText` 102 · `userAuthorLabel` 108 · `unknownAuthor` 삭제 008·108 · `editSaveLockedNote` 107 |
+| §7 접근성·읽기 전용 7행 | 중립 생성 중 099 · 중립 실패 102 · 잠긴 저장 버튼 107 · 잠금 표시 099·036 · 포커스 099·100·102·103 · 키보드 098(b)·104 · 읽기 전용 106·108 |
+| §8 D-17 · D-18 · D-19 · D-20 · D-21 · D-22 | 107 · 099·104 · 103 · 085(S3d) · 108 · 비행동(미채택 — TC 대상 아님) |
+
+### 사용자행 ↔ TC-FLOW (S3d)
+
+| 사용자행 | TC-FLOW | 비고 |
+|---|---|---|
+| U-CH-13(S3d 신규) | TC-FLOW-CH-18 | 전송 → 자동 응답 |
+| ~~U-CH-08~~(폐기, CR-002) | ~~TC-FLOW-CH-08~~ → TC-FLOW-CH-18 | 이력 보존 |
+| U-CH-06 | TC-FLOW-CH-12(체인 불변, 038 S3d 개정 반영) | |
+| U-CH-09 | TC-FLOW-CH-14(분기 075·090 단언 S3d 개정) | |
+| U-CH-12 | TC-FLOW-CH-17 + 분기 TC-CH-101(b) · 106(a) | 자동 응답·저장의 인증 거절 |
 
 ## 추적표
 
@@ -971,7 +1148,11 @@ S3 행 4개는 v0.6에서 **해소**(TC-CH-066~094). S4 행만 남는다.
 | Q-05 | 2026-10-06 | —(설계 v1.7 S3 상태 모델, S1·S2 불변 예외 — 메인 세션 확인 요청) | `ChatState`에 `pending` 추가로 초기값 단언 9 → 10필드(`pending: null`). 다른 단언 불변 | `ui/src/state/chat.test.ts`(TC-CH-015·053 초기값 it 2개) | TC-CH-015 · TC-CH-053 | 없음(TC-CH-085가 S3 전이 담당) | 전환됨(TC-CH-015 · 053) |
 | Q-06 | 2026-10-06 | —(설계 v1.7 C §2.1 S3 필수 props) | `MessageList` 렌더 도우미에 `pending: null`·`isSpeakLocked: false`·`onRetrySpeak`·`regeneratingId: null` 기본값. 단언 불변 | `ui/src/chat/test/MessageList.test.tsx`(renderList) | TC-CH-011 · 014 · 019 | 없음 | 전환됨(TC-CH-011 · 014 · 019 스펙 렌더 도우미) |
 | Q-07 | 2026-10-06 | —(tc.md v1.7 대체 지정) | S3 캐릭터 버튼·재작성 항목 등장으로 S2 단언 대체·조정: 031 버튼 부재 두 줄 삭제(→ 066) · 040 이름 조정(→ 079) · 021 정규식 질의 · `MessageMenuSheet` 필수 props(040 부품·054(d)) · S2 mock 목록에 `speak`·`regenerate`(Composer·BubbleMenu) | `Composer.test.tsx` · `BubbleMenu.test.tsx` · `ChatScreen.test.tsx` | TC-CH-021 · 031 · 033 · 040 · 054 | TC-CH-066 · 079 · 088 | 전환됨(TC-CH-066 · 079 · 088) |
-| Q-08 | 2026-10-06 | CR-002 | S3d(설계 v1.9 `design/auto.md`): 전송 저장 성공 → 곧바로 `speak('auto')`(T35 원자 전이) · 중립 "…"·중립 실패 + 재시도 · 유저 작성자 표기 = 받은 값, 비었으면 `어떠한 의지`(`unknownAuthor` 삭제). 기존 단언 변경 목록은 `design/auto.md` §9.1 표 그대로. 검증 반영: `Composer.test` TC-CH-033·034·038·088의 `items()` 길이 5 → 6(중립 `li`) · `SpeakFlow` TC-CH-090은 저장 응답 뒤 세바스찬 버튼 `disabled` 유지·`speak` 총 2회 · 생성 중 편집 저장만 비활성(InlineEditor `isSaveLocked`, TC-CH-107) | `Bubble.test.tsx` · `Composer.test.tsx`(283·309행 필터) · `SpeakFlow.test.tsx` · `AuthTransition.test.tsx` · `BubbleMenu.test.tsx` · `Regenerate.test.tsx` · `ChatScreen.test.tsx` · `ui/src/state/chat.test.ts` · `PendingBubble.test.tsx` | TC-CH-008 · 033 · 034 · 036 · 038 · 063 · 075 · 088(폐기 → 098) · 090 · 053 · 085 · 040·079(null fixture만) | TC-CH-098 ~ 109(`design/auto.md` §9.2 예약) | 미검증 |
+| Q-08 | 2026-10-06 | CR-002 | S3d(설계 v1.9 `design/auto.md`): 전송 저장 성공 → 곧바로 `speak('auto')`(T35 원자 전이) · 중립 "…"·중립 실패 + 재시도 · 유저 작성자 표기 = 받은 값, 비었으면 `어떠한 의지`(`unknownAuthor` 삭제). 기존 단언 변경 목록은 `design/auto.md` §9.1 표 그대로. 검증 반영: `Composer.test` TC-CH-033·034·038·088의 `items()` 길이 5 → 6(중립 `li`) · `SpeakFlow` TC-CH-090은 저장 응답 뒤 세바스찬 버튼 `disabled` 유지·`speak` 총 2회 · 생성 중 편집 저장만 비활성(InlineEditor `isSaveLocked`, TC-CH-107) | `Bubble.test.tsx` · `Composer.test.tsx`(283·309행 필터) · `SpeakFlow.test.tsx` · `AuthTransition.test.tsx` · `BubbleMenu.test.tsx` · `Regenerate.test.tsx` · `ChatScreen.test.tsx` · `ui/src/state/chat.test.ts` · `PendingBubble.test.tsx` | TC-CH-008 · 033 · 034 · 036 · 038 · 063 · 075 · 088(폐기 → 098) · 090 · 053 · 085 · 040·079(null fixture만) | TC-CH-098 ~ 109(`design/auto.md` §9.2 예약) | **반영됨(v0.8)** · 전환됨(TC-CH-098 ~ 109 · 개정 008·033·034·036·038·053·063·075·085·090 · 폐기 088 → 098) |
+
+### 변경이력 보충 — v0.8 (2026-10-06)
+
+**S3d 증분(CR-002 · Q-08 마감)**: 머리말 S3d 기준·S3d 공통 전제(정본 우선순위 · `speak` 영원히 대기 기본값 · 계약 이름 · 픽스처 · 중립 클래스 키 · MutationObserver 한 커밋 관찰). **신규** TC-CH-098 ~ 108(자동 11) · TC-CH-109(수동 1, `manual-checklist.md` MC-CH-19) · TC-FLOW-CH-18(U-CH-13). **개정** 033·034·036·038 본문 · 075·088(폐기)·090 머리 · 008·053·063·085는 「대체·영향 TC (S3d)」 표. 「추적표 — S3d 추가분」(대체·영향 · 요구 · 설계 · 사용자행). 스펙: 신규 `AutoReply.test.tsx` · 갱신 `Composer`(TC-CH-088 it 삭제) · `SpeakFlow` · `PendingBubble`(중립 부품) · `Bubble`(008) · `MessageList`(렌더 도우미) · `ui/src/state/chat.test.ts`(S3d 4블록). 버전 표기: 위임문은 "v0.7"로 지시했으나 v0.7은 S3b 증분이 이미 사용해 v0.8로 올렸다. 근거: `design/auto.md` §9 · requirements.md v1.9 · 메인 세션 결정(전송마다 자동 응답 · 중립 가운데 · 생성 중 편집 저장만 비활성 · authorName 그대로 · 재시도 = 'auto')
 
 ### 변경이력 보충 — v0.5 (2026-10-05)
 

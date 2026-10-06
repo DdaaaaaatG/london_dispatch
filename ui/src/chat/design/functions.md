@@ -246,4 +246,5 @@ export const restoreScrollTop = (m: Pick<ScrollMetrics, 'scrollHeight' | 'client
 - `RegenerateResult = { kind: 'replaced' } | { kind: 'removed'; isEmptyWithMore: boolean } | { kind: 'stale' } | { kind: 'failed' } | { kind: 'rejected' }` — `ui/src/chat/useMessageWrites.ts`에서 export.
 - `useMessageWrites` 옵션에 `onRoomGone: () => void` 추가, 결과에 `speakAs`·`regenerateMessage` 추가. 파일은 지역 훅 `useSpeak`·`useRegenerate`를 더해 400줄 안(현재 144줄 + 약 90줄). 함수마다 50줄 한계.
 - `useChatScreen.useChatWrites`는 `onRoomGone`(F-CH-33)을 만들어 넘기고 `speakAs`를 돌려준다. `useChatSheets` 옵션에 `regenerateMessage`를 더하고 `regenerateFromMenu`를 돌려준다.
+- **(S3d v1.9.1 실물)** `useMessageWrites`는 지역 훅 `useRunSpeak(options, gate)`로 F-CH-42 `runSpeak`를 한 번 만들어 `useSend`·`useSpeak`에 넘긴다(파일 289줄). `useChatWrites`의 반환은 `{ toast, send, speakAs, retrySpeak, saveEdit, sheets }`이고, `onRoomGone`은 지역 훅 `useRoomGone(onBack)`, `retrySpeak`(F-CH-32 개정)는 지역 훅 `useRetrySpeak(speakAs, focusLog)`가 만든다. 정본 `design/auto.md` §3.
 - 잠금 표 → `design/generate.md` §6(v1.7.1 이전).

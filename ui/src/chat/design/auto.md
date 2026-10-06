@@ -1,10 +1,11 @@
-# chat 상세 설계 — S3d 전송 뒤 자동 응답 · 중립 말풍선 · 고정 명칭 (분할 문서, v1.9)
+# chat 상세 설계 — S3d 전송 뒤 자동 응답 · 중립 말풍선 · 고정 명칭 (분할 문서, v1.9.1 — 구현 동기화 2026-10-07)
 
 > 주 문서: `ui/src/chat/design.md`(RTM §15 포함). 40KB 한계 때문에 S3d 델타 본문은 이 파일 하나에 모은다. 다른 분할 문서에는 이 파일을 가리키는 짧은 줄만 넣는다. 절 표기 `AU` = 이 파일.
 > 요구: R-CHAT-014 🔒(신규) · R-CHAT-006 🔒(개정) · R-CHAT-002 🔒(개정) · 영향 R-CHAT-005 · 004 · 011 · 013 · 008 · 데이터 R-MSG-009 🔒 · R-MSG-003 🔒(개정) · R-AUTH-004 🔒(개정). 요구 원문 `ui/src/chat/requirements.md` v1.9.
 > 구성안: `doc/200_설계/architecture/ui-layout-03-chat-auto.md` — **수용, 구조 변경 없음**(§7 구조 제안 2건은 미채택 유지). 전반 설계 `s3d-02-전반설계.md` §5·§6 · 인계 패킷 `s3d-03-인계패킷.md` §3.
-> 계약: `doc/200_설계/contract/api.md` **v0.6** §4.9 · §4.13 · §5.2 · §5.5 · §11.15 · 「ui 인계 메모」(S3d) — 확정. 새 엔드포인트·래퍼·에러 코드 없음. **contract 구현 대기**(`shared/src/types.ts` `SpeakTarget` · `shared/src/characters.ts` `USER_DISPLAY_NAME` — api.md §12.5 "미구현"). 이 둘이 들어온 뒤에 ui 구현을 시작한다(ui 구현 선행 조건).
-> CR: `ui/src/chat/test/change-requests.md` CR-002.
+> 계약: `doc/200_설계/contract/api.md` **v0.6** §4.9 · §4.13 · §5.2 · §5.5 · §11.15 · 「ui 인계 메모」(S3d) — 확정. 새 엔드포인트·래퍼·에러 코드 없음. contract 구현 **완료**(`shared/src/types.ts` `SpeakTarget` · `shared/src/characters.ts` `USER_DISPLAY_NAME` — ui가 import해 쓰고 있다, v1.9.1 실물 확인).
+> CR: `ui/src/chat/test/change-requests.md` CR-002. TC 영향·신규 TC: **`design/auto-tests.md`**(옛 §9, v1.9.1 분리).
+> 구현 실물(v1.9.1 동기화 대상): `ui/src/state/chat.ts` · `ui/src/chat/{useMessageWrites,useChatScreen}.ts` · `index.tsx` · `labels.ts` · `components/{PendingBubble,InlineEditor,MessageList,Bubble,MessageMenuSheet}.tsx` · `PendingBubble.module.css` · `InlineEditor.module.css`.
 
 비유: 누가 대답할지 정해지기 전에는 무대 한가운데에 빈 자막 상자만 띄워 둔다. 화자가 정해지면 그 상자를 치우고 화자 자리(왼쪽·오른쪽)에 대사를 건다. 접수 창구(쓰기 팻말)는 손님이 낸 쪽지를 받은 뒤 문을 닫지 않고 그대로 주방에 주문을 넣는다. 그래서 그 사이에 다른 손님이 끼어들 틈이 없다.
 
@@ -105,13 +106,13 @@ export type PendingBubbleProps = {
 }
 ```
 
-- **판정: 같은 컴포넌트의 변형**(인계 패킷 §3 표). 별도 `NeutralPendingBubble` 컴포넌트를 공개하지 않는다. 파일 안에서 `pending.character === 'auto'`면 지역 서브 컴포넌트 `NeutralPending`을, 아니면 지역 `CharacterPending`(현 본문 그대로 이동)을 렌더한다. 근거: 상태 판정(`status`)·실패 문구(`speakErrorText`)·「재시도」 배선·`srOnly`가 같고, 다른 것은 바깥 틀뿐이다(구성안 §1.2 결론). 함수 50줄 한계 때문에 두 서브 컴포넌트로 나눈다. 파일은 약 120줄(400줄 안).
+- **판정: 같은 컴포넌트의 변형**(인계 패킷 §3 표). 별도 `NeutralPendingBubble` 컴포넌트를 공개하지 않는다. 파일 안에서 `pending.character === 'auto'`면 지역 서브 컴포넌트 `NeutralPending`을, 아니면 지역 `CharacterPending`(현 본문 그대로 이동)을 렌더한다. 근거: 상태 판정(`status`)·실패 문구(`speakErrorText`)·「재시도」 배선·`srOnly`가 같고, 다른 것은 바깥 틀뿐이다(구성안 §1.2 결론). 함수 50줄 한계 때문에 두 서브 컴포넌트로 나눈다. **(v1.9.1 실물)** 두 변형이 같은 본문 상자를 지역 서브 컴포넌트 **`PendingBody`**(props `{ status, error, statusText, retryAriaLabel, isRetryDisabled, onRetry: () => void }`)로 공유한다. `PendingBody`는 `<div className={cx(bubbleStyles.body, styles.bodyBox)}>` 안에 생성 중이면 "…" + 숨은 안내(`statusText`), 실패면 `role=alert` 문구 + 「재시도」(`retryAriaLabel`)를 그린다. 변형이 넘기는 값은 둘뿐이다: 중립 `labels.autoPendingStatus` · `labels.autoRetryAriaLabel` · `onRetry('auto')`, 캐릭터 `labels.pendingStatus(shortName)` · `labels.speakRetryAriaLabel(shortName)` · `onRetry(character)`. 공개 진입 `PendingBubble`은 `pending.character === 'auto'`로 둘 중 하나를 고른다. 파일 143줄(400줄 안).
 - **`NeutralPending` DOM(구성안 §1.1·§1.2).**
   - 루트 `<div className={cx(styles.pending, styles.neutral, isFailed && styles.failed)}>` · 생성 중이면 `role="status" aria-live="polite"`, 실패면 role 없음(S3 그대로). **`bubbleStyles.root`·`character`·`sebastian`·`ciel`·`user` 클래스를 붙이지 않는다**(화자 배경·유저 배경이 붙으면 화자가 정해진 것처럼 보인다).
   - 아바타 `<img>` 없음 · 머리 줄(`head`·`name`) 없음 · 시각 없음.
   - 본문 `<div className={cx(bubbleStyles.body, styles.bodyBox)}>` — S3 본문 상자 그대로(padding `--space-3` · 1px 테두리 · `--radius-lg`).
   - 생성 중: 본문 안 `<span className={styles.dots} aria-hidden="true">{labels.pendingDots}</span>`(`…`) + `<span className={styles.srOnly}>{labels.autoPendingStatus}</span>`(`응답을 만드는 중`).
-  - 실패: 본문 안 `<p role="alert" className={styles.errorText}><span className={styles.errorMark} aria-hidden="true">!</span> {speakErrorText(error)}</p>` + `<div className={styles.retryRow}>` 안 **항상** `Button variant='secondary' size='sm' ariaLabel={labels.autoRetryAriaLabel} isDisabled={isRetryDisabled} onClick={() => onRetry('auto')}` → `labels.speakRetry`(`재시도`). 코드와 무관하게 렌더(S3 DC-02 규칙 그대로).
+  - 실패: 본문 안 `<p role="alert" className={styles.errorText}><span className={styles.errorMark} aria-hidden="true">!</span> {error === null ? '' : speakErrorText(error)}</p>`(v1.9.1 실물: `error`가 null이면 빈 문구 — 실패 상태에서는 리듀서 T31이 항상 값을 넣는다) + `<div className={styles.retryRow}>` 안 **항상** `Button variant='secondary' size='sm' ariaLabel={labels.autoRetryAriaLabel} isDisabled={isRetryDisabled} onClick={() => onRetry('auto')}` → `labels.speakRetry`(`재시도`). 코드와 무관하게 렌더(S3 DC-02 규칙 그대로).
   - 메뉴 핸들러·`tabIndex` 없음(S3 D-11 그대로).
 - **지역 CSS(`PendingBubble.module.css`) 추가: `neutral` 하나.**
 
@@ -162,6 +163,8 @@ export const userAuthorLabel = (authorName: string | null): string =>
 | `renderHistory` → `MessageList` | 새 prop **`isEditSaveLocked={state.writing?.kind === 'speak'}`**(필수). `isEditSaving`(= `writing?.kind==='edit'`)은 그대로 | D-17: 생성 중 편집 저장을 **보이게 비활성**(메인 세션 결정) |
 | `MessageList` → `InlineEditor` | `<InlineEditor … isSaving={isEditSaving} isSaveLocked={isEditSaveLocked} …/>` | 같음 |
 | `InlineEditor` | 새 prop **`isSaveLocked: boolean`**. `canSave = !isSaving && !isSaveLocked && isMessageTextValid(text) && text !== message.text` → **저장 버튼만** `disabled`. 취소 버튼·입력창은 활성(`isSaving`을 재사용하지 않는다 — `isSaving`은 둘 다 잠근다). `isSaveLocked`이면 저장 버튼 `aria-describedby`가 가리키는 숨은 안내 `labels.editSaveLockedNote` 1줄을 렌더 | components.md §2.7 · AU §6·§7 |
+| `MessageList` 내부 분해(v1.9.1 실물) | 50줄 한계로 지역 컴포넌트 **`MessageRows`**를 뺐다: `<ol>` 안 메시지 `<li>`(`MessageItem`) + 끝의 `pending` `<li>` 하나. props = `MessageListProps`에서 스크롤 박스·B0·B1 몫(`containerRef`·`onScroll`·`isLoadingOlder`·`olderError`·`onRetryOlder`·`unseenCount`·`onShowNewest`)을 뺀 나머지. `MessageList`는 래퍼·log·`OlderStatus`·배지만 그리고 나머지를 `MessageRows`에 넘긴다. DOM은 분해 전과 같다 | components.md §2.1 |
+| `InlineEditor` 내부 분해(v1.9.1 실물) | 지역 컴포넌트 **`EditorActions`**(props `isSaving`·`isSaveLocked`·`canSave`·`onSave: () => void`·`onCancel`)가 버튼 줄(취소·저장)과 숨은 안내 `<span id={useId()} className={styles.srOnly}>`를 그린다. 저장 버튼의 `aria-describedby`는 지역 훅 **`useDescribedBy(buttonRef, id \| null)`**가 `useLayoutEffect`로 걸고 푼다(공용 `Button`에 해당 prop이 없다 — AU §8 D-23). `canSave` 계산은 `InlineEditor` 본체에 남는다 | components.md §2.7 · D-23 |
 
 ---
 
@@ -177,8 +180,10 @@ export const userAuthorLabel = (authorName: string | null): string =>
 | **F-CH-43** | `userAuthorLabel(authorName: string \| null): string` (`labels.ts`) | 메시지 `authorName` | 표기 | AU §2.2 | — | R-CHAT-002 🔒 · R-AUTH-004 🔒 |
 | **F-CH-44** | `speakingCharacterOf(s: ChatState): CharacterId \| null` (`state/chat.ts`) | 상태 | 값 | AU §1.1 | — | R-CHAT-013 · 005 |
 
-- `useMessageWrites` 결과 타입: `speakAs: (target: SpeakTarget) => Promise<void>`. 옵션은 그대로(`onRoomGone` 포함). 파일은 현재 약 256줄 → `runSpeak` 추출로 `useSpeak`가 줄고 `useSend`가 약 15줄 늘어 **약 275줄**(400줄 안). `useSend` 콜백은 50줄 안(선계산·분기 포함 약 30줄).
-- 파일 머리 주석의 "전송은 appendUser 한 곳뿐이다 — AI 를 부르지 않는다(R-CHAT-006)"는 S3d 문구로 바꾼다: "전송 = appendUser → 저장 성공이면 같은 팻말로 speak('auto')(R-CHAT-006 · 014)".
+- `useMessageWrites` 결과 타입: `speakAs: (target: SpeakTarget) => Promise<void>`. 옵션은 그대로(`onRoomGone` 포함). **(v1.9.1 실물)** 조립 순서: `gate = useWriteGate(dispatch, getState)` → `runSpeak = useRunSpeak(options, gate)` → `send: useSend(options, gate, runSpeak)` · `speakAs: useSpeak(options, gate, runSpeak)` · 나머지 셋은 `(options, gate)`. 지역 타입 `type RunSpeak = (target: SpeakTarget) => Promise<void>`. F-CH-17 ⑥의 선계산은 `chatReducer(getState(), action).writing?.kind !== 'speak'` 한 식으로 쓴다(변수 `next` 없음, 동작 같음). 파일 289줄(400줄 안), `useSend` 콜백 약 30줄.
+- 파일 머리 주석은 S3d 문구 "전송 = appendUser → 저장 성공이면 같은 팻말로 speak('auto')(R-CHAT-006 · 014)"로 바뀌었다(실물 확인).
+- **(v1.9.1 실물) F-CH-33 `onRoomGone`** 은 `useChatScreen.ts` 지역 훅 **`useRoomGone(onBack)`**(`useCallback([onBack])`: `clearLastRoomId()` → `onBack()`)이 만든다. 동작은 functions.md F-CH-33 그대로이고 50줄 한계로 `useChatWrites`에서 뺐을 뿐이다. F-CH-32는 같은 파일 지역 훅 `useRetrySpeak(speakAs, focusLog)`다.
+- **(v1.9.1 실물) `useChatScreen` 반환의 `write`** = `{ toast, send, speakAs, retrySpeak, saveEdit, sheets }`. `index.tsx`는 `Footer onSpeak={write.speakAs}` · `renderHistory onRetrySpeak={write.retrySpeak}`로 쓴다.
 
 ---
 
@@ -250,7 +255,7 @@ export const userAuthorLabel = (authorName: string | null): string =>
 | `speakErrorText(error)`(S3 재사용) | generate.md §3 표 | 중립 실패 `role=alert` 문구 |
 | **`userAuthorLabel(authorName)`**(함수) | 받은 값 / 비었으면 `USER_DISPLAY_NAME`(`어떠한 의지`) | 유저 말풍선 작성자 줄 · 말풍선 메뉴 머리 |
 | ~~`unknownAuthor`~~ | ~~`이름 없음`~~ **삭제** | — |
-| **`editSaveLockedNote`** | `응답을 만드는 중에는 저장할 수 없습니다` | 인라인 수정 저장 버튼이 생성 중 잠겼을 때의 숨은 안내(`aria-describedby`, `.srOnly` 계열 지역 클래스). 잠금이 풀리면 미렌더 |
+| **`editSaveLockedNote`** | `응답을 만드는 중에는 저장할 수 없습니다` | 인라인 수정 저장 버튼이 생성 중 잠겼을 때의 숨은 안내(`aria-describedby`). 클래스는 `InlineEditor.module.css` 지역 **`.srOnly`**(v1.9.1 실물: `position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap` — PendingBubble `.srOnly`와 같은 규칙, 기준점은 `.actions`의 `position: relative`). 잠금이 풀리면 미렌더 |
 
 - 캐릭터 이름은 계속 `CHARACTERS[id].shortName`이 단일 소스다. 「어떠한 의지」 리터럴은 labels에 두지 않는다 — 단일 소스는 `shared/src/characters.ts` `USER_DISPLAY_NAME`(api.md §5.5).
 
@@ -280,46 +285,21 @@ export const userAuthorLabel = (authorName: string | null): string =>
 | D-20 | 상태 필드를 늘리지 않고 `PendingSpeak.character`·`MessageWrite.speak.character`의 타입을 `SpeakTarget`으로 넓힌다 | 계약 「ui 인계 메모」 "화면 상태의 생성 대상은 `SpeakTarget`" · 초기값 TC 불변 |
 | D-21 | 유저 작성자 표기는 받은 값 그대로, 비었을 때만 `USER_DISPLAY_NAME`. `unknownAuthor` 삭제 | Q6 · 「ui 인계 메모」 S3d · 인계 패킷 §3 |
 | D-22 | 구성안 §7 구조 제안 2건(보이는 "누가 대답할지 고르는 중" 문구 · 선택 순간 미리 옮기기)은 **미채택** | 요구 밖 · 계층 횡단(위임문 제약) |
+| D-23(v1.9.1 구현 동기화, **우회(지역 훅)**) | 잠긴 저장 버튼의 `aria-describedby`는 공용 `Button`에 해당 prop이 없어 `InlineEditor.tsx` 지역 훅 `useDescribedBy`가 `buttonRef`로 속성을 걸고(잠김) 푼다(풀림). 공용 컴포넌트는 고치지 않았다 | 화면 작업에서 공용 부품 시그니처를 바꾸지 않는다. 정식 해결은 주 문서 §12 공용화 후보 행(Button `ariaDescribedBy?` 추가 후 지역 훅 제거, 후작업 ui-postprocessor) · `component-usage-lessons` 코어 결함 후보 1건(2026-10-07) |
 
 구성안·계약과 다르게 정한 것: **없음.** 구성안이 ui-designer에게 맡긴 두 점(클래스 이름 · 유저 말풍선 표시 시점)만 AU §0에서 정했다.
 
 ---
 
-## 9. 기존 TC 영향 · 신규 TC (TC-CH-098~) — 상세 시나리오는 ui-test-designer 소관
+## 9. 기존 TC 영향 · 신규 TC (TC-CH-098~109) → `design/auto-tests.md`
 
-### 9.1 기존 TC 변경 목록 (s3d-02 §6 확정 — scenarios.md 「변경 대기열」 Q-08로 넘김)
+v1.9.1(2026-10-07)에 40KB 한계 때문에 이 절 전체를 **`design/auto-tests.md`**로 옮겼다. 그 파일이 스펙 실물 위치(`AutoReply.test.tsx` 등)와 시나리오 작성자 결정 대조(§9.3)까지 담는다. 상세 시나리오는 ui-test-designer 소관(`test/scenarios.md` v0.8).
 
-| TC | 지금 단언 | S3d 단언 | 스펙 파일 |
+---
+
+## 10. 변경이력 (이 분할 문서)
+
+| 버전 | 일자 | 변경 | 근거 |
 |---|---|---|---|
-| TC-CH-008 | `authorName=null` → `이름 없음` | `null`·`''` → `어떠한 의지`(`USER_DISPLAY_NAME` import로 비교) | `Bubble.test.tsx` |
-| TC-CH-033 | `appendUser` 외 호출 0회(AI 호출 없음) | `appendUser` 1회 → **`speak(room.id, { character: 'auto' })` 1회**, 그 밖 쓰기·`regenerate` 0회. 응답 fixture `authorName` = `어떠한 의지`로 표시 그대로 | `Composer.test.tsx`(필터 283·309행 조정) |
-| TC-CH-034 | OOC 전송 → `appendUser(…, { ooc: true })` | 같음 + `speak('auto')` 1회(OOC 뒤에도 같은 동작, R-MSG-009) | `Composer.test.tsx` |
-| TC-CH-036 | 응답 뒤 해제 | 저장 응답 뒤에도 잠금 유지 → **speak 결과 뒤 해제**. 입력 `readOnly`는 저장 응답에서 풀림 | `Composer.test.tsx` |
-| TC-CH-038 | 전송 성공 → 맨 아래 / 배지 | 같음(T35가 T9 규칙). speak mock은 대기 상태로 둔다 | `Composer.test.tsx` · `ChatScroll` |
-| TC-CH-063 | 늦은 쓰기 응답 무시 | + 언마운트 뒤 `appendUser` 응답이면 **`speak` 0회** | `AuthTransition` 또는 해당 스펙 |
-| TC-CH-075 | 실패 말풍선 상태에서 유저 전송 성공 → 실패 말풍선 남음 | → 실패 말풍선 **사라지고 중립 "…"**(T35 교체). 다른 두 단언 불변 | `SpeakFlow.test.tsx` |
-| TC-CH-088 | 전송은 AI 호출 없음(speak·regenerate 0회) | **폐기 → TC-CH-098로 대체**(speak `'auto'` 1회, 캐릭터 값 speak 0회, regenerate 0회) | `Composer.test.tsx` |
-| TC-CH-090 | 실패 말풍선 중 전송 대기 → 「재시도」 disabled, 응답 뒤 활성 | 전송 대기 중 disabled는 같음. **저장 응답 뒤에도 세바스찬 버튼 `disabled` 유지**(자동 응답 중), 실패 말풍선은 중립 "…"로 바뀌어 「재시도」가 없다. `speak` 호출 **총 2회**(처음 실패한 세바스찬 1 + 자동 `'auto'` 1)로 단언 변경 | `SpeakFlow.test.tsx` |
-| TC-CH-033 · 034 · 038 · 088 | 목록 `items()` 길이 5 | **6**(T35의 중립 "…" `li` 1개 추가 — speak mock 대기 상태). 088은 폐기 → 098로 옮길 때 같은 보정 | `Composer.test.tsx` |
-| TC-CH-094 | 편집 중 버튼·재시도 disabled, 전송 활성 | 불변. 편집 중 전송의 결과는 신규 TC-CH-107 | — |
-| TC-CH-053 · 085 | T13~T16 · T27~T34 | `SpeakTarget` 값 `'auto'` 케이스 추가(T27·T31). 기존 단언 불변 | `state/chat.test.ts` |
-| 전송 경로가 있는 스펙 공통 | — | `@/api` mock에 `speak` 기본값 = **영원히 대기**(Promise 미해결) 헬퍼. 전송 TC가 의도치 않게 결과·실패로 진행하지 않게 한다 | `AuthTransition` · `BubbleMenu` · `Regenerate` · `ChatScreen` |
-| TC-CH-040 · 079 | 메뉴 머리 이름 | fixture `authorName`이 값이면 불변. `null` fixture면 `어떠한 의지` | `BubbleMenu.test.tsx` |
-
-### 9.2 신규 TC 예약 (TC-CH-098 ~ 109)
-
-| TC | 이름 | 요구 | 종류 | 핵심 단언 |
-|---|---|---|---|---|
-| TC-CH-098 | 전송 → 자동 응답 호출 | R-CHAT-006 🔒 · 014 🔒 | 자동 | `appendUser` 1회 resolve **뒤에** `speak(room.id, { character: 'auto' })` 1회. 캐릭터 값 speak 0회, regenerate 0회. Enter 전송도 같음 |
-| TC-CH-099 | T35 한 커밋 | R-CHAT-014 🔒 | 자동 | 저장 resolve 직후 같은 화면에서: 유저 말풍선(`user`, 작성자 `어떠한 의지`) + 목록 끝 `.pending.neutral` 1개(`img` 0 · `character`/`sebastian`/`ciel`/`user` 클래스 없음 · role=status 이름 `응답을 만드는 중`) + 두 캐릭터 버튼·전송·⋯ `disabled` · 입력 비움·`readOnly` 아님 |
-| TC-CH-100 | 결과 자리 2종 | R-CHAT-014 🔒 · 002 🔒 · R-MSG-009 | 자동 | speak 응답 `speaker:'sebastian'` → `character sebastian`(왼쪽) · `'ciel'` → `character ciel`(오른쪽). `.pending` 0개 · 잠금 해제 · 포커스 이동 없음(입력창 유지) |
-| TC-CH-101 | 저장 실패 → AI 0회 | R-CHAT-006 🔒 · 011 | 자동 | `appendUser` 실패(`INTERNAL`·`RATE_LIMITED`·`TOKEN_INVALID` 각 1) → `speak` 0회 · 입력 유지 · 토스트/전환은 S2 규칙 · 중립 없음 |
-| TC-CH-102 | 중립 실패 | R-CHAT-014 🔒 · 011 · 005 | 자동 | speak(auto) `LLM_FAILED`·`SPEAK_IN_PROGRESS`·`RATE_LIMITED`(retryAfterSec 초 문구)·`LLM_BUDGET_EXCEEDED`·`NETWORK` → 같은 자리 `.pending.neutral.failed` · role=alert 문구 = `speakErrorText` · 「재시도」(이름 `응답 재시도`) · 유저 말풍선 남음 · 토스트 없음 · 잠금 해제 |
-| TC-CH-103 | 중립 재시도 | R-CHAT-014 🔒 | 자동 | 「재시도」 → `speak(room.id, { character: 'auto' })` 추가 1회 · 같은 자리 중립 "…" · 유저 말풍선 추가 0 · 포커스 = 히스토리 log |
-| TC-CH-104 | 끼어들기 0회 | R-CHAT-014 🔒 | 자동 | `appendUser` 대기 중 · 저장 resolve 직후(같은 틱) · speak 대기 중에 캐릭터 버튼 클릭(`disabled` 우회 `fireEvent` 포함)·Enter → `speak` 총 1회(`'auto'`), `appendUser` 1회 |
-| TC-CH-105 | 중립 실패에서 나가는 길 | R-CHAT-014 🔒 · 005 | 자동 | 중립 실패 → 「시엘」 → 중립 없음 · 시엘 임시 말풍선 · 새 전송 201 → 중립 실패 사라짐 · 새 유저 말풍선 + 새 중립 "…" |
-| TC-CH-106 | 자동 응답 인증·방 없음 | R-CHAT-014 🔒 · 011 · 008 | 자동 | speak(auto) `TOKEN_INVALID` → 중립 제거 · 읽기 전용 전환(하단 바·`.pending` DOM에 없음) · 유저 말풍선 남음 / `NOT_FOUND` → `clearLastRoomId`·`onBack` |
-| TC-CH-107 | 편집 중 전송(D-17) | R-CHAT-006 🔒 · 014 🔒 · 007 | 자동 | 편집기 열림 → 전송 → speak(auto) 1회 · 편집기 유지 · 생성 중(`isEditSaveLocked`=true): 편집기 **저장 버튼만 `disabled`** + `aria-describedby` 안내 `응답을 만드는 중에는 저장할 수 없습니다` · **취소 버튼·입력창 활성**(입력 가능, 취소 누르면 편집기 닫힘) · 캐릭터 버튼 disabled · 생성 결과 뒤 저장 버튼 활성(내용 바뀌었으면)·안내 미렌더 · 편집기가 열려 있으면 캐릭터 버튼 계속 disabled(DC-10). 부품 단위: InlineEditor `isSaveLocked` true/false 쌍 |
-| TC-CH-108 | 작성자 표기 | R-CHAT-002 🔒 · R-AUTH-004 🔒 | 자동(부품) | `authorName` `'어떠한 의지'` → 그대로 · 다른 값(옛 데이터 가정 `'미샤'`) → **그대로**(치환 금지) · `null`·`''` → `어떠한 의지`. 말풍선 메뉴 머리도 같은 규칙 · 순수 `userAuthorLabel` 4케이스 |
-| TC-CH-109 | 390×565 스크린샷 2종 | R-CHAT-013 · 014 🔒 | 수동 | 자동 생성 중(유저 말풍선 + 중립 "…") · 자동 실패(중립 실패 + 「재시도」). 구성안 §2.2·§2.4와 대조 |
-| (리듀서) | T35·T36 · T27·T31 `'auto'` · `speakingCharacterOf` | R-CHAT-014 🔒 | 자동(순수) | TC-CH-085 확장 또는 TC-CH-099 순수 행으로 — 번호는 ui-test-designer가 정한다 |
+| v1.9 | 2026-10-06 | 최초 작성(S3d 전체 델타) | CR-002 · s3d-02 §5·§6 |
+| v1.9.1 | 2026-10-07 | **구현 동기화**(ui 660/660): 머리 계약 상태(구현됨) · §2.1 지역 `PendingBody` 공통 본문 · §2.3 `MessageRows`·`EditorActions`·`useDescribedBy` · §3 `useRunSpeak`·`useSend` 선계산 실물·`useRoomGone`·파일 줄 수 · §6 숨은 안내 클래스 · §8 D-23(Button `aria-describedby` 우회) · §9 → `design/auto-tests.md` 분리 | S3d 구현자·시나리오 작성자 보고 |

@@ -7,7 +7,7 @@
  */
 import { useCallback, useLayoutEffect, useRef, useState } from 'react'
 import type { RefObject } from 'react'
-import type { RoomSummary } from '@shared/types'
+import type { RoomSummary, SpeakTarget } from '@shared/types'
 import { useAutoScroll } from '@/components/hooks/useAutoScroll'
 import { clearLastRoomId, loadScrollOffset, saveLastRoomId } from '@/components/utils/storage'
 import { type ChatState, canAutoLoadOlder } from '@/state/chat'
@@ -92,6 +92,26 @@ const useSaveEditAndFocus = (
     [saveEdit, focusLog],
   )
 
+/**
+ * F-CH-32(S3d): 실패 말풍선의 「재시도」. 중립('auto')은 돌아갈 캐릭터 버튼이 없으므로,
+ * 「재시도」 버튼이 언마운트되기 전에 히스토리 log 로 포커스를 옮긴다(D-19). 캐릭터는 F-CH-38 이 같은 캐릭터 버튼으로 돌린다
+ */
+const useRetrySpeak = (speakAs: (target: SpeakTarget) => Promise<void>, focusLog: () => void) =>
+  useCallback(
+    (target: SpeakTarget): void => {
+      if (target === 'auto') focusLog()
+      void speakAs(target)
+    },
+    [speakAs, focusLog],
+  )
+
+/** F-CH-33: 생성 중 방이 사라졌다 — 방 삭제 성공과 같은 흐름(목록 복귀) */
+const useRoomGone = (onBack: () => void) =>
+  useCallback((): void => {
+    clearLastRoomId()
+    onBack()
+  }, [onBack])
+
 /** 쓰기 6종과 시트, 인증 실패 전환(F-CH-16 · F-CH-29 · F-CH-30) */
 const useChatWrites = (
   options: UseChatScreenOptions,
@@ -106,11 +126,7 @@ const useChatWrites = (
 
   const focusLog = useFocusLog(containerRef, backButtonRef)
   const requestLogFocus = useLogFocusAfterCommit(loader.state.phase, focusLog)
-  // F-CH-33: 생성 중 방이 사라졌다 — 방 삭제 성공과 같은 흐름(목록 복귀)
-  const onRoomGone = useCallback((): void => {
-    clearLastRoomId()
-    onBack()
-  }, [onBack])
+  const onRoomGone = useRoomGone(onBack)
   const writes = useMessageWrites({
     roomId: room.id,
     dispatch,
@@ -142,7 +158,8 @@ const useChatWrites = (
     backButtonRef.current?.focus()
   })
   const saveEdit = useSaveEditAndFocus(writes.saveEdit, focusLog)
-  return { toast, send: writes.send, speakAs: writes.speakAs, saveEdit, sheets }
+  const retrySpeak = useRetrySpeak(writes.speakAs, focusLog)
+  return { toast, send: writes.send, speakAs: writes.speakAs, retrySpeak, saveEdit, sheets }
 }
 
 export const useChatScreen = (options: UseChatScreenOptions) => {

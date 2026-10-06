@@ -56,10 +56,14 @@ description: 공용 컴포넌트(ui/src/components/ui·hooks) 사용 시 알려�
 
 ## ⏳ 코어 결함 후보
 
-> 현재 등록 항목: **없음**.
+### Button — ⏳ 코어 결함 후보(미수정)
+- 증상: `Button`에 `aria-describedby`를 전달할 prop이 없다(props에 `ariaLabel`·`buttonRef`는 있으나 `ariaDescribedBy` 없음). 잠긴 버튼에 숨은 안내를 연결할 수단이 없다 (출처: chat 2026-10-07 · CR-002 S3d — 인라인 수정 저장 버튼 생성 중 잠금 안내)
+- 우회: `ui/src/chat/components/InlineEditor.tsx` 지역 훅 `useDescribedBy(buttonRef, id | null)`가 `useLayoutEffect`로 `aria-describedby`를 걸고 푼다. 정식 해결 = `Button`에 `ariaDescribedBy?: string` 추가 후 지역 훅 제거(후작업 ui-postprocessor, chat design.md §12 · design/auto.md §8 D-23)
+- 재현: `Button.test.tsx`에 TC 없음 · Demo 케이스 없음
 
 ## 변경 이력
 
 | 날짜 | 변경 | 주체 |
 |---|---|---|
 | 2026-10-05 | 초판(빈 카탈로그) | 자산 변환 |
+| 2026-10-07 | 코어 결함 후보 1건: Button `aria-describedby` 전달 수단 없음(chat CR-002) | ui-designer(메인 세션 예외 허용) |

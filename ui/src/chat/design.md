@@ -9,7 +9,8 @@
 | 요구 | `ui/src/chat/requirements.md` **v1.9**(확정, S3d 동결) |
 | 구성안 | `doc/200_설계/architecture/ui-layout-01-rooms-chat.md` §2(C1) · §2-1 · §2-2 · §2-4 · (S3d) `ui-layout-03-chat-auto.md` §1~§5 — **수용, 구조 변경 없음**(§7 구조 제안 2건 미채택) |
 | 계약 | `doc/200_설계/contract/api.md` **v0.6**(S3d: §4.9 `authorName` 고정 · §4.13 `'auto'` · §5.2 `SpeakTarget` · §5.5 `USER_DISPLAY_NAME` · §11.15 · 「ui 인계 메모」 S3d) + v0.4.1까지의 §2.4 · §3.2 · §3.4 · §4.3 · §4.5·§4.7~§4.14 · §11.6 · §11.9 · 「ui 인계 메모」 S3·S3b — 확정 |
-| S3d 델타 | **`design/auto.md`**(절 표기 `AU`): 상태 T35·T36 · `SpeakTarget` · PendingBubble 중립 변형 · 유저 작성자 표기 · F-CH-17·31·32 개정 · F-CH-42~44 · 잠금·끼어들기 0회 · 파이프라인 · 문구 · 접근성·읽기 전용 · 결정 D-17~22 · TC 영향·TC-CH-098~109. **다른 분할 문서의 S3 서술과 겹치면 AU가 우선**한다 |
+| S3d 델타 | **`design/auto.md`**(절 표기 `AU`, v1.9.1 구현 동기화): 상태 T35·T36 · `SpeakTarget` · PendingBubble 중립 변형 · 유저 작성자 표기 · F-CH-17·31·32 개정 · F-CH-42~44 · 잠금·끼어들기 0회 · 파이프라인 · 문구 · 접근성·읽기 전용 · 결정 D-17~23. TC 영향·TC-CH-098~109는 **`design/auto-tests.md`**(v1.9.1 분리). **다른 분할 문서의 S3 서술과 겹치면 AU가 우선**한다 |
+| 구현 상태 | S3d 구현 완료(2026-10-07): ui 660/660 · tsc 0 · lint 0 · build 0. CR-002 「적용·미검증」(ui-tester 결과 대기) |
 | 묶음 | S1 · S2 구현 완료 + **S3 상세**: R-CHAT-004(캐릭터 버튼 2) · 005(speak · 임시/실패 말풍선 · 재시도) · 007(재작성) · 011(S3 코드) · 003(speak 트리거) · 002(임시 말풍선 배치) · 013(S3 요소). S4는 §14 |
 | 레이아웃 확정 상태 | **확정**(읽기 전용 판 · 토큰 있음 판 · S3 생성 중/실패/재작성 중 조각). 장기기억 항목(S4)만 **미렌더 자리** |
 | 문서 분할 | 40KB 한계로 분할: **`design/layout.md`**(§0 토큰 있음 판·시트 ASCII = 옛 §2.2, v1.7.1 이전) · `design/components.md`(로컬 컴포넌트·useAutoScroll·스타일) · `design/functions.md`(리듀서·스크롤 계산·상태·기능) · `design/a11y.md`(접근성) · `design/tc.md`(예정 TC 목록, v1.4 분리) · **`design/labels.md`**(§8.1~§8.3 문구·라벨, v1.7 이전) · **`design/generate.md`**(S3 speak·재작성 흐름 = 옛 §6.8·§6.9, 생성 실패 문구 = 옛 §8.4, 결정 D-11~15·A-6, 한계 L-1~3 = 옛 §13.1, v1.7 신규) · **`design/decisions.md`**(§11.2 결정·가정·S1 소급 델타 · §13 contract 변경 요청, v1.7 이전). RTM 본문은 **`design/rtm.md`**(v1.9.1, 실측 42,204바이트로 한계 초과 — 메인 세션 지시로 이전. 이 문서 §15는 참조 한 줄). 절 표기 `L` = labels.md, `G` = generate.md, `D` = decisions.md |
@@ -32,6 +33,7 @@
 | v1.7.1 | 2026-10-06 | **구현 동기화**: F-CH-41을 카운터 state로(functions.md·generate.md D-15) · PendingBubble 본문 `div.body.bodyBox`(components.md §2.12·§4) · 말풍선 메뉴 높이 실측 약 247px ±16px(components.md §0·§2.8) · 재작성 중 흐림은 수동 확인 유지(a11y.md·tc.md TC-CH-092) | S3 구현·테스트 보고(ui 452/452) |
 | v1.8 | 2026-10-06 | **S3b**(R-LLM-007 🔒 · R-API-002 14종): `LLM_BUDGET_EXCEEDED`(429) 화면 처리 — speak 실패 말풍선 + 「재시도」, 재작성 warning 토스트, 카운트다운·자동 재시도·해제 날짜 없음, 전환 없음, `RATE_LIMITED`와 `code`로 구분(G §3 · L §8.1.2 비고). 새 UI·labels 키 없음. TC-CH-096·097. 계약 인용 api.md v0.4.1 | 구축 S3b |
 | v1.9 | 2026-10-06 | **S3d(CR-002, 보강)**: R-CHAT-014 🔒 신규 · R-CHAT-006 🔒·002 🔒 개정. 신규 분할 `design/auto.md`(전체 델타). 주 문서는 머리 표 · §6.3 · §7 E8·E9 행 · §15 RTM만 갱신. components.md §2.2·§2.8 작성자 표기, functions.md §1.1 포인터, labels.md `unknownAuthor` 폐기, scenarios.md 변경 대기열 Q-08. 계약 인용 v0.6 | 사용자 결정 승인 ① 2026-10-06 · s3d-02 §5·§6 · 인계 패킷 §3 |
+| v1.9.1 | 2026-10-07 | **S3d 구현 동기화**(ui 660/660): 머리 표 구현 상태 행 · §11.2 D-23 포인터 · §12 공용화 후보 2행(Button `ariaDescribedBy?` · `.srOnly`). auto.md v1.9.1(§2.1 `PendingBody` · §2.3 `MessageRows`·`EditorActions`·`useDescribedBy` · §3 `useRunSpeak`·`useRoomGone`·`write` 반환 · §6 `.srOnly` · §8 D-23) · 신규 `design/auto-tests.md`(옛 AU §9, 스펙 실물 위치) · components.md §2.1·§2.7·§2.12 · functions.md §4.3 끝 · labels.md §8.1.3 | S3d 구현자·시나리오 작성자 보고 · CR-002 |
 
 ---
 
@@ -262,7 +264,7 @@ api.md **v0.4**를 **인용**한다. 쓰기 래퍼는 전부 `Authorization: Bea
 
 - 쓰기 6종 공통 코드(api.md §4.5): `CONFIG_INVALID`·`TOKEN_REQUIRED`·`TOKEN_INVALID`·`LEVEL_TOO_LOW`·`RATE_LIMITED`(+`retryAfterSec`)·`VALIDATION_ERROR`·`INTERNAL` + 클라이언트 `NETWORK`. 엔드포인트별 `NOT_FOUND`(방·메시지). 화면이 길이를 먼저 막으므로 `VALIDATION_ERROR`는 정상 경로에서 나오지 않는다.
 - 래퍼는 본문을 계약 키로 다시 만든다(여분 키 없음). 화면은 trim하지 않는다(서버 몫).
-- 테스트는 `vi.mock('@/api')`(또는 `@/api/messages`·`@/api/rooms`)로 래퍼를 모킹한다. `fetch`를 모킹하지 않는다. 전송 TC는 (S3d) `appendUser` 1회 → `speak(room.id, { character: 'auto' })` 1회, 그 밖 쓰기·`regenerate`·캐릭터 값 speak 0회를 단언한다(R-CHAT-006 🔒 개정 · TC-CH-098, 옛 "AI 호출 없음" 단언 TC-CH-088은 폐기 — AU §9.1).
+- 테스트는 `vi.mock('@/api')`(또는 `@/api/messages`·`@/api/rooms`)로 래퍼를 모킹한다. `fetch`를 모킹하지 않는다. 전송 TC는 (S3d) `appendUser` 1회 → `speak(room.id, { character: 'auto' })` 1회, 그 밖 쓰기·`regenerate`·캐릭터 값 speak 0회를 단언한다(R-CHAT-006 🔒 개정 · TC-CH-098, 옛 "AI 호출 없음" 단언 TC-CH-088은 폐기 — `design/auto-tests.md` §9.1).
 - (S3) 생성 2종 공통(api.md §4.12): 래퍼 타임아웃·자동 재시도 없음(서버 70초 종결, R-NFR-001) · 같은 방 동시 1건(`409 SPEAK_IN_PROGRESS`, R-MSG-007) · 실패해도 레이트리밋 1회 · `502`·`409`·`400`·`500`이면 저장 없음. 화면은 api.md 「ui 인계 메모」 표를 `design/generate.md` §1~§3으로 옮겼다. `speak`·`regenerate`는 `@/api`에서만 import한다.
 - 미확정 계약 없음. 권고 CR-C-2(`design/decisions.md` §13).
 
@@ -322,7 +324,7 @@ v1.7에서 40KB 한계로 표 본문을 분할 문서로 옮겼다. 절 번호�
 
 ### 11.2 설계 결정·가정 · S1 실물 소급 델타 (v1.4)
 
-→ `design/decisions.md` §11.2(C-1~C-8 · D-5~D-10 · A-4·A-5, v1.7 이전). S3 D-11~D-15·A-6은 `design/generate.md` §4.
+→ `design/decisions.md` §11.2(C-1~C-8 · D-5~D-10 · A-4·A-5, v1.7 이전). S3 D-11~D-15·A-6은 `design/generate.md` §4. S3d D-17~D-23은 `design/auto.md` §8(D-23 = 잠긴 저장 버튼 `aria-describedby`를 지역 훅으로 **우회**, 공용화 후보는 §12).
 
 ---
 
@@ -337,6 +339,8 @@ v1.7에서 40KB 한계로 표 본문을 분할 문서로 옮겼다. 절 번호�
 | `writeErrorText` 인증·레이트리밋 행 | 두 화면 labels | 후보 표시만(rooms design.md §13) |
 | (S3) `SpeakButtons`·`PendingBubble`·`speakErrorText` | chat 로컬 | 캐릭터·생성을 안다, 사용처 chat뿐. 후보 아님 |
 | (S3) `useAutoScroll` `tailKey` | 공용 훅 | 메시지 타입을 모르는 문자열 키라 비종속 유지 |
+| (S3d) 공용 `Button`에 `ariaDescribedBy?: string` prop 추가 | 공용(`ui/src/components/ui/Button`) | **후보(후작업 ui-postprocessor).** 지금은 `InlineEditor.tsx` 지역 훅 `useDescribedBy`가 `buttonRef`로 우회한다(AU §8 D-23 「우회(지역 훅)」). prop이 생기면 지역 훅을 지우고 prop으로 넘긴다. `component-usage-lessons` 코어 결함 후보 등록(2026-10-07) |
+| (S3d) `.srOnly` 규칙 | `PendingBubble.module.css` · `InlineEditor.module.css` 지역 | 같은 규칙이 두 모듈에 있다. 사용처 chat뿐이라 지금은 후보 표시만(전역 유틸 없음, components.md §2.12) |
 
 ---
 

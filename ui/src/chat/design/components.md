@@ -86,15 +86,16 @@ export type MessageListProps = {
   // ── S3 ──
   pending: PendingSpeak | null               // 읽기 전용이면 호출 쪽이 항상 null(F-CH-39)
   isSpeakLocked: boolean                     // !canSpeak(state) → 「재시도」 disabled(편집 중 포함, DC-10)
-  onRetrySpeak: (character: CharacterId) => void
+  onRetrySpeak: (target: SpeakTarget) => void   // S3d: 캐릭터·중립 'auto'
   regeneratingId: number | null              // 재작성 중인 대상 id(없으면 null)
 }
 ```
+- (v1.9.1 실물) `<ol>`과 끝의 pending `<li>`는 지역 `MessageRows`가, 한 칸은 지역 `MessageItem`이 그린다(50줄 한계, DOM 불변 — auto.md §2.3).
 - (S3) `<ol>` 안 메시지 `<li>`들 **뒤**에 `pending !== null`이면 `<li key="pending"><PendingBubble pending={pending} isRetryDisabled={isSpeakLocked} onRetry={onRetrySpeak} /></li>`를 하나 더 둔다(목록 끝 = 임시 자리. 메시지가 0건이어도 MessageList가 렌더된다, F-CH-39). `MessageItem`은 `isRegenerating={message.id === regeneratingId}`를 Bubble에 넘긴다.
 - 렌더: 래퍼 `<div class=wrap>`(`position: relative; flex: 1; min-height: 0`) 안에
   1. 스크롤 박스 `<div ref={containerRef} role="log" aria-live="polite" aria-busy={isLoadingOlder} aria-label={labels.historyAriaLabel} tabIndex={0} onScroll={onScroll}>`(`overflow-y: auto; height: 100%`)
      - 맨 위: 지역 컴포넌트 `OlderStatus`(소급) — `isLoadingOlder` → `InlineStatus kind='loading' message={labels.olderLoading}`. 아니고 `olderError` → `InlineStatus kind='error' message={labels.olderError} actionLabel={labels.retry} onAction={onRetryOlder}`. 둘 다 아니면 없음.
-     - `<ol>` → `messages.map(m => <li key={m.id}>{m.id === editingId ? <InlineEditor message={m} isSaving={isEditSaving} onSave={text => onSaveEdit(m.id, text)} onCancel={onCancelEdit} /> : <Bubble message={m} onOpenMenu={onOpenMenu} />}</li>)`.
+     - `<ol>` → `messages.map(m => <li key={m.id}>{m.id === editingId ? <InlineEditor message={m} isSaving={isEditSaving} isSaveLocked={isEditSaveLocked} onSave={text => onSaveEdit(m.id, text)} onCancel={onCancelEdit} /> : <Bubble message={m} onOpenMenu={onOpenMenu} />}</li>)`.
   2. `unseenCount > 0`이면 `NewMessageBadge label={labels.newMessages} ariaLabel={labels.newMessagesAriaLabel} onClick={onShowNewest}`(스크롤 박스 밖, `position: absolute; right: var(--space-4); bottom: var(--space-2)`).
 - `Bubble`은 `React.memo`. key는 서버 id. `onOpenMenu`는 ChatScreen의 `useCallback` 참조라 말풍선이 다시 그려지지 않는다.
 
@@ -186,11 +187,12 @@ export type ComposerProps = {
 export type InlineEditorProps = {
   message: Message
   isSaving: boolean
+  isSaveLocked: boolean          // S3d: MessageList isEditSaveLocked
   onSave: (text: string) => void
   onCancel: () => void
 }
 ```
-- (S3d) prop `isSaveLocked: boolean`(필수, MessageList `isEditSaveLocked`). 생성(speak) 중 저장만 잠근다. `isSaving`을 재사용하지 않는다 — 취소 버튼·입력은 활성 유지. 잠겨 있으면 저장 버튼 옆 숨은 안내 `labels.editSaveLockedNote`(auto.md §6·§7).
+- (S3d) `isSaveLocked`는 생성 중 저장만 잠근다(취소·입력 활성, `isSaving` 재사용 안 함). (v1.9.1 실물) 버튼 줄은 지역 `EditorActions`, 숨은 안내 `labels.editSaveLockedNote`(지역 `.srOnly`)의 `aria-describedby`는 지역 훅 `useDescribedBy`가 건다(D-23 우회) — auto.md §2.3.
 - 로컬 상태: `text`(초기 `message.text`). `canSave = !isSaving && !isSaveLocked && isMessageTextValid(text) && text !== message.text`(S3d `!isSaveLocked` 추가).
 - 렌더: `<div role="group" aria-label={labels.editAriaLabel} class={cx(editor, variantClass)}>` — 정렬은 원래 말풍선 변형과 같다(v1.6: `sebastian` 왼쪽 · `ciel` 오른쪽 · `user`·`ooc` 가운데. 폭은 캐릭터 `--bubble-max-width`, 유저·OOC `--bubble-user-max-width`). 클래스는 `cx(styles.editor, styles[bubbleVariantOf(message)])`. 안: `TextArea value onChange ariaLabel={labels.editInputAriaLabel} maxRows={6} maxChars={MESSAGE_TEXT_MAX_CHARS} counterMode='overflow' onEscape={isSaving ? undefined : onCancel} isReadOnly={isSaving}` + 버튼 줄(오른쪽 정렬) `Button sm secondary isDisabled={isSaving}` 취소 · `Button sm primary isDisabled={!canSave}` 저장.
 - Enter는 줄바꿈이다(`onEnter` 없음). 저장은 버튼으로만.
@@ -284,10 +286,10 @@ export type SpeakButtonsProps = {
 export type PendingBubbleProps = {
   pending: PendingSpeak                       // functions.md §1
   isRetryDisabled: boolean                    // !canSpeak(state)(MessageList isSpeakLocked, CF-05)
-  onRetry: (character: CharacterId) => void   // F-CH-32
+  onRetry: (target: SpeakTarget) => void      // F-CH-32(S3d: 캐릭터·'auto')
 }
 ```
-- **(S3d, CR-002) 중립 변형.** `pending.character`가 `SpeakTarget`으로 넓어졌다. `'auto'`면 같은 파일의 지역 `NeutralPending`을 그린다: 가운데, 아바타·이름·시각 없음, 본문 상자는 아래와 같은 `bubbleStyles.body` + `bodyBox`, 배경 없음, 지역 클래스 **`neutral`** 추가, Bubble 모듈의 `root`·`character`·`sebastian`·`ciel`·`user`는 붙이지 않는다. 숨은 안내 `응답을 만드는 중`, 실패 「재시도」 aria `응답 재시도`, `onRetry: (target: SpeakTarget) => void`. 캐릭터 값이면 아래 S3 서술 그대로(`CharacterPending`). 정본은 `design/auto.md` §2.1.
+- **(S3d, CR-002) 중립 변형.** `'auto'`면 지역 `NeutralPending`: 가운데, 아바타·이름·시각 없음, 배경 없음, 지역 클래스 **`neutral`**, Bubble 모듈 `root`·`character`·`sebastian`·`ciel`·`user` 없음. 숨은 안내 `응답을 만드는 중`, 「재시도」 aria `응답 재시도`. 캐릭터면 지역 `CharacterPending`(아래 S3 서술). (v1.9.1 실물) 두 변형의 본문 상자는 지역 **`PendingBody`** 공통이다. 정본 `design/auto.md` §2.1.
 - **판정: Bubble 변형이 아니라 별도 로컬 컴포넌트**(`ui/src/chat/components/PendingBubble.tsx`). 근거: Bubble은 서버 `Message`(id·createdAt·text)를 그리고 `memo`·메뉴 핸들러·`bubbleVariantOf`(4변형, CR-001 확정 클래스)를 가진다. 임시 자리는 id·시각·본문이 없고 메뉴가 없어야 한다(R-CHAT-007 말풍선 메뉴의 대상은 서버에 저장된 메시지뿐 — 수정·재작성·삭제 모두 메시지 id가 필요하다. `design/generate.md` §4 D-11). 변형으로 넣으면 `Message`에 가짜 값을 채우거나 Bubble props가 두 갈래가 된다. 구성안 표의 "Bubble(pending/error)"는 **보이는 모양**이 캐릭터 말풍선과 같다는 뜻으로 받는다.
 - **스타일 방식(확정, v1.7 DC-01).** PendingBubble은 **`Bubble.module.css`를 그대로 import**(`import bubbleStyles from './Bubble.module.css'`)해 같은 클래스를 같은 DOM 구조에 붙인다: 루트 `cx(bubbleStyles.root, bubbleStyles.character, bubbleStyles[c], styles.pending, isFailed && styles.failed)` → 자식 `bubbleStyles.avatar` · `bubbleStyles.content` → `bubbleStyles.head`(안에 `bubbleStyles.name`) · `bubbleStyles.body`. 그래서 실물의 자손 선택자(`.sebastian .body`·`.sebastian .name`·`.ciel .head`·`.ciel .content` 등 배경색·거울 배치)가 그대로 걸린다. CSS Modules `composes`는 **쓰지 않는다**(루트만 합성되고 자식의 자손 선택자 대상 클래스가 지역 모듈 이름으로 바뀌어 스타일이 빠진다). 지역 `PendingBubble.module.css`에는 상태·보조 클래스 **`pending`** · **`failed`** · **`bodyBox`**(v1.7.1) · `dots`(`…` 글자색 `--bubble-pending-fg`) · `errorText`·`errorMark`·`retryRow` · **`srOnly`**만 둔다(모양 클래스는 두지 않는다).
 - 배치(R-CHAT-002 🔒 CR-001 유지): `pending.character`가 `sebastian`이면 왼쪽, `ciel`이면 오른쪽(row-reverse). 루트 클래스는 위 「스타일 방식」 그대로라 DOM 클래스에 Bubble 모듈의 `root`·`character`·`sebastian`/`ciel`이 붙고, 자식에 `avatar`·`content`·`head`·`name`·`body`가 붙는다(테스트는 non-scoped 이름으로 `toHaveClass('ciel')` 등 단언). 메시지 말풍선과 구분하는 키는 **`pending`**(루트에 항상)·**`failed`**(실패일 때).

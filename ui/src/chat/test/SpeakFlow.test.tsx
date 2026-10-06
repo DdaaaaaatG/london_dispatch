@@ -234,6 +234,8 @@ beforeEach(() => {
   for (const m of allMocks) m.mockReset()
   mockedList.mockResolvedValue(ok(PAGE))
   vi.mocked(listRooms).mockResolvedValue(ok([ROOM]))
+  // S3d(Q-08): 전송 저장 201 뒤 speak('auto') 기본값 = 영원히 대기. 각 TC 의 mockReturnValueOnce 가 먼저 쓰인다
+  mockedSpeak.mockImplementation(() => new Promise<Result<Message>>(() => {}))
   localStorage.clear()
   clearToken()
   vi.stubGlobal(
@@ -522,7 +524,7 @@ describe('생성 실패·재시도 (R-CHAT-005 · R-CHAT-011)', () => {
     expect(mockedSpeak.mock.calls[1]).toEqual(['r1', { character: 'ciel' }])
   })
 
-  it('TC-CH-075: (b) 실패 말풍선 상태에서 유저 전송 성공 → 실패 말풍선은 목록 끝에 남는다', async () => {
+  it('TC-CH-075: (b) (S3d) 실패 말풍선 상태에서 유저 전송 성공 → 실패 말풍선이 사라지고 목록 끝은 중립 "…"(T35 교체)', async () => {
     mockedAppend.mockResolvedValueOnce(ok(SENT))
     renderChat()
     await screen.findByRole('log')
@@ -530,9 +532,17 @@ describe('생성 실패·재시도 (R-CHAT-005 · R-CHAT-011)', () => {
     fireEvent.change(input(), { target: { value: '안녕' } })
     fireEvent.click(btn('전송'))
     await waitFor(() => expect(items()).toHaveLength(6))
-    expect(lastItem().querySelector('.failed')).not.toBeNull()
+    expect(document.querySelectorAll('.failed')).toHaveLength(0)
+    expect(screen.queryByRole('button', { name: '세바스찬 대사 재시도' })).toBeNull()
+    const root = lastItem().firstElementChild as HTMLElement
+    for (const c of ['pending', 'neutral']) expect(root.classList.contains(c)).toBe(true)
+    expect(root.classList.contains('sebastian')).toBe(false)
     expect((items()[4] as HTMLElement).textContent).toContain('안녕')
     expect(mockedAppend.mock.calls).toEqual([['r1', { text: '안녕', ooc: false }]])
+    expect(mockedSpeak.mock.calls).toEqual([
+      ['r1', { character: 'sebastian' }],
+      ['r1', { character: 'auto' }],
+    ])
   })
 
   it('TC-CH-075: (c) 실패 말풍선 → 언마운트(‹ 뒤로) → 재마운트 → pending 0개, speak 재호출 없음', async () => {
@@ -686,7 +696,7 @@ describe('빈 방 첫 speak (R-CHAT-005 · R-CHAT-003)', () => {
     installScrollMock()
     mockedList.mockResolvedValue(ok(EMPTY))
     renderChat()
-    expect((await screen.findByRole('status')).textContent).toContain('아직 대화가 없습니다')
+    expect(await screen.findByText('아직 대화가 없습니다')).toBeTruthy()
     const d = startSpeak(SEB)
     expect(screen.queryByText('아직 대화가 없습니다')).toBeNull()
     expect(items()).toHaveLength(1)
@@ -779,7 +789,7 @@ describe('포커스 (R-CHAT-013 · R-CHAT-005)', () => {
 })
 
 describe('「재시도」·생성 잠금 (R-CHAT-005 · R-CHAT-007)', () => {
-  it('TC-CH-090: 실패 말풍선 표시 중 유저 전송 대기 → 「재시도」·캐릭터 버튼 disabled → 응답 뒤 활성', async () => {
+  it('TC-CH-090: (S3d) 실패 말풍선 표시 중 유저 전송 대기 → 「재시도」·캐릭터 버튼 disabled → 저장 응답 뒤에도 캐릭터 버튼 disabled(자동 응답 중), 실패 말풍선은 중립 "…"로 바뀌어 「재시도」 없음, speak 총 2회', async () => {
     renderChat()
     await screen.findByRole('log')
     await failOnce(SEB)
@@ -792,9 +802,12 @@ describe('「재시도」·생성 잠금 (R-CHAT-005 · R-CHAT-007)', () => {
     await act(async () => {
       d.resolve(ok(SENT))
     })
-    expect(btn('세바스찬 대사 재시도').disabled).toBe(false)
-    expect(btn(SEB).disabled).toBe(false)
-    expect(mockedSpeak).toHaveBeenCalledTimes(1)
+    expect(screen.queryByRole('button', { name: '세바스찬 대사 재시도' })).toBeNull()
+    expect(btn(SEB).disabled).toBe(true)
+    expect(btn(CIEL).disabled).toBe(true)
+    expect(document.querySelectorAll('.pending.neutral')).toHaveLength(1)
+    expect(mockedSpeak).toHaveBeenCalledTimes(2)
+    expect(mockedSpeak.mock.calls[1]).toEqual(['r1', { character: 'auto' }])
   })
 
   it('TC-CH-094: 인라인 수정 열림 → 캐릭터 버튼·「재시도」 disabled, 클릭해도 speak 0회 추가, 전송은 활성 → 편집 취소 → 활성', async () => {

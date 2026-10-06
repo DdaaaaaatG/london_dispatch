@@ -6,7 +6,7 @@
 | 요구 확정 상태 | **확정** |
 | 확정일 | 2026-10-05 (전체 요구 승인 ① 2026-10-05T19:06, `doc/100_요구조건/requirements.md` §11) |
 | 이번 묶음 | S1 · S2 · S3 · S3b 구현 완료 · **S3d(보강 — 전송 뒤 자동 응답 R-CHAT-014 🔒 신규 · R-CHAT-002 🔒·R-CHAT-006 🔒 개정, CR-002)** — 상세 설계 대상은 R-CHAT-014·006·002 · 영향 R-CHAT-005·004·011·013 |
-| 요구 버전 | **v1.9**(S3d 동결, 2026-10-06) |
+| 요구 버전 | **v1.9**(S3d 동결, 2026-10-06) · v1.9.1 실물 대조 기록(원문 변경 없음) |
 | 소유 | ui-designer |
 
 ## 변경이력
@@ -22,6 +22,7 @@
 | v1.7 | 2026-10-06 | S3 착수: 묶음 열 갱신(요구 원문 변경 없음). §1.1 참조 행 R-MSG-003·006·007·R-NFR-001 추가. §2 U-CH-09·10 S3 활성. §3 speak·regenerate 재사용(api.md v0.4 확정), 계약 인용 v0.4. §4 S3 새 라이브러리 없음 | 구축 S3 |
 | v1.8 | 2026-10-06 | S3b: R-CHAT-011 묶음 열에 S3b(`LLM_BUDGET_EXCEEDED`) 추가(요구 원문 변경 없음). §1.1 참조 행 R-LLM-007·R-API-002(14종 개정) 추가. §3 계약 인용 v0.4.1 | 구축 S3b · R-LLM-007 🔒 · R-API-002 개정(사용자 승인 2026-10-06) |
 | v1.9 | 2026-10-06 | **S3d(CR-002)**: R-CHAT-014 🔒 신규 전사. R-CHAT-002 🔒·R-CHAT-006 🔒 개정 원문 재전사(옛 행은 `폐기(CR-002로 대체)`로 보존). §1.1 R-MSG-003 개정 재전사·R-MSG-009 🔒·R-LLM-008·R-AUTH-004(개정) 행. §2 U-CH-08 폐기 → U-CH-13. §3 E8 응답 `authorName` 고정·E9 `'auto'`, 계약 인용 v0.6. §5 확정 문구(S3d) 신설 | 사용자 결정 승인 ① 2026-10-06(Q2·Q4·Q5·Q6·Q7) · `doc/100_요구조건/requirements.md` S3d 개정 |
+| v1.9.1 | 2026-10-07 | S3d 구현 뒤 §5 확정 문구를 `ui/src/chat/labels.ts` 실물과 대조 — 7행 모두 일치(`autoPendingStatus`·`autoRetryAriaLabel`·`editSaveLockedNote`·`userAuthorLabel`·`unknownAuthor` 삭제 확인). §3 계약 행의 "contract 구현 대기"는 구현 완료(ui가 `SpeakTarget`·`USER_DISPLAY_NAME` import). **요구 원문 변경 없음** | S3d 구현 완료(ui 660/660) · CR-002 |
 
 ---
 

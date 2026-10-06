@@ -22,9 +22,20 @@
   margin-inline: auto;
 }
 
-/* 버튼 줄은 오른쪽 정렬 */
+/* 버튼 줄은 오른쪽 정렬. 숨은 안내(srOnly)의 위치 기준점 */
 .actions {
+  position: relative;
   display: flex;
   justify-content: flex-end;
   gap: var(--space-2);
+}
+
+/* S3d: 생성 중 잠긴 저장 버튼의 숨은 안내(aria-describedby). 보이지 않는다 */
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
 }

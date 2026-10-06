@@ -3,6 +3,7 @@
  * JSX·유틸에 한글 문구 리터럴을 직접 쓰지 않는다(aria-label · 오류 문구 포함).
  * 캐릭터 이름은 여기가 아니라 CHARACTERS[id].shortName(shared)이 단일 소스다(R-LLM-002).
  */
+import { USER_DISPLAY_NAME } from '@shared/characters'
 import { ERROR_MESSAGES } from '@shared/errors'
 import { MESSAGE_TEXT_MAX, ROOM_TITLE_MAX } from '@shared/limits'
 import type { ApiError, ApiErrorCode } from '@/api'
@@ -22,8 +23,6 @@ export const labels = {
   oocPrefix: '[지시]',
   /** OOC 앞뒤 장식(aria-hidden) */
   oocDecor: '—',
-  /** 유저 말풍선 authorName 이 null 일 때 */
-  unknownAuthor: '이름 없음',
   newMessages: '새 메시지',
   newMessagesAriaLabel: '새 메시지 보기, 맨 아래로 이동',
   readOnlyNotice: '열람 전용 - 대화 참여는 등급 회원만',
@@ -64,7 +63,18 @@ export const labels = {
   speakRetryAriaLabel: (name: string): string => `${name} 대사 재시도`,
   regenerate: '재작성',
   regeneratingNote: '다시 쓰는 중…',
+  // ── S3d (design/auto.md §6) ──
+  /** 중립 "…" 말풍선 생성 중 role=status 숨은 안내 */
+  autoPendingStatus: '응답을 만드는 중',
+  /** 중립 실패 「재시도」 접근 이름(보이는 글자 `재시도` 포함) */
+  autoRetryAriaLabel: '응답 재시도',
+  /** 생성 중 잠긴 인라인 수정 저장 버튼의 숨은 안내(aria-describedby) */
+  editSaveLockedNote: '응답을 만드는 중에는 저장할 수 없습니다',
 } as const
+
+/** 유저 말풍선·메뉴 머리의 작성자 표기(F-CH-43). 받은 값을 그대로 쓰고, 비었을 때만 고정 명칭(R-CHAT-002 · R-AUTH-004) */
+export const userAuthorLabel = (authorName: string | null): string =>
+  authorName === null || authorName === '' ? USER_DISPLAY_NAME : authorName
 
 const NETWORK_TEXT = '서버에 연결할 수 없습니다.'
 const ROOM_NOT_FOUND_TEXT = '방을 찾을 수 없습니다. 목록으로 돌아가 주세요.'

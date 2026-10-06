@@ -3,12 +3,12 @@
  * 요구: R-CHAT-004 · R-CHAT-005 · R-CHAT-006 · R-CHAT-007 · R-CHAT-011 · R-MSG-002 · R-MSG-003 · R-MSG-004 · R-MSG-005 · R-MSG-006 · R-AUTH-004
  * 메시지 쓰기 5종(전송 · 수정 저장 · 삭제 · AI 발화 speak · 재작성 regenerate)을 @/api 래퍼로 보내고 결과를 리듀서에 반영한다. 낙관적 갱신 없음.
  * 직렬화: 쓰기는 writing 하나로 한 번에 하나다. 같은 틱 연타는 inFlightRef 가, 이후는 canSend(상태)가 막는다. 디바운스 없음.
- * 전송은 appendUser 한 곳뿐이다 — AI 를 부르지 않는다(R-CHAT-006). 응답이 언마운트 뒤에 오면(isActive) 아무것도 하지 않는다.
+ * 전송 = appendUser → 저장 성공이면 같은 팻말로 speak('auto')(R-CHAT-006 · 014). 응답이 언마운트 뒤에 오면(isActive) 아무것도 하지 않는다.
  * speak·regenerate 는 화면 타이머·자동 재시도가 없다(서버가 70초 안에 끝낸다).
  */
 import { useCallback, useRef } from 'react'
 import type { Dispatch } from 'react'
-import type { CharacterId } from '@shared/types'
+import type { SpeakTarget } from '@shared/types'
 import {
   type ApiError,
   appendUser,
@@ -59,8 +59,8 @@ export type UseMessageWritesResult = {
   /** true = 수정 반영됨 */
   saveEdit: (messageId: number, text: string) => Promise<boolean>
   removeMessage: (messageId: number) => Promise<RemoveResult>
-  /** F-CH-31: 캐릭터 1턴(임시 말풍선 → 결과 말풍선 또는 실패 말풍선) */
-  speakAs: (character: CharacterId) => Promise<void>
+  /** F-CH-31: 캐릭터 버튼 · 「재시도」(캐릭터·중립 'auto'). 임시 말풍선 → 결과 말풍선 또는 실패 말풍선 */
+  speakAs: (target: SpeakTarget) => Promise<void>
   /** F-CH-34: 마지막 캐릭터 대사 재작성 */
   regenerateMessage: (messageId: number) => Promise<RegenerateResult>
 }
@@ -87,28 +87,47 @@ const useWriteGate = (dispatch: Dispatch<ChatAction>, getState: () => ChatState)
 }
 
 type Gate = ReturnType<typeof useWriteGate>
+/** F-CH-42: 팻말이 이미 걸린 상태에서 speak 를 부르고 결과를 반영한다 */
+type RunSpeak = (target: SpeakTarget) => Promise<void>
 
-/** F-CH-17: 전송 = appendUser(AI 호출 없음). 맨 아래 근처 판단은 응답 시점(붙이기 전)에 한다 */
-const useSend = (options: UseMessageWritesOptions, gate: Gate) => {
-  const { roomId, dispatch, isActive, isNearBottom, onFailure } = options
+/**
+ * F-CH-17(S3d): 전송 = appendUser → 저장 성공이면 같은 팻말로 speak('auto')(T13 → T35). 맨 아래 근처 판단은 응답 시점(붙이기 전)에 한다.
+ * 팻말은 저장 시작부터 생성 끝까지 내리지 않는다(끼어들기 0회). 자동 응답의 끝은 기다리지 않는다 — true(저장됨)로 Composer 가 입력을 비운다
+ */
+const useSend = (options: UseMessageWritesOptions, gate: Gate, runSpeak: RunSpeak) => {
+  const { roomId, dispatch, getState, isActive, isNearBottom, onFailure } = options
   const { begin, release } = gate
   return useCallback(
     async (text: string, ooc: boolean): Promise<boolean> => {
       if (!isMessageTextValid(text)) return false
       if (!begin({ type: 'writeStarted', write: { kind: 'send' } })) return false
       const result = await appendUser(roomId, { text, ooc })
-      release()
-      if (!isActive()) return false
+      if (!isActive()) {
+        release()
+        return false
+      }
       if (!result.ok) {
+        release()
         dispatch({ type: 'writeFinished' })
         onFailure(result.error, 'send')
         return false
       }
-      dispatch({ type: 'messagesAppended', messages: [result.value], isNearBottom: isNearBottom() })
-      dispatch({ type: 'writeFinished' })
+      const action: ChatAction = {
+        type: 'sendSucceeded',
+        message: result.value,
+        isNearBottom: isNearBottom(),
+      }
+      // 순수 선계산: T35 가 걸리지 않으면(T36, 도달 불가 방어) 자동 응답 없이 팻말을 내린다
+      if (chatReducer(getState(), action).writing?.kind !== 'speak') {
+        release()
+        dispatch({ type: 'writeFinished' })
+        return false
+      }
+      dispatch(action)
+      void runSpeak('auto')
       return true
     },
-    [roomId, begin, release, dispatch, isActive, isNearBottom, onFailure],
+    [roomId, begin, release, dispatch, getState, isActive, isNearBottom, onFailure, runSpeak],
   )
 }
 
@@ -179,15 +198,13 @@ const settleSpeakFailure = (deps: SpeakFailureDeps, error: ApiError): void => {
   dispatch({ type: 'speakFailed', error })
 }
 
-/** F-CH-31: 캐릭터 1턴. 본문은 character 뿐이다(대화 내용은 보내지 않는다) */
-const useSpeak = (options: UseMessageWritesOptions, gate: Gate) => {
-  const { roomId, dispatch, getState, isActive, isNearBottom, onFailure, onRoomGone } = options
-  const { begin, release } = gate
+/** F-CH-42: speak 호출 + 결과 반영(T29 / T31 / T33). 응답이 오면 팻말을 내린다. 본문은 대상 하나뿐이다(대화 내용은 보내지 않는다) */
+const useRunSpeak = (options: UseMessageWritesOptions, gate: Gate): RunSpeak => {
+  const { roomId, dispatch, isActive, isNearBottom, onFailure, onRoomGone } = options
+  const { release } = gate
   return useCallback(
-    async (character: CharacterId): Promise<void> => {
-      if (!canSpeak(getState())) return
-      if (!begin({ type: 'speakStarted', character })) return
-      const result = await speak(roomId, { character })
+    async (target: SpeakTarget): Promise<void> => {
+      const result = await speak(roomId, { character: target })
       release()
       if (!isActive()) return
       if (!result.ok) {
@@ -196,7 +213,21 @@ const useSpeak = (options: UseMessageWritesOptions, gate: Gate) => {
       }
       dispatch({ type: 'speakSucceeded', message: result.value, isNearBottom: isNearBottom() })
     },
-    [roomId, begin, release, dispatch, getState, isActive, isNearBottom, onFailure, onRoomGone],
+    [roomId, release, dispatch, isActive, isNearBottom, onFailure, onRoomGone],
+  )
+}
+
+/** F-CH-31(S3d): 캐릭터 버튼 · 「재시도」(캐릭터·중립). 시작 조건(canSpeak · 팻말)을 통과하면 runSpeak */
+const useSpeak = (options: UseMessageWritesOptions, gate: Gate, runSpeak: RunSpeak) => {
+  const { getState } = options
+  const { begin } = gate
+  return useCallback(
+    async (target: SpeakTarget): Promise<void> => {
+      if (!canSpeak(getState())) return
+      if (!begin({ type: 'speakStarted', character: target })) return
+      await runSpeak(target)
+    },
+    [getState, begin, runSpeak],
   )
 }
 
@@ -246,11 +277,12 @@ const useRegenerate = (options: UseMessageWritesOptions, gate: Gate) => {
 
 export const useMessageWrites = (options: UseMessageWritesOptions): UseMessageWritesResult => {
   const gate = useWriteGate(options.dispatch, options.getState)
+  const runSpeak = useRunSpeak(options, gate)
   return {
-    send: useSend(options, gate),
+    send: useSend(options, gate, runSpeak),
     saveEdit: useSaveEdit(options, gate),
     removeMessage: useRemoveMessage(options, gate),
-    speakAs: useSpeak(options, gate),
+    speakAs: useSpeak(options, gate, runSpeak),
     regenerateMessage: useRegenerate(options, gate),
   }
 }
