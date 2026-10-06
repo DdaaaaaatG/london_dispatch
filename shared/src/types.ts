@@ -84,6 +84,57 @@ export type SpeakBody = {
   character: CharacterId
 }
 
+/** 캐릭터 1명의 설정 필드 (R-SET-002). id·표시명·아바타는 없다(CHARACTERS 가 단일 소스). 화면 이름·상한은 shared/src/settings.ts */
+export type CharacterSettingFields = {
+  /** 원작·장르. 선택 */
+  sourceMaterial: string
+  /** 나이. 선택 */
+  age: string
+  /** 성별. 선택 */
+  gender: string
+  /** 신분·직업. 선택 */
+  role: string
+  /** 성격·배경. 필수 */
+  persona: string
+  /** 성격 태그. 선택 */
+  personalityTags: string
+  /** 외형. 선택 */
+  appearance: string
+  /** 관계 메모. 선택 */
+  relationships: string
+  /** 말투. 필수 */
+  speech: string
+  /** 샘플 대사(한 줄에 하나). 빈 배열 허용 */
+  sampleDialogue: string[]
+  /** 규칙·금기(한 줄에 하나). 빈 배열 허용 */
+  rules: string[]
+}
+
+/** 캐릭터 설정 본체 — API·D1·내보내기 파일 공통, 전체 교체 단위 (R-SET-002). outputRules 는 없다(편집 불가, R-SET-006) */
+export type CharacterSettings = {
+  /** 공통 세계관. 필수 */
+  world: string
+  /** 정확히 두 키(sebastian · ciel) */
+  characters: Record<CharacterId, CharacterSettingFields>
+}
+
+/** GET · PUT /api/settings/characters 응답 (R-SET-004 · R-SET-005). 저장자 mbId 는 싣지 않는다 (R-AUTH-006) */
+export type CharacterSettingsResponse = {
+  /** 정규화된 본체(앞뒤 trim · 목록 빈 항목 제거) */
+  settings: CharacterSettings
+  /** 0 = 시드 사용 중. 저장할 때마다 증가(단조 증가만 약속) */
+  version: number
+  /** epoch ms. 시드면 null */
+  updatedAt: number | null
+  /** true = 저장값이 없거나 저장 행이 깨져 시드를 쓰는 중 */
+  isDefault: boolean
+}
+
+/** PUT /api/settings/characters 본문 (R-SET-005). settings 안은 strict, 바깥 모르는 키는 버린다 */
+export type PutCharacterSettingsBody = {
+  settings: CharacterSettings
+}
+
 /** 모든 실패 응답 본문 (R-API-002) */
 export type ApiErrorBody = {
   error: {

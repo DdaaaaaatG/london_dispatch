@@ -48,9 +48,9 @@ const AUTH_FAILURE_CODES: readonly ApiErrorCode[] = [
 ]
 export const isAuthFailure = (error: ApiError): boolean => AUTH_FAILURE_CODES.includes(error.code)
 
-/** api 폴더 내부 전용. auth = 쓰기 요청(토큰 헤더 부착). index 에서 내보내지 않는다 */
+/** api 폴더 내부 전용. auth = 토큰 헤더 부착(쓰기 + 설정 GET). index 에서 내보내지 않는다 */
 export type RequestOptions = {
-  method?: 'GET' | 'POST' | 'PATCH' | 'DELETE'
+  method?: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE'
   body?: unknown
   auth?: boolean
 }

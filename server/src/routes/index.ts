@@ -8,8 +8,10 @@ import type { AppEnv } from '../services'
 import { healthRoutes } from './health'
 import { messagesRoutes } from './messages'
 import { roomsRoutes } from './rooms'
+import { settingsRoutes } from './settings'
 
 export const apiRoutes = new Hono<AppEnv>()
 apiRoutes.route('/', healthRoutes)
 apiRoutes.route('/', roomsRoutes)
 apiRoutes.route('/', messagesRoutes)
+apiRoutes.route('/', settingsRoutes)

@@ -1,5 +1,7 @@
+import { checkCharacterSettings } from '@shared/settings'
 import type { CharacterId } from '@shared/types'
 import { z } from 'zod'
+import { characterSettingsSchema } from '../settings'
 
 /** 경로 :id — 문자열 그대로. 존재 판정은 서비스(NOT_FOUND) */
 export const roomIdParam = z.object({ id: z.string().min(1) })
@@ -45,3 +47,17 @@ const CHARACTER_IDS = ['sebastian', 'ciel'] as const satisfies readonly Characte
 
 /** POST /api/rooms/:id/speak 본문. 두 값 밖 → 400 VALIDATION_ERROR(기본 문구) (api.md §4.13) */
 export const speakBody = z.object({ character: z.enum(CHARACTER_IDS) })
+
+/** E16 본문(PUT 캐릭터 설정). 봉투 모르는 키는 버리고, settings 안은 server 스키마가 strict (api.md §4.16) */
+export const putCharacterSettingsBody = z.object({ settings: characterSettingsSchema })
+
+/** E16 400 문구 — 판정은 zod, 문구는 shared 사전 검사의 첫 위반 1건. 둘이 어긋나면 undefined → 기본 문구 */
+export const settingsIssueMessage = (data: unknown): string | undefined => {
+  const settings =
+    typeof data === 'object' && data !== null && 'settings' in data ? data.settings : undefined
+  const checked = checkCharacterSettings(settings)
+  return checked.ok ? undefined : checked.issue.message
+}
+
+/** E16 본문 상한 초과 문구 (api.md §4.16 판정 4) */
+export const SETTINGS_BODY_TOO_LARGE = '공통 · 설정 본문은 128KB 이하여야 합니다.'

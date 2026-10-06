@@ -10,7 +10,9 @@ import { AppError } from '../app-error'
 export const validate = <Target extends keyof ValidationTargets, Schema extends ZodType>(
   target: Target,
   schema: Schema,
+  /** 실패 문구를 정하는 함수(E16). undefined 를 돌려주거나 생략하면 기본 문구 (api.md §4.16) */
+  toMessage?: (data: unknown) => string | undefined,
 ) =>
   zValidator(target, schema, result => {
-    if (!result.success) throw new AppError('VALIDATION_ERROR')
+    if (!result.success) throw new AppError('VALIDATION_ERROR', toMessage?.(result.data))
   })

@@ -16,13 +16,14 @@ const EXPECTED_STATUS = {
   LLM_EMPTY: 502,
   LLM_BUDGET_EXCEEDED: 429,
   CONFIG_INVALID: 500,
+  OWNER_ONLY: 403,
   INTERNAL: 500,
 } as const
 
 describe('API-T-040 error_table_matches_contract', () => {
-  it('코드 집합이 계약 14종과 같다', () => {
+  it('코드 집합이 계약 15종과 같다', () => {
     expect([...ERROR_CODES].sort()).toEqual(Object.keys(EXPECTED_STATUS).sort())
-    expect(ERROR_CODES).toHaveLength(14)
+    expect(ERROR_CODES).toHaveLength(15)
   })
 
   it('모든 코드에 status가 있고 계약 표와 같다', () => {
@@ -60,5 +61,15 @@ describe('API-T-048 errors_include_budget_exceeded', () => {
       '이번 달 AI 사용 한도에 닿았습니다. 다음 달에 다시 시도해 주세요.',
     )
     expect(isErrorCode('LLM_BUDGET_EXCEEDED')).toBe(true)
+  })
+})
+
+describe('API-T-049 errors_include_owner_only', () => {
+  it('CONFIG_INVALID 다음·INTERNAL 앞, 403, 계약 문구', () => {
+    expect(ERROR_CODES.indexOf('OWNER_ONLY')).toBe(ERROR_CODES.indexOf('CONFIG_INVALID') + 1)
+    expect(ERROR_CODES[ERROR_CODES.indexOf('OWNER_ONLY') + 1]).toBe('INTERNAL')
+    expect(ERROR_STATUS.OWNER_ONLY).toBe(403)
+    expect(ERROR_MESSAGES.OWNER_ONLY).toBe('캐릭터 설정은 갠홈 주인만 열 수 있습니다.')
+    expect(isErrorCode('OWNER_ONLY')).toBe(true)
   })
 })

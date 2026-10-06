@@ -22,6 +22,8 @@ export const PATHS = {
   roomSpeak: `${API}/rooms/:id/speak`,
   /** POST 메시지 재작성 (S3, R-MSG-006). :id 는 메시지 id(정수) */
   messageRegenerate: `${API}/messages/:id/regenerate`,
+  /** GET · PUT 캐릭터 설정 (S3c, R-SET-004 · R-SET-005). 갠홈 주인 전용 */
+  characterSettings: `${API}/settings/characters`,
 } as const
 
 /** :id 자리에 인코딩한 값을 넣는다 */
@@ -52,4 +54,6 @@ export const endpoints = {
   /** (S3) 메시지 id 는 정수라 String() 으로 넣는다 */
   messageRegenerate: (messageId: number): string =>
     withId(PATHS.messageRegenerate, String(messageId)),
+  /** (S3c) GET · PUT 이 같이 쓴다 */
+  characterSettings: (): string => PATHS.characterSettings,
 } as const

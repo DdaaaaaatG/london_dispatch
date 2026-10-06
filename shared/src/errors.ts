@@ -16,6 +16,7 @@ export const ERROR_CODES = [
   'LLM_EMPTY',
   'LLM_BUDGET_EXCEEDED',
   'CONFIG_INVALID',
+  'OWNER_ONLY',
   'INTERNAL',
 ] as const
 
@@ -38,6 +39,7 @@ export const ERROR_STATUS: Readonly<Record<ErrorCode, ErrorStatus>> = {
   LLM_EMPTY: 502,
   LLM_BUDGET_EXCEEDED: 429,
   CONFIG_INVALID: 500,
+  OWNER_ONLY: 403,
   INTERNAL: 500,
 }
 
@@ -56,6 +58,7 @@ export const ERROR_MESSAGES: Readonly<Record<ErrorCode, string>> = {
   LLM_EMPTY: 'AI 응답이 비어 있습니다. 다시 시도해 주세요.',
   LLM_BUDGET_EXCEEDED: '이번 달 AI 사용 한도에 닿았습니다. 다음 달에 다시 시도해 주세요.',
   CONFIG_INVALID: '서버 설정이 올바르지 않습니다. 관리자에게 알려 주세요.',
+  OWNER_ONLY: '캐릭터 설정은 갠홈 주인만 열 수 있습니다.',
   INTERNAL: '서버 내부 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.',
 }
 

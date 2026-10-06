@@ -12,7 +12,7 @@ import type {
 } from '../src/types'
 
 describe('API-T-042 endpoints_build_paths_and_queries', () => {
-  it('PATHS 값 9개가 계약과 같다', () => {
+  it('PATHS 값 10개가 계약과 같다', () => {
     expect(PATHS).toEqual({
       embed: '/embed',
       health: '/api/health',
@@ -23,6 +23,7 @@ describe('API-T-042 endpoints_build_paths_and_queries', () => {
       message: '/api/messages/:id',
       roomSpeak: '/api/rooms/:id/speak',
       messageRegenerate: '/api/messages/:id/regenerate',
+      characterSettings: '/api/settings/characters',
     })
   })
 
@@ -88,5 +89,12 @@ describe('API-T-047 endpoints_build_generate_paths', () => {
   it('타입: SpeakBody 는 character 하나', () => {
     const a: SpeakBody = { character: 'ciel' }
     expect(a.character).toBe('ciel')
+  })
+})
+
+describe('API-T-104 endpoints_build_settings_path', () => {
+  it('설정 경로는 GET·PUT 공용 한 개', () => {
+    expect(PATHS.characterSettings).toBe('/api/settings/characters')
+    expect(endpoints.characterSettings()).toBe('/api/settings/characters')
   })
 })
