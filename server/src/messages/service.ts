@@ -8,7 +8,7 @@
  */
 import { AppError } from '../app-error'
 import type { Db, Message } from '../db'
-import type { Llm } from '../llm'
+import type { Llm, PromptSettings } from '../llm'
 import type { Logger } from '../logger'
 import type { Principal } from '../auth'
 import { normalizePageQuery, toPage, type MessagePage, type MessagePageQuery } from './page'
@@ -55,6 +55,8 @@ export type MessagesDeps = {
   llm: () => Llm
   /** S3 자리. 없으면 no-op. S4 memory 가 채운다 */
   afterSpeak?: AfterSpeakHook
+  /** S3c. speak·regenerate 가 잠금 선점 뒤 1회 부른다(캐시 없음). 없으면 시드 */
+  loadPromptSettings?: () => Promise<PromptSettings>
 }
 
 const ROOM_NOT_FOUND_MESSAGE = '방을 찾을 수 없습니다.'

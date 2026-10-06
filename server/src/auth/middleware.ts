@@ -1,10 +1,10 @@
 /**
  * [목적] routes(contract)가 쓰기 라우트에 붙이는 Hono 미들웨어. 라우트 단위 적용, 전역 등록 금지 (R-AUTH-003·005, R-API-003). 설계 auth.md §2.4·§9.1
- * [공개 API] readBearer(header), requireToken, rateLimitWrites, getPrincipal(c)
+ * [공개 API] readBearer(header), requireToken, rateLimitWrites, requireOwner(S3c), getPrincipal(c)
  * [비동기] requireToken → services.auth.authenticate, rateLimitWrites → services.auth.hitRateLimit
- * [에러] AppError TOKEN_REQUIRED(401)·TOKEN_INVALID(401)·LEVEL_TOO_LOW(403)·RATE_LIMITED(429)
+ * [에러] AppError TOKEN_REQUIRED(401)·TOKEN_INVALID(401)·LEVEL_TOO_LOW(403)·RATE_LIMITED(429), OWNER_ONLY(403, S3c)
  * [설정] 없음. 설정은 services.auth 가 값으로 갖고 있다
- * [테스트] server/test/auth.test.ts (SRV-T-109·116~119)
+ * [테스트] server/test/auth.test.ts (SRV-T-109·116~119), server/test/auth-owner.test.ts (SRV-T-237·238)
  */
 import type { Context, MiddlewareHandler } from 'hono'
 import { AppError } from '../app-error'
@@ -32,6 +32,12 @@ export const requireToken: MiddlewareHandler<AppEnv> = async (c, next) => {
   const raw = readBearer(c.req.header('Authorization'))
   if (raw === null) throw new AppError('TOKEN_REQUIRED')
   c.set('principal', await c.get('services').auth.authenticate(raw))
+  await next()
+}
+
+/** S3c. requireToken 뒤에만. getPrincipal(c) → services.auth.assertOwner → next(). principal 없으면 TOKEN_REQUIRED(닫힌 쪽) */
+export const requireOwner: MiddlewareHandler<AppEnv> = async (c, next) => {
+  c.get('services').auth.assertOwner(getPrincipal(c))
   await next()
 }
 

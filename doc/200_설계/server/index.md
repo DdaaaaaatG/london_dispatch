@@ -1,6 +1,6 @@
 # index(Workers 진입점·공통 기반) 설계
 
-- 상태: S1 확정(구현 동기화) · S2 초안 · S3 초안(§2.3 컨테이너 델타) · S3b 초안(§2.3 meter 배선·§2.4·§5·§6.1 델타) · 최종 갱신: 2026-10-06
+- 상태: S1 확정(구현 동기화) · S2 초안 · S3 초안(§2.3 컨테이너 델타) · S3b 초안(§2.3 meter 배선·§2.4·§5·§6.1 델타) · S3c 구현 완료(§2.3.1 settings 배선·§3.1.2·§5.3·§6.2) · 최종 갱신: 2026-10-06
 - 묶음: S1 = `fetch` 진입·Hono 앱 조립·부트스트랩·보안 헤더·공통 에러 핸들러·로거·`/embed` 서빙·health 서비스·`wrangler.toml`. S2 = 서비스 컨테이너에 `auth`·`config` 주입, `AppEnv.Variables.principal`, 인증 미들웨어의 **라우트 단위** 적용 원칙, `RATE_LIMITED`의 `retryAfterSec` 응답 변환. `scheduled` 진입은 S2에서 **추가하지 않는다**(레이트리밋 정리는 요청 경로에서 — [auth.md](auth.md) D-AUTH-7). S4(요약)에서 필요하면 추가한다.
 - 라우트(`server/src/routes/`)는 contract 소유다. 이 문서는 **라우트를 정의하지 않고**, 라우트가 쓸 타입·서비스·규약만 정한다.
 - 관련 문서: [env.md](env.md), [db.md](db.md), [auth.md](auth.md), [rooms.md](rooms.md), [messages.md](messages.md).
@@ -175,6 +175,54 @@ const llm = (): Llm =>
 - `Services`·`AppEnv`·`ServiceDeps` 변경 없음. `getHealth`는 사용량·예산을 노출하지 않는다(R-LLM-007 "관리 화면 없음").
 - `scheduled` 진입은 추가하지 않는다. 월 해제는 월 키 전환이라 할 작업이 없다.
 
+#### 2.3.1 S3c 델타 — `Services.settings` 배선 (R-SET-001 · R-SET-003)
+
+- **구현 완료(2026-10-06)**: server 318/318 통과 · 라우트 `routes/settings.ts` 등록(contract) · S3c 테스트 SRV-T-234~260.
+
+```ts
+import { createSettingsService, type SettingsService } from './settings'   // S3c
+
+export type Services = {
+  auth: AuthService
+  rooms: RoomsService
+  messages: MessagesService
+  /** S3c. 캐릭터 설정 GET/PUT(라우트)과 speak·regenerate 의 설정 읽기 */
+  settings: SettingsService
+  getHealth: () => HealthStatus
+}
+
+export const createServices = (deps: ServiceDeps): Services => {
+  const settings = createSettingsService({ db: deps.db, logger: deps.logger, now: deps.now })
+  return {
+    auth: createAuthService({
+      db: deps.db,
+      logger: deps.logger,
+      now: deps.now,
+      config: {
+        tokenSecret: deps.config.tokenSecret,
+        tokenMinLevel: deps.config.tokenMinLevel,
+        rateLimitPerMin: deps.config.rateLimitPerMin,
+        ownerMbIds: deps.config.ownerMbIds, // S3c
+      },
+    }),
+    rooms: createRoomsService({ db: deps.db, now: deps.now }),
+    messages: createMessagesService({
+      /* S3·S3b 필드 그대로 */
+      loadPromptSettings: settings.loadForPrompt, // S3c — 캐시 없음, 부를 때마다 D1
+    }),
+    settings,
+    getHealth: () => ({ ok: true, version: APP_VERSION }),
+  }
+}
+```
+
+- 본문이 식(`=> ({ … })`)에서 블록으로 바뀐다. `settings` 인스턴스 하나를 라우트와 messages가 같이 쓰기 위해서다.
+- `createSettingsService`는 I/O 없는 클로저 생성이라 읽기 경로 비용이 없다.
+- `AppEnv`·`ServiceDeps` 변경 없음. `Services`에 키 1개(`settings`)가 는다. `Config`는 여전히 통째로 넘기지 않는다(auth에 `ownerMbIds` 1필드 추가).
+- 라우트는 `c.get('services').settings.get()`·`put()`만 쓴다(contract). `loadForPrompt`는 라우트가 부르지 않는다.
+- 배선 검증은 [auth.md](auth.md) SRV-T-237(`ownerMbIds` 전달)과 [messages.md](messages.md) SRV-T-256(`loadPromptSettings` 전달)이 한다. 새 index 테스트는 없다.
+- 파급: `Services` 객체 키를 단언하는 테스트(SRV-T-087 등)가 있으면 `settings`를 더한다. `Services`를 가짜로 만드는 픽스처가 있으면 `settings` 필드가 필요하다.
+
 ### 2.4 에러 기반 (`server/src/app-error.ts`)
 
 ```ts
@@ -293,6 +341,15 @@ export const createLogger = (sink?: LogSink): Logger
 - `logger`는 설정과 무관하므로 `createApp`에서 한 번 만들어 클로저로 쓴다(요청 상태가 아니라 출력 함수뿐이라 전역 가변 상태가 아니다).
 - 서비스 컨테이너는 요청마다 만든다(팩토리 클로저 생성뿐이라 비용 무시 가능, 요청 간 상태 공유 없음).
 
+#### 3.1.2 S3c 주인 판정 미들웨어 위치 (R-SET-001 · R-AUTH-003 예외)
+
+```
+설정 라우트(E15·E16):  requireToken → requireOwner → (PUT만) rateLimitWrites → 본문 상한(SETTINGS_BODY_MAX_BYTES) → validate(settingsIssueMessage) → 핸들러   (api.md §4.16)
+```
+
+- `requireOwner`도 `server/src/auth/middleware.ts`가 export하고 routes(contract)가 라우트 단위로 붙인다([auth.md](auth.md) §12). 전역·라우터 단위 금지.
+- 설정 GET은 읽기지만 토큰과 주인 판정이 필요하다(R-AUTH-003 S3c 예외). 다른 읽기 라우트는 그대로 토큰 불필요.
+
 ### 3.2 `/embed` 서빙 (R-API-006)
 
 `[assets] run_worker_first = true`로 모든 요청이 Worker를 먼저 지난다. Worker가 `env.ASSETS`(Workers Static Assets 바인딩)에서 파일을 가져와 헤더를 붙인다.
@@ -378,6 +435,15 @@ Cloudflare 엣지 ─▶ fetch(request, env, ctx)
 
 - 코드 문자열·타입의 단일 소스는 `shared/src/errors.ts`(contract)다. 서버는 그 `ErrorCode` 타입을 import해 `AppError`에 쓴다.
 
+### 5.3 S3c — `OWNER_ONLY` 추가 (R-API-002 15종)
+
+| code | status | 처음 쓰는 묶음 |
+|---|---|---|
+| `OWNER_ONLY` | 403 | S3c |
+
+- onError 변환은 바뀌지 않는다. `AppError`가 `ERROR_STATUS[code]`로 status를 갖고, 본문은 `toErrorBody`가 만든다. 추가 필드 없음.
+- 전제: shared `ErrorCode`·`ERROR_STATUS`·`ERROR_MESSAGES`에 `OWNER_ONLY`가 먼저 들어간다(contract-implementer 4a).
+
 ## 6. 설정(env)
 
 | 읽는 값 | 출처 | 쓰는 곳 |
@@ -433,6 +499,17 @@ run_worker_first = true                     # 정적 파일 요청도 Worker 를
 
 - `database_id`는 비밀값이 아니다. 자리표시 값으로도 `--local` 개발·테스트는 된다.
 - Cron Trigger(`[triggers] crons`)는 S1에 없다.
+
+### 6.2 S3c — `wrangler.toml` 머리 주석 1줄 교체
+
+`OWNER_MB_IDS`는 Secrets 권고라 `[vars]`에 값 줄을 두지 않는다([env.md](env.md) S3c 델타). §6.1 전문과 실제 `server/wrangler.toml`의 3번째 줄만 아래로 바꾼다.
+
+```toml
+# 비밀값(TOKEN_SECRET, LLM_API_KEY)과 갠홈 주인 회원 ID 목록(OWNER_MB_IDS, S3c)은 여기 적지 않는다. 운영은 `npx wrangler secret put <KEY>`, 로컬은 server/.dev.vars
+```
+
+- 이 줄은 `KEY = 값` 꼴이 아니라 SRV-T-011의 `[vars]` 키 추출에 걸리지 않는다.
+- `[[d1_databases]]`·`migrations_dir` 설정은 그대로다. `0003`은 같은 폴더에 들어간다.
 
 ## 7. DB 스키마·마이그레이션
 
@@ -529,6 +606,15 @@ run_worker_first = true                     # 정적 파일 요청도 Worker 를
 | R-NFR-004 🔒 | §3.3, §5.1, §8 번들 검사 | SRV-T-081·083·088·162, 수동 grep | ✅ |
 | R-NFR-005 | §4 CPU 예산 | 수동(`wrangler dev` CPU 시간) | ✅ |
 
+### 10.1 S3c 추적
+
+| 요구ID | 반영 절 | 테스트ID | 상태 |
+|---|---|---|---|
+| R-SET-001 🔒 (배선) | §2.3.1(`ownerMbIds` 전달)·§3.1.2 | [auth.md](auth.md) SRV-T-237 | ✅(설계) |
+| R-SET-003 🔒 (배선) | §2.3.1(`loadPromptSettings` 전달) | [messages.md](messages.md) SRV-T-256 | ✅(설계) |
+| R-API-002 🔒 (S3c 15종) | §5.3 | contract 테스트(shared 개수 단언 15) | 부분(shared 추가는 contract) |
+| R-ENV-002 🔒 (S3c) | §6.2 | SRV-T-011 | ✅(설계) |
+
 ## 11. 설계 결정 노트
 
 | # | 결정 | 대안 | 채택 근거 |
@@ -552,6 +638,12 @@ run_worker_first = true                     # 정적 파일 요청도 Worker 를
 - **`ui/dist` 부재**: `[assets] directory`가 없으면 `wrangler dev`와 vitest pool 기동이 실패할 수 있다(S1에서 확인된 상태 유지).
 - (해결) `compatibility_date`는 S1 구현에서 `2026-08-15`(workerd 1.20260815.1 지원 범위)로 정해졌다. §6.1 초안의 `2026-10-01`보다 실물이 기준이다.
 
+### 11.1 S3c 결정
+
+| # | 결정 | 대안 | 채택 근거 |
+|---|---|---|---|
+| D-IDX-13 | `settings` 서비스를 컨테이너에서 한 번 만들고 messages에 `loadForPrompt` 함수 값을 넘긴다 | messages가 settings를 직접 생성 | 의존 방향 유지(messages는 settings를 모른다). 한 요청 안에서 라우트와 speak가 같은 인스턴스를 쓴다 |
+
 ## 변경 이력
 
 | 날짜 | 내용 |
@@ -560,6 +652,9 @@ run_worker_first = true                     # 정적 파일 요청도 Worker 를
 | 2026-10-05 | S1 구현 동기화(상태 확정): `AppError(code, message?, options?)`(status는 `ERROR_STATUS`), `HealthStatus = HealthResponse`, `compatibility_date = 2026-08-15`. S2 설계: `ServiceDeps.config`·`Services.auth`·`Variables.principal?`, §3.1.1 인증 미들웨어 라우트 단위 원칙, `retryAfterSec` 변환(§2.4·§5.1), 로그 이벤트, SRV-T-160~162, D-IDX-9~11. `scheduled`는 S2에서 추가하지 않음 |
 | 2026-10-06 | S3 델타: §2.3 `createServices` 배선에 `llm` 지연 생성(`() => Llm`)과 messages deps 확장(`logger`·`contextMessages`·`llm`)을 반영([llm.md](llm.md) §3.3) |
 | 2026-10-06 | S3b 델타: §2.3 `createUsageMeter` 배선(`store: db.llmUsage`·Config 4필드), §2.4 `retryAfterSec` 적용 코드 확대, §5.1 행·§5.2 14종, §6.1 `[vars]` 4줄, SRV-T-233, §10 R-LLM-007·R-API-002, D-IDX-12 |
+| 2026-10-06 | S3c 설계: §2.3.1 `Services.settings` 배선(`createSettingsService`, auth에 `ownerMbIds`, messages에 `loadPromptSettings`), §3.1.2 `requireOwner` 위치, §5.3 `OWNER_ONLY` 403(15종), §6.2 `wrangler.toml` 머리 주석, §10.1·§11.1 |
+| 2026-10-06 | api.md v0.5 대조: §3.1.2 설정 라우트 순서에 본문 상한·`settingsIssueMessage` 추가 |
+| 2026-10-06 | 구현 완료 동기화(server 318/318). 설계와 다른 점(구현자 보고): `server/test/app.test.ts` SRV-T-161의 `services.auth` 키 비교를 정렬 비교로 바꿨다(`AuthService`에 `isOwner`·`assertOwner`가 늘어 키 순서에 의존하지 않게) |
 
 파급(공개 API 변경): `ServiceDeps`에 `config` 필수 추가 → 호출자 `server/src/app.ts` `bootstrap`(1줄), `server/test/app.test.ts` 188행의 `createServices({ db: trap, logger, now })`에 `config`(예: `parseEnv(env)` 결과)를 넣는다. `Services`·`AppEnv.Variables`·`AppError`·`toErrorBody`는 필드 추가뿐이라 기존 routes(`health.ts`·`rooms.ts`·`messages.ts`)·`validate.ts` 영향 없음.
 

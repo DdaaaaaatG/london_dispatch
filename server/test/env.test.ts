@@ -36,6 +36,7 @@ describe('parseEnv', () => {
       llmPriceInputUsdPerM: 0.3,
       llmPriceOutputUsdPerM: 2.5,
       krwPerUsd: 1400,
+      ownerMbIds: [],
     })
     expect(c.llmApiKey).toBeUndefined()
   })
@@ -168,7 +169,7 @@ describe('키 대조', () => {
       )
 
   it('SRV-T-011 env_keys_match_wrangler_vars_and_dev_vars_example', () => {
-    const secrets = ['TOKEN_SECRET', 'LLM_API_KEY']
+    const secrets = ['TOKEN_SECRET', 'LLM_API_KEY', 'OWNER_MB_IDS']
     const settingKeys = ENV_KEYS.filter(k => k !== 'DB' && k !== 'ASSETS')
     const varsSection = wranglerToml.split('[vars]')[1]!.split(/\n\[/)[0]!
     const varsKeys = activeKeys(varsSection)
@@ -228,6 +229,38 @@ describe('S3b 예산·단가 키', () => {
       parseEnv({ ...base, [key]: value })
     } catch (e) {
       expect(JSON.stringify(e) + String((e as Error).message)).not.toContain('abc')
+    }
+  })
+})
+
+describe('OWNER_MB_IDS (S3c)', () => {
+  it('SRV-T-234 parseEnv_parses_owner_mb_ids_list', () => {
+    const owners = (v: unknown): readonly string[] =>
+      parseEnv({ ...base, ...(v === undefined ? {} : { OWNER_MB_IDS: v }) }).ownerMbIds
+    for (const v of [undefined, '', '   ', ',']) expect(owners(v)).toEqual([])
+    expect(owners('owner_a')).toEqual(['owner_a'])
+    expect(owners(' owner_a, owner_b  owner_c,,owner_a ')).toEqual([
+      'owner_a',
+      'owner_b',
+      'owner_c',
+    ])
+    expect(owners('x'.repeat(20))).toEqual(['x'.repeat(20)])
+    expect(owners('a1,a2,a3,a4,a5')).toHaveLength(5)
+  })
+
+  it('SRV-T-235 parseEnv_rejects_invalid_owner_mb_ids_without_value', () => {
+    const SENTINEL = 'SENTINEL_OWNER_ID_'.padEnd(21, 'z')
+    for (const v of [SENTINEL, 'a1,a2,a3,a4,a5,a6']) {
+      let caught: unknown
+      try {
+        parseEnv({ ...base, OWNER_MB_IDS: v })
+      } catch (e) {
+        caught = e
+      }
+      expect(caught).toBeInstanceOf(ConfigError)
+      expect((caught as ConfigError).keys).toEqual(['OWNER_MB_IDS'])
+      expect(JSON.stringify(caught)).not.toContain('SENTINEL_OWNER_ID_')
+      expect((caught as ConfigError).message).not.toContain('SENTINEL_OWNER_ID_')
     }
   })
 })

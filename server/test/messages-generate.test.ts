@@ -2,6 +2,8 @@
 import { env } from 'cloudflare:test'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AppError } from '../src/app-error'
+import type { CharacterSettings } from '@shared/types'
+import { validSettings } from '../../shared/test/settings-vectors'
 import { createDb, type Db } from '../src/db'
 import { ConfigError, parseEnv } from '../src/env'
 import {
@@ -14,11 +16,14 @@ import {
   kstMonthKey,
   type FakeStep,
   type Llm,
+  DEFAULT_PROMPT_SETTINGS,
+  type PromptSettings,
 } from '../src/llm'
 import { LlmError } from '../src/llm/provider'
 import { createLogger } from '../src/logger'
 import { createMessagesService, SPEAK_LOCK_MS, type MessagesService } from '../src/messages'
 import { createServices } from '../src/services'
+import { createSettingsService } from '../src/settings'
 import { insertLine, insertRoom, insertUsage, resetDb, usageRow } from './helpers'
 
 const T0 = 1_000_000
@@ -42,6 +47,8 @@ type SetupOptions = {
   /** S3b: 월 비용 meter 를 단다(예산 100000원 · 기본 단가) */
   meter?: boolean
   afterSpeak?: (e: { roomId: string; messageId: number }) => Promise<void>
+  /** S3c: 설정 읽기 함수(없으면 시드) */
+  loadPromptSettings?: () => Promise<PromptSettings>
 }
 
 /** 가짜 시계·수집 로거·FakeProvider 를 단 서비스를 만든다 */
@@ -87,6 +94,9 @@ const setup = (steps: FakeStep[] = [], opts: SetupOptions = {}): Setup => {
     contextMessages: opts.contextMessages ?? 40,
     llm,
     ...(opts.afterSpeak === undefined ? {} : { afterSpeak: opts.afterSpeak }),
+    ...(opts.loadPromptSettings === undefined
+      ? {}
+      : { loadPromptSettings: opts.loadPromptSettings }),
   })
   const waits: Promise<unknown>[] = []
   return { svc, db, fake, logs, clock, waits, bg: { waitUntil: p => waits.push(p) } }
@@ -727,5 +737,123 @@ describe('월 비용 게이트 (S3b)', () => {
     expect(m.speaker).toBe('ciel')
     expect(await usageRow('2026-11')).toMatchObject({ calls: 1 })
     expect(await usageRow('2026-10')).toMatchObject({ calls: 1, est_krw: 100000 })
+  })
+})
+
+// ---- S3c: 설정 읽기 (SRV-T-256~258) ----
+describe('S3c 설정 읽기', () => {
+  beforeEach(resetDb)
+  const validBody = (marker: string): CharacterSettings => {
+    const s = JSON.parse(JSON.stringify(validSettings())) as CharacterSettings
+    s.characters.sebastian.persona = `PERSONA_${marker}`
+    s.characters.sebastian.speech = `SPEECH_${marker}`
+    return s
+  }
+  const OWNER = { mbId: 'owner_test', nick: 'o', chName: '', level: 5, displayName: 'o' }
+  const settingsFor = (s: Setup) =>
+    createSettingsService({ db: s.db, logger: createLogger(() => undefined), now: () => T0 })
+
+  it('SRV-T-256 speak_and_regenerate_use_settings_saved_just_before', async () => {
+    await insertRoom('a', 'A', 1, 100)
+    const probe = setup([{ text: '하나' }, { text: '둘' }])
+    const settings = settingsFor(probe)
+    const s = setup([{ text: '하나' }, { text: '둘' }], {
+      loadPromptSettings: settings.loadForPrompt,
+    })
+    await settings.put(validBody('AAA'), OWNER)
+    const saved = await s.svc.speak('a', { character: 'sebastian' }, s.bg)
+    expect(s.fake.calls[0]?.system).toContain('PERSONA_AAA')
+    expect(s.fake.calls[0]?.system).toContain('SPEECH_AAA')
+    await settings.put(validBody('BBB'), OWNER)
+    await s.svc.regenerate(saved.id)
+    expect(s.fake.calls[1]?.system).toContain('PERSONA_BBB')
+    expect(s.fake.calls[1]?.system).not.toContain('AAA')
+  })
+
+  it('SRV-T-256 createServices 배선: 컨테이너가 loadPromptSettings 를 messages 에 넘긴다', async () => {
+    await insertRoom('a', 'A', 1, 100)
+    let reads = 0
+    const real = createDb(env.DB)
+    const db: Db = {
+      ...real,
+      characterSettings: {
+        ...real.characterSettings,
+        get: async () => {
+          reads += 1
+          return real.characterSettings.get()
+        },
+      },
+    }
+    const services = createServices({
+      db,
+      logger: createLogger(() => undefined),
+      now: () => T0,
+      config: parseEnv({
+        TOKEN_SECRET: 'test-secret-value',
+        LLM_PROVIDER: 'fake',
+        DB: env.DB,
+        ASSETS: { fetch: () => undefined },
+      }),
+    })
+    await services.messages.speak('a', { character: 'ciel' }, { waitUntil: () => undefined })
+    expect(reads).toBe(1)
+  })
+
+  it('SRV-T-257 speak_uses_seed_when_settings_row_corrupted', async () => {
+    await insertRoom('a', 'A', 1, 100)
+    await env.DB.prepare(
+      "INSERT INTO character_settings (id, json, version, updated_at, updated_by) VALUES (1, '{{', 1, 1, 'owner_test')",
+    ).run()
+    const logs: Log[] = []
+    const logger = createLogger((_l, line) => void logs.push(JSON.parse(line) as Log))
+    const probe = setup()
+    const settings = createSettingsService({ db: probe.db, logger, now: () => T0 })
+    const s = setup([{ text: '시드' }], { loadPromptSettings: settings.loadForPrompt })
+    const msg = await s.svc.speak('a', { character: 'ciel' }, s.bg)
+    expect(msg.text).toBe('시드')
+    const plain = setup([{ text: 'x' }])
+    await plain.svc.speak('a', { character: 'ciel' }, plain.bg)
+    expect(s.fake.calls[0]?.system).toBe(plain.fake.calls[0]?.system)
+    const errs = logs.filter(l => l.event === 'character_settings_invalid')
+    expect(errs).toHaveLength(1)
+    expect(JSON.stringify(logs)).not.toContain('"json"')
+  })
+
+  it('SRV-T-258 settings_read_only_after_lock_acquired', async () => {
+    let reads = 0
+    const loadPromptSettings = async () => {
+      reads += 1
+      return DEFAULT_PROMPT_SETTINGS
+    }
+    const opts = { loadPromptSettings }
+    await insertRoom('a', 'A', 1, 100)
+    await insertRoom('busy', 'B', 1, 100)
+    await env.DB.prepare('UPDATE rooms SET speaking_until = ?1 WHERE id = ?2')
+      .bind(T0 + 50_000, 'busy')
+      .run()
+    const userId = await insertUser('a', 'hi', 1)
+
+    const bad = setup([{ text: 'x' }], opts)
+    expect(await codeOf(bad.svc.speak('a', { character: 'nobody' as never }, bad.bg))).toBe(
+      'VALIDATION_ERROR',
+    )
+    expect(await codeOf(bad.svc.speak('zzz', { character: 'ciel' }, bad.bg))).toBe('NOT_FOUND')
+    expect(await codeOf(bad.svc.speak('busy', { character: 'ciel' }, bad.bg))).toBe(
+      'SPEAK_IN_PROGRESS',
+    )
+    expect(await codeOf(bad.svc.regenerate(userId))).toBe('NOT_CHARACTER_MESSAGE')
+    await insertUsage(kstMonthKey(T0), 100000, 7)
+    const over = setup([{ text: 'x' }], { ...opts, meter: true })
+    expect(await codeOf(over.svc.speak('a', { character: 'ciel' }, over.bg))).toBe(
+      'LLM_BUDGET_EXCEEDED',
+    )
+    expect(reads).toBe(0)
+
+    await env.DB.prepare('DELETE FROM llm_usage').run()
+    const ok = setup([{ text: '정상' }, { text: '다시' }], opts)
+    const m = await ok.svc.speak('a', { character: 'ciel' }, ok.bg)
+    expect(reads).toBe(1)
+    await ok.svc.regenerate(m.id)
+    expect(reads).toBe(2)
   })
 })

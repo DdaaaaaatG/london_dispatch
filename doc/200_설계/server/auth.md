@@ -1,6 +1,6 @@
 # auth 모듈 설계
 
-- 상태: 초안 · 최종 갱신: 2026-10-05
+- 상태: 초안 · S3c 구현 완료(§12 주인 판정) · 최종 갱신: 2026-10-06
 - 묶음: S2(토큰 + 쓰기). 이 문서의 공개 API는 전부 S2에서 구현한다.
 - 관련 문서: [env.md](env.md)(`tokenSecret`·`tokenMinLevel`·`rateLimitPerMin`), [db.md](db.md)(`rateLimits` 저장소), [index.md](index.md)(서비스 컨테이너·`AppEnv.Variables.principal`·onError의 `retryAfterSec`), [rooms.md](rooms.md)·[messages.md](messages.md)(쓰기 서비스 — 이 모듈의 미들웨어 뒤에서 호출된다).
 
@@ -450,8 +450,132 @@ export const roomsRoutes = new Hono<AppEnv>()
 - `exp` 상한 검사(`exp*1000 <= nowMs + 12h + 5분`). PHP 조각 버그로 만료가 아주 먼 토큰이 나오는 일을 막는다. 요구 문구에 없어 보류.
 - 쓰기 요청의 요청 로그에 `mbId` 추가(남용 추적). R-AUTH-006은 `mb_id` 식별을 허용하지만 요구된 기능이 아니라 보류.
 
+## 12. S3c 주인 판정 (R-SET-001 · R-AUTH-003 예외)
+
+- **구현 완료(2026-10-06)**: server 318/318 통과 · S3c 테스트 SRV-T-234~260(이 절 몫 SRV-T-236~238).
+
+출입증(토큰)이 진짜여도 사장실(설정 화면)은 명단에 있는 사람만 들어간다. 명단은 배포 설정 `OWNER_MB_IDS`에 있고, 경비(auth)는 출입증의 회원 ID가 명단에 있는지만 본다.
+
+결정 출처: `s3c-02-전반설계.md` §1(권고 B — 토큰 형식·PHP 조각·handoff 불변) · `doc/state.json` decisions 2026-10-06(Q2 수정: 명단에는 지인 ID만).
+
+### 12.1 공개 API
+
+```ts
+// server/src/auth/service.ts — AuthService·AuthDeps 확장
+export type AuthService = {
+  authenticate: (raw: string) => Promise<Principal>   // 그대로
+  hitRateLimit: (mbId: string) => Promise<void>        // 그대로
+  /** S3c. principal.mbId ∈ ownerMbIds(대소문자 구분 정확 일치). 목록이 비면 항상 false. 부수 효과 없음(03 §1.3) */
+  isOwner: (principal: Principal) => boolean
+  /** S3c. isOwner 가 false 면 logger.info('owner_denied', { mbId }) 후 AppError('OWNER_ONLY') 403. requireOwner 가 쓴다 */
+  assertOwner: (principal: Principal) => void
+}
+
+export type AuthDeps = {
+  db: Db
+  logger: Logger
+  now: () => number
+  config: Pick<Config, 'tokenSecret' | 'tokenMinLevel' | 'rateLimitPerMin'> &
+    /** S3c. 없으면 [](닫힌 쪽 — 아무도 주인 아님). 컨테이너는 항상 넘긴다 */
+    Partial<Pick<Config, 'ownerMbIds'>>
+}
+
+// server/src/auth/middleware.ts — 추가 (auth/index.ts 재노출에 requireOwner 추가)
+/** S3c. requireToken 뒤에만. getPrincipal(c) → services.auth.assertOwner(principal) → next(). principal 없으면 TOKEN_REQUIRED(닫힌 쪽) */
+export const requireOwner: MiddlewareHandler<AppEnv>
+```
+
+| 이름 | 인자 | 반환 | 실패 조건(에러 코드) | 요구ID |
+|---|---|---|---|---|
+| `isOwner` | `principal` | `boolean` | — | R-SET-001 |
+| `assertOwner` | `principal` | `void` | `OWNER_ONLY`(403) | R-SET-001 · R-SET-012 |
+| `requireOwner` | Hono 미들웨어 | — | `TOKEN_REQUIRED`(401, requireToken 누락 시), `OWNER_ONLY`(403) | R-SET-001 · R-AUTH-003 예외 |
+
+- `AuthDeps.config.ownerMbIds`를 선택으로 둔 이유: `createAuthService`를 직접 만드는 기존 테스트 픽스처(SRV-T-111~115 등)를 고치지 않기 위해서다. 기본값 `[]`은 닫힌 쪽이다. 운영 배선은 SRV-T-237(`createApp` 경유)이 확인한다.
+- `isOwner`·`requireOwner` 이름과 역할은 03 §1.3 그대로다. `assertOwner`는 **추가**(비파괴)다. 라우트는 `requireOwner`만 쓴다.
+
+### 12.2 판정 순서
+
+```
+GET /api/settings/characters · PUT /api/settings/characters        (routes = contract, 라우트 단위)
+ ④  requireToken    ── 401 TOKEN_REQUIRED / 401 TOKEN_INVALID / 403 LEVEL_TOO_LOW   (기존 그대로)
+ ④b requireOwner    ── principal = getPrincipal(c)                 (없으면 401 TOKEN_REQUIRED)
+                       services.auth.assertOwner(principal)
+                         ownerMbIds.includes(principal.mbId) ? 통과
+                                                             : info('owner_denied', { mbId }) → throw OWNER_ONLY(403)
+ ⑤  rateLimitWrites (PUT만) ── 429 RATE_LIMITED
+ ⑥  (PUT만) 본문 상한 128KB → validate(zod 판정, 400 문구는 shared — api.md §4.16) → 핸들러 → services.settings.get() / put(body.settings, principal)
+```
+
+- 동기 판정이다. D1·I/O에 접근하지 않는다(api.md §15.12 N6). CPU 무시 가능.
+- 주인 판정은 등급 검사(`TOKEN_MIN_LEVEL`) 뒤다. 명단에 있어도 토큰 등급이 모자라면 `LEVEL_TOO_LOW`가 먼저 난다.
+- 403 응답은 기본 문구만 싣는다. 주인 목록·사유를 알려 주지 않는다(02 §6 탐침 방지).
+- `LEVEL_TOO_LOW`를 재사용하지 않는다. 화면은 그 코드를 "쓰기 권한 상실"로 처리해 읽기 전용으로 떨어진다(02 §4.2).
+- 비주인 PUT은 레이트리밋 카운트를 쓰지 않는다(④b가 ⑤보다 앞).
+
+### 12.3 에러·로그
+
+| 에러 클래스 | shared 에러 코드 | HTTP | 한국어 메시지 | 원인 |
+|---|---|---|---|---|
+| `AppError` | `OWNER_ONLY` | 403 | shared `ERROR_MESSAGES.OWNER_ONLY` 기본 문구 `캐릭터 설정은 갠홈 주인만 열 수 있습니다.`(api.md §5.8.2 확정). 목록·`mbId`·사유를 싣지 않는다(N6) | 유효 토큰이지만 `mbId ∉ OWNER_MB_IDS`. 목록이 빈 경우 포함 |
+
+| event | level | 필드 | 비고 |
+|---|---|---|---|
+| `owner_denied` | info | `mbId` | 화면의 주인 판정 탐침(R-SET-010)이 등급 회원마다 첫 로드에 1건 내는 정상 흐름이라 warn이 아니다. nick·토큰·목록은 남기지 않는다(R-AUTH-006 · R-SET-012) |
+
+- `AppError('OWNER_ONLY')`는 shared `ErrorCode`에 `OWNER_ONLY`(403)가 들어간 뒤에 컴파일된다. contract-implementer의 shared 단계(03 §0.1 4a)가 선행이다.
+
+### 12.4 설정(env)
+
+| `Config` 필드 | 바인딩 키 | 타입·기본값 | 비밀값 | 쓰는 곳 |
+|---|---|---|---|---|
+| `ownerMbIds` (S3c) | `OWNER_MB_IDS` | `readonly string[]`, 기본 `[]` | 비밀 아님. Secrets 권고, `[vars]` 허용([env.md](env.md) S3c 델타) | `isOwner` |
+
+### 12.5 테스트 (`server/test/auth-middleware.test.ts`·`auth-rate-limit.test.ts` 옆 신규 `auth-owner.test.ts`)
+
+| 테스트ID | 이름 | 입력 | 기대 | 요구 |
+|---|---|---|---|---|
+| SRV-T-236 | `isOwner_matches_exact_mbId_only` | 목록 `['owner_a','owner_b']` × principal `owner_a`·`owner_b`·`OWNER_A`·`owner_a `·`member_x` / 목록 `[]`·미지정 × `owner_a` | `true`·`true`·`false`·`false`·`false` / `false`·`false`. 로그 0건(순수) | R-SET-001 |
+| SRV-T-237 | `requireOwner_four_paths_via_app` | 시험 라우트(`requireToken, requireOwner` + 200 핸들러)를 `createApp`에 주입. ① env `OWNER_MB_IDS: 'owner_a'`, `owner_a` 토큰 ② 같은 env, `member_x` 토큰 ③ `OWNER_MB_IDS: ''`, `owner_a` 토큰 ④ `OWNER_MB_IDS`에 21자 조각 ⑤ 무토큰 · 저등급 `owner_a` 토큰 | ① 200 ② 403 `OWNER_ONLY` + info `owner_denied { mbId: 'member_x' }` ③ 403 `OWNER_ONLY` ④ 500 `CONFIG_INVALID` ⑤ 401 `TOKEN_REQUIRED` · 403 `LEVEL_TOO_LOW`(주인 판정 전). ②~⑤ 핸들러 미실행 | R-SET-001 · R-AUTH-003 |
+| SRV-T-238 | `requireOwner_without_requireToken_fails_closed` | `requireOwner`만 붙인 시험 라우트 | 401 `TOKEN_REQUIRED`, `owner_denied` 로그 없음 | R-SET-001 |
+
+- SRV-T-237이 lead 수용 기준 "주인 판정 4경로(주인·비주인·빈 목록·형식 위반 env)"를 덮는다. 실제 설정 라우트 전건 대조(무토큰 401·등급 미달 403·비주인 403·주인 200)는 contract 라우트 테스트 몫이다.
+- SRV-T-237 변형 ⑥(api.md N6): `requireToken, requireOwner, rateLimitWrites` 순서의 시험 라우트에 비주인 요청 3회(`RATE_LIMIT_PER_MIN: '2'`) → 전부 403 `OWNER_ONLY`, `rate_limits` 0행, 응답 본문에 `mbId` 없음. `requireOwner` 경로가 D1을 쓰지 않음을 함께 보인다.
+
+### 12.6 contract 요구 명세
+
+| 항목 | 규약 |
+|---|---|
+| 적용 라우트 | E15 `GET /api/settings/characters`: `requireToken, requireOwner`. E16 `PUT`: `requireToken, requireOwner, rateLimitWrites`, 본문 상한, `validate('json', putCharacterSettingsBody, settingsIssueMessage)`(api.md §4.16) |
+| 적용 단위 | 라우트 단위만. 전역·라우터 단위 금지(기존 §9.1 규약 그대로) |
+| 순서 | `requireOwner`는 반드시 `requireToken` 바로 뒤. 빠지면 401로 닫힌다(SRV-T-238) |
+| 화면 규약 | `OWNER_ONLY`는 화면 `AUTH_FAILURE_CODES`에 넣지 않는다(02 §4.2, R-SET-010) |
+| shared 선행 | `ErrorCode`·`ERROR_STATUS`·`ERROR_MESSAGES`에 `OWNER_ONLY`(403) 추가(15종) |
+
+### 12.7 요구 추적 (S3c)
+
+| 요구ID | 반영 절 | 테스트ID | 상태 |
+|---|---|---|---|
+| R-SET-001 🔒 | §12.1·§12.2 | SRV-T-236~238, [env.md](env.md) SRV-T-234·235 | ✅(설계) |
+| R-AUTH-003 🔒 (S3c 예외 — 설정 GET도 토큰) | §12.2·§12.6 | SRV-T-237 ⑤, contract 라우트 테스트 | ✅(설계) |
+| R-AUTH-006 🔒 · R-SET-012 | §12.3(`owner_denied`는 `mbId`만) | [settings.md](settings.md) SRV-T-259 | ✅(설계) |
+
+### 12.8 설계 결정 (S3c)
+
+| # | 결정 | 대안 | 채택 근거 |
+|---|---|---|---|
+| D-AUTH-15 | 판정 함수 둘: 순수 `isOwner` + 로그·throw `assertOwner` | `isOwner` 안에서 로그 | 미들웨어는 logger에 닿지 않는다(`AppEnv.Variables`에 logger 없음). 술어에 부수 효과를 두지 않는다 |
+| D-AUTH-16 | 대소문자 구분 정확 일치 | 소문자 정규화 | 토큰 `mb_id`는 갠홈 DB 값 그대로 서명된다. 정규화하면 다른 회원과 겹칠 여지를 만든다 |
+| D-AUTH-17 | 주인 판정을 레이트리밋 앞에 | 뒤에 | 비주인 요청이 쓰기 카운트를 쓰지 않는다. 02 §4.1 미들웨어 순서 |
+| D-AUTH-18 | `AuthDeps.config.ownerMbIds` 선택(기본 `[]`) | 필수 | 기존 테스트 픽스처 무수정. 기본값이 닫힌 쪽이라 누락돼도 열리지 않는다 |
+
+파급: `auth/index.ts` 재노출에 `requireOwner` 추가. `AuthService`에 메서드 2개 추가 — `AuthService`를 가짜 객체로 만드는 테스트가 있으면 두 메서드를 넣는다. 컨테이너 배선은 [index.md](index.md) §2.3.1.
+
 ## 변경 이력
 
 | 날짜 | 내용 |
 |---|---|
 | 2026-10-05 | 신규 작성(S2). 교차 벡터 V1~V8 산출(테스트 SECRET) |
+| 2026-10-06 | S3c 설계: §12 주인 판정 — `isOwner`(순수)·`assertOwner`(로그 `owner_denied`·`OWNER_ONLY` 403)·`requireOwner` 미들웨어, `AuthDeps.config.ownerMbIds`(선택, 기본 `[]`), SRV-T-236~238, D-AUTH-15~18 |
+| 2026-10-06 | api.md v0.5 대조: §12.2 D1 미접근(N6)·본문 상한 단계, §12.3 `OWNER_ONLY` 문구 확정(§5.8.2), §12.5 SRV-T-237 변형 ⑥(레이트리밋 미소모), §12.6 E16 미들웨어 줄 |
+| 2026-10-06 | §12에 구현 완료 표기(server 318/318, SRV-T-234~260). 설계와 다른 점 없음 |

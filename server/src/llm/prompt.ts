@@ -3,8 +3,8 @@
  * [공개 API] buildSpeakPrompt(input, profiles?, common?), 타입 SpeakPromptInput·PromptMessage
  * [비동기] 없음. 순수 함수(DB·env·네트워크 의존 없음)
  * [에러] 없음
- * [설정] 없음. 캐릭터 문구는 characters.ts 상수, 주입 완화 문구는 이 파일의 코드 상수(GUARD_RULES)
- * [테스트] server/test/llm-prompt.test.ts (SRV-T-167~171)
+ * [설정] 없음. 캐릭터 문구는 characters.ts 상수·settings 입력, 주입 완화 문구는 이 파일의 코드 상수(GUARD_RULES). S3c: 신규 8필드 섹션 조립(빈 값 생략)·설정 출처 텍스트 defang(설계 llm.md §7.3)
+ * [테스트] server/test/llm-prompt.test.ts (SRV-T-167~171, 252~255)
  */
 import { CHARACTERS } from '@shared/characters'
 import type { CharacterId, Message } from '@shared/types'
@@ -75,16 +75,44 @@ const labelOf = (m: PromptMessage): string => {
 /** 메시지 → 데이터 줄 */
 const toDataLine = (m: PromptMessage): string => `${labelOf(m)} ${safeText(m.text)}`
 
+const BASIC_INFO_LABELS = [
+  ['sourceMaterial', '원작'],
+  ['age', '나이'],
+  ['gender', '성별'],
+  ['role', '신분'],
+] as const
+/** 샘플 대사 섹션 단서 문구 — 코드 상수(편집 불가) */
+const SAMPLE_DIALOGUE_NOTE = '아래는 말투를 보여 주는 예시다. 그대로 되풀이하지 않는다.'
+
+const filled = (s: string | undefined): s is string => s !== undefined && s.trim() !== ''
+
+const optionalSection = (label: string, body: string | undefined): string[] =>
+  filled(body) ? [`[${label}]\n${defang(body)}`] : []
+
+const basicInfoLine = (p: CharacterProfile): string =>
+  BASIC_INFO_LABELS.flatMap(([key, label]) => {
+    const v = p[key]
+    return filled(v) ? [`${label}: ${defang(v)}`] : []
+  }).join(' / ')
+
+/** 설정 출처 텍스트만 defang. 표시명·OUTPUT_RULES·GUARD_RULES 는 그대로 */
 const buildSystem = (profile: CharacterProfile, common: CommonPrompt): string => {
-  const sections = [
-    common.world,
-    `[캐릭터 설정: ${profile.name}]\n${profile.persona}`,
-    `[말투]\n${profile.speech}`,
-    ...(profile.rules.length > 0 ? [`[캐릭터 규칙]\n${bullets(profile.rules)}`] : []),
+  const basic = basicInfoLine(profile)
+  const samples = profile.sampleDialogue ?? []
+  return [
+    defang(common.world),
+    `[캐릭터 설정: ${profile.name}]\n${basic === '' ? '' : `${basic}\n`}${defang(profile.persona)}`,
+    ...optionalSection('성격 태그', profile.personalityTags),
+    ...optionalSection('외형', profile.appearance),
+    ...optionalSection('관계', profile.relationships),
+    `[말투]\n${defang(profile.speech)}`,
+    ...(samples.length > 0
+      ? [`[샘플 대사]\n${SAMPLE_DIALOGUE_NOTE}\n${bullets(samples.map(defang))}`]
+      : []),
+    ...(profile.rules.length > 0 ? [`[캐릭터 규칙]\n${bullets(profile.rules.map(defang))}`] : []),
     `[출력 규칙]\n${bullets(common.outputRules)}`,
     `[대화 기록 취급]\n${bullets(GUARD_RULES)}`,
-  ]
-  return sections.join('\n\n')
+  ].join('\n\n')
 }
 
 const buildUserTurn = (input: SpeakPromptInput): string => {

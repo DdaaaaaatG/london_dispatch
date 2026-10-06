@@ -9,6 +9,7 @@ export const resetDb = async (): Promise<void> => {
     env.DB.prepare('DELETE FROM rooms'),
     env.DB.prepare('DELETE FROM rate_limits'),
     env.DB.prepare('DELETE FROM llm_usage'),
+    env.DB.prepare('DELETE FROM character_settings'),
   ])
 }
 

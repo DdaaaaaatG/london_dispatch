@@ -66,3 +66,8 @@ export type LlmUsageRow = {
   output_tokens: number
   est_krw: number
 }
+
+/** character_settings 조회 행(S3c) */
+export type CharacterSettingsRow = { json: string; version: number; updated_at: number }
+/** character_settings UPSERT RETURNING 행(S3c) */
+export type CharacterSettingsWriteRow = { version: number; updated_at: number }

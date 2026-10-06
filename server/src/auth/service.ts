@@ -1,10 +1,10 @@
 /**
  * [목적] 토큰 인증과 쓰기 레이트리밋 서비스(R-AUTH-002·005, R-NFR-003). 실패 사유는 reason 분류만 로그에 남긴다. 설계 auth.md §2.5·§4·§5
- * [공개 API] createAuthService(deps) -> AuthService { authenticate, hitRateLimit }, 타입 AuthDeps·AuthService
+ * [공개 API] createAuthService(deps) -> AuthService { authenticate, hitRateLimit, isOwner(S3c), assertOwner(S3c) }, 타입 AuthDeps·AuthService
  * [비동기] authenticate 는 Web Crypto await, hitRateLimit 는 D1 조건부 UPSERT 1회(+ 새 창 첫 요청에서 purge 1회)
- * [에러] AppError TOKEN_INVALID(401)·LEVEL_TOO_LOW(403)·RATE_LIMITED(429, retryAfterSec). D1 장애는 전파(INTERNAL). purge 실패는 무시
- * [설정] config.tokenSecret(클로저에만 보관), tokenMinLevel, rateLimitPerMin — parseEnv 결과를 값으로 받는다
- * [테스트] server/test/auth.test.ts (SRV-T-111~115·120)
+ * [에러] AppError TOKEN_INVALID(401)·LEVEL_TOO_LOW(403)·RATE_LIMITED(429, retryAfterSec). D1 장애는 전파(INTERNAL). purge 실패는 무시. S3c assertOwner: OWNER_ONLY(403)
+ * [설정] config.tokenSecret(클로저에만 보관), tokenMinLevel, rateLimitPerMin, ownerMbIds(S3c, 선택·기본 [] = 닫힘) — parseEnv 결과를 값으로 받는다
+ * [테스트] server/test/auth.test.ts (SRV-T-111~115·120), server/test/auth-owner.test.ts (SRV-T-236~238)
  */
 import { AppError } from '../app-error'
 import type { Db } from '../db'
@@ -18,13 +18,19 @@ export type AuthService = {
   authenticate: (raw: string) => Promise<Principal>
   /** mbId 의 현재 분 창에 쓰기 1회를 기록. 한도 초과면 AppError RATE_LIMITED(429, retryAfterSec) */
   hitRateLimit: (mbId: string) => Promise<void>
+  /** S3c. principal.mbId ∈ ownerMbIds(대소문자 구분 정확 일치). 목록이 비면 항상 false. 부수 효과 없음 */
+  isOwner: (principal: Principal) => boolean
+  /** S3c. isOwner 가 false 면 info 'owner_denied'{mbId} 후 AppError OWNER_ONLY(403) */
+  assertOwner: (principal: Principal) => void
 }
 
 export type AuthDeps = {
   db: Db
   logger: Logger
   now: () => number
-  config: Pick<Config, 'tokenSecret' | 'tokenMinLevel' | 'rateLimitPerMin'>
+  config: Pick<Config, 'tokenSecret' | 'tokenMinLevel' | 'rateLimitPerMin'> &
+    /** S3c. 없으면 [](닫힌 쪽 — 아무도 주인 아님). 컨테이너는 항상 넘긴다 */
+    Partial<Pick<Config, 'ownerMbIds'>>
 }
 
 const FIRST_HIT_COUNT = 1
@@ -33,6 +39,8 @@ const FIRST_HIT_COUNT = 1
 export const createAuthService = (deps: AuthDeps): AuthService => {
   const { db, logger, now } = deps
   const { tokenSecret, tokenMinLevel, rateLimitPerMin } = deps.config
+  const ownerMbIds: readonly string[] = deps.config.ownerMbIds ?? []
+  const isOwner = (principal: Principal): boolean => ownerMbIds.includes(principal.mbId)
 
   const purgeOldWindows = async (windowStart: number): Promise<void> => {
     try {
@@ -43,6 +51,12 @@ export const createAuthService = (deps: AuthDeps): AuthService => {
   }
 
   return {
+    isOwner,
+    assertOwner: principal => {
+      if (isOwner(principal)) return
+      logger.info('owner_denied', { mbId: principal.mbId })
+      throw new AppError('OWNER_ONLY')
+    },
     authenticate: async raw => {
       const result = await verifyToken(raw, {
         secret: tokenSecret,

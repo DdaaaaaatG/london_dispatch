@@ -287,7 +287,9 @@ describe('S2 앱 계층', () => {
     expect(services.auth).toBeDefined()
     expect(services.getHealth()).toEqual({ ok: true, version: APP_VERSION })
     expect(JSON.stringify(services)).not.toContain('SENTINEL_SECRET_VALUE')
-    expect(Object.keys(services.auth)).toEqual(['authenticate', 'hitRateLimit'])
+    expect(Object.keys(services.auth).sort()).toEqual(
+      ['assertOwner', 'authenticate', 'hitRateLimit', 'isOwner'].sort(),
+    )
     expect(Object.keys(services.auth).join()).not.toContain('tokenSecret')
   })
 

@@ -14,6 +14,13 @@ TOKEN_SECRET=
 LLM_API_KEY=
 # LLM_PROVIDER=fake
 
+# --- 캐릭터 설정 화면 주인 (S3c, R-SET-001) ---
+# 갠홈 주인(지인) 회원 아이디 목록. 쉼표나 공백으로 구분, 최대 5개, 각 1~20자. 대소문자까지 그대로 적는다.
+# 비우면 설정 화면은 아무도 못 연다(전원 403). 캐릭터 대화는 기본 설정으로 계속 된다.
+# 비밀값은 아니지만 회원 아이디를 저장소에 남기지 않도록 여기(.dev.vars)와 운영 Secrets 에만 둔다.
+# 운영은 npx wrangler secret put OWNER_MB_IDS 로 넣는다. 로컬 시험은 자리표시 아이디를 넣고 그 아이디로 토큰을 만든다.
+OWNER_MB_IDS=
+
 # --- 참고: wrangler.toml [vars] 기본값 (여기 적지 않는다, 설명만) ---
 # TOKEN_MIN_LEVEL=5                      쓰기 허용 최소 등급(그누보드 mb_level 1~10). 확정사항 §9-1
 # LLM_PROVIDER=google                    google | fake. 확정사항 §9-4

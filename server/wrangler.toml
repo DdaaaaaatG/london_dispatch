@@ -1,6 +1,6 @@
 # 런던_디스패치 Cloudflare Worker 설정
 # 설계: doc/200_설계/server/index.md §6.1 · 키 목록 단일 소스: src/env.ts (doc/200_설계/server/env.md §3.1)
-# 비밀값(TOKEN_SECRET, LLM_API_KEY)은 여기 적지 않는다. 운영은 `npx wrangler secret put <KEY>`, 로컬은 server/.dev.vars
+# 비밀값(TOKEN_SECRET, LLM_API_KEY)과 갠홈 주인 회원 ID 목록(OWNER_MB_IDS, S3c)은 여기 적지 않는다. 운영은 `npx wrangler secret put <KEY>`, 로컬은 server/.dev.vars
 
 name = "london-dispatch"
 main = "src/index.ts"

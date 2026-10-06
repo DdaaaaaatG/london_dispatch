@@ -516,3 +516,37 @@ describe('llm_usage (S3b)', () => {
     expect(await db.llmUsage.get('2026-09')).toBeNull()
   })
 })
+
+describe('character_settings (S3c)', () => {
+  it('SRV-T-239 characterSettings_get_upsert_and_checks', async () => {
+    const db = createDb(env.DB)
+    expect(await db.characterSettings.get()).toBeNull()
+    expect(await db.characterSettings.upsert('{"a":1}', 'owner_test', 100)).toEqual({
+      version: 1,
+      updatedAt: 100,
+    })
+    expect(await db.characterSettings.upsert('{"a":2}', 'owner_test', 200)).toEqual({
+      version: 2,
+      updatedAt: 200,
+    })
+    expect(await db.characterSettings.get()).toEqual({
+      json: '{"a":2}',
+      version: 2,
+      updatedAt: 200,
+    })
+    const insert = (id: number, json: string, by: string) =>
+      env.DB.prepare(
+        'INSERT INTO character_settings (id, json, version, updated_at, updated_by) VALUES (?1, ?2, 1, 1, ?3)',
+      )
+        .bind(id, json, by)
+        .run()
+    await expect(insert(2, '{}', 'owner_test')).rejects.toThrow()
+    await expect(db.characterSettings.upsert('{}', 'x'.repeat(21), 300)).rejects.toThrow()
+    await expect(
+      db.characterSettings.upsert('x'.repeat(200_001), 'owner_test', 300),
+    ).rejects.toThrow()
+    await env.DB.prepare('DELETE FROM character_settings').run()
+    await insert(1, '{{', 'owner_test')
+    expect((await db.characterSettings.get())?.json).toBe('{{')
+  })
+})

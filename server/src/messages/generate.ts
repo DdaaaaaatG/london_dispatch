@@ -1,15 +1,22 @@
 /**
  * [목적] 캐릭터 1턴 생성(speak, R-MSG-003)과 마지막 캐릭터 메시지 재작성(regenerate, R-MSG-006). 방 단위 잠금(R-MSG-007)·updated_at 갱신(R-ROOM-005)·응답 뒤 훅 자리(R-MEM-002). 설계 messages.md §2.3·§4.2·§4.3
  * [공개 API] createGenerateOps(deps) -> { speak, regenerate }, SPEAK_LOCK_MS, 타입 SpeakInput·Background·AfterSpeakEvent·AfterSpeakHook·GenerateDeps·GenerateOps
- * [비동기] llm() 확인 → ensureBudget(S3b) → 잠금 선점 → Promise.all(pageDesc ∥ getSummary) → llm.complete → 저장 → finally 해제(실패는 warn 로그만). afterSpeak 는 background.waitUntil 로 등록
+ * [비동기] llm() 확인 → ensureBudget(S3b) → 잠금 선점 → Promise.all(pageDesc ∥ getSummary ∥ loadPromptSettings(S3c)) → llm.complete → 저장 → finally 해제(실패는 warn 로그만). afterSpeak 는 background.waitUntil 로 등록
  * [에러] VALIDATION_ERROR·NOT_FOUND·SPEAK_IN_PROGRESS·NOT_LAST_MESSAGE·NOT_CHARACTER_MESSAGE, llm 의 LLM_FAILED·LLM_EMPTY·LLM_BUDGET_EXCEEDED(S3b, 429)와 CONFIG_INVALID 는 그대로 전파
- * [설정] contextMessages(config.contextMessages)와 llm 지연 생성 함수를 deps 값으로 받는다. 바인딩을 읽지 않는다
- * [테스트] server/test/messages-generate.test.ts (SRV-T-191~209)
+ * [설정] contextMessages(config.contextMessages)와 llm 지연 생성 함수, S3c loadPromptSettings(없으면 시드)를 deps 값으로 받는다. 바인딩을 읽지 않는다
+ * [테스트] server/test/messages-generate.test.ts (SRV-T-191~209, 256~258)
  */
 import type { SpeakBody } from '@shared/types'
 import { AppError } from '../app-error'
 import type { Db, Message } from '../db'
-import { buildSpeakPrompt, isCharacterId, postprocessLine, type Llm } from '../llm'
+import {
+  buildSpeakPrompt,
+  DEFAULT_PROMPT_SETTINGS,
+  isCharacterId,
+  postprocessLine,
+  type Llm,
+  type PromptSettings,
+} from '../llm'
 import type { Logger } from '../logger'
 import { isMessageId } from './text'
 
@@ -34,6 +41,8 @@ export type GenerateDeps = {
   llm: () => Llm
   /** 없으면 no-op(S4 가 채운다) */
   afterSpeak?: AfterSpeakHook
+  /** S3c. 잠금 선점 뒤 speak·regenerate 마다 1회 부른다(캐시 없음). 없으면 시드 */
+  loadPromptSettings?: () => Promise<PromptSettings>
 }
 
 export type GenerateOps = {
@@ -54,6 +63,7 @@ const errName = (e: unknown): string => (e instanceof Error ? e.name : 'unknown'
 /** speak·regenerate 를 만든다 */
 export const createGenerateOps = (deps: GenerateDeps): GenerateOps => {
   const { db, now, logger, contextMessages } = deps
+  const loadPromptSettings = deps.loadPromptSettings ?? (async () => DEFAULT_PROMPT_SETTINGS)
 
   const releaseQuietly = async (roomId: string, untilMs: number): Promise<void> => {
     try {
@@ -96,11 +106,16 @@ export const createGenerateOps = (deps: GenerateDeps): GenerateOps => {
     await llm.ensureBudget()
     const startMs = now()
     const saved = await withSpeakLock(roomId, roomNotFound, async () => {
-      const [rowsDesc, summary] = await Promise.all([
+      const [rowsDesc, summary, settings] = await Promise.all([
         db.messages.pageDesc(roomId, contextMessages),
         db.memory.getSummary(roomId),
+        loadPromptSettings(),
       ])
-      const prompt = buildSpeakPrompt({ character, summary, history: [...rowsDesc].reverse() })
+      const prompt = buildSpeakPrompt(
+        { character, summary, history: [...rowsDesc].reverse() },
+        settings.profiles,
+        settings.common,
+      )
       const text = postprocessLine(await llm.complete(prompt))
       const row = await db.messages.insert(
         { roomId, speaker: character, kind: 'line', text, authorMbId: null, authorName: null },
@@ -127,15 +142,20 @@ export const createGenerateOps = (deps: GenerateDeps): GenerateOps => {
     await llm.ensureBudget()
     const startMs = now()
     const saved = await withSpeakLock(target.roomId, messageNotFound, async () => {
-      const [rowsDesc, summary] = await Promise.all([
+      const [rowsDesc, summary, settings] = await Promise.all([
         db.messages.pageDesc(target.roomId, contextMessages + 1),
         db.memory.getSummary(target.roomId),
+        loadPromptSettings(),
       ])
       const head = rowsDesc[0]
       if (head === undefined || head.id < messageId) throw messageNotFound()
       if (head.id > messageId) throw new AppError('NOT_LAST_MESSAGE')
       const history = rowsDesc.slice(1).reverse()
-      const prompt = buildSpeakPrompt({ character, summary, history })
+      const prompt = buildSpeakPrompt(
+        { character, summary, history },
+        settings.profiles,
+        settings.common,
+      )
       const text = postprocessLine(await llm.complete(prompt))
       const row = await db.messages.updateText(messageId, text, now())
       if (row === null) throw messageNotFound()

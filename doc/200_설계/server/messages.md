@@ -1,6 +1,6 @@
 # messages 모듈 설계
 
-- 상태: S1 확정(구현 동기화) · S2 초안 · S3 초안(§2.3·§4.2·§4.3·§8.2) · S3b 초안(§4.2 예산 게이트·§8.3) · 최종 갱신: 2026-10-06
+- 상태: S1 확정(구현 동기화) · S2 초안 · S3 초안(§2.3·§4.2·§4.3·§8.2) · S3b 초안(§4.2 예산 게이트·§8.3) · S3c 구현 완료(§4.4·§8.4) · 최종 갱신: 2026-10-06
 - 묶음: S1 = R-MSG-001(히스토리 페이지). S2 = R-MSG-002(유저 발화·지시 저장) · R-MSG-004(수정) · R-MSG-005(삭제) · R-MSG-008(권한). S3 = R-MSG-003·006·007(speak·regenerate·방당 잠금) · R-ROOM-005(재작성 갱신) · R-NFR-001·003 · R-MEM-002(훅 자리만, S3 no-op). S3b = R-LLM-007 🔒 월 예산 게이트(speak·regenerate 잠금 전 `llm.ensureBudget()` — 사용량 누적은 llm 안, [llm.md](llm.md) §12).
 - 관련 문서: [db.md](db.md)(`messages` 저장소), [rooms.md](rooms.md)(`updated_at` 갱신 규칙), [auth.md](auth.md)(`Principal`·쓰기 미들웨어), [index.md](index.md)(서비스 컨테이너·에러 핸들러), [llm.md](llm.md)(S3 프롬프트·제공사·재시도).
 
@@ -307,6 +307,46 @@ POST /api/messages/:id/regenerate  [requireToken·rateLimitWrites]
 | (S3b) 예산 직전, 다른 방 speak 여러 건 동시 | 모두 게이트 통과·진행, 예산을 약간 넘길 수 있다 | 게이트는 읽기만 한다. 허용·문서화([llm.md](llm.md) §12.8) |
 | (S3b) 예산 초과 상태에서 유저 발화·수정·삭제·조회 | 모두 정상 | 게이트는 speak·regenerate에만 있다(R-LLM-007) |
 
+### 4.4 S3c — 설정 읽기 (R-SET-003 · R-SET-006 · 개정 R-LLM-003)
+
+- **구현 완료(2026-10-06)**: server 318/318 통과 · S3c 테스트 SRV-T-234~260(이 문서 몫 SRV-T-256~258).
+
+캐릭터는 말하기 직전에 보관함에서 최신 대본을 꺼내 읽는다. 대본을 미리 복사해 두지 않으므로 주인이 고친 대본이 바로 다음 차례부터 쓰인다.
+
+```ts
+// server/src/messages/service.ts — MessagesDeps 에 추가 (generate.ts 의 GenerateDeps 도 같은 필드)
+import type { PromptSettings } from '../llm'
+
+  /** S3c. 잠금 선점 뒤 speak·regenerate 마다 1회 부른다(캐시 없음). 없으면 시드(llm DEFAULT_PROMPT_SETTINGS) */
+  loadPromptSettings?: () => Promise<PromptSettings>
+```
+
+흐름 델타(§4.2의 ④·⑤ 안):
+
+```
+speak ④ try {
+     [rowsDesc, summary, promptSettings] = await Promise.all([
+         db.messages.pageDesc(roomId, contextMessages),
+         db.memory.getSummary(roomId),
+         loadPromptSettings(),            ── S3c. settings.loadForPrompt — D1 PK 1행 + 재검증. 훼손 행은 시드(에러 아님)
+     ])
+     prompt = buildSpeakPrompt({ character, summary, history }, promptSettings.profiles, promptSettings.common)
+     …(이하 S3 그대로)
+
+regenerate ⑤ try {
+     [rowsDesc, summary, promptSettings] = Promise.all([ pageDesc(roomId, contextMessages + 1), getSummary(roomId), loadPromptSettings() ])
+     …head 검사(NOT_FOUND·NOT_LAST_MESSAGE)는 그대로…
+     prompt = buildSpeakPrompt({ character: target.speaker, summary, history }, promptSettings.profiles, promptSettings.common)
+```
+
+- **읽는 시점은 잠금 선점 뒤, LLM 호출 전**이다(02 §3). 그래서 `VALIDATION_ERROR`·`CONFIG_INVALID`·`LLM_BUDGET_EXCEEDED`·방 없음·`SPEAK_IN_PROGRESS`로 끝나는 speak는 설정을 읽지 않는다(SRV-T-258). regenerate의 `NOT_LAST_MESSAGE`·대상 삭제는 잠금 안에서 판정되므로 병렬 읽기 1회가 일어난다(허용).
+- **캐시 없음.** 서비스·모듈 어디에도 설정을 보관하지 않는다. 매 speak·regenerate가 D1을 읽는다(R-SET-003 "저장 즉시 반영").
+- **실패(api.md §15.12 N5):** `loadPromptSettings`의 D1 오류는 시드로 바뀌지 않고 `Promise.all`로 전파되어 500 `INTERNAL`이고, finally가 잠금을 푼다(기존 조회 실패와 같은 경로). 재검증 실패는 settings가 시드로 바꿔 돌려주므로 messages는 모른다.
+- **의존:** messages는 settings 모듈을 import하지 않는다. 함수 값만 deps로 받는다. 컨테이너가 `settings.loadForPrompt`를 넘긴다([index.md](index.md) §2.3.1).
+- **기본값:** 없으면 `async () => DEFAULT_PROMPT_SETTINGS`([llm.md](llm.md) §3.4). `createMessagesService`를 직접 만드는 기존 테스트(`IDLE_GENERATE_DEPS` 사용처 등 10여 곳)가 수정 없이 통과한다. 운영 배선 누락은 SRV-T-256(`createServices` 경유)이 잡는다.
+- 판정 순서(D-MSG-20·21)와 로그(`speak_done`·`regenerate_done`)는 바뀌지 않는다. 로그에 설정 version·본문을 싣지 않는다(R-SET-012).
+- 시간 상한: D1 읽기 1회가 기존 두 읽기와 병렬이라 추가 지연은 거의 없다. 70초 예산(R-NFR-001) 영향 없음.
+
 ## 5. 에러 타입
 
 | 에러 클래스 | shared 에러 코드 | HTTP | 한국어 메시지 | 원인 | 묶음 |
@@ -471,6 +511,16 @@ INSERT INTO messages (room_id, speaker, kind, text, author_mb_id, author_name, c
 - 에러 경로(225·226·228 일부) 3 ≥ 정상 경로(227·229·230) 3.
 - 수동: [llm.md](llm.md) §12.12 수동 2항목(예산 1원 설정 → 429, 다른 쓰기는 성공).
 
+### 8.4 S3c 테스트 — `server/test/messages-generate.test.ts`에 추가
+
+| 테스트ID | 이름 | 입력 | 기대 | 요구 |
+|---|---|---|---|---|
+| SRV-T-256 | `speak_and_regenerate_use_settings_saved_just_before` | `createServices`(fake 제공사, `OWNER_MB_IDS: 'owner_test'`)로 `settings.put`(persona·speech에 감시 문구 A) → speak → 다시 `put`(감시 문구 B) → 같은 대사 regenerate | 첫 FakeProvider 호출 system에 A 포함, 둘째 호출 system에 B 포함·A 없음(캐시 없음 증명) | R-SET-003 · R-SET-006 |
+| SRV-T-257 | `speak_uses_seed_when_settings_row_corrupted` | `character_settings`에 `json = '{{'` 행을 직접 INSERT → speak | 201, system = 시드 기반 문자열([llm.md](llm.md) SRV-T-252 기대와 같음), error 로그 `character_settings_invalid` 정확히 1건, 로그에 행 본문 없음 | R-SET-003 · R-SET-012 |
+| SRV-T-258 | `settings_read_only_after_lock_acquired` | `loadPromptSettings` 스파이. speak: 잘못된 character / google + 키 없음 / 예산 초과 / 방 없음 / 잠금 busy / 정상. regenerate: 유저 메시지 대상(`NOT_CHARACTER_MESSAGE`) / 정상 | 실패 경로 호출 0회, 정상 경로 각 1회 | R-SET-003 · R-LLM-007 |
+
+- 기존 SRV-T-191~209·S3b 테스트는 수정하지 않는다(`loadPromptSettings` 선택 필드).
+
 ## 9. contract 요구 명세
 
 | 서비스 | 엔드포인트 후보 | 입력 | 출력 | 에러 | 토큰 | 레이트리밋 | 이유 |
@@ -514,6 +564,13 @@ INSERT INTO messages (room_id, speaker, kind, text, author_mb_id, author_name, c
 | R-LLM-007 🔒 (S3b 게이트) | §4.2 ②b·③b, §4.3, §5, §9 | SRV-T-225~230 | ✅(설계) |
 | R-NFR-003 🔒 (S3b — 429 경로) | §4.2 ②b | SRV-T-225 | ✅(설계) |
 
+### 10.1 S3c 추적
+
+| 요구ID | 반영 절 | 테스트ID | 상태 |
+|---|---|---|---|
+| R-SET-003 🔒 (speak 반영) | §4.4 | SRV-T-256~258 | ✅(설계) |
+| R-SET-006 🔒 · R-LLM-003 🔒(개정) | §4.4(입력 전달 — 조립은 [llm.md](llm.md) §7.3) | SRV-T-256 | ✅(설계) |
+
 ## 11. 설계 결정 노트
 
 | # | 결정 | 대안 | 채택 근거 |
@@ -546,6 +603,14 @@ INSERT INTO messages (room_id, speaker, kind, text, author_mb_id, author_name, c
 - D-MSG-7(본문 trim)은 요구 문구에 없다. 앞뒤 공백을 보존해야 하는 사용 사례가 있으면 알려 달라(그 경우에도 공백뿐인 본문은 거부를 권고).
 - (S3) D-MSG-15: regenerate 생성 중 유저가 발화를 덧붙이면 재작성된 캐릭터 메시지가 더는 마지막이 아니게 된다. 화면이 생성 중 입력창을 막는지(R-CHAT-005 "버튼 잠금"의 범위)와 함께 판단이 필요하다. 막지 않는다면 "교체 시점에도 마지막일 때만" 조건을 요구로 승격할 수 있다(db에 조건부 교체 함수 1개 추가).
 
+### 11.1 S3c 결정
+
+| # | 결정 | 대안 | 채택 근거 |
+|---|---|---|---|
+| D-MSG-22 | 설정을 함수 값 deps(`loadPromptSettings`)로 받는다 | messages가 settings 모듈 import | settings → llm, messages → llm 단방향을 지킨다. 테스트에서 대체가 쉽다 |
+| D-MSG-23 | 선택 deps + 시드 기본값 | 필수 deps | 기존 직접 생성 테스트 10여 곳 무수정. 배선은 SRV-T-256이 보장 |
+| D-MSG-24 | 잠금 뒤 `Promise.all`로 병렬 읽기 | 잠금 전 읽기 · 직렬 | 02 §3 "잠금 뒤 요약·히스토리와 함께". 잠금 전에 읽으면 409로 끝날 요청도 읽고, 잠금 대기 중 저장된 값을 놓칠 수 있다 |
+
 ## 변경 이력
 
 | 날짜 | 내용 |
@@ -554,6 +619,10 @@ INSERT INTO messages (room_id, speaker, kind, text, author_mb_id, author_name, c
 | 2026-10-06 | S3 설계: §2.3 예정 시그니처를 본문으로 승격(speak `author` 인자 제거, regenerate `background` 제거), `MessagesDeps`에 `logger`·`contextMessages`·`llm`·`afterSpeak?`, `generate.ts` 추가, §4.2 흐름·§4.3 경합, §5 S3 에러, §8.2 SRV-T-191~209, §9·§10 갱신, D-MSG-12~19 |
 | 2026-10-06 | S3b 설계: §4.2 speak ②b·regenerate ③b 예산 게이트(`llm.ensureBudget()`), §4.3 경합 2행, §5 `LLM_BUDGET_EXCEEDED`, §8.3 SRV-T-225~230, §9 에러 목록, §10 R-LLM-007·R-NFR-003, D-MSG-20·21 |
 | 2026-10-05 | S1 구현 동기화(상태 확정): 페이지 단위 테스트 위치 `server/test/messages-page.test.ts`, `MessagePage`는 `@shared/types` `MessagesPage` 별칭, `NormalizedPageQuery` 재노출. S2 설계: `addUserMessage`(S1 문서의 `appendUserMessage` 개명)·`editMessage`·`deleteMessage` 본문 확정, `MessagesDeps`에 `now`, `text.ts` 추가, `AuthContext` → `MessageAuthor`(Principal 일부), D-MSG-6~11 |
+| 2026-10-06 | S3c 설계: §4.4 잠금 뒤 `loadPromptSettings()`(= `settings.loadForPrompt`)를 요약·히스토리와 병렬로 1회 읽어 `buildSpeakPrompt`에 전달(캐시 없음, 선택 deps·시드 기본값), §8.4 SRV-T-256~258, §10.1, D-MSG-22~24 |
+| 2026-10-06 | api.md v0.5 대조: §4.4 D1 오류는 시드로 바꾸지 않음(N5) 출처 표기 |
+| 2026-10-06 | 테스트 입력 정정: SRV-T-257의 훼손 행 직접 INSERT 입력 `'{'`(1자)는 0003 CHECK 하한 2에 걸린다. `'{{'`(2자, JSON 파싱 실패)로 바꿨다(settings.md·db.md와 같은 정정) |
+| 2026-10-06 | §4.4에 구현 완료 표기(server 318/318, SRV-T-234~260). 설계와 다른 점 없음 |
 
 파급(공개 API 변경): `MessagesDeps`에 `now` 필수 추가 → 호출자 `server/src/services.ts`(`createServices`), `server/test/messages.test.ts` 11행·68행의 `createMessagesService({ db })`를 `{ db, now }`로 고친다. 라우트(`server/src/routes/messages.ts`)의 `listMessages` 호출은 영향 없다.
 

@@ -1,6 +1,6 @@
 # env 모듈 설계
 
-- 상태: 확정(S1 구현 동기화) · S3b 초안(키 4개 — §2 S3b 델타·§3.1·§6) · 최종 갱신: 2026-10-06
+- 상태: 확정(S1 구현 동기화) · S3b 초안(키 4개 — §2 S3b 델타·§3.1·§6) · S3c 구현 완료(`OWNER_MB_IDS` 1키 — §2 S3c 델타) · 최종 갱신: 2026-10-06
 - 묶음: S1(저장 + 읽기 전용). 이 문서의 공개 API는 전부 S1에서 구현되었다(`requireLlmApiKey`는 S1에서 만들고 S3 speak가 호출). **S2 변경 없음**: S2가 쓰는 `TOKEN_SECRET`·`TOKEN_MIN_LEVEL`·`RATE_LIMIT_PER_MIN`은 이미 `Config`(`tokenSecret`·`tokenMinLevel`·`rateLimitPerMin`)에 있고, [auth.md](auth.md) §6이 값으로 받는다. **S3 변경 없음**: S3가 쓰는 `llmProvider`·`llmModel`·`llmTimeoutMs`·`contextMessages`와 `requireLlmApiKey`는 이미 구현되어 있다. 컨테이너가 speak·regenerate 시점에만 `requireLlmApiKey`를 부르는 지연 생성 함수로 감싼다([llm.md](llm.md) §3.3, R-ENV-003). `requireLlmApiKey`는 `LLM_PROVIDER=fake`이면 키를 요구하지 않고 `''`을 돌려주며, `FakeProvider`는 그 값을 쓰지 않는다(키 없는 로컬 개발·테스트용). **S3b 변경**: 월 비용 상한(R-LLM-007 🔒) 키 4개 `LLM_MONTHLY_BUDGET_KRW`·`LLM_PRICE_INPUT_USD_PER_M`·`LLM_PRICE_OUTPUT_USD_PER_M`·`KRW_PER_USD`(전부 `[vars]`, 비밀 아님)와 소수 변환기 `decimalVar`를 더한다.
 - 관련 문서: [index.md](index.md)(호출 지점·부트스트랩), [db.md](db.md)(`DB` 바인딩 소비), [auth.md](auth.md)(토큰·레이트리밋 설정 소비), [rooms.md](rooms.md), [messages.md](messages.md).
 
@@ -101,6 +101,118 @@ KRW_PER_USD: decimalVar(100, 10_000, 1400),
 - 공개 함수 시그니처(`parseEnv`·`requireLlmApiKey`)는 바뀌지 않는다. `Config`에 필드 4개, `ENV_KEYS`에 이름 4개가 늘 뿐이다.
 - 교차 검사는 없다. 4개 키는 `LLM_API_KEY` 유무와 무관하게 항상 파싱한다. 형식 오류는 다른 `[vars]` 키와 같이 모든 요청 500 `CONFIG_INVALID`다.
 - 쓰는 곳은 컨테이너의 meter 배선뿐이다([index.md](index.md) §2.3 S3b, [llm.md](llm.md) §12.11).
+
+### S3c 델타 — `OWNER_MB_IDS` (R-SET-001 · R-ENV-002 개정 2026-10-06)
+
+- **구현 완료(2026-10-06)**: server 318/318 통과 · S3c 테스트 SRV-T-234~260(이 절 몫 SRV-T-234·235).
+
+주인 명단은 건물 관리실이 갖고 있는 "사장실 출입 명단"이다. 출입증(토큰)이 진짜여도 명단에 없는 사람은 사장실(설정 화면)에 못 들어간다. 명단은 배포 설정에 적고, 관리실(env)이 읽어 경비(auth)에게 건넨다.
+
+갠홈 주인 회원 ID 목록 1키를 더한다. auth의 `isOwner`가 값으로 받는다([auth.md](auth.md) §12). 결정 출처: `s3c-02-전반설계.md` §1(권고 B 채택) · `doc/state.json` decisions 2026-10-06 Q2 수정 — **지인(갠홈 주인) ID만** 둔다. 사용자 본인 ID는 넣지 않는다.
+
+```ts
+export type Config = {
+  // …기존 14필드 그대로
+  /** S3c. 갠홈 주인 회원 ID 목록(중복 제거, 입력 순서 유지). 빈 배열 = 주인 없음(설정 엔드포인트 전원 403) */
+  readonly ownerMbIds: readonly string[]
+}
+
+// ENV_KEYS: 설정 15 + 리소스 2 = 17. 'KRW_PER_USD' 뒤, 'DB' 앞에 'OWNER_MB_IDS'
+
+/** S3c. 그누보드 mb_id 길이 상한 · 목록 개수 상한 (s3c-02 §1) */
+const OWNER_MB_ID_MAX = 20
+const OWNER_MB_IDS_MAX = 5
+
+const ownerMbIds = z.preprocess(
+  blankToUndefined,
+  z
+    .string()
+    .default('')
+    .transform(s => [...new Set(s.split(/[\s,]+/).filter(x => x !== ''))])
+    .pipe(z.array(z.string().min(1).max(OWNER_MB_ID_MAX)).max(OWNER_MB_IDS_MAX)),
+)
+
+// schema 추가 행
+OWNER_MB_IDS: ownerMbIds,
+// parseEnv 반환 추가
+ownerMbIds: v.OWNER_MB_IDS,
+```
+
+파싱 규칙:
+
+| 입력 | 결과 |
+|---|---|
+| 키 없음 · `''` · 공백만 · `','` | `[]`(주인 없음 — 위반 아님) |
+| `'owner_a'` | `['owner_a']` |
+| `' owner_a, owner_b  owner_c,,owner_a '` | `['owner_a', 'owner_b', 'owner_c']`(쉼표·공백 둘 다 구분자, 빈 조각 제거, 중복 제거) |
+| 조각 하나가 21자 이상 | `ConfigError(['OWNER_MB_IDS'])` → 모든 요청 500 `CONFIG_INVALID` |
+| 고유 조각 6개 이상 | 같음 |
+
+- 그누보드 `mb_id`는 영문·숫자·밑줄이라 zod `.max()`(UTF-16 단위)와 글자 수가 같다. 문자 종류는 검사하지 않는다(02 §1 규칙 그대로 — §11 제안 참고).
+- 비교는 auth가 **대소문자 구분 정확 일치**로 한다. 운영 값은 갠홈 회원 정보의 `mb_id` 표기 그대로 적는다.
+- 출처: **Secrets 권고**(`npx wrangler secret put OWNER_MB_IDS`) — 비밀값은 아니지만 회원 ID를 공개 저장소에 남기지 않기 위해서다. `[vars]`도 허용한다. Workers는 둘을 같은 `env`로 주므로 `parseEnv`는 같다. 두 곳에 같은 이름을 함께 두지 않는다(한 곳만).
+- `[vars]` 키와 달리 trim 대상이 조각 단위다(목록 문자열이라 HMAC 키 같은 바이트 보존이 필요 없다).
+- `ConfigError`는 키 이름만 싣는다(값 미포함 — SRV-T-235). `Config`를 통째로 로그하지 않는 기존 규칙 그대로.
+- 형식 위반은 다른 키와 같이 **모든 요청** 500이다. 빈 값은 위반이 아니다(설정 엔드포인트만 전원 403, 나머지는 정상).
+- 쓰는 곳: 컨테이너가 auth 팩토리에 `ownerMbIds`만 넘긴다([index.md](index.md) §2.3.1).
+
+§3.1 키 표 추가 행:
+
+| 키 | 출처 | 비밀 | 원시 타입 | 필수 / 기본값 | 검증 | `Config` 필드 | 쓰는 묶음 |
+|---|---|---|---|---|---|---|---|
+| `OWNER_MB_IDS` (S3c) | Secrets / `.dev.vars`(권고) · `[vars]` 허용 | △(비밀 아님, 저장소 비노출 권고) | string | 선택, `''` → `[]` | 쉼표·공백 구분, 조각 1~20자, 고유 최대 5개, 중복 제거 | `ownerMbIds` | S3c auth |
+
+§6.1 키 대조표 추가 행:
+
+| 키 | `parseEnv` 스키마 | `wrangler.toml [vars]` | `server/.dev.vars.example` | Cloudflare Secrets |
+|---|---|---|---|---|
+| `OWNER_MB_IDS` (S3c) | ○ 기본 `[]` | ✕ 값 없음. 머리 주석 1줄만(아래) | ○ 빈 값(활성 키) | ○ `wrangler secret put OWNER_MB_IDS`(권고) |
+
+§6.2 `server/.dev.vars.example` 추가 블록(server-implementer가 「AI 제공사」 블록 뒤, 「참고: wrangler.toml [vars]」 블록 앞에 넣는다):
+
+```ini
+# --- 캐릭터 설정 화면 주인 (S3c, R-SET-001) ---
+# 갠홈 주인(지인) 회원 아이디 목록. 쉼표나 공백으로 구분, 최대 5개, 각 1~20자. 대소문자까지 그대로 적는다.
+# 비우면 설정 화면은 아무도 못 연다(전원 403). 캐릭터 대화는 기본 설정으로 계속 된다.
+# 비밀값은 아니지만 회원 아이디를 저장소에 남기지 않도록 여기(.dev.vars)와 운영 Secrets 에만 둔다.
+# 운영은 npx wrangler secret put OWNER_MB_IDS 로 넣는다. 로컬 시험은 자리표시 아이디를 넣고 그 아이디로 토큰을 만든다.
+OWNER_MB_IDS=
+```
+
+- 위 주석 줄은 `KEY=값` 꼴이 아니어야 한다(SRV-T-011의 주석 키 추출에 걸리지 않게).
+- `wrangler.toml`은 값 줄을 두지 않고 머리 주석 3번째 줄만 바꾼다([index.md](index.md) §6.2): `# 비밀값(TOKEN_SECRET, LLM_API_KEY)과 갠홈 주인 회원 ID 목록(OWNER_MB_IDS, S3c)은 여기 적지 않는다. 운영은 \`npx wrangler secret put <KEY>\`, 로컬은 server/.dev.vars`
+- 문서·예제·테스트에 실제 회원 ID를 쓰지 않는다. 자리표시자(`owner_a`·`owner_test`)만.
+
+테스트(`server/test/env.test.ts`):
+
+| 테스트ID | 이름 | 입력 | 기대 | 요구 |
+|---|---|---|---|---|
+| SRV-T-234 | `parseEnv_parses_owner_mb_ids_list` (S3c) | 없음 · `''` · `'   '` · `','` / `'owner_a'` / `' owner_a, owner_b  owner_c,,owner_a '` / 20자 조각 1개 / 고유 5개 | `[]`×4 / `['owner_a']` / `['owner_a','owner_b','owner_c']` / 통과 / 통과 | R-SET-001 · R-ENV-002 |
+| SRV-T-235 | `parseEnv_rejects_invalid_owner_mb_ids_without_value` (S3c) | 감시 문자열을 포함한 21자 조각 / 고유 6개 | `ConfigError`, `keys = ['OWNER_MB_IDS']`, `JSON.stringify(err)`·`err.message`에 감시 문자열 없음 | R-SET-001 · R-ENV-003 · R-NFR-004 |
+
+기존 테스트 파급:
+
+- SRV-T-011: `.dev.vars.example` 활성 키 기대값이 Secrets 계열 3개(`TOKEN_SECRET`·`LLM_API_KEY`·`OWNER_MB_IDS`)로 바뀐다. 테스트 안 `secrets` 배열에 `'OWNER_MB_IDS'`를 더한다. `[vars]` 키 = 설정 키 − 이 3개, 주석 키 = `[vars]` 키는 그대로 성립한다.
+- SRV-T-001: 기본값 비교에 `ownerMbIds: []`가 더해진다.
+- `Config`를 객체 리터럴로 만드는 테스트 픽스처가 있으면 `ownerMbIds: []`를 넣는다.
+- 공개 함수 시그니처(`parseEnv`·`requireLlmApiKey`)는 바뀌지 않는다.
+
+요구 추적 추가:
+
+| 요구ID | 반영 절 | 테스트ID | 상태 |
+|---|---|---|---|
+| R-SET-001 🔒 (env 몫) | §2 S3c 델타 | SRV-T-234·235 | ✅(설계) |
+| R-ENV-002 🔒 (S3c 개정 +`OWNER_MB_IDS`) | S3c 델타(§3.1·§6.1·§6.2 추가분) | SRV-T-011·234 | ✅(설계) |
+
+결정:
+
+| # | 결정 | 대안 | 채택 근거 |
+|---|---|---|---|
+| D-ENV-10 (S3c) | 쉼표·공백 둘 다 구분자, 조각 1~20자, 최대 5개 | JSON 배열 문자열 | `wrangler secret put` 입력이 한 줄이라 사람이 치기 쉬운 형식. 02 §1 규칙 그대로 |
+| D-ENV-11 (S3c) | `.dev.vars.example`에 활성 빈 키로 둔다(Secrets 계열) | `[vars]` 주석 | Secrets 권고를 예제에서 그대로 보인다. `[vars]`에 두면 운영에서도 그 자리에 실값을 적기 쉽다 |
+| D-ENV-12 (S3c) | 형식 위반은 모든 요청 500 | 설정 엔드포인트만 403 | 기존 env 규칙("형식 위반은 배포 실수 — 바로 드러나게")과 같다. R-SET-001 수용 기준 "형식 위반 env → `CONFIG_INVALID`" |
+
+제안(설계 미반영): 조각 문자 종류 검사(`^[A-Za-z0-9_]+$`). 따옴표째 붙여 넣는 실수(`"owner_a"`)를 배포 시점에 잡는다. 02 §1에 없는 규칙이라 보류한다.
 
 ## 3. 내부 구조
 
@@ -355,5 +467,7 @@ env 모듈은 엔드포인트를 노출하지 않는다. contract가 알아야 �
 | 2026-10-05 | S1 구현 동기화(상태 확정). 공개 API·키 표는 `server/src/env.ts`와 일치해 본문 변경 없음. S2는 env 변경 없음(머리말에 명시), `.dev.vars.example` 확인 필요 항목 해결 처리 |
 | 2026-10-06 | S3 확인: env 변경 없음(머리말에 명시). `requireLlmApiKey` 호출 지점·fake 제공사 동작을 [llm.md](llm.md) §3.3에 연결 |
 | 2026-10-06 | S3b 설계: 키 4개(`LLM_MONTHLY_BUDGET_KRW`·`LLM_PRICE_INPUT_USD_PER_M`·`LLM_PRICE_OUTPUT_USD_PER_M`·`KRW_PER_USD`) — §2 S3b 델타(`Config`·`ENV_KEYS` 16개·스키마 행), §3.1 행·`decimalVar` 규칙·스케치, §6.1 대조표, §6.2 주석 4줄, SRV-T-231·232, SRV-T-001 기본값 수, §8 grep 목록, D-ENV-8·9 |
+| 2026-10-06 | S3c 설계: `OWNER_MB_IDS` 1키 — S3c 델타(`Config.ownerMbIds`·`ENV_KEYS` 17개·스키마·파싱 규칙·키 표/대조표/`.dev.vars.example` 추가 블록·`wrangler.toml` 머리 주석), SRV-T-234·235, SRV-T-011 Secrets 계열 3개, D-ENV-10~12. 결정 출처 state.json(Q2 — 지인 ID만) |
+| 2026-10-06 | S3c 델타에 구현 완료 표기(server 318/318, SRV-T-234~260). 설계와 다른 점 없음 |
 
 파급(S3b): `Config`에 필드 4개, `ENV_KEYS`에 4개 추가. `parseEnv` 결과를 구조 비교하는 테스트(SRV-T-001)와 `ENV_KEYS` 길이를 단언하는 테스트가 있으면 갱신한다. `server/wrangler.toml [vars]`에 4줄([index.md](index.md) §6.1 S3b), `server/.dev.vars.example`에 주석 4줄(§6.2)을 더해야 SRV-T-011이 통과한다. `Config`를 직접 만드는 테스트 픽스처(`parseEnv` 대신 객체 리터럴)가 있으면 4필드를 넣는다.

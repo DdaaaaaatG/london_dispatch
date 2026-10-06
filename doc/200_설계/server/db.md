@@ -1,6 +1,6 @@
 # db 모듈 설계
 
-- 상태: S1 확정(구현 동기화) · S2 초안 · S3 초안(§2.3·§3.5) · S3b 초안(§2.4·§3.6·§7.5) · 최종 갱신: 2026-10-06
+- 상태: S1 확정(구현 동기화) · S2 초안 · S3 초안(§2.3·§3.5) · S3b 초안(§2.4·§3.6·§7.5) · S3c 구현 완료(§2.5·§3.7·§7.6·§8.1) · 최종 갱신: 2026-10-06
 - 묶음: S1 = 스키마(4테이블 전부)·마이그레이션 `0001_init.sql`·읽기 함수. S2 = 방 생성·이름 변경·연쇄 삭제, 메시지 추가·수정·삭제, 레이트리밋 카운터(§2.1의 "S2" 표시). S3 = speak 잠금 선점·해제, 메시지 단건 조회, 장기기억 summary 읽기(§2.3 — **마이그레이션 없음**). S4용은 §2.2에 예정 시그니처만. S3b = 월 AI 사용량 누적 `llm_usage`(§2.4 — **마이그레이션 `0002_llm_usage.sql`**, R-LLM-007 🔒).
 - 관련 문서: [env.md](env.md)(`DB` 바인딩), [index.md](index.md)(`createDb` 호출 지점), [rooms.md](rooms.md), [messages.md](messages.md), [auth.md](auth.md)(레이트리밋).
 
@@ -200,6 +200,50 @@ export type LlmUsageRow = {
 - 월 1행(연 12행)이라 정리(purge) 함수가 없다.
 - 시각은 `nowMs` 인자만 쓴다(§3 규칙). 월 키도 llm이 만든다.
 
+### 2.5 S3c 확정 — 캐릭터 설정 1행 문서 (`character_settings`, R-SET-003)
+
+- **구현 완료(2026-10-06)**: server 318/318 통과 · `0003` 로컬 적용 · S3c 테스트 SRV-T-234~260(이 문서 몫 SRV-T-239).
+
+설정 보관함은 서랍이 하나뿐인 금고다. 넣을 때는 통째로 바꿔 넣고(전체 교체), 바꿀 때마다 판 번호(version)가 하나 오른다. 금고는 안의 서류를 읽지 않는다. 서류 검사는 settings 모듈이 한다.
+
+```ts
+// server/src/db/character-settings.ts — 신규
+export type CharacterSettingsRecord = {
+  /** 설정 본체 JSON 문자열. db 는 해석·검증하지 않는다(재검증은 settings 모듈) */
+  json: string
+  /** 1 이상. 저장할 때마다 +1 */
+  version: number
+  /** epoch ms */
+  updatedAt: number
+}
+export type CharacterSettingsRepo = {
+  /** id = 1 행. 없으면 null. updated_by 는 읽지 않는다(응답에 없음) */
+  get: () => Promise<CharacterSettingsRecord | null>
+  /** id = 1 행을 만들거나(version 1) 덮어쓴다(version + 1). UPSERT 1문장, 갱신 뒤 version·updatedAt 반환 */
+  upsert: (json: string, updatedBy: string, nowMs: number) => Promise<{ version: number; updatedAt: number }>
+}
+export const createCharacterSettingsRepo = (binding: D1Database): CharacterSettingsRepo
+
+// server/src/db/types.ts — 행 타입 추가
+export type CharacterSettingsRow = { json: string; version: number; updated_at: number }
+export type CharacterSettingsWriteRow = { version: number; updated_at: number }
+
+// server/src/db/index.ts — Db 에 추가, 타입 재노출 CharacterSettingsRepo·CharacterSettingsRecord
+  /** S3c */
+  readonly characterSettings: CharacterSettingsRepo
+// createDb 에 characterSettings: createCharacterSettingsRepo(binding)
+```
+
+| 이름 | 묶음 | 인자 | 반환 | 실패 | 요구ID |
+|---|---|---|---|---|---|
+| `characterSettings.get` | S3c | — | `CharacterSettingsRecord \| null` | D1 오류 전파(`0003` 미적용이면 테이블 없음 → 500) | R-SET-003 |
+| `characterSettings.upsert` | S3c | `json, updatedBy, nowMs` | `{ version, updatedAt }` | D1 오류·CHECK 위반 전파, `RETURNING` 행 없음 → `AppError INTERNAL` | R-SET-003 · R-AUTH-006 |
+
+- 1행 문서라 id 인자가 없다. `id = 1`은 SQL 상수 안 리터럴이다.
+- `updatedBy`는 호출자(settings `put`)가 `Principal.mbId`를 넘긴다(R-AUTH-006 — mbId만). 주인 ID는 env에서 1~20자로 검증되므로 정상 경로에서 CHECK를 어기지 않는다.
+- db는 JSON을 해석하지 않는다. 검증·시드 대체는 [settings.md](settings.md) §2.4.
+- 1행이라 정리(purge) 함수가 없다. 시각은 `nowMs` 인자만 쓴다(§3 규칙).
+
 ## 3. 내부 구조
 
 | 파일 | 책임 |
@@ -373,6 +417,33 @@ export const SQL_LLM_USAGE_BY_MONTH =
 - 가산 갱신 한 문장이라 동시 누적에도 유실이 없다(D1이 쓰기를 직렬 실행).
 - `est_krw`에 JS 정수(예 `0`)를 bind해도 컬럼 REAL 친화도가 실수로 저장한다. 읽은 값은 JS `number`.
 - 비용: speak 1회 = 읽기 1행(게이트, PK) + 쓰기 1~2행(시도 수, PK). 무료 한도(일 쓰기 10만 행)에 영향이 작다.
+
+### 3.7 S3c SQL 상수와 결과 해석
+
+```ts
+// ---- S3c ----
+export const SQL_CHARACTER_SETTINGS_GET =
+  'SELECT json, version, updated_at FROM character_settings WHERE id = 1'
+
+/** 1행 문서 UPSERT. 조건 없음 — 마지막 쓰기 승리(settings.md D-SET-5) */
+export const SQL_CHARACTER_SETTINGS_UPSERT = `INSERT INTO character_settings (id, json, version, updated_at, updated_by)
+VALUES (1, ?1, 1, ?2, ?3)
+ON CONFLICT (id) DO UPDATE SET
+  json = excluded.json,
+  version = character_settings.version + 1,
+  updated_at = excluded.updated_at,
+  updated_by = excluded.updated_by
+RETURNING version, updated_at`
+```
+
+| 함수 | 문장 | 결과 해석 |
+|---|---|---|
+| `get()` | `GET.first<CharacterSettingsRow>()` | `null` 또는 `{ json, version, updatedAt: updated_at }` |
+| `upsert(json, updatedBy, nowMs)` | `UPSERT.bind(json, nowMs, updatedBy).first<CharacterSettingsWriteRow>()` | 행 → `{ version, updatedAt }`, `null` → `AppError INTERNAL` |
+
+- `llm_usage` ADD(§3.6)와 같은 조건 없는 UPSERT·`RETURNING` 관례다. 새 행은 version 1, 기존 행은 `character_settings.version + 1`(기존 행 값 기준 — 테이블명으로 한정해 뜻을 분명히 한다).
+- 한 문장이라 동시 PUT 두 건도 행이 깨지지 않고 version이 각각 +1 된다(D1 쓰기 직렬 실행).
+- CHECK 위반(json 길이·`updated_by` 길이)은 D1 오류로 전파되어 500이다. 정상 경로에서는 도달하지 않는다(§7.6).
 
 ## 4. 비동기·동시성
 
@@ -556,6 +627,40 @@ CREATE TABLE IF NOT EXISTS llm_usage (
 - 다른 테이블과 외래 키가 없다. 월 합계는 방에 속하지 않으므로 방 삭제 batch(§3.3)와 무관하다.
 - 되돌리기는 새 번호 마이그레이션으로만.
 
+### 7.6 S3c `server/migrations/0003_character_settings.sql` 전문
+
+```sql
+-- 0003_character_settings.sql — 캐릭터 설정 1행 문서 (R-SET-003). 설계 doc/200_설계/server/db.md §2.5·§7.6
+-- 본체 JSON 은 settings 모듈이 zod 로 검증·정규화해 쓰고, 읽을 때 다시 검증한다(훼손 행 → 시드 대체)
+-- 시각은 epoch ms INTEGER(R-DB-001 규칙). updated_by 는 mb_id 만(R-AUTH-006)
+CREATE TABLE IF NOT EXISTS character_settings (
+  id          INTEGER PRIMARY KEY CHECK (id = 1),
+  json        TEXT    NOT NULL CHECK (length(json) BETWEEN 2 AND 200000),
+  version     INTEGER NOT NULL CHECK (version >= 1),
+  updated_at  INTEGER NOT NULL,
+  updated_by  TEXT    NOT NULL CHECK (length(updated_by) BETWEEN 1 AND 20)
+);
+-- 인덱스 없음: 조회·갱신 모두 PK(id = 1)
+```
+
+제약 근거:
+
+| 제약 | 근거 |
+|---|---|
+| `id CHECK (id = 1)` | 1행 문서 강제. 두 번째 행이 생길 수 없다 |
+| `json` 길이 2~200000 | 하한 2 = `{}`. 상한은 02 초안 100000에서 **200000으로 올렸다**. PUT 본문 상한 128KB(131072바이트 ≥ 코드 포인트 수) 안의 정상 입력도 `JSON.stringify` 뒤 100000자를 넘을 수 있다(제어 문자 `\u00XX` 이스케이프는 1자가 6자). 정상 저장이 CHECK에 걸려 500이 나는 일을 막고, 행 크기 폭주만 막는 마지막 방어선으로 둔다 |
+| `version >= 1` | 0은 "저장된 적 없음(시드)" 응답 전용 값이라 행에 두지 않는다 |
+| `updated_by` 1~20 | 그누보드 mb_id 길이. `OWNER_MB_IDS` 조각 검증([env.md](env.md) S3c)과 같은 범위 |
+| JSON 형식 CHECK(`json_valid`) 없음 | 형식 검증은 settings가 쓰기·읽기 양쪽에서 한다. 규칙을 두 곳에 두지 않는다. 훼손 행 시험(SRV-T-248)도 직접 INSERT로 만들 수 있다 |
+
+- 파일 생성: `npx wrangler d1 migrations create DB character_settings` → 번호 `0003`이 붙은 파일 내용을 위 전문으로 바꾼다(§7.3).
+- 멱등: `IF NOT EXISTS`. `0001`·`0002`는 수정하지 않는다(R-DB-002).
+- 적용: 로컬 `migrate:local`, 테스트는 `readD1Migrations`가 0001~0003을 순서대로 읽는다(설정 변경 없음).
+- **운영 적용 순서: 코드 배포 전.** `/deploy`는 `npm run build` → `wrangler d1 migrations apply --remote` → `wrangler deploy` 순서라 그대로 맞다. 테이블 없이 새 코드가 돌면 speak·regenerate·설정 GET/PUT이 전부 500(테이블 없음)이다. 운영 D1은 아직 없으므로(S5에서 생성, `wrangler.toml` `database_id` 자리표시) 첫 적용 때 0001~0003이 한꺼번에 들어간다.
+- 롤백: 테이블은 남긴 채 코드만 되돌리면 옛 코드가 JSON 파일로 동작한다(옛 코드는 이 테이블을 읽지 않는다). 테이블 삭제 마이그레이션은 만들지 않는다.
+- 외래 키 없음. 방에 속하지 않으므로 방 삭제 batch(§3.3)와 무관하다.
+- 비용: PUT 1회 = 쓰기 1행. speak·regenerate·설정 GET 1회 = 읽기 1행(PK).
+
 ## 8. 테스트 계획
 
 `server/test/db.test.ts`. `@cloudflare/vitest-pool-workers` 0.22가 테스트 파일마다 격리한 D1(`cloudflare:test`의 `env.DB`)에 setup이 마이그레이션을 적용한다. 각 테스트는 `resetDb()` 후 고정 `nowMs`로 데이터를 넣는다.
@@ -611,6 +716,14 @@ CREATE TABLE IF NOT EXISTS llm_usage (
 - [ ] 리뷰 grep: `server/src/db`의 SQL에 `${` 또는 `+` 연결 0건(R-DB-003).
 - [ ] 리뷰: `server/src/db`가 `../rooms`·`../messages`·`../memory`·`../llm`·`../auth`를 import하지 않음(R-DB-005).
 
+### 8.1 S3c 테스트 (`server/test/db.test.ts`에 추가)
+
+| 테스트ID | 이름 | 입력 | 기대 | 요구 |
+|---|---|---|---|---|
+| SRV-T-239 | `characterSettings_get_upsert_and_checks` | 빈 DB `get` / `upsert('{"a":1}', 'owner_test', T1)` / `upsert('{"a":2}', 'owner_test', T2)` / `get` / 직접 `INSERT … id = 2` / `updatedBy` 21자 upsert / `json` 200001자 upsert / `json = '{{'` 직접 INSERT 후 `get` | `null` / `{ version: 1, updatedAt: T1 }` / `{ version: 2, updatedAt: T2 }` / `{ json: '{"a":2}', version: 2, updatedAt: T2 }` / CHECK 실패 / D1 오류 전파 / D1 오류 전파 / 문자열 그대로 반환(db는 해석 안 함) | R-SET-003 · R-DB-002 |
+
+- 0003 적용 확인은 위 테스트가 겸한다(setup이 0001~0003을 적용한 뒤 테이블이 있어야 첫 `get`이 `null`).
+
 ## 9. contract 요구 명세
 
 db는 contract에 직접 노출되지 않는다. contract가 알아야 할 데이터 규칙만 적는다.
@@ -647,6 +760,14 @@ db는 contract에 직접 노출되지 않는다. contract가 알아야 할 데�
 | R-LLM-007 🔒 (S3b) | §2.4·§3.6·§7.5 | SRV-T-223·224 | ✅(설계) |
 | R-DB-002 (S3b) | §7.5 `0002_llm_usage.sql` | SRV-T-223, 리뷰 | ✅(설계) |
 
+### 10.1 S3c 추적
+
+| 요구ID | 반영 절 | 테스트ID | 상태 |
+|---|---|---|---|
+| R-SET-003 🔒 | §2.5·§3.7·§7.6 | SRV-T-239, [settings.md](settings.md) SRV-T-245~248 | ✅(설계) |
+| R-DB-002 (S3c) | §7.6(새 번호 0003, 기존 파일 불변) | SRV-T-239 | ✅(설계) |
+| R-AUTH-006 🔒 (S3c) | §2.5(`updated_by` = mbId만, 조회 안 함) | — | ✅(설계) |
+
 ## 11. 설계 결정 노트
 
 | # | 결정 | 대안 | 채택 근거 |
@@ -682,6 +803,14 @@ db는 contract에 직접 노출되지 않는다. contract가 알아야 할 데�
 
 - **방 목록 읽기 비용**: `rooms.message_count` 컬럼을 추가하고 메시지 추가·삭제 batch에서 증감하면 `GET /api/rooms`의 읽기 행이 방 수로 줄어든다(§4.2). 스키마 🔒라 사용자 승인 후 `0002_*.sql`로만 가능하다. 메시지 수만 건 전에는 필요 없다.
 
+### 11.1 S3c 결정
+
+| # | 결정 | 대안 | 채택 근거 |
+|---|---|---|---|
+| D-DB-23 | 1행 문서(`id = 1` CHECK) + JSON TEXT | 캐릭터별 3행 · 필드별 컬럼 | 02 §3 권고. 내보내기·가져오기·PUT이 모두 전체 교체라 원자적이고, 필드가 늘어도 마이그레이션이 없다 |
+| D-DB-24 | `json` 길이 상한 200000 | 02 초안 100000 | §7.6 제약 근거. 정상 PUT이 CHECK에 걸리지 않게 128KB 본문보다 넉넉히 |
+| D-DB-25 | `get`이 `updated_by`를 읽지 않는다 | 응답·로그에 포함 | 요구에 쓰임이 없다. 회원 ID 노출을 최소로(R-AUTH-006) |
+
 ## 변경 이력
 
 | 날짜 | 내용 |
@@ -690,6 +819,9 @@ db는 contract에 직접 노출되지 않는다. contract가 알아야 할 데�
 | 2026-10-05 | S1 구현 동기화(상태 확정): 도메인 타입은 `@shared/types` 재노출, `toMessage`는 파일 export(index 미노출), `AppError(code, message?)` 시그니처, vitest 0.22 `cloudflareTest` 설정, `test/helpers.ts`. S2 설계: §2.1 S2 함수 8종·`NewMessage`·`RateLimitsRepo`, §3.2 SQL, §3.3 batch 구성, §7.4 인덱스 영향 없음, D-DB-8~12. 기존 §2.2의 S2 예정 시그니처(`rename`·`insertStmt`·`findById`·`updateTextStmt`·`deleteStmt`)는 위 함수로 대체 |
 | 2026-10-06 | S3 설계: §2.3(`acquireSpeakLock`·`releaseSpeakLock`·`getById`·`MemoryRepo.getSummary`·`Db.memory`), §3.5 SQL·batch 해석, §4.2 speak·regenerate 비용, SRV-T-187~190, D-DB-13~17. 마이그레이션 없음 |
 | 2026-10-06 | S3b 설계: §2.4 `LlmUsageRepo`(`add`·`get`)·`Db.llmUsage`·`LlmUsageRow`, §3 파일 표(`llm-usage.ts`·`0002`·helpers), §3.6 UPSERT·조회 SQL, §7.5 `0002_llm_usage.sql` 전문, SRV-T-223·224, §10 R-LLM-007·R-DB-002, D-DB-18~22 |
+| 2026-10-06 | S3c 설계: §2.5 `characterSettings.{get, upsert}`·행 타입, §3.7 SQL 상수(조건 없는 UPSERT·RETURNING), §7.6 `0003_character_settings.sql` 전문·제약 근거(json 상한 200000으로 조정)·적용 순서(코드 배포 전), §8.1 SRV-T-239, §10.1·§11.1 |
+| 2026-10-06 | 테스트 입력 정정(server-implementer 보고): SRV-T-239의 훼손 행 직접 INSERT 입력 `'{'`(1자)는 CHECK 하한 2에 걸린다. `'{{'`(2자, JSON 파싱 실패)로 바꿨다. §7.6 전문은 그대로 |
+| 2026-10-06 | 구현 완료 동기화(server 318/318 · `0003` 로컬 적용). 설계와 다른 점: 테스트 도우미 `server/test/helpers.ts`의 `resetDb`에 `character_settings` 삭제를 더했다(테스트 간 행 격리) |
 
 파급(공개 API 변경): `Db`에 `rateLimits` 추가 → `Db`를 직접 구현하는 테스트 가짜 객체(`server/test/app.test.ts` 188행 근처 `trap`, `rooms.test.ts`·`messages.test.ts`의 가짜 `Db`)가 타입 오류가 나면 `rateLimits`를 추가한다. 기존 S1 함수 시그니처는 바뀌지 않는다.
 
