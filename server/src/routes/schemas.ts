@@ -1,5 +1,5 @@
 import { checkCharacterSettings } from '@shared/settings'
-import type { CharacterId } from '@shared/types'
+import type { CharacterId, SpeakTarget } from '@shared/types'
 import { z } from 'zod'
 import { characterSettingsSchema } from '../settings'
 
@@ -45,8 +45,14 @@ export const editMessageBody = z.object({ text: z.string() })
 /** CharacterId 와 같은 두 값. 캐릭터는 2명 고정(확정사항 §1) */
 const CHARACTER_IDS = ['sebastian', 'ciel'] as const satisfies readonly CharacterId[]
 
-/** POST /api/rooms/:id/speak 본문. 두 값 밖 → 400 VALIDATION_ERROR(기본 문구) (api.md §4.13) */
-export const speakBody = z.object({ character: z.enum(CHARACTER_IDS) })
+/** speak 대상 — SpeakTarget 과 같은 집합 (api.md §4.13 · §5.2, v0.6 'auto'). 캐릭터 2명 고정 + 'auto' */
+const SPEAK_TARGETS = [
+  ...CHARACTER_IDS,
+  'auto',
+] as const satisfies readonly SpeakTarget[]
+
+/** POST /api/rooms/:id/speak 본문. 세 값 밖은 400(기본 문구) — 대소문자·공백을 고쳐 주지 않는다 (api.md §4.13) */
+export const speakBody = z.object({ character: z.enum(SPEAK_TARGETS) })
 
 /** E16 본문(PUT 캐릭터 설정). 봉투 모르는 키는 버리고, settings 안은 server 스키마가 strict (api.md §4.16) */
 export const putCharacterSettingsBody = z.object({ settings: characterSettingsSchema })

@@ -223,6 +223,7 @@ describe('POST /api/rooms/:id/speak', () => {
       { character: '' },
       { character: 1 },
       { character: null },
+      { character: 'auto ' },
       '{broken',
     ]
     for (const body of bodies) {
@@ -449,5 +450,65 @@ describe('S3b 월 예산 게이트 (R-LLM-007)', () => {
   it('API-T-090 budget_uses_current_kst_month_only', async () => {
     await insertUsage('2023-10', OVER)
     expect((await speak({ character: 'sebastian' })).status).toBe(201)
+  })
+})
+
+describe('S3d speak 대상 auto (R-MSG-009 · R-MSG-003)', () => {
+  const MONTH = '2023-11'
+  const USER_LINE = { text: '안녕', ooc: false }
+
+  it('API-T-109 speak_auto_returns_201_with_character_speaker', async () => {
+    const before = await countMessages()
+    const res = await speak({ character: 'auto' })
+    expect(res.status).toBe(201)
+    const raw = await res.clone().text()
+    expect(raw).not.toContain('"auto"')
+    const msg = await res.json<Message>()
+    expect(['sebastian', 'ciel']).toContain(msg.speaker)
+    expect(msg).toMatchObject({ kind: 'line', authorName: null })
+    expect(await countMessages()).toBe(before + 1)
+    const row = await env.DB.prepare('SELECT speaker AS s FROM messages WHERE id = ?1')
+      .bind(msg.id)
+      .first<{ s: string }>()
+    expect(row?.s).toBe(msg.speaker)
+  })
+
+  it('API-T-110 speak_rejects_invalid_targets', async () => {
+    const before = await countMessages()
+    const bad: Body[] = [
+      { character: 'Auto' },
+      { character: 'AUTO' },
+      { character: ' auto' },
+      { character: '' },
+      { character: null },
+      { character: true },
+      {},
+    ]
+    for (const body of bad) {
+      expect(await expectError(await speak(body), 'VALIDATION_ERROR')).toBe(BAD_FORM)
+    }
+    expect(await countMessages()).toBe(before)
+    for (const character of ['sebastian', 'ciel', 'auto']) {
+      expect((await speak({ character })).status, character).toBe(201)
+    }
+  })
+
+  it('API-T-111 speak_auto_shares_lock_budget_rate_limit', async () => {
+    await lockRoom(NOW + 1)
+    await expectError(await speak({ character: 'auto' }), 'SPEAK_IN_PROGRESS')
+    await lockRoom(NOW)
+
+    await insertUsage(MONTH, 100_000)
+    await expectError(await speak({ character: 'auto' }), 'LLM_BUDGET_EXCEEDED')
+    expect((await usageRow(MONTH))?.calls).toBe(1)
+    await env.DB.prepare('DELETE FROM llm_usage').run()
+    await env.DB.prepare('DELETE FROM rate_limits').run()
+
+    const e = baseEnv({ RATE_LIMIT_PER_MIN: '2' })
+    const user = (): Promise<Response> =>
+      call('POST', `/api/rooms/${ROOM}/user`, { body: USER_LINE, e })
+    expect((await user()).status).toBe(201)
+    expect((await speak({ character: 'auto' }, { e })).status).toBe(201)
+    await expectError(await user(), 'RATE_LIMITED')
   })
 })

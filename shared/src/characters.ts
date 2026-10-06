@@ -31,3 +31,10 @@ export const CHARACTERS: { readonly [K in CharacterId]: CharacterMeta & { readon
     avatar: `${PATHS.embed}/img/ciel.png`,
   },
 }
+
+/**
+ * 유저 메시지 고정 표시 이름 (R-AUTH-004 · R-CHAT-002, S3d 사용자 지정 2026-10-06)
+ * server: 응답 authorName 투영(db/messages.ts toMessage)·프롬프트 유저 줄 라벨. ui: authorName 이 비었을 때의 대체 표시
+ * 작성자 실명(ch_name ?? nick)은 D1 author_name 에만 저장한다. 설정 화면에서 바꾸지 않는다
+ */
+export const USER_DISPLAY_NAME = '어떠한 의지'

@@ -336,6 +336,34 @@ describe('S3 생성 래퍼', () => {
     }
   })
 
+  it('API-T-UI-028 speak_auto_sends_auto_body', async () => {
+    configureClient({ getToken: () => 'tok' })
+    const fn = stubFetch(async () => json(message, 201))
+    const result = await speak('r1', { character: 'auto' })
+    const [url, init] = fn.mock.calls[0] as unknown as [string, RequestInit]
+    expect([init.method, url]).toEqual(['POST', '/api/rooms/r1/speak'])
+    expect(init.body).toBe('{"character":"auto"}')
+    expect(new Headers(init.headers).get('Authorization')).toBe('Bearer tok')
+    expect(result).toMatchObject({ ok: true, value: { speaker: 'ciel' } })
+    // @ts-expect-error 'Auto' 는 SpeakTarget 이 아니다
+    const bad: SpeakBody = { character: 'Auto' }
+    expect(bad.character).toBe('Auto')
+  })
+
+  it('API-T-UI-029 author_name_passes_through_unchanged', async () => {
+    configureClient({ getToken: () => 'tok' })
+    const user = { ...message, id: 1, speaker: 'user', authorName: '어떠한 의지' }
+    stubFetch(async () => json({ messages: [user, message], hasMore: false }, 200))
+    const list = await listMessages('r1')
+    expect(list).toMatchObject({
+      ok: true,
+      value: { messages: [{ authorName: '어떠한 의지' }, { authorName: null }] },
+    })
+    stubFetch(async () => json(user, 201))
+    const appended = await appendUser('r1', { text: 'x', ooc: false })
+    expect(appended).toMatchObject({ ok: true, value: { authorName: '어떠한 의지' } })
+  })
+
   it('API-T-UI-021 generate_wrappers_set_no_timeout', async () => {
     const fn = stubFetch(async () => json(message, 201))
     await speak('r1', { character: 'sebastian' })

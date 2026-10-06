@@ -1,5 +1,6 @@
 // API-T-050~066 — doc/200_설계/contract/api.md §14.5 · §14.9 (쓰기 8종: 토큰 · 레이트리밋 · 검증 · 정상)
 import { createExecutionContext, env } from 'cloudflare:test'
+import { USER_DISPLAY_NAME } from '@shared/characters'
 import { ERROR_MESSAGES, ERROR_STATUS, type ErrorCode } from '@shared/errors'
 import type { Message, MessagesPage, RoomSummary } from '@shared/types'
 import { beforeEach, describe, expect, it } from 'vitest'
@@ -311,7 +312,7 @@ describe('POST /api/rooms/:id/user', () => {
       speaker: 'user',
       kind: 'line',
       text: '안녕',
-      authorName: '시엘 팬텀하이브',
+      authorName: USER_DISPLAY_NAME,
       createdAt: NOW,
     })
     const ooc = await (await ok(userCall({ text: '지시', ooc: true }))).json<Message>()
@@ -319,7 +320,15 @@ describe('POST /api/rooms/:id/user', () => {
     const nick = await (
       await ok(userCall({ text: 'x', ooc: false }), { ch_name: '' })
     ).json<Message>()
-    expect(nick.authorName).toBe('테스터')
+    expect(nick.authorName).toBe(USER_DISPLAY_NAME)
+    const nickRow = await env.DB.prepare('SELECT author_name AS n FROM messages WHERE id = ?1')
+      .bind(nick.id)
+      .first<{ n: string }>()
+    expect(nickRow?.n).toBe('테스터')
+    const rawNick = JSON.stringify(nick)
+    const rawLine = JSON.stringify(line)
+    expect(rawLine + rawNick).not.toContain('시엘 팬텀하이브')
+    expect(rawLine + rawNick).not.toContain('테스터')
     expect(await roomUpdatedAt(ROOM)).toBe(NOW)
     const row = await env.DB.prepare('SELECT author_mb_id AS a FROM messages WHERE id = ?1')
       .bind(line.id)
@@ -397,6 +406,36 @@ describe('PATCH · DELETE /api/messages/:id', () => {
     expect(page.messages).toHaveLength(2)
     expect(await roomUpdatedAt(ROOM)).toBe(NOW)
     expect(await expectContractError(await del(), 'NOT_FOUND')).toBe(NO_MESSAGE)
+  })
+
+  it('API-T-108 user_author_name_is_projected_everywhere', async () => {
+    const seed = async (kind: 'line' | 'ooc'): Promise<number> => {
+      const row = await env.DB.prepare(
+        "INSERT INTO messages (room_id, speaker, kind, text, author_mb_id, author_name, created_at) VALUES (?1, 'user', ?2, ?3, 'seed_a', '시드 유저', 9) RETURNING id",
+      )
+        .bind(ROOM, kind, `시드 ${kind}`)
+        .first<{ id: number }>()
+      return (row as { id: number }).id
+    }
+    const lineId = await seed('line')
+    const oocId = await seed('ooc')
+    const listRes = await read(`/api/rooms/${ROOM}/messages`)
+    const raw = await listRes.clone().text()
+    expect(raw).not.toContain('시드 유저')
+    const page = await listRes.json<MessagesPage>()
+    for (const m of page.messages) {
+      expect(m.authorName).toBe(m.speaker === 'user' ? USER_DISPLAY_NAME : null)
+    }
+    expect(page.messages.filter(m => m.speaker === 'user')).toHaveLength(2)
+    expect(page.messages.some(m => m.speaker !== 'user')).toBe(true)
+    const patch = await ok({ method: 'PATCH', path: `/api/messages/${oocId}`, body: { text: '수정' } })
+    expect(patch.status).toBe(200)
+    expect(await patch.clone().text()).not.toContain('시드 유저')
+    expect((await patch.json<Message>()).authorName).toBe(USER_DISPLAY_NAME)
+    const rows = await env.DB.prepare('SELECT author_name AS n FROM messages WHERE id IN (?1, ?2)')
+      .bind(lineId, oocId)
+      .all<{ n: string }>()
+    expect(rows.results.map(r => r.n)).toEqual(['시드 유저', '시드 유저'])
   })
 })
 

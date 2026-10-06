@@ -1820,6 +1820,7 @@ export const checkCharacterSettings = (value: unknown): SettingsCheckResult => {
 | v0.5 보정 2 | 2026-10-06 | ui-design-checker 지적 2건 반영(메인 세션 결정). ① "무시한 항목" = 출처에 값이 있으나 형이 달라 쓸 수 없는 위치만, 출처에 없는 키·매핑 없는 필드·`null`·E.No.S 빈 값은 "없음", 계수는 후보 만들기 한 곳(§16.2 분류 표·§16.3). ② 가져오기는 파일이 준 후보 필드만 검사(저장값 위에 후보를 덮어 `checkCharacterSettings`), 초안 전체 검사는 저장 버튼 활성 조건에서만(§16.2). §16.3 가져오기 단위 테스트 기대값 6행 추가, §5.8.4 쓰는 곳 표·§10 R-SET-008 행·§15.12 결정 6·7 | 비파괴(구현 전 화면 규칙 보정. API·shared 이름·서버 영향 없음) | 아니오 |
 | v0.5 구현 | 2026-10-06 | S3c 구현 완료(routes E15·E16 · `validate` `toMessage` · ui/api `getCharacterSettings`·`saveCharacterSettings` · `client` `'PUT'`). 테스트 API-T-091~103 · API-T-UI-024~027. 계약 내용 변경 없음 | 변경 없음 | 아니오 |
 | v0.6 | 2026-10-06 | S3d 상세 확정(R-MSG-003·R-AUTH-004·R-CHAT-002·R-CHAT-006·R-NFR-001 개정, R-MSG-009·R-LLM-008·R-CHAT-014 신규). E9 본문 `SpeakTarget`(`'auto'` 추가, §4.13·§5.2), 유저 메시지 `authorName` = `USER_DISPLAY_NAME` 서버 투영(§2.3·§4.3·§4.9·§4.10·§5.5), §4.12 AI 호출 2~3회, §11.15 · §12.5 · §13.5 · §14.17 · §14.18 · §15.13 · 인계 2종 S3d. 엔드포인트·에러 코드·경로·env·마이그레이션 0 | 추가(`'auto'` 값 추가 = 비파괴) + `authorName` **값 규칙 변경**(타입·키 불변, 소비자는 우리 화면 1개이고 server와 동시 배포 — 비파괴로 분류, 근거 §13.5) | 아니오(토큰·`?t=`·임베드 주소·handoff 불변) |
+| v0.6 구현 | 2026-10-06 | S3d 구현 완료(routes `speakBody` `SPEAK_TARGETS` 세 값 enum · ui/api `speak` 변경 없음 확인). 테스트 API-T-072(보강) · 108 ~ 111 · API-T-UI-028 · 029, §12.5 실물 파일:줄 | 구현 반영(계약 변경 없음) | 아니오 |
 | v0.6 복구 | 2026-10-06 | 0be2f4c에서 지워진 §13~§15·「ui 인계 메모」·「contract-implementer 인계 목록」(S3·S3b분)을 git `11125c2` 원문 그대로 되살렸다 | 변경 없음(문서 복구) | 아니오 |
 | v0.6 | 2026-10-06 | S3c 유실분 복원(0be2f4c 절단, 메인 세션 재조립). §13.4 · §14.14~§14.16 · §15.12 · §16(16.1~16.4) · 「ui 인계 메모」 S3c · 「contract-implementer 인계 목록」 S3c를 `.claude/reports/api-v05-recovered-tail.md` 원문 그대로 병합하고 자리표시 7곳을 지웠다. 복원본의 S3·S3b 앵커 줄은 이미 있는 한 벌만 남겼다. §12.4는 contract-implementer 실물 대조표 유지 | 변경 없음(문서 복원) | 아니오 |
 
@@ -2922,18 +2923,20 @@ export const speak = (roomId: string, body: SpeakBody): Promise<Result<Message>>
 
 실행 증거(2026-10-06): `npx tsc --noEmit -p server` exit 0 · `-p ui`의 `ui/src/api` 오류 0건 · `vitest run --project server` 18파일 318/318(305 + API-T-091~103 13건) · `vitest run --project ui ui/src/api` 2파일 27/27(API-T-UI-024~027 4건 포함). ui 전체의 실패 17건은 ui-implementer 미구현 화면(`OwnerGate`·`settings/`)용 선작성 테스트다.
 
-### 12.5 4자 대조표 (S3d — 설계 기준, 구현 후 contract-implementer가 실물 파일:줄로 다시 채운다)
+### 12.5 4자 대조표 (S3d — 구현 완료 2026-10-06, 실물 파일:줄)
 
 | 계약 항목 | api.md | shared | routes | ui/api | 판정 |
 |---|---|---|---|---|---|
-| E9 본문 `SpeakTarget` 세 값 | §4.13 · §5.2 | `types.ts` `SpeakTarget` · `SpeakBody` | `schemas.ts` `SPEAK_TARGETS` · `speakBody` | `messages.ts` `speak(roomId, body: SpeakBody)` | 미구현 |
-| `'auto'` → `201`, `speaker` = `CharacterId` | §4.13 | `Message.speaker: Speaker` 불변 | `messages.ts` 핸들러 불변(서비스 반환 그대로) | 변경 없음 | 미구현(API-T-109) |
-| 세 값 밖 `400` | §4.13 | — | zod enum | — | 미구현(API-T-110) |
-| 잠금·예산·레이트리밋 공유 | §4.12 · §4.13 | — | 미들웨어 순서 불변 | — | 미구현(API-T-111) |
-| `USER_DISPLAY_NAME` | §5.5 | `characters.ts` | routes 무관(server `toMessage`가 import) | 래퍼는 쓰지 않음(화면이 import) | 미구현(API-T-112) |
-| 유저 `authorName` 투영 | §2.3 · §4.3 · §4.9 · §4.10 | 주석만 | 라우트 변경 없음(서비스 결과 그대로) | 치환 없음 | 미구현(API-T-062·108, UI-029) |
-| 엔드포인트 16 · 에러 15 불변 | §4.0 · §3.2 | `PATHS` · `ERROR_CODES` 불변 | — | — | 미구현(API-T-040·042 무수정) |
+| E9 본문 `SpeakTarget` 세 값 | §4.13 · §5.2 | `shared/src/types.ts:83` `SpeakTarget` · `:86` `SpeakBody` | `server/src/routes/schemas.ts:49` `SPEAK_TARGETS` · `:55` `speakBody` | `ui/src/api/messages.ts:39` `speak(roomId, body: SpeakBody)` 변경 없음 | ✅ |
+| `'auto'` → `201`, `speaker` = `CharacterId` | §4.13 | `Message.speaker: Speaker` 불변 | `routes/messages.ts:88` 핸들러 불변(서비스 반환 그대로) | 변경 없음 | ✅ API-T-109 · API-T-UI-028 |
+| 세 값 밖 `400` | §4.13 | — | `schemas.ts:55` zod enum | `api.test.ts:339` `@ts-expect-error` | ✅ API-T-072(`'auto '` 추가) · API-T-110 |
+| 잠금·예산·레이트리밋 공유 | §4.12 · §4.13 | — | 미들웨어 순서 불변 | — | ✅ API-T-111 |
+| `USER_DISPLAY_NAME` | §5.5 | `shared/src/characters.ts:40` | routes 무관(`server/src/db/messages.ts:45`가 import) | 래퍼는 쓰지 않음 | ✅ API-T-112(`shared/test/characters.test.ts:30`) |
+| 유저 `authorName` 투영 | §2.3 · §4.3 · §4.9 · §4.10 | `types.ts:35` 주석 | 라우트 변경 없음 | `api.test.ts:353` 치환 없음 확인 | ✅ API-T-061(실명 0회 단언 추가) · API-T-108 · API-T-UI-029 |
+| 엔드포인트 16 · 에러 15 불변 | §4.0 · §3.2 | `PATHS` · `ERROR_CODES` 불변 | — | — | ✅ API-T-040 · 042 무수정 통과 |
 
+테스트 위치: `server/test/routes-generate.test.ts:217`(072) · `:460`(109) · `:476`(110) · `:496`(111), `server/test/routes-write.test.ts:297`(061, 설계표의 "062 갱신"에 해당하는 authorName 단언) · `:411`(108), `ui/src/api/api.test.ts:339`(UI-028) · `:353`(UI-029).
+증거: `tsc --noEmit -p server` · `-p ui` exit 0, `vitest run --project server` 340 passed, `vitest run --project ui ui/src/api` 29 passed.
 
 ---
 

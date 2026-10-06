@@ -32,7 +32,7 @@ export type Message = {
   speaker: Speaker
   kind: MessageKind
   text: string
-  /** 유저 메시지의 작성자 표시 이름. 캐릭터 메시지는 null */
+  /** 유저 메시지면 항상 USER_DISPLAY_NAME(「어떠한 의지」 — 서버 투영, R-AUTH-004 S3d). 캐릭터 메시지는 null */
   authorName: string | null
   /** epoch ms */
   createdAt: number
@@ -79,9 +79,12 @@ export type EditMessageBody = {
   text: string
 }
 
-/** POST /api/rooms/:id/speak 본문 (R-MSG-003). 두 값 밖이면 400 VALIDATION_ERROR (S3) */
+/** speak 대상 (R-MSG-003 · R-MSG-009, v0.6 S3d). 'auto' = 서버가 세바스찬·시엘 중 1명을 고른다. 응답 speaker 는 늘 CharacterId */
+export type SpeakTarget = CharacterId | 'auto'
+
+/** POST /api/rooms/:id/speak 본문 (R-MSG-003). 세 값 밖이면 400 VALIDATION_ERROR (S3d) */
 export type SpeakBody = {
-  character: CharacterId
+  character: SpeakTarget
 }
 
 /** 캐릭터 1명의 설정 필드 (R-SET-002). id·표시명·아바타는 없다(CHARACTERS 가 단일 소스). 화면 이름·상한은 shared/src/settings.ts */
