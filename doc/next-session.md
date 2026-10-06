@@ -2,6 +2,15 @@
 
 - 결정은 `doc/000_프로젝트_확정사항.md`가 단일 소스다. 이 문서는 **지금 상태 · 남은 일 · 결정 대기 · 꼭 지킬 것**만 담는다. 항목을 끝내면 지우고, 새 일은 해당 절에 짧게 추가한다.
 
+## 0-0. 2026-10-07 아침 보고 (자동 마감, 사용자 수면 중 지시대로)
+
+- **S3d(고정 명칭 「어떠한 의지」 + 전송 시 자동 응답) 완료·커밋·푸시.** 원격 main = `b10694c`(커밋 4개: contract `b5bb893` · server `9f94741` · chat `a15cb6e` · docs `b10694c`). verify **PASS**(`doc/300_검증/verify-S3d-20261007-0029.md`, CRITICAL·HIGH 0, MEDIUM 1·LOW 7은 후속 §2-1a).
+- 증거: shared 140 · server 343 · ui 660(2회) · 전체 1143/1143 · tsc·lint·build 0 · 캡처 `doc/300_검증/screenshots/20261007-0004/` 6장 · 실키 종단(이름 지목 0ms·모델 선택·자동 응답 201).
+- 모델은 그대로(Pro, 사용자 지정 🔒). 이름 지목 규칙 + 선택 15초 적용.
+- 개발 서버는 내렸고 PC는 종료 예약했다. 다시 보려면 `/dev-start`(또는 `server`에서 `npx wrangler dev --port 3000` + `npm run dev -w ui`) 후 주인 주소로 접속. **테스트 토큰(.ld-token.local)은 2026-10-07 08:31 KST 만료** → 같은 방식(HMAC-SHA256, payload {mb_id,nick,ch_name,level,exp}, .dev.vars의 TOKEN_SECRET)으로 재발급.
+- 로컬 D1 방 2곳(「안개 낀 런던의 아침」·「아직 아무도 없는 방」)에 테스트 메시지가 남아 있다(지워도 됨).
+- 다음 할 일: §2-1a 후속 → S4 장기기억 설계 → S5 전달·배포(지인 결정: 운영 모델명·단가·회원 ID).
+
 ## 0. 시작 확인
 - 세션은 **프로젝트 루트**(`london_dispatch/`)에서 연다. `.claude` 폴더나 상위 폴더에서 열면 가드 경로가 어긋나 에이전트 Bash·Write가 막힌다.
 - 진행 방식: 메인 세션은 소스·산출 문서를 직접 고치지 않고 리프 에이전트에 위임한다(CLAUDE.md §5-0). S1~S3은 메인 세션이 task-manager 역할을 대행했다(사용자 지시 2026-10-05). task-manager 에이전트에는 Bash·ui-fixer·ui-test-conflict-checker가 없어 메인 대행이 실제로 더 낫다.
