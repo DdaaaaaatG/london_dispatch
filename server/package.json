@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit -p .",
     "test": "vitest run",
     "migrate:local": "wrangler d1 migrations apply DB --local",
-    "types": "wrangler types"
+    "types": "wrangler types",
+    "token:test": "node --import ./scripts/register-ts-resolve.mjs scripts/token-test.ts"
   },
   "dependencies": {
     "@hono/zod-validator": "^0.9.1",

@@ -226,6 +226,7 @@ V7  eyJtYl9pZCI6InRlc3RlcjAxIiwibmljayI6Ilx1ZDE0Y1x1YzJhNFx1ZDEzMCIsImNoX25hbWUi
 
 - 이 표가 server 테스트(SRV-T-100~109)·contract `api.md` §2.3·S5 handoff(`doc/handoff/token-snippet.php.md`)가 **같이 쓰는 단일 벡터**다. PHP 조각을 같은 입력·테스트 SECRET으로 돌려 V1 문자열이 바이트 단위로 나오면 R-TOKEN-001 수용 기준을 충족한다.
 - 구현자는 이 값을 `server/test/token-vectors.ts`(§3)에 상수로 옮기고, 테스트 안에서 재계산해 대조하지 않는다(벡터가 기준이다).
+- 로컬 대조 도구(S5, R-TOKEN-001): `npm run token:test -w server -- sign|verify|vectors --secret <32자 이상 시험값>` — `server/scripts/token-test.ts`(CLI)·`token-tool.ts`(signToken·verifyTokenCli·renderVectors, Node 24 네이티브 TS, 새 패키지 0, `register-ts-resolve.mjs`로 확장자 없는 import 해석). PHP 조각이 만든 토큰을 서버 `verifyToken`으로 검증하고 §2.6 V1~V8(+V5b)을 출력한다. JSON 바이트는 PHP `json_encode`(§9.3 플래그, U+2028/2029 이스케이프 포함)와 일치. 운영 SECRET 사용 금지, SECRET은 출력되지 않음, 환경변수 폴백 없음(env.ts 밖 process.env 금지 훅). 테스트 `server/test/token-test-script.test.ts` 7건.
 
 ## 3. 내부 구조
 
@@ -619,3 +620,4 @@ export type Principal = {
 | 2026-10-06 | api.md v0.5 대조: §12.2 D1 미접근(N6)·본문 상한 단계, §12.3 `OWNER_ONLY` 문구 확정(§5.8.2), §12.5 SRV-T-237 변형 ⑥(레이트리밋 미소모), §12.6 E16 미들웨어 줄 |
 | 2026-10-06 | §12에 구현 완료 표기(server 318/318, SRV-T-234~260). 설계와 다른 점 없음 |
 | 2026-10-07 | verify 후속 동기화(소스 기준): §6 `tokenSecret` 32자 이상은 parseEnv 보장([env.md](env.md) D-ENV-13), 시험 SECRET 메모(교차 벡터 불변·HTTP 계층은 긴 SECRET으로 재서명), §12.4 `ownerMbIds` 기본값 의미·머리 주석 [설정]. auth 코드·공개 API 변경 없음 |
+| 2026-10-07 | S5 토큰 대조 도구(scripts/token-test.ts) 추가 — 소스 무변경, 테스트 7건 |

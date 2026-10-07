@@ -8,5 +8,5 @@
       "@shared/*": ["../shared/src/*"]
     }
   },
-  "include": ["src/**/*.ts", "test/**/*.ts", "../shared/src/**/*.ts"]
+  "include": ["src/**/*.ts", "test/**/*.ts", "scripts/token-tool.ts","../shared/src/**/*.ts"]
 }
