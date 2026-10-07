@@ -65,7 +65,7 @@
 | R-CHAT-004 | S2(S3 버튼) | 🔒 하단 바(토큰 시만) | chat: Composer·SpeakButtons | POST user · POST speak | messages.* | - | | 완료(S2) |
 | R-CHAT-005 | S3 | 🔒 생성 중 임시 말풍선·잠금·실패 재시도 | chat: PendingBubble·state/chatReducer | POST speak · LLM_FAILED | messages.speak | - | TC-CH-068~078·085·087·089·090·092~095 | 완료(S3) |
 | R-CHAT-006 | S2(S3d 개정) | 🔒 전송 = 저장만 | chat: Composer | POST user | messages.addUserMessage | - | | 완료(S2) |
-| R-CHAT-007 | S2(S3 재작성) | 🔒 롱프레스 메뉴 | chat: BubbleMenu(BottomSheet) | PATCH/DELETE message · regenerate | messages.* | - | | 완료(S2) |
+| R-CHAT-007 | S2(S3 재작성) | 🔒 롱프레스 메뉴 | chat: BubbleMenu(BottomSheet) | PATCH/DELETE message · regenerate | messages.* | - · (S3e) TC-CH-110~121 | | 완료(S2) · 완료(S3e 개정: 메뉴→버튼, CR-003 검증됨) |
 | R-CHAT-008 | S1 | 🔒 토큰 없으면 쓰기 UI 미렌더 | chat/rooms: canWrite 분기 | - | - | - | | 완료(S1) |
 | R-CHAT-009 | S2 | 🔒 토큰 메모리 보관 | ui/src/state/token | api.md §토큰 | - | - | | 완료(S2) |
 | R-CHAT-010 | S1 | localStorage try/catch | ui/src/components/utils/storage | - | - | - | | 완료(S1) |
@@ -103,5 +103,6 @@
 | S3b | 1 (LLM-007) + API-002 개정(14종)·ENV-002 4키 | 1 | vitest 763/763(`npx vitest run` 2026-10-06, shared 25·server 276·ui 462) · typecheck·lint·build 0 · 마이그레이션 0002 로컬 적용 · 종단: speak 201 → est_krw 강제 100000 → 429 LLM_BUDGET_EXCEEDED + Retry-After → 유저 발화 201 · `ui/src/chat/test/result.md` S3b 절 · api.md §12.3 |
 | S3c | 12 (SET-001~012) + 개정 LLM-002·003·API-001·002·AUTH-003·ENV-002 | 12 | vitest(`npx vitest run` 2026-10-06): shared 138 · server 318 · ui 592 · typecheck 3 워크스페이스 0 · lint 0 · 빌드 0(ui vite + server dry-run) · 0003 로컬 적용 · `ui/src/settings/test/result.md`(자동 TC 38 PASS, 수동 3 대기) · `ui/src/rooms/test/result.md` S3c 절(OwnerGate 7) · `doc/300_검증/screenshots/20261006-2033/`(10장) · 종단 curl(fake): 주인 GET 200 · 비주인 403 OWNER_ONLY · 무토큰 401 · api.md §12.4 S3c 4자 대조표 실물 · verify PASS `doc/300_검증/verify-S3c-20261006-2059.md`(C0·H0·M1·L8, vitest 1048/1048) |
 | S3d | 3 (MSG-009·LLM-008·CHAT-014) + 개정 CHAT-002·006·AUTH-004·LLM-003·MSG-003·NFR-001 | 3 | vitest(2026-10-07): shared 140 · server 343 · ui 660(×2) · typecheck 3곳·lint·build 0 · `ui/src/chat/test/result.md` S3d 절(113/113, 캡처 `doc/300_검증/screenshots/20261007-0004/` 6장) · 종단 실키: /user authorName 「어떠한 의지」·speak auto 201(지목 mention ms 0 / 모델 선택) · api.md §12.5 실물 · verify PASS `doc/300_검증/verify-S3d-20261007-0029.md` |
+| S3e | 1 (CHAT-007 개정 🔒 — 메뉴→말풍선 액션 버튼) | 1 | vitest 1169/1169(`npx vitest run` 2026-10-07, ui 686) · typecheck·lint·build 0 · `ui/src/chat/test/result.md` S3e 절 · CR-003 검증됨 · `doc/300_검증/screenshots/20261007-1453/`(5장) · 서버·계약 변경 없음 |
 | S4 | | | |
 | S5 | | | |

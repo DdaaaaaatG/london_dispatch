@@ -1,6 +1,6 @@
 {
   "slug": "london-dispatch-build",
-  "phase": "1-requirements-approved",
+  "phase": "3-implement",
   "orchestrator": "main-session-as-task-manager (사용자 지시 2026-10-05)",
   "slices": [
     "S1 저장+읽기전용",
@@ -9,10 +9,11 @@
     "S3b AI 비용 상한(월 10만원)",
     "S3c 캐릭터 설정 화면(갠홈 주인 전용) + JSON 내보내기/가져오기",
     "S3d 고정 명칭 「어떠한 의지」 + 전송 시 자동 응답(화자 자동 선택)",
+    "S3e 말풍선 액션 버튼(수정·삭제·재작성 항상 표시, 메뉴 대체)",
     "S4 장기기억",
     "S5 전달·배포"
   ],
-  "current_slice": "S3d",
+  "current_slice": "S3e",
   "scope": {
     "requirements_doc": "doc/100_요구조건/requirements.md",
     "rtm": "doc/100_요구조건/rtm.md",
@@ -128,7 +129,17 @@
       "contract": "done v0.4 2026-10-06 (E9·E12 §4.12~4.14 · SpeakBody · API-T-070~084)",
       "ui": "done 2026-10-06 (chat requirements v1.7 · design v1.7 · design/{generate,labels,decisions}.md 신규 분할, 8파일 모두 ≤40KB 실측 · TC-CH-066~092 예정)",
       "ui-check": "PASS 2026-10-06 (HIGH 1 · MEDIUM 3 · LOW 8 → DC-01·03~12 반영 완료, DC-02는 승인 ② 결정 대기)"
-    }
+    },
+    "S3e": {
+      "design": "done v2.0 2026-10-07 (design/actions.md 신규, 메뉴 제거, TC-CH-110~121, 영향 27·대체 4·폐기 2)",
+      "tests": "scenarios v0.9.1 (BubbleActions·MessageActions.test 신규, BubbleMenu.test 삭제)",
+      "implement": "done 2026-10-07 (BubbleActions.tsx 신규 · MessageMenuSheet 삭제 · ui 684/686 → 스펙 2건 정정 후 재실행 대기 · CR-003 적용·미검증)",
+      "tester": "PASS 2026-10-07 (ui 686/686 · 루트 1169/1169 · 캡처 20261007-1453 5장 · CR-003 검증됨)",
+      "manual": "done 2026-10-07 (chat manual 4.7·4.11·FAQ 버튼 기준, img 5 신규·2 삭제·main.png 교체)",
+      "design-sync": "진행 중 (v2.0.1)",
+      "verify_loop": "typecheck 0 · lint 0 · build 0 (2026-10-07)"
+    },
+    "S3e_done": "done 2026-10-07 (커밋 대기)"
   },
   "dependencies_approved": [
     "hono",
@@ -155,7 +166,7 @@
     "prettier",
     "concurrently"
   ],
-  "next": "S3d 완료·커밋 2026-10-07. 다음: S3c·S3d verify 후속(SEC-001 TOKEN_SECRET 길이 하한 등 server-manager, Button ariaDescribedBy 후작업) → S4 장기기억 설계(memory.md·E13/E14·MemorySheet) → S5 전달·배포(운영 모델명·단가 지인 결정, OWNER_MB_IDS, Secrets, handoff). 로컬 테스트 토큰 .ld-token.local 만료 2026-10-07 08:31 KST → 재발급 필요.",
+  "next": "S3e 커밋(사용자 확인) → S3c·S3d verify 후속(next-session §2-1a) → S4 장기기억 설계 → S5",
   "blockers": [],
   "cr_candidates": [
     "2026-10-06 chat S2 F-CH-23(메시지 삭제): 삭제로 방이 비면 focusLog()가 언마운트 직후 동기 호출되어 포커스가 ‹ 뒤로로 빠질 수 있음 — S3 F-CH-41(ready 커밋 뒤 포커스) 방식으로 통일 검토. S3 완료 후 ui-debug(보강)로"
@@ -222,7 +233,8 @@
     "2026-10-07 S3d ui 구현 완료(ui-implementer): ui 660/660(시작 Red 57) · tsc·eslint·build 0 · 분해 4건(MessageRows·EditorActions·PendingBody·useRoomGone)+runSpeak · Button aria-describedby 미지원 → InlineEditor 지역 ref 우회(코어 결함 후보, Button ariaDescribedBy 추가는 후작업) · 간헐 실패 2건(TC-CH-078 status 경합·TC-RM-027 1회). 병렬: ui-tester(캡처) ∥ ui-designer design-sync ∥ ui-manual-writer. 사용자 지시(자는 동안): verify PASS → 커밋·푸시 → dev 서버 종료 → PC 종료 예약(shutdown /s /t 120, 강제 없음); FAIL이면 커밋 없이 next-session 기록 후 종료",
     "2026-10-07 S3d 문서: ui-designer design-sync done(auto.md v1.9.1·auto-tests.md 신규·components/functions/labels/rtm/design.md v1.9.1·requirements v1.9.1·CR-002 적용·미검증·component-usage-lessons Button aria-describedby 코어 결함 후보; 크기 전부 한도 안, functions.md 40,925 한계 직전) · ui-manual-writer done(chat manual 4.5 자동 응답 절·FAQ 5·img 4장; 관찰: 헤더 날짜 01.01=시드 방 생성일, 의도) · server index.md 지목 로그 행. 남은: ui-tester 결과 → ui-test-designer 잔여(TC-CH-008 머리·manual-checklist 버전·scenarios:783 포인터) → verify → 커밋·푸시 → dev 종료 → PC 종료 예약",
     "2026-10-07 S3d ui-tester: S3d 113/113 · 전체 ui 659/660 ×2(TC-CH-078 SpeakFlow findByRole('status') 부하 경합, 단독 39/39 — 스펙 결함) · 캡처 doc/300_검증/screenshots/20261007-0004/ 6장 · 실측 중립 46.1px·실패 99.2px(체크리스트 90 보정)·가로 스크롤 없음 · 실제 Gemini 응답 16~23초 · 테스트 메시지 방 「아직 아무도 없는 방」 7건 남김. ui-fixer에 TC-CH-078 스펙 수정 + 테스트 문서 잔여 4건 + CR-002 검증됨 위임",
-    "2026-10-07 S3d 완료: verify PASS(doc/300_검증/verify-S3d-20261007-0029.md). ui-fixer TC-CH-078 스펙 경합 수정(findByText) → ui 660/660 ×2 · CR-002 적용·검증됨 · 테스트 문서 잔여 4건 정리. verify 후속은 next-session §2-1a. 커밋·푸시 후 dev 서버 종료·PC 종료 예약(사용자 지시)"
+    "2026-10-07 S3d 완료: verify PASS(doc/300_검증/verify-S3d-20261007-0029.md). ui-fixer TC-CH-078 스펙 경합 수정(findByText) → ui 660/660 ×2 · CR-002 적용·검증됨 · 테스트 문서 잔여 4건 정리. verify 후속은 next-session §2-1a. 커밋·푸시 후 dev 서버 종료·PC 종료 예약(사용자 지시)",
+    "2026-10-07 사용자 지정 🔒 S3e: 말풍선 아래 「수정」「삭제」 항상 표시 + 마지막 캐릭터 대사에 「재작성」(캡처 d:/pr/dispatch/화면 캡처 2026-10-07 134023.jpg 참고). 롱프레스/우클릭 메뉴는 버튼으로 대체. 권한은 현행 유지(글쓰기 등급 통과자 — \"입력할 수 있는 사람들만\"). 서버·계약 변경 없음 → ui 보강(maintain), CR-003. R-CHAT-007 개정 등록"
   ],
   "installed": {
     "typescript": "5.9.3",
@@ -253,7 +265,8 @@
     "S3-R1 messages.md §5 '캐릭터는 sebastian 또는 ciel…' 문구는 HTTP로 안 나감(zod가 먼저) — 내부 id 노출 문구 정리 — server-designer",
     "S3-R2 messages.md §9·llm.md 'Number(id)' → 10진 숫자 문자열만 변환 규칙 — server-designer",
     "스킬 갱신(메인 세션 배치): server-design-strategy §3 에러코드명·§6 어댑터 인터페이스·429 재시도·§7.2 요약 위치·§7.5 MAX_PROMPT_CHARS·§8 Character 타입 / server-rules AppError 예시 / ui-design-strategy §6.3·§7(D-16: SPEAK_IN_PROGRESS 3초 해제·aria-busy·재작성 임시 말풍선) — contract-designer·server-designer·ui-designer 보고 근거",
-    "api.md §4.12 공통 절·§15.10 결정 4건을 '사용자 승인 2026-10-06'으로 마킹 — contract-designer"
+    "api.md §4.12 공통 절·§15.10 결정 4건을 '사용자 승인 2026-10-06'으로 마킹 — contract-designer",
+    "S3e 스킬 문구: tsx-rules.md·component-catalog·layout-templates(S1 시트)·ui-design-strategy §6.5(롱프레스 메뉴 규칙 — chat은 R-CHAT-007 개정으로 버튼 대체) 갱신 · 공용 useLongPress 사용처 0 정리 후보(ui-postprocessor)"
   ],
   "screenshots_s1": "doc/300_검증/screenshots/20261005-2207/",
   "evidence_s1": {
