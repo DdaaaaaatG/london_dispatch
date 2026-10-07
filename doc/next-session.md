@@ -2,7 +2,16 @@
 
 - 결정은 `doc/000_프로젝트_확정사항.md`가 단일 소스다. 이 문서는 **지금 상태 · 남은 일 · 결정 대기 · 꼭 지킬 것**만 담는다. 항목을 끝내면 지우고, 새 일은 해당 절에 짧게 추가한다.
 
-## 0-0. 2026-10-07 아침 보고 (자동 마감, 사용자 수면 중 지시대로)
+## 0-0. 2026-10-07 저녁 상태 — S5 1차 완료 · S3f 승인 ① 대기
+
+- **S5(전달·배포) 1차 완료·커밋(`136a25e`)**: `doc/handoff/` 4문서(embed-guide · token-snippet.php · secret-handover · cloudflare-setup, 실값 0) + 토큰 대조 도구 `npm run token:test -w server -- sign|verify|vectors --secret <32자+>`(`7c84fa7`). 전체 1289/1289.
+- **사용자 결정(2026-10-07)**: 지인 ID 전달됨(실값은 Secrets·.dev.vars·메모리에만) · 등급 5 유지 · **지인은 비개발자** → SECRET은 우리가 생성해 Cloudflare에 입력, 지인은 ① Cloudflare 구성원 초대(Administrator) ② 완성된 PHP 덩어리 붙여넣기(1회성 링크)만 · Cloudflare Free로 시작, 접근은 초대 → `wrangler login`.
+- **S3f(설정 화면에서 Gemini 모델 Pro/Flash 선택, 🔒)**: 횡단 설계 3문서 완료(`doc/200_설계/architecture/s3f-0{1,2,3}-*.md`). **승인 ① 사용자 대기** — 기본값: 미선택 시 Pro · 공통 탭 상단 라디오 + 기존 저장 버튼 · 탭 이름 「공통」 · 설명에 가격 숫자 없음. 가격(Google 2026-10-07): Pro \$2/\$12, Flash \$0.75/\$3.75(2027-01-01부터 \$1.50/\$7.50) per 1M. 승인 뒤: server-designer ∥ contract-designer → ui-designer → checker → 승인 ② → 구현(0004 마이그레이션 포함) → verify → 커밋. 약 2.5시간.
+- **S5 2차(배포) 선행 조건**: 지인 답(아래 질문 5) → Cloudflare 초대 수락 → `/deploy`(D1 생성·Secrets 3개 `TOKEN_SECRET`·`LLM_API_KEY`·`OWNER_MB_IDS`·vars 확인·0001~0004 적용·deploy·헬스체크) → 지인에게 임베드 주소 한 줄 + SECRET 채운 PHP 덩어리(1회성 링크) 전달 → 확인표. 운영 Gemini 키가 로컬 키와 같은지 사용자 확인.
+- **지인 질문(최종)**: ① Cloudflare 계정 있나/만들 수 있나 ② 사이트 주소 london-gossip.my 하나뿐인가·www도 쓰나 ③ 대화창 주소 workers.dev 기본 이름 OK? ④ 테마 파일 직접 고쳐 올릴 수 있나 ⑤ 파일 고칠 날·시간(1회성 링크).
+- 테스트 토큰(.ld-token.local)은 만료됨 → `npm run token:test -w server -- sign --secret <.dev.vars의 TOKEN_SECRET> --mb-id owner01 --level 10`로 재발급(TOKEN_SECRET은 32자 이상이어야 서버가 기동).
+
+### (기록) 2026-10-07 아침 보고 (자동 마감)
 
 - **S3d(고정 명칭 「어떠한 의지」 + 전송 시 자동 응답) 완료·커밋·푸시.** 원격 main = `b10694c`(커밋 4개: contract `b5bb893` · server `9f94741` · chat `a15cb6e` · docs `b10694c`). verify **PASS**(`doc/300_검증/verify-S3d-20261007-0029.md`, CRITICAL·HIGH 0, MEDIUM 1·LOW 7은 후속 §2-1a).
 - 증거: shared 140 · server 343 · ui 660(2회) · 전체 1143/1143 · tsc·lint·build 0 · 캡처 `doc/300_검증/screenshots/20261007-0004/` 6장 · 실키 종단(이름 지목 0ms·모델 선택·자동 응답 201).
@@ -43,7 +52,8 @@
    4. 확인 필요: 갠홈 iframe `sandbox` 속성 유무(있으면 `allow-downloads` 필요 — S5 embed-guide에 포함). 내보내기는 Blob 다운로드 + 복사용 텍스트 영역 병행 설계.
 4. (완료 2026-10-07) **S4 장기기억** — server memory 모듈(speak 뒤 waitUntil 자동 요약: 미요약 > 60이면 오래된 구간(최근 40 제외, 1회 100개·2만 자·LLM 25초) 요약·합본·source_until_id 전진, 조건부 UPSERT 중복 방지, Cron 미도입) · 계약 v0.7 E13/E14 · chat ⋯ 메뉴 「장기기억」 시트(보기·편집 4000자·저장·버림 확인, 저장 실패는 시트 안 문구). 증거: vitest 1274/1274 · typecheck·lint·build 0 · 캡처 `doc/300_검증/screenshots/20261007-1817/` · 실키 종단(70개 방 speak → 11.6초 뒤 31개 요약) · 매뉴얼 4.15. 설계 결정(승인 ② 생략, 사용자 포괄 지시): 요약 기준 = 미요약 수 · 편집 경합은 마지막 저장 우선(409 없음) · 요약 목표 2000/상한 4000(문장 경계 절단) · rooms.updated_at 불변. **후속 완료(2026-10-07)**: 사용자 지정 🔒 ① 「어떠한 의지」=장면 밖 서술자(R-LLM-003 개정: 캐릭터가 말 걸지 않음·요약에 행위자로 등장 안 함, 실키 재확인) ② 요약을 비워 저장하면 처음부터 재요약(R-MEM-001 개정 "다시요약", PUT '' → sourceUntilId 0). **보류**: 공용화 후보 TextArea ariaDescribedBy·BottomSheet ariaLabelledBy · 끝 공백만 바뀐 편집은 저장 비활성(정규화 비교).
 4a. (기록) 이전 S4 계획: **S4(장기기억) 설계부터**: server-designer(memory.md 신규 — `summarizeIfNeeded`·`afterSpeak` 훅 연결·`source_until_id` 전진·중복 방지 R-MEM-003·`memory.get/put`) → contract-designer(E13·E14 GET/PUT memory, api.md v0.5) → ui-designer(chat ⋯ 메뉴 "장기기억" 항목 + M1 MemorySheet, R-CHAT-012) → ui-design-checker → 승인 ②(S4) → 구현(shared → server → routes/api ∥ 시나리오 → 화면 → 테스트 → 매뉴얼).
-5. **S5(전달·배포)**: `doc/handoff/`(contract-designer: 임베드 안내·토큰 PHP 조각·SECRET 전달 절차) · `server/scripts/token-test.ts`(`npm run token:test`, server-manager) · Cloudflare 지인 계정 셋팅(D1 생성·Secrets `TOKEN_SECRET`·`LLM_API_KEY`·플랜) · `/deploy`.
+5. **S5(전달·배포)** — 1차 완료 2026-10-07(handoff 4문서 · token:test 도구 · deploy.md 정정, `136a25e`). 2차(실제 배포)는 §0-0 선행 조건 뒤 `/deploy`. **S3f(모델 선택)를 먼저 끝내고 배포**하는 것을 권고(LLM_MODEL 기본값 `gemini-2.5-flash`는 404 — S3f에서 Pro 폴백으로 개정).
+6. **S3f(설정 화면 모델 선택, 🔒 2026-10-07)** — 설계 3문서 완료, 승인 ① 대기(§0-0).
 
 ### 2-1a. (완료 2026-10-07) S3c·S3d verify 후속 — server 9건(TOKEN_SECRET≥32·/api/* 보안 헤더·함수 분해·NFC 정규화 등, server 349) · ui 후작업 4건(Button ariaDescribedBy·useLongPress 삭제·errorText 공용화·주석) · 계약 v0.6.1 · 스킬 6파일 · 설계 문서 동기화. 전체 1165/1165. 보류: Button tone prop(시나리오 선행) · /embed Referrer-Policy(S5) · SEC-004 줄 머리 `[` 무력화(요구 미승격). 아래는 당시 기록.
 
