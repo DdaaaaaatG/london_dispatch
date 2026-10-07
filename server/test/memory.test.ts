@@ -514,4 +514,33 @@ describe('get·put (R-MEM-001)', () => {
     expect(await memRow('zzz')).toBeNull()
     expect(await roomUpdatedAt()).toBe(before)
   })
+
+  it('SRV-T-332 put_empty_resets_source_until_id_and_next_summary_restarts_from_first', async () => {
+    const ids = await seed(61)
+    await insertMemory('지난 요약', ids[20] ?? 0)
+    const s = setup([{ text: '새 요약' }])
+    // 공백만도 trim 후 빈 요약 → 리셋
+    expect(await s.svc.put(ROOM, { summary: '   ' })).toEqual({
+      summary: '',
+      sourceUntilId: 0,
+      updatedAt: T0,
+    })
+    expect(await s.svc.get(ROOM)).toMatchObject({ summary: '', sourceUntilId: 0 })
+    const out = await s.svc.summarizeIfNeeded(ROOM)
+    expect(out).toEqual({ status: 'summarized', untilId: ids[20], messages: 21, truncated: false })
+    const turn = userTurn(s.fake)
+    expect(turn).not.toContain('[지난 이야기 요약]')
+    for (let i = 1; i <= 21; i += 1) expect(turn).toContain(tag(i))
+    expect(await memRow()).toMatchObject({ summary: '새 요약', source_until_id: ids[20] })
+  })
+
+  it('SRV-T-333 put_non_empty_edit_keeps_source_until_id', async () => {
+    const ids = await seed(5)
+    await insertMemory('지난 요약', ids[3] ?? 0)
+    const s = setup()
+    expect(await s.svc.put(ROOM, { summary: '편집본' })).toMatchObject({
+      summary: '편집본',
+      sourceUntilId: ids[3],
+    })
+  })
 })

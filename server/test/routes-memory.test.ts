@@ -1,4 +1,4 @@
-// API-T-113~122 — doc/200_설계/contract/api.md §14.19 (E13·E14: 토큰 → 레이트리밋 → 본문 상한 → 형식 → 길이 → 방 존재)
+// API-T-113~123 — doc/200_설계/contract/api.md §14.19 (E13·E14: 토큰 → 레이트리밋 → 본문 상한 → 형식 → 길이 → 방 존재)
 import { createExecutionContext, env, waitOnExecutionContext } from 'cloudflare:test'
 import { ERROR_STATUS, type ErrorCode } from '@shared/errors'
 import { MEMORY_SUMMARY_MAX } from '@shared/limits'
@@ -214,6 +214,33 @@ describe('E14 PUT 저장', () => {
 
     expect(await roomUpdatedAt()).toBe(before)
     expect(await listIds()).toEqual(order)
+  })
+
+  it('API-T-125 memory_put_empty_resets_source', async () => {
+    const reset = { summary: '', sourceUntilId: 0, updatedAt: NOW }
+    // ① '' → 0, GET 도 같은 값
+    await insertMemory('old', 21, 10)
+    const empty = await put('')
+    expect(empty.status).toBe(200)
+    expect(await empty.json<MemoryResponse>()).toEqual(reset)
+    expect(await (await get()).json<MemoryResponse>()).toEqual(reset)
+    expect((await memoryRow())?.source_until_id).toBe(0)
+    // ② 공백만 → 0
+    await env.DB.prepare('UPDATE memory SET summary = ?1, source_until_id = 21').bind('old').run()
+    const blank = await put('   ')
+    expect(blank.status).toBe(200)
+    expect(await blank.json<MemoryResponse>()).toEqual(reset)
+    expect((await memoryRow())?.source_until_id).toBe(0)
+    // ③ 비어 있지 않으면 21 유지(대조)
+    await env.DB.prepare('UPDATE memory SET summary = ?1, source_until_id = 21').bind('old').run()
+    const kept = await put('a')
+    expect(kept.status).toBe(200)
+    expect(await kept.json<MemoryResponse>()).toEqual({
+      summary: 'a',
+      sourceUntilId: 21,
+      updatedAt: NOW,
+    })
+    expect((await memoryRow())?.source_until_id).toBe(21)
   })
 
   it('API-T-118 memory_put_length_by_code_points', async () => {

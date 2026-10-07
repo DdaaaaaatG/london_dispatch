@@ -112,11 +112,14 @@ RETURNING version, updated_at`
 export const SQL_MEMORY_STATE_BY_ROOM =
   'SELECT summary, source_until_id, updated_at FROM memory WHERE room_id = ?1'
 
-/** 방이 있을 때만. 새 행은 source_until_id 0, 기존 행은 summary·updated_at 만 바꾼다 */
+/** 방이 있을 때만. 새 행은 source_until_id 0. 기존 행은 summary·updated_at 을 바꾸고, 빈 요약('')이면 source_until_id 를 0 으로 되돌린다(다시 요약, R-MEM-001) */
 export const SQL_MEMORY_PUT_SUMMARY = `INSERT INTO memory (room_id, summary, source_until_id, updated_at)
 SELECT ?1, ?2, 0, ?3
 WHERE EXISTS (SELECT 1 FROM rooms WHERE id = ?1)
-ON CONFLICT (room_id) DO UPDATE SET summary = excluded.summary, updated_at = excluded.updated_at
+ON CONFLICT (room_id) DO UPDATE SET
+  summary = excluded.summary,
+  source_until_id = CASE WHEN excluded.summary = '' THEN 0 ELSE memory.source_until_id END,
+  updated_at = excluded.updated_at
 RETURNING summary, source_until_id, updated_at`
 
 /** 낙관적 잠금. 행이 없으면 넣고, 있으면 기대값(?5 source_until_id, ?6 summary)과 같을 때만 바꾼다 */

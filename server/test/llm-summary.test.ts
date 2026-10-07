@@ -55,10 +55,17 @@ describe('요약 프롬프트 (R-MEM-002, R-LLM-003·006)', () => {
     expect(buildSummaryPrompt({ previous: '   \n ', messages: MESSAGES })).toEqual(none)
     // 시스템 전문 핵심 문장
     expect(SUMMARY_SYSTEM).toContain(`${SUMMARY_TARGET_CHARS}자 안쪽으로 쓴다.`)
-    expect(SUMMARY_SYSTEM).toContain("[어떠한 의지] 줄을 쓴 참여자는 '어떠한 의지'라고 부른다.")
-    expect(SUMMARY_SYSTEM).toContain('[지시] 줄은 참여자가 장면 전개에 대해 남긴 요청이다.')
+    expect(SUMMARY_SYSTEM).toContain('[지시] 줄은 같은 서술자의 연출 지시다.')
     expect(SUMMARY_BUDGET_MS).toBe(25_000)
     expect(SUMMARY_TARGET_CHARS).toBe(2_000)
+  })
+
+  it('SRV-T-329 SUMMARY_SYSTEM_treats_user_line_as_narrator_not_character', () => {
+    expect(SUMMARY_SYSTEM).toContain(
+      '장면 밖 서술자의 상황 묘사나 지시다. 인물로 등장시키지 않는다.',
+    )
+    expect(SUMMARY_SYSTEM).toContain("'어떠한 의지'라는 이름은 요약 본문에 쓰지 않는다.")
+    expect(SUMMARY_SYSTEM).not.toContain('참여자')
   })
 
   it('SRV-T-317 buildSummaryPrompt_neutralizes_forged_delimiters_and_keeps_system_clean', () => {

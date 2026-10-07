@@ -1,6 +1,6 @@
 # db 모듈 설계
 
-- 상태: S1 확정(구현 동기화) · S2 초안 · S3 초안(§2.3·§3.5) · S3b 초안(§2.4·§3.6·§7.5) · S3c 구현 완료(§2.5·§3.7·§7.6·§8.1) · **S3d 구현 완료(2026-10-06, SRV-T-261~278 · §12 유저 표시명 투영 — §3.4보다 우선)** · **S4 초안(2026-10-07, §13 memory `getState`·`putSummary`·`advance` · messages `countAfter`·`listAfter` — 마이그레이션 없음)** · 최종 갱신: 2026-10-07
+- 상태: S1 확정(구현 동기화) · S2 초안 · S3 초안(§2.3·§3.5) · S3b 초안(§2.4·§3.6·§7.5) · S3c 구현 완료(§2.5·§3.7·§7.6·§8.1) · **S3d 구현 완료(2026-10-06, SRV-T-261~278 · §12 유저 표시명 투영 — §3.4보다 우선)** · **S4 초안(2026-10-07, §13 memory `getState`·`putSummary`·`advance` · messages `countAfter`·`listAfter` — 마이그레이션 없음)** · **R-MEM-001 🔒 개정 동기화(2026-10-07, 빈 요약 저장 = `source_until_id` 0 리셋 "다시요약" — 구현 반영, SRV-T-331~333)** · 최종 갱신: 2026-10-07
 - 묶음: S1 = 스키마(4테이블 전부)·마이그레이션 `0001_init.sql`·읽기 함수. S2 = 방 생성·이름 변경·연쇄 삭제, 메시지 추가·수정·삭제, 레이트리밋 카운터(§2.1의 "S2" 표시). S3 = speak 잠금 선점·해제, 메시지 단건 조회, 장기기억 summary 읽기(§2.3 — **마이그레이션 없음**). S4용은 §2.2에 예정 시그니처만. S3b = 월 AI 사용량 누적 `llm_usage`(§2.4 — **마이그레이션 `0002_llm_usage.sql`**, R-LLM-007 🔒).
 - 관련 문서: [env.md](env.md)(`DB` 바인딩), [index.md](index.md)(`createDb` 호출 지점), [rooms.md](rooms.md), [messages.md](messages.md), [auth.md](auth.md)(레이트리밋).
 
@@ -912,7 +912,7 @@ export type MemoryRepo = {
   getSummary: (roomId: string) => Promise<string | null>
   /** S4. 행 전체. 없으면 null */
   getState: (roomId: string) => Promise<MemoryRecord | null>
-  /** S4. summary·updated_at 교체(UPSERT). source_until_id 유지(새 행은 0). 방이 없으면 null */
+  /** S4. summary·updated_at 교체(UPSERT). source_until_id 유지, 단 summary 가 ''이면 0 으로 리셋(새 행은 0). 방이 없으면 null */
   putSummary: (roomId: string, summary: string, nowMs: number) => Promise<MemoryRecord | null>
   /** S4. 행이 없으면 next 로 넣고, 있으면 expected 와 같을 때만 next 로 바꾼다. 바꿨으면 true. 불일치·방 없음 → false */
   advance: (
@@ -949,11 +949,14 @@ export type MemoryRepo = {
 export const SQL_MEMORY_STATE_BY_ROOM =
   'SELECT summary, source_until_id, updated_at FROM memory WHERE room_id = ?1'
 
-/** 방이 있을 때만. 새 행은 source_until_id 0, 기존 행은 summary·updated_at 만 바꾼다 */
+/** 방이 있을 때만. 새 행은 source_until_id 0. 기존 행은 summary·updated_at 을 바꾸고 source_until_id 는 유지 — 단 빈 요약이면 0 으로 리셋(R-MEM-001 🔒 개정) */
 export const SQL_MEMORY_PUT_SUMMARY = `INSERT INTO memory (room_id, summary, source_until_id, updated_at)
 SELECT ?1, ?2, 0, ?3
 WHERE EXISTS (SELECT 1 FROM rooms WHERE id = ?1)
-ON CONFLICT (room_id) DO UPDATE SET summary = excluded.summary, updated_at = excluded.updated_at
+ON CONFLICT (room_id) DO UPDATE SET
+  summary = excluded.summary,
+  source_until_id = CASE WHEN excluded.summary = '' THEN 0 ELSE memory.source_until_id END,
+  updated_at = excluded.updated_at
 RETURNING summary, source_until_id, updated_at`
 
 /** 낙관적 잠금. 행이 없으면 넣고, 있으면 기대값(?5 source_until_id, ?6 summary)과 같을 때만 바꾼다 */
@@ -979,6 +982,7 @@ ORDER BY id ASC
 LIMIT ?3`
 ```
 
+- (R-MEM-001 🔒 개정 2026-10-07) 빈 요약 리셋은 `SQL_MEMORY_PUT_SUMMARY`의 `CASE`가 같은 문장 안에서 판정한다. 비교 대상 `excluded.summary`는 서비스가 trim한 값이라 공백뿐인 입력도 `''`로 와서 리셋된다. 새 행은 원래 0이다. 저장소 시그니처는 그대로다.
 - **`INSERT … SELECT … WHERE …` 의 `WHERE`를 지우지 않는다.** SQLite는 SELECT 원천 UPSERT에서 `ON CONFLICT`를 조인 구문으로 잘못 읽지 않도록 SELECT에 WHERE를 요구한다(문서화된 파싱 모호성). 여기서는 방 존재 확인이 그 역할을 겸한다.
 - 값은 전부 bind(R-DB-003). `MESSAGE_COLUMNS`는 기존 상수(문자열 연결은 상수끼리만 — 기존 `SQL_MESSAGES_BY_ID`와 같다).
 
@@ -1007,6 +1011,7 @@ LIMIT ?3`
 | SRV-T-323 | `putSummary` | 행 없음 / 행(source 7) 있음 / 방 없음 / 4001자 직접 | 생성 `source_until_id` 0 / summary·`updated_at`만 교체, source 7 유지 / `null`·memory 0행 / CHECK 오류 전파(서비스가 막는 마지막 방어선) |
 | SRV-T-324 | `advance` | 행 없음 + 기대(`''`,0) / 기대 일치 / source 불일치 / summary 불일치 / 방 없음 / 같은 기대값 2건 `Promise.all` | `true`·삽입 / `true`·교체 / `false`·행 불변 / `false`·행 불변 / `false`·0행 / `true` 1건·`false` 1건 |
 | SRV-T-325 | `countAfter`·`listAfter` | 두 방에 메시지, `afterId` 경계, `cap` 3 / `take` 2 | 다른 방 제외, `id > afterId`만, 반환 `min(실제, cap)`, 오름차순, 최대 `take`개 |
+| SRV-T-331 | `putSummary` 빈 요약 리셋 | 행(`'요약'`, source 7) → `''` / 이어서 `'다시'` / 행 없는 방에 `''` | `{ summary: '', sourceUntilId: 0, updatedAt: 50 }` / source 0 그대로(비어 있지 않은 편집은 현재 값 유지) / 생성 source 0 |
 
 - 기존 SRV-T-190(`getSummary`)·SRV-T-134(방 삭제 연쇄)는 무수정.
 
@@ -1014,7 +1019,7 @@ LIMIT ?3`
 
 | 요구ID | 반영 | 테스트 | 상태 |
 |---|---|---|---|
-| R-MEM-001 🔒 | §13.1 `getState`·`putSummary` | SRV-T-322·323 | ✅(설계) |
+| R-MEM-001 🔒 | §13.1 `getState`·`putSummary` | SRV-T-322·323·331(빈 요약 리셋) | ✅(구현 반영) |
 | R-MEM-002 🔒 | §13.1 `countAfter`·`listAfter`·`advance` | SRV-T-324·325 | ✅(설계) |
 | R-MEM-003 | §13.2 `SQL_MEMORY_ADVANCE` · §13.4 | SRV-T-324 | ✅(설계) |
 | R-DB-001 🔒 · R-DB-002 | 스키마·마이그레이션 변경 없음 | SRV-T-323(CHECK) | ✅(변경 없음) |
@@ -1029,11 +1034,13 @@ LIMIT ?3`
 | D-DB-28 | `countAfter`에 상한(`LIMIT` 하위 쿼리) | 전체 `COUNT(*)` | 요약이 계속 실패한 방에서도 speak마다 읽는 행 수가 묶인다([memory.md](memory.md) D-MEM-15) |
 | D-DB-29 | `listAfter`는 `Message`(`toMessage`)를 돌려준다 | 요약 전용 행 타입 | 변환 경로가 하나. 투영 규칙(§12)이 그대로 적용된다 |
 | D-DB-30 | `putSummary`는 조건 없는 UPSERT(마지막 쓰기 승리) | 기대 버전 조건 | 요구에 편집 충돌 감지가 없고 새 에러 코드가 필요하다([memory.md](memory.md) D-MEM-10) |
+| D-DB-31 (R-MEM-001 🔒 개정 2026-10-07) | 빈 요약 리셋을 `SQL_MEMORY_PUT_SUMMARY` 안 `CASE WHEN excluded.summary = '' THEN 0 ELSE memory.source_until_id END`로 | 서비스가 빈 값일 때 별도 리셋 함수 호출 · 새 저장소 함수 | 문장 1개라 원자적이고 `putSummary` 시그니처가 그대로다. 판단 기준 값(trim)은 서비스가 정한다(R-DB-005) |
 
 ## 변경 이력
 
 | 날짜 | 내용 |
 |---|---|
+| 2026-10-07 | R-MEM-001 🔒 개정 동기화(사용자 지정 "다시요약", 소스 기준 `server/src/db/{sql,memory}.ts`): §13.1 `putSummary` 주석(빈 요약이면 source 0 리셋), §13.2 `SQL_MEMORY_PUT_SUMMARY`를 실물 SQL(`source_until_id = CASE WHEN excluded.summary = '' THEN 0 ELSE memory.source_until_id END`)로 교체·설명 1줄, §13.5 SRV-T-331, §13.6 추적, D-DB-31. 시그니처·마이그레이션 변경 없음 |
 | 2026-10-07 | S4 설계(§13): `MemoryRepo`에 `getState`·`putSummary`·`advance`(조건부 UPSERT 낙관적 잠금), `MessagesRepo`에 `countAfter`(상한 있는 COUNT)·`listAfter`(오름차순), 타입 `MemoryRecord`·`MemorySnapshot`, SQL 상수 5개 전문, 결과 해석, SRV-T-322~325, D-DB-26~29. 마이그레이션 없음(0004 미사용) |
 | 2026-10-06 | S3d 구현 완료 표기(server 336/336, SRV-T-261~278). §12.3 SRV-T-269 입력 정정: 유저 행은 0001 제약상 `author_name` 필수라 NULL 유저 행을 넣을 수 없다 → 이름이 다른 유저 행 두 개로 바꿈(4개 읽기 경로 검증 유지) |
 | 2026-10-06 | S3d 설계(§12): `toMessage` 투영 — 유저 메시지 `authorName` = shared `USER_DISPLAY_NAME`, 캐릭터 null, 저장 `author_name`은 실명 유지. SQL·스키마·마이그레이션 불변. SRV-T-269, 기존 테스트 영향표, D-DB-S3d-1·2 |

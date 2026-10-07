@@ -142,7 +142,7 @@ export type PutCharacterSettingsBody = {
 export type MemoryResponse = {
   /** 장기기억 요약. 앞뒤 trim 된 0~4000 코드 포인트(MEMORY_SUMMARY_MAX). 없으면 '' */
   summary: string
-  /** 요약에 반영된 마지막 메시지 id(정수 ≥ 0). 0 = 자동 요약 전. PUT 은 바꾸지 않는다. 화면은 표시하지 않아도 된다 */
+  /** 요약에 반영된 마지막 메시지 id(정수 ≥ 0). 0 = 자동 요약 전. PUT 은 바꾸지 않는다 — 단 빈 요약('') 저장이면 0 으로 되돌린다(v0.7.1). 화면은 표시하지 않아도 된다 */
   sourceUntilId: number
   /** epoch ms. 마지막 저장(자동 요약·편집) 시각. 한 번도 저장되지 않았으면 null. 방 updatedAt 과 별개 */
   updatedAt: number | null

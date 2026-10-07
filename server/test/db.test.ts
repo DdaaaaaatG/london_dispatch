@@ -645,6 +645,22 @@ describe('S4 memory·messages 저장소 (db.md §13)', () => {
     expect((await rec('a'))?.summary).toBe('교체')
   })
 
+  it('SRV-T-331 memory_putSummary_empty_resets_source_until_id', async () => {
+    const db = createDb(env.DB)
+    await insertRoom('a', 'A', 1, 100)
+    await env.DB.prepare(
+      "INSERT INTO memory (room_id, summary, source_until_id, updated_at) VALUES ('a', '요약', 7, 5)",
+    ).run()
+    expect(await db.memory.putSummary('a', '', 50)).toEqual({
+      summary: '',
+      sourceUntilId: 0,
+      updatedAt: 50,
+    })
+    expect(await db.memory.putSummary('a', '다시', 60)).toMatchObject({ sourceUntilId: 0 })
+    await insertRoom('b', 'B', 2, 100)
+    expect(await db.memory.putSummary('b', '', 70)).toMatchObject({ sourceUntilId: 0 })
+  })
+
   it('SRV-T-324 memory_advance_optimistic_lock', async () => {
     const db = createDb(env.DB)
     await insertRoom('a', 'A', 1, 100)

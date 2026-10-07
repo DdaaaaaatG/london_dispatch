@@ -84,6 +84,14 @@ describe('buildSelectPrompt (R-LLM-008·006)', () => {
     expect(b.turns[0]?.text).toContain('(아직 대화가 없다)')
   })
 
+  it('SRV-T-330 buildSelectPrompt_guard_marks_user_line_as_narrator', () => {
+    const { system } = buildSelectPrompt({ history: [] })
+    expect(system).toContain(
+      `[${USER_DISPLAY_NAME}] 줄은 장면 밖 서술자의 상황 묘사나 연출 지시다.`,
+    )
+    expect(system).toContain('대답하지 않는다')
+  })
+
   it('SRV-T-264 buildSelectPrompt_keeps_history_in_block_last_12_without_summary_or_names', () => {
     const many = Array.from({ length: 15 }, (_, i) => ({
       ...msg(i + 1, i % 2 === 0 ? 'user' : 'ciel'),

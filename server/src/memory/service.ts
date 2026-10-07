@@ -4,7 +4,7 @@
  * [비동기] get·put 은 D1 1~2회. summarizeIfNeeded: 읽기 → (기준 초과면) 예산 확인 → 대상 읽기 → llm.complete(≤ 25초) → 조건부 UPSERT 1회. 어떤 실패도 throw 하지 않고 로그 + 결과로 돌려준다
  * [에러] get·put: AppError VALIDATION_ERROR(summary 가 문자열 아님·4000자 초과)·NOT_FOUND(방 없음), D1 오류 전파. summarizeIfNeeded: 없음(failed{stage, code})
  * [설정] contextMessages(config.contextMessages)·summaryThreshold(config.memorySummaryThreshold)·llm 지연 생성 함수를 deps 값으로 받는다. 바인딩을 읽지 않는다. 요약 본문·메시지 본문·프롬프트는 로그에 넣지 않는다(길이·id·ms 만)
- * [테스트] server/test/memory.test.ts (SRV-T-299~315)
+ * [테스트] server/test/memory.test.ts (SRV-T-299~315, 332~333)
  */
 import { countCodePoints, MEMORY_SUMMARY_MAX, normalizeText } from '@shared/limits'
 import type { MemoryResponse, PutMemoryBody } from '@shared/types'
@@ -48,7 +48,7 @@ export type MemoryDeps = {
 export type MemoryService = {
   /** 방의 장기기억. 행 없음 → 기본값. 방 없음 → NOT_FOUND */
   get: (roomId: string) => Promise<MemoryState>
-  /** summary 교체(trim, 0~4000 코드 포인트). source_until_id 유지, 행이 없으면 만든다(source 0) */
+  /** summary 교체(trim, 0~4000 코드 포인트). source_until_id 유지, 단 trim 후 빈 요약이면 0 으로 리셋(다음 speak 때 처음부터 재요약). 행이 없으면 만든다(source 0) */
   put: (roomId: string, input: PutMemoryInput) => Promise<MemoryState>
   /** speak 뒤 훅 본체. 기준 초과면 오래된 구간을 요약해 합치고 전진. 절대 throw 하지 않는다 */
   summarizeIfNeeded: (roomId: string) => Promise<SummarizeOutcome>

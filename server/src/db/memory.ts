@@ -4,7 +4,7 @@
  * [비동기] D1 prepare().bind().first() await. advance·putSummary 는 문장 1개(원자적)
  * [에러] D1 오류 전파(CHECK 위반 포함). 숫자 좁히기 실패 → AppError INTERNAL
  * [설정] 없음. 판정(기준·길이·trim)은 서비스 몫, 시각은 nowMs 로 받는다
- * [테스트] server/test/db.test.ts (SRV-T-190, 322~324)
+ * [테스트] server/test/db.test.ts (SRV-T-190, 322~324, 331)
  */
 import type { D1Database } from '@cloudflare/workers-types'
 import { AppError } from '../app-error'
@@ -27,7 +27,7 @@ export type MemoryRepo = {
   getSummary: (roomId: string) => Promise<string | null>
   /** S4. 행 전체. 없으면 null */
   getState: (roomId: string) => Promise<MemoryRecord | null>
-  /** S4. summary·updated_at 교체(UPSERT). source_until_id 유지(새 행은 0). 방이 없으면 null */
+  /** S4. summary·updated_at 교체(UPSERT). source_until_id 유지, 단 summary 가 ''이면 0 으로 리셋(새 행은 0). 방이 없으면 null */
   putSummary: (roomId: string, summary: string, nowMs: number) => Promise<MemoryRecord | null>
   /** S4. 행이 없으면 next 로 넣고, 있으면 expected 와 같을 때만 next 로 바꾼다. 바꿨으면 true. 불일치·방 없음 → false */
   advance: (

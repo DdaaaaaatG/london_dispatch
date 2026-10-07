@@ -1,6 +1,6 @@
 # memory 모듈 설계
 
-- 상태: S4 초안 · **S4 구현 완료(2026-10-07, server 381/381, SRV-T-296~327 — 구현 동기화)** · 최종 갱신: 2026-10-07
+- 상태: S4 초안 · **S4 구현 완료(2026-10-07, server 381/381, SRV-T-296~327 — 구현 동기화)** · **R-MEM-001 🔒 개정 동기화(2026-10-07, 빈 요약 저장 = `source_until_id` 0 리셋 "다시요약" — 구현 반영, SRV-T-331~333)** · 최종 갱신: 2026-10-07
 - 묶음: **S4**(장기기억) = R-MEM-001 🔒(조회·편집) · R-MEM-002 🔒(speak 뒤 자동 요약) · R-MEM-003(중복 요약 방지·Cron 대체 결정) · R-LLM-007 🔒(요약 호출도 월 예산 누적·게이트) · R-LLM-003 🔒·R-LLM-006(요약은 데이터 블록) · R-CHAT-012 🔒(화면 — 계약·ui 인계만) · R-DB-001 🔒(`memory` 테이블은 0001에 있음, 마이그레이션 없음).
 - 입력: `doc/100_요구조건/requirements.md`(R-MEM·R-LLM-003/006/007·R-CHAT-012·R-NFR-001), `doc/000_프로젝트_확정사항.md` §5.2·§5.4·§5.5(5단계), `rtm.md` S4 행, [messages.md](messages.md) §2.3·§4.2, [llm.md](llm.md) §2.3·§7.1·§12, [db.md](db.md) §2.3·§3.5·§7, [index.md](index.md) §2.3, [env.md](env.md), 실물 `server/src/{messages/generate.ts, db/{memory,sql,index}.ts, llm/{client,prompt,usage,provider,fake}.ts, services.ts, index.ts, env.ts}`, `shared/src/limits.ts`, `server/migrations/0001_init.sql`.
 - 관련 문서(이 묶음의 델타): [messages.md](messages.md) §13(afterSpeak 훅 본체 연결) · [llm.md](llm.md) §14(요약 프롬프트·`CompleteOptions.budgetMs`) · [db.md](db.md) §13(memory·messages 저장소 확장) · [index.md](index.md) §13(배선·`scheduled` 미도입) · [env.md](env.md)(변경 없음 확인).
@@ -62,7 +62,7 @@ export type MemoryDeps = {
 export type MemoryService = {
   /** 방의 장기기억. 행 없음 → 기본값. 방 없음 → NOT_FOUND */
   get: (roomId: string) => Promise<MemoryState>
-  /** summary 교체(trim, 0~4000 코드 포인트). source_until_id 유지, 행이 없으면 만든다(source 0) */
+  /** summary 교체(trim, 0~4000 코드 포인트). source_until_id 유지, 단 trim 후 빈 요약이면 0 으로 리셋(다음 speak 때 처음부터 재요약). 행이 없으면 만든다(source 0) */
   put: (roomId: string, input: PutMemoryInput) => Promise<MemoryState>
   /** speak 뒤 훅 본체. 기준 초과면 오래된 구간을 요약해 합치고 전진. 절대 throw 하지 않는다 */
   summarizeIfNeeded: (roomId: string) => Promise<SummarizeOutcome>
@@ -111,9 +111,11 @@ export const fitSummary = (text: string, max?: number): { text: string; truncate
 | `pendingCountCap` | `Math.max(threshold, contextMessages + SUMMARY_BATCH_MAX) + 1`. 기본(60·40) = 141. 이 이상은 세지 않는다(§11 D-MEM-15) |
 | `capByChars` | 앞(오래된 쪽)부터 `countCodePoints(text)`를 더해 `maxChars`를 넘기 직전까지. 첫 행이 혼자 넘어도 1개는 넣는다(메시지 상한 2000 < 20000이라 실제로는 생기지 않음) |
 | `fitSummary` | `countCodePoints(text) <= max` → `{ text, truncated: false }`. 넘으면 앞 `max` 코드 포인트를 잘라 그 안에서 마지막 `\n` 또는 문장 끝(`.`·`!`·`?`·`。`·`…`) 위치를 찾는다. 그 위치(코드 포인트 기준)가 `SUMMARY_CUT_MIN` 이상이면 거기까지(끝 문자 포함), 아니면 `max`에서 자른다. 결과는 `trimEnd`. `truncated: true` |
-| `put`의 `summary` | `normalizeText`(앞뒤 trim) 후 `countCodePoints` 0~`MEMORY_SUMMARY_MAX`(4000). 0자(빈 요약) 허용. 중간 줄바꿈 유지 |
+| `put`의 `summary` | `normalizeText`(앞뒤 trim) 후 `countCodePoints` 0~`MEMORY_SUMMARY_MAX`(4000). 0자(빈 요약) 허용 — **빈 요약으로 저장하면 `source_until_id`를 0으로 되돌린다**(아래 "빈 요약 리셋"). 중간 줄바꿈 유지 |
 | `MemoryState` | `summary`(string) · `sourceUntilId`(0 이상 정수, 0 = 요약 없음) · `updatedAt`(epoch ms, 행 없으면 `null`) |
 | 미요약 메시지 수 | `messages.id > source_until_id`인 그 방 메시지 수(행 없으면 `source_until_id` = 0 → 방 전체). 요구 문구 "방 메시지 수"의 해석 — §11 D-MEM-1 |
+
+- **빈 요약 리셋(R-MEM-001 🔒 개정 2026-10-07, 사용자 지정 "다시요약")**: `put`이 trim 후 `''`를 저장하면 같은 UPSERT 문장 안에서 `source_until_id`를 0으로 되돌린다(SQL은 [db.md](db.md) §13.2). 응답 `sourceUntilId`는 0이다. 다음 speak 뒤 훅이 방 전체를 미요약으로 보고 **처음부터 다시 요약**한다. 한 번에 100개(`SUMMARY_BATCH_MAX`)라 긴 방은 이후 speak마다 100개씩 이어서 요약한다(§4.2 표 마지막 행과 같은 경로). 비어 있지 않은 편집은 `source_until_id`를 유지한다. PUT 자체는 AI를 부르지 않는다(D-MEM-17).
 
 ## 3. 내부 구조
 
@@ -233,6 +235,7 @@ advance(roomId, next, expected)
 | 행이 없을 때 요약 2건 동시 | 첫 INSERT 성공, 둘째는 충돌 → `DO UPDATE` 조건(`source_until_id = 0`) 거짓 → `conflict` | 같은 문장 하나로 처리 — "INSERT 후 재시도"가 필요 없다(사전 확정 2의 재시도 1회를 대체) |
 | 요약 중 유저 편집(PUT) | 편집 보존, 요약 `conflict`. `source_until_id` 불변 → 다음 speak가 **편집본을 기준으로** 같은 구간을 다시 요약 | 기대값에 `summary`가 들어 있다. `source_until_id`만 보면 편집이 지워진다 |
 | 요약이 먼저 끝나고 그 뒤 PUT(시트를 미리 열어 둔 경우) | PUT이 이긴다(마지막 쓰기). 요약이 더한 내용은 사라지고 `source_until_id`는 전진한 채 | R-MEM-001 "편집은 `source_until_id` 유지". 충돌 감지는 요구·에러 코드 밖(§11 D-MEM-10, 열린 질문) |
+| 요약 중 빈 요약 PUT(리셋) | 리셋이 남고 요약은 `conflict`(기대 `summary` 불일치). 다음 speak가 처음부터 다시 요약 | D-MEM-2 기대값. 리셋은 `summary`와 `source_until_id`를 함께 바꾼다 |
 | 요약 중 방 삭제 | `WHERE EXISTS` 거짓 → 0행 → `conflict`. 외래 키 오류·고아 행 없음 | [db.md](db.md) D-DB-9와 같은 방식 |
 | 요약 중 다음 speak | 그대로 진행(요약은 speak 잠금을 쓰지 않는다). 다음 speak는 이전 요약을 읽는다 | 요약이 speak를 409로 막으면 사용자 체감이 나빠진다(§11 D-MEM-14) |
 | 요약 중 regenerate | 그대로 진행 | 같은 이유 |
@@ -326,6 +329,8 @@ advance(roomId, next, expected)
 | SRV-T-313 | `get` | 행 없음 / 행 있음 / 방 없음 | `{ '', 0, null }` / 행 값 / `NOT_FOUND` |
 | SRV-T-314 | `put` | `'  a  '` · `''` · 이모지 4000개 · 4001자 · `summary: 1`(비문자열) · 행 없음 · 행(source 7) 있음 · 방 없음 | `'a'` · `''` 저장 · 저장 · `VALIDATION_ERROR`(trap `Db`로 DB 0회) · `VALIDATION_ERROR` · 행 생성 source 0 · source 7 유지 · `NOT_FOUND`. 모든 경우 `rooms.updated_at` 불변 |
 | SRV-T-315 | 키 없음 | `llm` thunk가 `ConfigError` throw, 메시지 61개 | `failed/budget`(`CONFIG_INVALID`), resolve |
+| SRV-T-332 | 빈 요약 리셋 | 메시지 61개 + 행(`'지난 요약'`, source = 21번째 id). `put(roomId, { summary: '   ' })` 후 `summarizeIfNeeded` | 응답·GET `{ summary: '', sourceUntilId: 0, updatedAt: now }`. 요약은 1~21번을 처음부터(`[지난 이야기 요약]` 줄 없음), `summarized`·`untilId` = 21번째 id, 저장 summary = Fake 출력 |
+| SRV-T-333 | 비어 있지 않은 편집 | 메시지 5개 + 행(source = 4번째 id), `put(roomId, { summary: '편집본' })` | `sourceUntilId` = 4번째 id 유지 |
 
 - SRV-T-298·310의 경계 위치(3500·3600)는 경계 문자 **앞**의 글자 수다. 경계 문자(`\n`)는 `trimEnd`로 빠지므로 결과는 정확히 3500·3600자다(구현 동기화).
 
@@ -335,6 +340,7 @@ advance(roomId, next, expected)
 |---|---|---|
 | llm 요약 프롬프트·후처리·`budgetMs`·사용량 | SRV-T-316~321 | [llm.md](llm.md) §14.7 |
 | db 저장소 5함수 | SRV-T-322~325 | [db.md](db.md) §13.5 |
+| db 빈 요약 리셋 | SRV-T-331 | [db.md](db.md) §13.5 |
 | messages 등록 실패 삼킴 | SRV-T-326 | [messages.md](messages.md) §13.4 |
 | 컨테이너 배선(speak → 훅 → 요약) | SRV-T-327 | [index.md](index.md) §13.3 |
 
@@ -363,7 +369,7 @@ server가 노출할 서비스와 엔드포인트 후보다. 경로·JSON 확정�
 
 | 요구ID | 반영 절 | 테스트 | 상태 |
 |---|---|---|---|
-| R-MEM-001 🔒 | §2 `get`·`put` · §2.1 · §5 · §9 · 「contract 인계」 | SRV-T-298·313·314·323 · API-T(contract) | ✅(설계) |
+| R-MEM-001 🔒 | §2 `get`·`put` · §2.1 · §5 · §9 · 「contract 인계」 | SRV-T-298·313·314·323·331~333 · API-T-125(contract, 빈 요약 리셋) | ✅(설계) |
 | R-MEM-002 🔒 | §4.1~§4.3 · [messages.md](messages.md) §13 · [index.md](index.md) §13 | SRV-T-296·297·299~303·307·309~311·315·326·327 | ✅(설계) |
 | R-MEM-003 | §4.4 · §11 D-MEM-2·3 | SRV-T-304~306·324 | ✅(설계 — Cron 미도입 결정·전환 기준 기록) |
 | R-LLM-007 🔒 | §4.1 ④⑥ · [llm.md](llm.md) §14.5 | SRV-T-308·321 | ✅(설계) |
@@ -393,6 +399,7 @@ server가 노출할 서비스와 엔드포인트 후보다. 경로·JSON 확정�
 | D-MEM-14 | 요약은 speak 잠금(`speaking_until`)을 쓰지 않는다 | 요약 동안 잠금 | 요약 정확성은 D-MEM-2가 지킨다. 잠그면 요약 30초 동안 버튼이 409다 |
 | D-MEM-15 | 미요약 수는 `pendingCountCap`까지만 센다 | 전체 COUNT | 요약이 계속 실패한 방에서도 speak마다 읽는 행 수가 141행(기본)을 넘지 않는다. 판정·배치 계산에 그 이상은 필요 없다 |
 | D-MEM-16 | 요약 전 `ensureBudget`, 초과면 건너뜀(info) | 게이트 없이 호출 · 실패 처리 | R-LLM-007 "호출 전 거절"과 [llm.md](llm.md) §12.7 권고. 건너뛴 구간은 다음 달 첫 speak 뒤에 요약된다 |
+| D-MEM-17 (R-MEM-001 🔒 개정 2026-10-07) | 빈 요약 저장 = `source_until_id` 0 리셋("다시요약"). PUT SQL 한 문장의 `CASE`로 처리하고, 재요약은 다음 speak 뒤 훅이 100개씩 한다 | ① 리셋 없음(이전 설계) ② 별도 "다시 요약" 엔드포인트·버튼 ③ 서비스가 읽고 판단해 문장 2개 ④ PUT에서 즉시 요약 실행 | 사용자 지정. ①은 요약을 지워도 이미 요약된 구간이 돌아오지 않는다. ②는 요구 밖(수동 요약 버튼 금지). ③은 왕복과 경합이 는다. ④는 PUT에 AI 호출·30초 대기를 붙인다. 빈 값 판정은 서비스가 trim한 값 기준이라 공백뿐인 입력도 리셋된다 |
 
 점검 SQL(D-MEM-3 ⓐ — 읽기 전용, `wrangler d1 execute <DB> --remote --command`로 실행. 삭제·변경 문장 아님):
 
@@ -453,10 +460,10 @@ export type PutMemoryBody = { summary: string }
 |---|---|
 | 미들웨어 | `requireToken` → `rateLimitWrites`(1회 카운트, 기존 쓰기와 같은 분 창) |
 | 요청 | `Content-Type: application/json`, 본문 `{ "summary": string }`. 타입 검증(zod)은 라우트, 길이 판정은 서비스(D-MSG-4 원칙). 알 수 없는 키·비객체 처리는 기존 쓰기 경로 규약을 따른다 |
-| 길이 규칙 | 앞뒤 trim 후 코드 포인트 0~4000(`MEMORY_SUMMARY_MAX`). 0자 허용(요약 비우기). 중간 줄바꿈 유지. 저장값은 trim 결과 |
+| 길이 규칙 | 앞뒤 trim 후 코드 포인트 0~4000(`MEMORY_SUMMARY_MAX`). 0자 허용(요약 비우기 — 저장하면 `sourceUntilId` 0 리셋, 아래 200 행). 중간 줄바꿈 유지. 저장값은 trim 결과 |
 | 본문 상한 | 4000 코드 포인트 × UTF-8 최대 4바이트 + JSON 이스케이프 여유 → **32 KiB 이상** 권고(값은 contract 확정) |
 | 서비스 | `services.memory.put(id, { summary })` |
-| 200 | `MemoryResponse` — `summary` = 저장값(trim 결과), `sourceUntilId` = **기존 값 유지**(행이 없었으면 0), `updatedAt` = 저장 시각 |
+| 200 | `MemoryResponse` — `summary` = 저장값(trim 결과), `sourceUntilId` = **기존 값 유지**(행이 없었으면 0). 단 저장값이 `''`이면 **0으로 리셋**(R-MEM-001 🔒 개정 — 다음 speak 뒤 처음부터 재요약), `updatedAt` = 저장 시각 |
 | 400 | `VALIDATION_ERROR` `장기기억은 0~4000자로 입력해 주세요.`(길이·비문자열 — 서비스 문구) / 라우트 본문 형식 오류는 기존 라우트 문구 |
 | 404 | `NOT_FOUND` `방을 찾을 수 없습니다.` |
 | 429 | `RATE_LIMITED` + `retryAfterSec`·`Retry-After` (기존 규약) |
@@ -468,7 +475,7 @@ export type PutMemoryBody = { summary: string }
 
 - E9 응답·에러·판정 순서는 바뀌지 않는다. 성공 뒤 서버가 백그라운드로 요약할 수 있다는 사실만 api.md §4.13 부수 효과 줄에 더한다("응답 뒤 장기기억 자동 요약 — 실패해도 응답 불변, R-MEM-002").
 - **라우트 테스트 요청**: speak 성공 케이스는 `createExecutionContext()`로 만든 컨텍스트를 `waitOnExecutionContext(ctx)`로 기다린 뒤 끝낸다. S4부터 speak가 백그라운드 작업을 등록하므로, 기다리지 않으면 다음 테스트의 `resetDb`와 겹칠 수 있다(현재 `routes-generate.test.ts`는 컨텍스트를 만들기만 한다).
-- 테스트 요청(contract API-T 번호): E13 행 없음 기본값·행 값·404·401 / E14 0자·4000자(이모지)·4001자 400·비문자열 400·404·429 카운트·GET은 카운트 안 함·`sourceUntilId` 유지·`rooms.updatedAt` 불변 / E9 "요약 실패 주입(Fake 각본 2번째 호출 실패)에도 201·본문 동일".
+- 테스트 요청(contract API-T 번호): E13 행 없음 기본값·행 값·404·401 / E14 0자·4000자(이모지)·4001자 400·비문자열 400·404·429 카운트·GET은 카운트 안 함·`sourceUntilId` 유지(비어 있지 않은 편집)·빈 요약 저장 시 0 리셋(API-T-125)·`rooms.updatedAt` 불변 / E9 "요약 실패 주입(Fake 각본 2번째 호출 실패)에도 201·본문 동일".
 
 ### handoff
 
@@ -478,7 +485,7 @@ export type PutMemoryBody = { summary: string }
 
 - **진입·권한**: ⋯ 메뉴의 "장기기억" 항목. E13 GET도 토큰이 필요하므로 **토큰 없는 읽기 전용 화면에서는 항목을 렌더하지 않는다**(보기만 하는 경로도 없다).
 - **빈 상태**: `summary === ''`(특히 `updatedAt === null`)이면 빈 입력창과 안내를 보인다. 자동 요약은 미요약 메시지가 60개(기본)를 넘은 뒤 speak가 끝나면 생긴다.
-- **길이**: 앞뒤 trim 후 코드 포인트 0~4000. 화면 카운터는 `@shared/limits`의 `countCodePoints(normalizeText(v))`와 `MEMORY_SUMMARY_MAX`를 쓴다(이모지 1개 = 1자). 4000 초과면 저장 버튼 비활성. 0자 저장은 허용(요약 비우기).
+- **길이**: 앞뒤 trim 후 코드 포인트 0~4000. 화면 카운터는 `@shared/limits`의 `countCodePoints(normalizeText(v))`와 `MEMORY_SUMMARY_MAX`를 쓴다(이모지 1개 = 1자). 4000 초과면 저장 버튼 비활성. 0자 저장은 허용(요약 비우기). 빈 요약 저장은 "다시 요약" 요청이다(R-MEM-001 🔒 개정): 서버가 요약 진행 위치를 처음으로 되돌려 다음 캐릭터 발화 뒤부터 처음부터 다시 요약한다(긴 방은 발화마다 100개씩). 비우고 저장할 때 이 뜻을 안내할 수 있다(문구는 ui 결정).
 - **저장 중 잠금**: PUT 동안 저장 버튼·입력 비활성(중복 제출 방지). 실패하면 입력 내용을 보존하고 에러 문구를 보인다(400 문구는 서버 메시지 그대로, 429는 기존 쓰기와 같은 안내).
 - **저장 결과**: 응답 `summary`(trim된 저장값)로 입력을 갱신한다. `sourceUntilId`는 내부 값이라 표시하지 않아도 된다. `updatedAt`은 표시 여부를 ui가 정한다(요구 없음).
 - **자동 요약과의 경합**: speak가 끝난 뒤 최대 약 30초 동안 서버가 백그라운드로 요약을 고쳐 쓸 수 있다.
@@ -493,5 +500,7 @@ export type PutMemoryBody = { summary: string }
 
 | 날짜 | 내용 |
 |---|---|
+| 2026-10-07 | 테스트 번호 정정(계약 api.md §14.19 기준): 빈 요약 리셋 라우트 테스트를 API-T-123에서 **API-T-125**(memory_put_empty_resets_source)로 바꿈 — §10 R-MEM-001 행·「contract 인계」 테스트 요청·직전 변경 이력 행. API-T-123은 speak "요약 실패 주입에도 201"(routes-generate)로 유지 |
+| 2026-10-07 | R-MEM-001 🔒 개정 동기화(사용자 지정 "다시요약", 소스 기준): trim 후 빈 요약 저장 시 `source_until_id` 0 리셋 → 다음 speak 뒤 처음부터 재요약(100개씩). §2 `put` 주석·§2.1 값 규칙 행·"빈 요약 리셋" 문단, §4.4 경합 1행, §8.1 SRV-T-332·333, §8.2 SRV-T-331 행, §10 R-MEM-001 테스트, D-MEM-17, 「contract 인계」 E14 길이·200 행·테스트 요청(API-T-125), 「ui 인계 메모」 길이 항목. 공개 API 시그니처 불변 |
 | 2026-10-07 | S4 구현 동기화(소스 기준, server 381/381, SRV-T-296~327): 상태 줄, §8.1 SRV-T-298·310 경계 위치 해석 1줄. 파일 구성(`server/src/memory/{index,service,summarize}.ts`·`server/src/llm/summary.ts`)·공개 API·순수 함수 4종·상수 3종·`MemoryDeps`·`SummarizeOutcome`은 설계와 같다. 요약 프롬프트 쪽 차이(`SUMMARY_LABEL` 내부 export·라벨 제거 방식)는 [llm.md](llm.md) §14에 반영 |
 | 2026-10-07 | S4 초안 작성(신규): `get`·`put`·`summarizeIfNeeded`, 순수 함수 4종·상수, 자동 요약 흐름·구간 규칙·25초 예산, 조건부 UPSERT 낙관적 잠금(`source_until_id` + `summary`), Cron 미도입·전환 기준, SRV-T-296~315, D-MEM-1~16, contract·ui 인계 |
