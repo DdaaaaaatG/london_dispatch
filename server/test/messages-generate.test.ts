@@ -1,4 +1,4 @@
-// SRV-T-191~209 — doc/200_설계/server/messages.md §8.2 (speak·regenerate·잠금). D1 + FakeProvider + 가짜 시계
+// SRV-T-191~209, 326 - doc/200_설계/server/messages.md 8.2, 13.4 (speak·regenerate·잠금). D1 + FakeProvider + 가짜 시계
 import { env } from 'cloudflare:test'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AppError } from '../src/app-error'
@@ -1088,5 +1088,32 @@ describe("speak 'auto' 이름 지목 (R-LLM-008 개정)", () => {
       result: 'mention',
       character: 'ciel',
     })
+  })
+})
+
+describe('S4 afterSpeak 등록 실패 삼킴 (messages.md §13.4)', () => {
+  it('SRV-T-326 speak_survives_waitUntil_registration_failure', async () => {
+    await resetDb()
+    await insertRoom('a', 'A', 1, 100)
+    const hook = vi.fn(async (_e: { roomId: string; messageId: number }) => undefined)
+    const s = setup([{ text: '저장될 대사' }], { afterSpeak: hook })
+    const m = await s.svc.speak(
+      'a',
+      { character: 'ciel' },
+      {
+        waitUntil: () => {
+          throw new Error('no ctx')
+        },
+      },
+    )
+    expect(m.text).toBe('저장될 대사')
+    const rows = await env.DB.prepare(
+      "SELECT COUNT(*) AS n FROM messages WHERE room_id = 'a' AND speaker = 'ciel'",
+    ).first<{ n: number }>()
+    expect(rows?.n).toBe(1)
+    expect(hook).toHaveBeenCalledTimes(1)
+    const warn = s.logs.filter(l => l.event === 'after_speak_schedule_failed')
+    expect(warn).toHaveLength(1)
+    expect(warn[0]).toMatchObject({ level: 'warn', roomId: 'a', errName: 'Error' })
   })
 })

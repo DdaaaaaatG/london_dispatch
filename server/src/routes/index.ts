@@ -6,6 +6,7 @@
 import { Hono } from 'hono'
 import type { AppEnv } from '../services'
 import { healthRoutes } from './health'
+import { memoryRoutes } from './memory'
 import { messagesRoutes } from './messages'
 import { roomsRoutes } from './rooms'
 import { settingsRoutes } from './settings'
@@ -15,3 +16,4 @@ apiRoutes.route('/', healthRoutes)
 apiRoutes.route('/', roomsRoutes)
 apiRoutes.route('/', messagesRoutes)
 apiRoutes.route('/', settingsRoutes)
+apiRoutes.route('/', memoryRoutes)

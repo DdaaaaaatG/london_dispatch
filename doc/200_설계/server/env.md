@@ -1,6 +1,6 @@
 # env 모듈 설계
 
-- 상태: 확정(S1 구현 동기화) · S3b 초안(키 4개 — §2 S3b 델타·§3.1·§6) · S3c 구현 완료(`OWNER_MB_IDS` 1키 — §2 S3c 델타) · verify 후속 동기화(`TOKEN_SECRET` 32자 하한, SEC-001 — §3.1·§5·§6.2·§8·D-ENV-13) · 최종 갱신: 2026-10-07
+- 상태: 확정(S1 구현 동기화) · S3b 초안(키 4개 — §2 S3b 델타·§3.1·§6) · S3c 구현 완료(`OWNER_MB_IDS` 1키 — §2 S3c 델타) · verify 후속 동기화(`TOKEN_SECRET` 32자 하한, SEC-001 — §3.1·§5·§6.2·§8·D-ENV-13) · S4 확인(2026-10-07, **변경 없음** — memory가 `contextMessages`·`memorySummaryThreshold`를 값으로 받고 새 키·새 검증 없음, [memory.md](memory.md) §6) · 최종 갱신: 2026-10-07
 - 묶음: S1(저장 + 읽기 전용). 이 문서의 공개 API는 전부 S1에서 구현되었다(`requireLlmApiKey`는 S1에서 만들고 S3 speak가 호출). **S2 변경 없음**: S2가 쓰는 `TOKEN_SECRET`·`TOKEN_MIN_LEVEL`·`RATE_LIMIT_PER_MIN`은 이미 `Config`(`tokenSecret`·`tokenMinLevel`·`rateLimitPerMin`)에 있고, [auth.md](auth.md) §6이 값으로 받는다. **S3 변경 없음**: S3가 쓰는 `llmProvider`·`llmModel`·`llmTimeoutMs`·`contextMessages`와 `requireLlmApiKey`는 이미 구현되어 있다. 컨테이너가 speak·regenerate 시점에만 `requireLlmApiKey`를 부르는 지연 생성 함수로 감싼다([llm.md](llm.md) §3.3, R-ENV-003). `requireLlmApiKey`는 `LLM_PROVIDER=fake`이면 키를 요구하지 않고 `''`을 돌려주며, `FakeProvider`는 그 값을 쓰지 않는다(키 없는 로컬 개발·테스트용). **S3b 변경**: 월 비용 상한(R-LLM-007 🔒) 키 4개 `LLM_MONTHLY_BUDGET_KRW`·`LLM_PRICE_INPUT_USD_PER_M`·`LLM_PRICE_OUTPUT_USD_PER_M`·`KRW_PER_USD`(전부 `[vars]`, 비밀 아님)와 소수 변환기 `decimalVar`를 더한다.
 - 관련 문서: [index.md](index.md)(호출 지점·부트스트랩), [db.md](db.md)(`DB` 바인딩 소비), [auth.md](auth.md)(토큰·레이트리밋 설정 소비), [rooms.md](rooms.md), [messages.md](messages.md).
 
@@ -467,6 +467,7 @@ env 모듈은 엔드포인트를 노출하지 않는다. contract가 알아야 �
 
 | 날짜 | 내용 |
 |---|---|
+| 2026-10-07 | S4 확인: env 변경 없음(머리말에 명시). memory 서비스가 기존 `Config.contextMessages`·`Config.memorySummaryThreshold`를 컨테이너에서 값으로 받는다([index.md](index.md) §13.1). 검증 규칙 `MEMORY_SUMMARY_THRESHOLD > CONTEXT_MESSAGES`가 요약 배치 크기 ≥ 1을 보장한다([memory.md](memory.md) §2.1). 요약 상수(배치 100·2만 자·25초·목표 2000자)는 코드 상수라 키를 만들지 않는다 |
 | 2026-10-05 | S1 초안 작성 |
 | 2026-10-05 | S1 구현 동기화(상태 확정). 공개 API·키 표는 `server/src/env.ts`와 일치해 본문 변경 없음. S2는 env 변경 없음(머리말에 명시), `.dev.vars.example` 확인 필요 항목 해결 처리 |
 | 2026-10-06 | S3 확인: env 변경 없음(머리말에 명시). `requireLlmApiKey` 호출 지점·fake 제공사 동작을 [llm.md](llm.md) §3.3에 연결 |

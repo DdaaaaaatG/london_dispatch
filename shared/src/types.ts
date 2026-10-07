@@ -138,6 +138,21 @@ export type PutCharacterSettingsBody = {
   settings: CharacterSettings
 }
 
+/** GET · PUT /api/rooms/:id/memory 응답 (R-MEM-001). 행이 없으면 { summary: '', sourceUntilId: 0, updatedAt: null } */
+export type MemoryResponse = {
+  /** 장기기억 요약. 앞뒤 trim 된 0~4000 코드 포인트(MEMORY_SUMMARY_MAX). 없으면 '' */
+  summary: string
+  /** 요약에 반영된 마지막 메시지 id(정수 ≥ 0). 0 = 자동 요약 전. PUT 은 바꾸지 않는다. 화면은 표시하지 않아도 된다 */
+  sourceUntilId: number
+  /** epoch ms. 마지막 저장(자동 요약·편집) 시각. 한 번도 저장되지 않았으면 null. 방 updatedAt 과 별개 */
+  updatedAt: number | null
+}
+
+/** PUT /api/rooms/:id/memory 본문 (R-MEM-001). 모르는 키는 버린다. trim·0~4000자 판정은 서버 */
+export type PutMemoryBody = {
+  summary: string
+}
+
 /** 모든 실패 응답 본문 (R-API-002) */
 export type ApiErrorBody = {
   error: {

@@ -1,6 +1,6 @@
 /**
  * [목적] 캐릭터 1턴 발화용 프롬프트 조립(R-LLM-003, R-LLM-006). 유저 입력은 전부 사용자 턴의 구분자 블록 안에만 둔다. 설계 llm.md §2.4·§7.1
- * [공개 API] buildSpeakPrompt(input, profiles?, common?), 타입 SpeakPromptInput·PromptMessage. 내부 export(select.ts 전용): BLOCK_START·BLOCK_END·EMPTY_HISTORY_LINE·GUARD_RULES·defang·toDataLine
+ * [공개 API] buildSpeakPrompt(input, profiles?, common?), 타입 SpeakPromptInput·PromptMessage. 내부 export(select.ts 전용): BLOCK_START·BLOCK_END·EMPTY_HISTORY_LINE·GUARD_RULES·OOC_LABEL·SUMMARY_LABEL·summaryLines(S4)·defang·toDataLine
  * [비동기] 없음. 순수 함수(DB·env·네트워크 의존 없음)
  * [에러] 없음
  * [설정] 없음. S3d: 유저 줄 라벨은 shared USER_DISPLAY_NAME 고정(authorName 미사용, R-LLM-003). 캐릭터 문구는 characters.ts 상수·settings 입력, 주입 완화 문구는 이 파일의 코드 상수(GUARD_RULES). S3c: 신규 8필드 섹션 조립(빈 값 생략)·설정 출처 텍스트 defang(설계 llm.md §7.3)
@@ -30,8 +30,8 @@ export type SpeakPromptInput = {
 export const BLOCK_START = '<<대화 기록 시작>>'
 export const BLOCK_END = '<<대화 기록 끝>>'
 export const EMPTY_HISTORY_LINE = '(아직 대화가 없다)'
-const SUMMARY_LABEL = '[지난 이야기 요약]'
-const OOC_LABEL = '[지시]'
+export const SUMMARY_LABEL = '[지난 이야기 요약]'
+export const OOC_LABEL = '[지시]'
 const CONTINUATION_INDENT = '  '
 
 /** 시스템 프롬프트 끝의 주입 완화 3줄(G6). JSON 으로 지울 수 없다 */
@@ -118,11 +118,16 @@ const buildSystem = (profile: CharacterProfile, common: CommonPrompt): string =>
   ].join('\n\n')
 }
 
+/** 요약 줄(발화·요약 프롬프트 공용). trim 후 비면 [] */
+export const summaryLines = (summary: string | null | undefined): string[] => {
+  const text = summary?.trim() ?? ''
+  return text === '' ? [] : [`${SUMMARY_LABEL} ${safeText(text)}`]
+}
+
 const buildUserTurn = (input: SpeakPromptInput): string => {
-  const summary = input.summary?.trim() ?? ''
   const lines = [
     BLOCK_START,
-    ...(summary !== '' ? [`${SUMMARY_LABEL} ${safeText(summary)}`] : []),
+    ...summaryLines(input.summary),
     ...(input.history.length > 0 ? input.history.map(toDataLine) : [EMPTY_HISTORY_LINE]),
     BLOCK_END,
   ]

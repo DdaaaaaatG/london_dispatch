@@ -1,10 +1,10 @@
 /**
  * [목적] 제공사 호출의 재시도·시간 예산·에러 변환(R-LLM-005, R-NFR-001). LlmError 를 AppError 로 바꾸는 유일한 지점. 설계 llm.md §2.3·§4.2
- * [공개 API] createLlm(deps) -> Llm{ complete(prompt, options?), ensureBudget, selectSpeaker(S3d) }, withRetry, planRetryTimeout, LLM_BUDGET_MS, RETRY_BACKOFF_MS, MIN_RETRY_TIMEOUT_MS, 타입 Llm·LlmDeps·RetryClock·CompleteOptions·SelectSpeakerInput
+ * [공개 API] createLlm(deps) -> Llm{ complete(prompt, options?{spentMs, budgetMs(S4)}), ensureBudget, selectSpeaker(S3d) }, withRetry, planRetryTimeout, LLM_BUDGET_MS, RETRY_BACKOFF_MS, MIN_RETRY_TIMEOUT_MS, 타입 Llm·LlmDeps·RetryClock·CompleteOptions·SelectSpeakerInput
  * [비동기] 1차 → (network·timeout·5xx 면) 1초 대기 → 2차. LLM 단계 총 소요 ≤ LLM_BUDGET_MS(66초, S3d: complete 는 66초 − spentMs). selectSpeaker 는 1회 시도(≤ 15초, 이름 지목이면 호출 0회)·재시도 없음·throw 없음. 시계 now·sleep 주입 가능
  * [에러] AppError LLM_FAILED(502: network·timeout·5xx 재시도 후, 429·4xx·bad_response 즉시, 예산 부족) / LLM_EMPTY(502: blocked)
  * [설정] timeoutMs(config.llmTimeoutMs, 1000~60000)·logger·now·meter(S3b, UsageMeter — 시도마다 usage 누적·ensureBudget 위임) — 컨테이너가 값으로 전달. 로그에는 상태 코드·분류·길이·ms 만(R-NFR-004)
- * [테스트] server/test/llm-client.test.ts (SRV-T-180~184, 221·222, 265~267)
+ * [테스트] server/test/llm-client.test.ts (SRV-T-180~184, 221·222, 265~267, 319~321)
  */
 import { AppError } from '../app-error'
 import type { Logger } from '../logger'
@@ -91,6 +91,8 @@ export const withRetry = async (
 export type CompleteOptions = {
   /** 같은 요청에서 이미 쓴 LLM 단계 시간(ms, 화자 선택). 발화 예산 = LLM_BUDGET_MS − spentMs. 기본 0 */
   readonly spentMs?: number
+  /** S4. LLM 단계 총 예산(ms). 기본 LLM_BUDGET_MS(66초). 요약은 SUMMARY_BUDGET_MS(25초). 실제 예산 = (budgetMs ?? LLM_BUDGET_MS) − (spentMs ?? 0) */
+  readonly budgetMs?: number
 }
 export type SelectSpeakerInput = SelectPromptInput & {
   readonly profiles: Readonly<Record<CharacterId, CharacterProfile>>
@@ -160,7 +162,7 @@ export const createLlm = (deps: LlmDeps): Llm => {
 
   const complete = async (prompt: Prompt, options?: CompleteOptions): Promise<string> => {
     const start = now()
-    const budgetMs = LLM_BUDGET_MS - (options?.spentMs ?? 0)
+    const budgetMs = (options?.budgetMs ?? LLM_BUDGET_MS) - (options?.spentMs ?? 0)
     let attempts = 0
     let budget = false
     try {

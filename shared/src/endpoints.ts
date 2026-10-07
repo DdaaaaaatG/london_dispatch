@@ -24,6 +24,8 @@ export const PATHS = {
   messageRegenerate: `${API}/messages/:id/regenerate`,
   /** GET · PUT 캐릭터 설정 (S3c, R-SET-004 · R-SET-005). 갠홈 주인 전용 */
   characterSettings: `${API}/settings/characters`,
+  /** GET · PUT 장기기억 (S4, R-MEM-001). GET 도 토큰 필요 */
+  roomMemory: `${API}/rooms/:id/memory`,
 } as const
 
 /** :id 자리에 인코딩한 값을 넣는다 */
@@ -56,4 +58,6 @@ export const endpoints = {
     withId(PATHS.messageRegenerate, String(messageId)),
   /** (S3c) GET · PUT 이 같이 쓴다 */
   characterSettings: (): string => PATHS.characterSettings,
+  /** (S4) GET · PUT 이 같이 쓴다 */
+  roomMemory: (roomId: string): string => withId(PATHS.roomMemory, roomId),
 } as const

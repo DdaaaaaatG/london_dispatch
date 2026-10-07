@@ -1,6 +1,6 @@
 # messages 모듈 설계
 
-- 상태: S1 확정(구현 동기화) · S2 초안 · S3 초안(§2.3·§4.2·§4.3·§8.2) · S3b 초안(§4.2 예산 게이트·§8.3) · S3c 구현 완료(§4.4·§8.4) · **S3d 구현 완료(2026-10-06, server 343/343, SRV-T-261~281 · §12 speak `'auto'` — 앞 절과 다르면 §12가 우선 · R-LLM-008 개정(이름 지목·선택 15초) 설계 반영)** · verify 후속 동기화(2026-10-07 — §12.2·§12.3 `pick` 반환 구조, §4.4·§8.4 SRV-T-292, §5 S3-R1·§9 S3-R2 문구) · 최종 갱신: 2026-10-07
+- 상태: S1 확정(구현 동기화) · S2 초안 · S3 초안(§2.3·§4.2·§4.3·§8.2) · S3b 초안(§4.2 예산 게이트·§8.3) · S3c 구현 완료(§4.4·§8.4) · **S3d 구현 완료(2026-10-06, server 343/343, SRV-T-261~281 · §12 speak `'auto'` — 앞 절과 다르면 §12가 우선 · R-LLM-008 개정(이름 지목·선택 15초) 설계 반영)** · verify 후속 동기화(2026-10-07 — §12.2·§12.3 `pick` 반환 구조, §4.4·§8.4 SRV-T-292, §5 S3-R1·§9 S3-R2 문구) · **S4 초안(2026-10-07, §13 afterSpeak 훅 본체 = memory.summarizeIfNeeded · 등록 실패 삼킴 — 시그니처 불변)** · 최종 갱신: 2026-10-07
 - 묶음: S1 = R-MSG-001(히스토리 페이지). S2 = R-MSG-002(유저 발화·지시 저장) · R-MSG-004(수정) · R-MSG-005(삭제) · R-MSG-008(권한). S3 = R-MSG-003·006·007(speak·regenerate·방당 잠금) · R-ROOM-005(재작성 갱신) · R-NFR-001·003 · R-MEM-002(훅 자리만, S3 no-op). S3b = R-LLM-007 🔒 월 예산 게이트(speak·regenerate 잠금 전 `llm.ensureBudget()` — 사용량 누적은 llm 안, [llm.md](llm.md) §12).
 - 관련 문서: [db.md](db.md)(`messages` 저장소), [rooms.md](rooms.md)(`updated_at` 갱신 규칙), [auth.md](auth.md)(`Principal`·쓰기 미들웨어), [index.md](index.md)(서비스 컨테이너·에러 핸들러), [llm.md](llm.md)(S3 프롬프트·제공사·재시도).
 
@@ -799,10 +799,84 @@ FakeProvider 각본의 0번째는 선택 호출, 1번째부터 발화 호출이�
 
 - 확인 필요 없음. 요구 밖 기능(저장만 전송·두 캐릭터 연속·자동 여부 저장)은 만들지 않는다.
 
+## 13. S4 — afterSpeak 훅 본체 연결 (R-MEM-002 🔒)
+
+- 상태: 초안(2026-10-07). 결론: **`GenerateDeps`·`MessagesDeps`·`MessagesService` 시그니처는 바뀌지 않는다.** 컨테이너가 `afterSpeak`에 memory 훅을 넣고([index.md](index.md) §13.1), `generate.ts`는 등록 호출을 try/catch로 감싸는 변경만 있다.
+
+비유: 무대 감독(speak)은 공연이 끝나면 "기록 담당에게 연락" 쪽지를 우체통(`waitUntil`)에 넣고 퇴장한다. 기록 담당이 누구인지는 극장(컨테이너)이 정한다. 우체통이 고장 나도 이미 끝난 공연을 취소하지 않는다.
+
+### 13.1 연결
+
+```ts
+// server/src/services.ts (index.md §13.1) — messages deps 에 1항목
+afterSpeak: async ({ roomId }) => {
+  await memory.summarizeIfNeeded(roomId)   // SummarizeOutcome 은 버린다. throw 하지 않는다(memory.md D-MEM-9)
+},
+```
+
+- messages는 memory를 import하지 않는다(함수 값 주입 — 의존 방향 `routes → messages`, `memory → db·llm` 유지).
+- `AfterSpeakEvent.messageId`는 memory가 쓰지 않는다(판정은 D1 미요약 수 기준). 타입은 그대로 둔다(D-MSG-30).
+- 요약 판정·구간·실패 처리 전체는 [memory.md](memory.md) §4.1. messages 쪽 계약은 "성공 뒤 1회 등록, 결과는 speak 응답에 영향 없음"뿐이다.
+
+### 13.2 `generate.ts` 델타
+
+```ts
+// speak — withSpeakLock 반환 뒤(잠금 해제 뒤)
+const hook = deps.afterSpeak
+if (hook !== undefined) {
+  try {
+    background.waitUntil(runAfterSpeak(hook, { roomId, messageId: saved.id }))
+  } catch (e) {
+    // S4: 실행 컨텍스트가 없는 런타임 등에서 등록 자체가 throw 해도 저장된 대사를 실패로 바꾸지 않는다
+    logger.warn('after_speak_schedule_failed', { roomId, errName: errName(e) })
+  }
+}
+```
+
+- 이유: Hono `c.executionCtx`는 런타임이 실행 컨텍스트를 주지 않으면(예: `app.request()`를 컨텍스트 없이 호출) 접근 시 throw한다. S3까지는 훅이 없어 이 줄이 돌지 않았다. S4부터는 항상 돌므로, 등록 실패가 이미 저장된 대사를 500으로 바꾸면 화면 재시도로 같은 대사가 두 번 생긴다(D-MSG-18과 같은 이유).
+- 인자 평가 순서상 `runAfterSpeak(...)`는 `waitUntil` 호출 전에 이미 시작된다. 등록이 실패하면 그 promise는 기다려지지 않은 채 돌다 끊길 수 있다. `runAfterSpeak`는 항상 resolve하므로 처리되지 않은 거부는 생기지 않고, 끊겨도 D1은 그대로라 다음 speak가 복구한다([memory.md](memory.md) §4.3).
+- 운영(Workers `fetch`)에서는 컨텍스트가 늘 있으므로 이 경로는 방어용이다.
+
+### 13.3 흐름 위치 (변경 없음 확인)
+
+| 항목 | 값 |
+|---|---|
+| 등록 시점 | `withSpeakLock` 반환 뒤 = **잠금 해제 뒤**. 요약은 speak 잠금 밖에서 돈다([memory.md](memory.md) D-MEM-14) |
+| 경로 | 버튼(`sebastian`·`ciel`)·`'auto'` 모두 같은 훅 1회 |
+| 실패한 speak | 등록 0회(기존 SRV-T-202) |
+| regenerate | 훅 없음 유지(D-MSG-13 — 메시지 수가 늘지 않는다) |
+| 유저 발화·수정·삭제 | 훅 없음(요구는 speak 뒤만) |
+| 로그 | `speak_done` 불변. 추가 `after_speak_schedule_failed{roomId, errName}`(warn). 요약 로그는 memory(§5.1) |
+| 시간 | speak 응답 시간 불변(R-NFR-001 🔒). 훅은 응답 뒤 `waitUntil` 30초 안 |
+
+### 13.4 테스트 (`server/test/messages-generate.test.ts`에 추가)
+
+| ID | 조건 | 기대 |
+|---|---|---|
+| SRV-T-326 | `afterSpeak` 있음, `background.waitUntil`이 `throw new Error('no ctx')` | speak가 저장된 `Message`를 돌려준다(throw 없음), DB에 캐릭터 메시지 1행, 훅 함수는 1회 호출됨, warn `after_speak_schedule_failed{roomId, errName: 'Error'}` |
+
+- 기존 SRV-T-202(성공 시에만 등록·훅 실패 `after_speak_failed`)는 무수정.
+- speak → 훅 → 실제 요약까지의 배선은 [index.md](index.md) §13.3 SRV-T-327, 요약 자체는 [memory.md](memory.md) §8.
+
+### 13.5 요구 추적
+
+| 요구ID | 반영 | 테스트 | 상태 |
+|---|---|---|---|
+| R-MEM-002 🔒 | §13.1 연결 · §13.2 등록 실패 삼킴 · §13.3 | SRV-T-202(기존)·326·327 | ✅(설계) |
+| R-NFR-001 🔒 | §13.3 응답 시간 불변 | 기존 | ✅(영향 없음) |
+
+### 13.6 설계 결정
+
+| # | 결정 | 대안 | 채택 근거 |
+|---|---|---|---|
+| D-MSG-29 | `waitUntil` 등록 실패를 잡아 warn만 남긴다 | 그대로 전파 · 라우트가 처리 | 저장된 대사를 실패로 보이면 중복 대사가 생긴다(D-MSG-18). "실패해도 speak 응답은 성공"(R-MEM-002)을 등록 단계까지 넓힌다. 라우트를 얇게 유지 |
+| D-MSG-30 | `AfterSpeakEvent`에서 `messageId`를 빼지 않는다 | `{ roomId }`만 | 시그니처·기존 테스트(SRV-T-202) 무수정. 값 1개라 비용 없음 |
+
 ## 변경 이력
 
 | 날짜 | 내용 |
 |---|---|
+| 2026-10-07 | S4 설계(§13): `afterSpeak` 훅 본체를 컨테이너가 `memory.summarizeIfNeeded`로 연결(messages는 memory를 import하지 않음), `generate.ts`의 `background.waitUntil` 등록을 try/catch로 감싸 `after_speak_schedule_failed`(warn), 훅 위치(잠금 해제 뒤)·regenerate 훅 없음 유지 확인, SRV-T-326, D-MSG-29·30. `GenerateDeps`·`MessagesDeps`·`MessagesService` 시그니처 불변 |
 | 2026-10-07 | verify 후속 동기화(소스 기준, SRV-001·SRV-003·S3-R1·S3-R2): §12.2 `pick` 반환 구조 문단, §12.3 흐름 ⑤·⑦ 뒤 `return { saved, pick }`, §4.4 실패 문단·§8.4 SRV-T-292(설정 읽기 실패 시 잠금 해제), §5 `character` 위반 행(실물 문구·HTTP 미도달)·S3-R1 메모, §9 메시지 id 10진 규칙(S3-R2), §10.1. 공개 API 변경 없음 |
 | 2026-10-06 | 마감 동기화(server 343/343): 상태 줄 문구 확정. 번호·파일은 실물 기준(SRV-T-281 `messages-generate` 서비스 경로). SRV-T-270·273·276의 15000·51000·49000 값은 실물과 같다 |
 | 2026-10-06 | 구현 동기화(343/343, SRV-T-261~281): 지목 `ms: 0`·로그 `speaker_select{provider, result:'mention', character, ms:0}`(reason·outChars 없음), "마지막 유저 글" = 기록 전체의 마지막 유저 메시지(맨 끝이 캐릭터여도 — 승인), 벡터 M7 추가, 테스트 번호를 실물에 맞춤(279 지목 벡터 · 280 호출·사용량 0 · 281 서비스 경로) |
@@ -822,3 +896,5 @@ FakeProvider 각본의 0번째는 선택 호출, 1번째부터 발화 호출이�
 파급(S3 공개 API 변경): `MessagesDeps`에 필수 `logger`·`contextMessages`·`llm` 추가 → 호출자 `server/src/services.ts`(`createServices`, 델타는 [llm.md](llm.md) §3.3), `server/test/messages.test.ts`의 `createMessagesService({ db, now })` 호출(테스트 헬퍼로 묶어 기본 `FakeProvider`·수집 로거·`contextMessages 40`을 넣는다). `MessagesService`에 `speak`·`regenerate` 추가 → 라우트(`server/src/routes/messages.ts` 등, contract 소유)가 E9·E12를 추가한다. 기존 4개 함수 시그니처는 바뀌지 않는다.
 
 파급(S3b): `MessagesDeps`·`GenerateDeps`·`MessagesService` 시그니처 변경 없음. `generate.ts`에 `await llm.ensureBudget()` 2줄과 문서주석 `[에러]`에 `LLM_BUDGET_EXCEEDED` 추가. `server/test/messages-generate.test.ts`의 `llm` 헬퍼는 meter 없이 만들어도 기존 SRV-T-191~209가 그대로 돈다(`LlmDeps.meter?` 선택). S3b 테스트만 meter를 넣는다.
+
+파급(S4): `MessagesDeps`·`GenerateDeps`·`MessagesService`·`AfterSpeakEvent` 시그니처 변경 없음. 호출자 `server/src/services.ts`가 `afterSpeak`를 넣는다([index.md](index.md) §13.1). `generate.ts`는 등록 3줄을 try/catch로 감싸고 문서주석 `[비동기]`에 "등록 실패는 warn"을 더한다. 기존 SRV-T-202(훅 등록·훅 실패 삼킴)는 무수정. 라우트 테스트(`server/test/routes-generate.test.ts`, contract 소유)는 speak 성공 뒤 `waitOnExecutionContext(ctx)`를 기다리도록 바꾸기를 contract에 요청했다([memory.md](memory.md) 「contract 인계」).

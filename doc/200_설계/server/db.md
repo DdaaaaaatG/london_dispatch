@@ -1,6 +1,6 @@
 # db 모듈 설계
 
-- 상태: S1 확정(구현 동기화) · S2 초안 · S3 초안(§2.3·§3.5) · S3b 초안(§2.4·§3.6·§7.5) · S3c 구현 완료(§2.5·§3.7·§7.6·§8.1) · **S3d 구현 완료(2026-10-06, SRV-T-261~278 · §12 유저 표시명 투영 — §3.4보다 우선)** · 최종 갱신: 2026-10-06
+- 상태: S1 확정(구현 동기화) · S2 초안 · S3 초안(§2.3·§3.5) · S3b 초안(§2.4·§3.6·§7.5) · S3c 구현 완료(§2.5·§3.7·§7.6·§8.1) · **S3d 구현 완료(2026-10-06, SRV-T-261~278 · §12 유저 표시명 투영 — §3.4보다 우선)** · **S4 초안(2026-10-07, §13 memory `getState`·`putSummary`·`advance` · messages `countAfter`·`listAfter` — 마이그레이션 없음)** · 최종 갱신: 2026-10-07
 - 묶음: S1 = 스키마(4테이블 전부)·마이그레이션 `0001_init.sql`·읽기 함수. S2 = 방 생성·이름 변경·연쇄 삭제, 메시지 추가·수정·삭제, 레이트리밋 카운터(§2.1의 "S2" 표시). S3 = speak 잠금 선점·해제, 메시지 단건 조회, 장기기억 summary 읽기(§2.3 — **마이그레이션 없음**). S4용은 §2.2에 예정 시그니처만. S3b = 월 AI 사용량 누적 `llm_usage`(§2.4 — **마이그레이션 `0002_llm_usage.sql`**, R-LLM-007 🔒).
 - 관련 문서: [env.md](env.md)(`DB` 바인딩), [index.md](index.md)(`createDb` 호출 지점), [rooms.md](rooms.md), [messages.md](messages.md), [auth.md](auth.md)(레이트리밋).
 
@@ -892,10 +892,149 @@ export const toMessage = (row: MessageRow): Message => {
 | D-DB-S3d-1 | 투영 위치 = `toMessage` 한 곳 | 라우트 직렬화 · 화면 상수 · 저장부터 상수 | 02 §1 대안 B. 모든 읽기 경로가 이미 이 함수를 지난다. 저장값(감사 정보)을 지키고 공개 GET에 실명이 남지 않는다 |
 | D-DB-S3d-2 | `SELECT`에서 `author_name`을 빼지 않는다 | 열 제거 | SQL 상수·S1 열 단언 무수정. 변경 범위 최소 |
 
+## 13. S4 — 장기기억 저장소 확장 (R-MEM-001 🔒 · R-MEM-002 🔒 · R-MEM-003)
+
+- 상태: 초안(2026-10-07). 호출자는 memory 서비스([memory.md](memory.md) §4). **마이그레이션 없음** — `memory` 테이블·`messages(room_id, id)` 인덱스는 0001에 있다. §2.2의 S4 예정안(`get`/`put`/`advance(roomId, expectedUntilId, newUntilId, summary, nowMs)`)을 아래로 대체한다.
+
+비유: 쪽지 서랍(memory 행)에 "내가 꺼낼 때와 같은 쪽지가 들어 있을 때만 바꿔 넣는다"는 자물쇠 없는 규칙을 단다. 서랍이 비어 있으면 그냥 넣는다.
+
+### 13.1 공개 API
+
+```ts
+// server/src/db/memory.ts — MemoryRepo 확장
+/** memory 행 1개(도메인). updatedAt 은 epoch ms */
+export type MemoryRecord = { summary: string; sourceUntilId: number; updatedAt: number }
+/** advance 의 새 값·기대값 */
+export type MemorySnapshot = { summary: string; sourceUntilId: number }
+
+export type MemoryRepo = {
+  /** S3. 방의 memory.summary. 행이 없으면 null (speak·regenerate 경로, 그대로) */
+  getSummary: (roomId: string) => Promise<string | null>
+  /** S4. 행 전체. 없으면 null */
+  getState: (roomId: string) => Promise<MemoryRecord | null>
+  /** S4. summary·updated_at 교체(UPSERT). source_until_id 유지(새 행은 0). 방이 없으면 null */
+  putSummary: (roomId: string, summary: string, nowMs: number) => Promise<MemoryRecord | null>
+  /** S4. 행이 없으면 next 로 넣고, 있으면 expected 와 같을 때만 next 로 바꾼다. 바꿨으면 true. 불일치·방 없음 → false */
+  advance: (
+    roomId: string,
+    next: MemorySnapshot,
+    expected: MemorySnapshot,
+    nowMs: number,
+  ) => Promise<boolean>
+}
+
+// server/src/db/messages.ts — MessagesRepo 에 추가
+  /** S4. 그 방에서 id > afterId 인 메시지 수. cap 이상은 세지 않는다(반환 ≤ cap) */
+  countAfter: (roomId: string, afterId: number, cap: number) => Promise<number>
+  /** S4. id > afterId 인 메시지를 오래된 → 새 순으로 최대 take 개 (toMessage 투영 그대로) */
+  listAfter: (roomId: string, afterId: number, take: number) => Promise<Message[]>
+
+// server/src/db/index.ts — 타입 재노출 추가: MemoryRecord, MemorySnapshot
+```
+
+| 이름 | 인자 | 반환 | 실패 | 요구ID |
+|---|---|---|---|---|
+| `memory.getState` | `roomId` | `MemoryRecord \| null` | 전파 · 숫자 좁히기 실패 `INTERNAL` | R-MEM-001·002 |
+| `memory.putSummary` | `roomId, summary, nowMs` | `MemoryRecord \| null`(방 없음) | 전파(CHECK 위반 포함) | R-MEM-001 |
+| `memory.advance` | `roomId, next, expected, nowMs` | `boolean` | 전파 | R-MEM-002·003 |
+| `messages.countAfter` | `roomId, afterId, cap` | `number`(0~cap) | 전파 | R-MEM-002 |
+| `messages.listAfter` | `roomId, afterId, take` | `Message[]` 오름차순 | 전파 | R-MEM-002 |
+
+- 판정(기준 초과·대상 개수·길이 상한·trim)은 memory 서비스 몫이다. db는 받은 값을 쓴다(R-DB-005). 시각도 서비스가 넘긴다.
+- 행이 없을 때 memory 서비스는 `expected = { summary: '', sourceUntilId: 0 }`을 넘긴다. INSERT 경로는 기대값을 보지 않는다(없음 = 아무도 안 썼음).
+
+### 13.2 SQL 상수 (`server/src/db/sql.ts` — `// ---- S4 ----` 블록)
+
+```ts
+export const SQL_MEMORY_STATE_BY_ROOM =
+  'SELECT summary, source_until_id, updated_at FROM memory WHERE room_id = ?1'
+
+/** 방이 있을 때만. 새 행은 source_until_id 0, 기존 행은 summary·updated_at 만 바꾼다 */
+export const SQL_MEMORY_PUT_SUMMARY = `INSERT INTO memory (room_id, summary, source_until_id, updated_at)
+SELECT ?1, ?2, 0, ?3
+WHERE EXISTS (SELECT 1 FROM rooms WHERE id = ?1)
+ON CONFLICT (room_id) DO UPDATE SET summary = excluded.summary, updated_at = excluded.updated_at
+RETURNING summary, source_until_id, updated_at`
+
+/** 낙관적 잠금. 행이 없으면 넣고, 있으면 기대값(?5 source_until_id, ?6 summary)과 같을 때만 바꾼다 */
+export const SQL_MEMORY_ADVANCE = `INSERT INTO memory (room_id, summary, source_until_id, updated_at)
+SELECT ?1, ?2, ?3, ?4
+WHERE EXISTS (SELECT 1 FROM rooms WHERE id = ?1)
+ON CONFLICT (room_id) DO UPDATE SET
+  summary = excluded.summary,
+  source_until_id = excluded.source_until_id,
+  updated_at = excluded.updated_at
+WHERE memory.source_until_id = ?5 AND memory.summary = ?6
+RETURNING room_id`
+
+/** cap 이상은 세지 않는다(읽기 행 수 상한) */
+export const SQL_MESSAGES_COUNT_AFTER = `SELECT COUNT(*) AS n FROM (
+  SELECT 1 FROM messages WHERE room_id = ?1 AND id > ?2 LIMIT ?3
+)`
+
+export const SQL_MESSAGES_LIST_AFTER = `SELECT ${MESSAGE_COLUMNS}
+FROM messages
+WHERE room_id = ?1 AND id > ?2
+ORDER BY id ASC
+LIMIT ?3`
+```
+
+- **`INSERT … SELECT … WHERE …` 의 `WHERE`를 지우지 않는다.** SQLite는 SELECT 원천 UPSERT에서 `ON CONFLICT`를 조인 구문으로 잘못 읽지 않도록 SELECT에 WHERE를 요구한다(문서화된 파싱 모호성). 여기서는 방 존재 확인이 그 역할을 겸한다.
+- 값은 전부 bind(R-DB-003). `MESSAGE_COLUMNS`는 기존 상수(문자열 연결은 상수끼리만 — 기존 `SQL_MESSAGES_BY_ID`와 같다).
+
+### 13.3 결과 해석·변환
+
+| 함수 | D1 호출 | 해석 |
+|---|---|---|
+| `getState` | `.first<MemoryRow>()` | `null` → `null`. 행 → `{ summary, sourceUntilId: source_until_id, updatedAt: updated_at }`(숫자 좁히기 실패 → `AppError('INTERNAL')`, 기존 관례) |
+| `putSummary` | `.first<MemoryRow>()` | `null` → `null`(방 없음). 행 → 위와 같은 변환 |
+| `advance` | `.first<{ room_id: string }>()` | 행 있음 → `true`. `null` → `false`(기대 불일치 또는 방 없음 — 서비스는 둘 다 `conflict`) |
+| `countAfter` | `.first<{ n: number }>()` | `n`(없으면 0) |
+| `listAfter` | `.all<MessageRow>()` | `results.map(toMessage)` — §12 유저 표시명 투영 포함. memory는 `id`·`speaker`·`kind`·`text`만 쓴다 |
+
+### 13.4 동시성·인덱스·비용
+
+- `advance`는 한 문장이라 원자적이다. 같은 방 `advance` 2건은 D1이 직렬 실행하고, 첫 문장이 `source_until_id`를 바꾸면 둘째의 `DO UPDATE … WHERE`가 거짓이 되어 0행이다. 행이 없을 때 2건이면 첫 INSERT, 둘째는 충돌 → 조건 거짓 → 0행.
+- 요약 중 방 삭제(rooms.md 연쇄 batch)와 겹치면 `WHERE EXISTS`가 거짓 → 0행. 외래 키 오류 없음(D-DB-9와 같은 방식).
+- 인덱스: `countAfter`·`listAfter`는 `idx_messages_room_id_id` 범위 스캔(`room_id = ? AND id > ?`). `getState`·`putSummary`·`advance`는 `memory` PK. 새 인덱스 없음.
+- 비용 표는 [memory.md](memory.md) §7.1(speak 뒤 훅 기준 이하 = 읽기 쿼리 2개·≤ 141행, 쓰기 0).
+
+### 13.5 테스트 (`server/test/db.test.ts`에 추가 — workers pool D1)
+
+| ID | 대상 | 조건 | 기대 |
+|---|---|---|---|
+| SRV-T-322 | `getState` | 행 없음 / 행(`'s'`, 7, 123) | `null` / `{ summary: 's', sourceUntilId: 7, updatedAt: 123 }`(숫자 타입) |
+| SRV-T-323 | `putSummary` | 행 없음 / 행(source 7) 있음 / 방 없음 / 4001자 직접 | 생성 `source_until_id` 0 / summary·`updated_at`만 교체, source 7 유지 / `null`·memory 0행 / CHECK 오류 전파(서비스가 막는 마지막 방어선) |
+| SRV-T-324 | `advance` | 행 없음 + 기대(`''`,0) / 기대 일치 / source 불일치 / summary 불일치 / 방 없음 / 같은 기대값 2건 `Promise.all` | `true`·삽입 / `true`·교체 / `false`·행 불변 / `false`·행 불변 / `false`·0행 / `true` 1건·`false` 1건 |
+| SRV-T-325 | `countAfter`·`listAfter` | 두 방에 메시지, `afterId` 경계, `cap` 3 / `take` 2 | 다른 방 제외, `id > afterId`만, 반환 `min(실제, cap)`, 오름차순, 최대 `take`개 |
+
+- 기존 SRV-T-190(`getSummary`)·SRV-T-134(방 삭제 연쇄)는 무수정.
+
+### 13.6 요구 추적
+
+| 요구ID | 반영 | 테스트 | 상태 |
+|---|---|---|---|
+| R-MEM-001 🔒 | §13.1 `getState`·`putSummary` | SRV-T-322·323 | ✅(설계) |
+| R-MEM-002 🔒 | §13.1 `countAfter`·`listAfter`·`advance` | SRV-T-324·325 | ✅(설계) |
+| R-MEM-003 | §13.2 `SQL_MEMORY_ADVANCE` · §13.4 | SRV-T-324 | ✅(설계) |
+| R-DB-001 🔒 · R-DB-002 | 스키마·마이그레이션 변경 없음 | SRV-T-323(CHECK) | ✅(변경 없음) |
+| R-DB-003 · R-DB-005 | bind 전용 · 판단 없음 | 코드 검토 | ✅(설계) |
+
+### 13.7 설계 결정
+
+| # | 결정 | 대안 | 채택 근거 |
+|---|---|---|---|
+| D-DB-26 | `advance` = `INSERT … SELECT … WHERE EXISTS … ON CONFLICT DO UPDATE … WHERE` 한 문장 | 조건부 UPDATE → 0행이면 `INSERT … ON CONFLICT DO NOTHING` → 재시도 1회 | 왕복 1회, 행 없음·경합·방 삭제를 분기 없이 한 번에 처리. 서비스 코드가 단순하다 |
+| D-DB-27 | 기대값에 `summary`를 넣는다 | `updated_at` 비교 | 같은 ms 안 두 쓰기에서 생기는 ABA가 없다. 4000자 이하 바인딩 1개 비용은 작다. 요약 중 PUT 편집을 지킨다([memory.md](memory.md) D-MEM-2) |
+| D-DB-28 | `countAfter`에 상한(`LIMIT` 하위 쿼리) | 전체 `COUNT(*)` | 요약이 계속 실패한 방에서도 speak마다 읽는 행 수가 묶인다([memory.md](memory.md) D-MEM-15) |
+| D-DB-29 | `listAfter`는 `Message`(`toMessage`)를 돌려준다 | 요약 전용 행 타입 | 변환 경로가 하나. 투영 규칙(§12)이 그대로 적용된다 |
+| D-DB-30 | `putSummary`는 조건 없는 UPSERT(마지막 쓰기 승리) | 기대 버전 조건 | 요구에 편집 충돌 감지가 없고 새 에러 코드가 필요하다([memory.md](memory.md) D-MEM-10) |
+
 ## 변경 이력
 
 | 날짜 | 내용 |
 |---|---|
+| 2026-10-07 | S4 설계(§13): `MemoryRepo`에 `getState`·`putSummary`·`advance`(조건부 UPSERT 낙관적 잠금), `MessagesRepo`에 `countAfter`(상한 있는 COUNT)·`listAfter`(오름차순), 타입 `MemoryRecord`·`MemorySnapshot`, SQL 상수 5개 전문, 결과 해석, SRV-T-322~325, D-DB-26~29. 마이그레이션 없음(0004 미사용) |
 | 2026-10-06 | S3d 구현 완료 표기(server 336/336, SRV-T-261~278). §12.3 SRV-T-269 입력 정정: 유저 행은 0001 제약상 `author_name` 필수라 NULL 유저 행을 넣을 수 없다 → 이름이 다른 유저 행 두 개로 바꿈(4개 읽기 경로 검증 유지) |
 | 2026-10-06 | S3d 설계(§12): `toMessage` 투영 — 유저 메시지 `authorName` = shared `USER_DISPLAY_NAME`, 캐릭터 null, 저장 `author_name`은 실명 유지. SQL·스키마·마이그레이션 불변. SRV-T-269, 기존 테스트 영향표, D-DB-S3d-1·2 |
 | 2026-10-05 | S1 초안 작성 |
@@ -911,3 +1050,5 @@ export const toMessage = (row: MessageRow): Message => {
 파급(S3 공개 API 변경): `Db`에 `memory` 추가 → `Db`를 직접 구현하는 테스트 가짜 객체(`server/test/app.test.ts`의 `trap`, `rooms.test.ts`·`messages.test.ts`의 가짜 `Db`)에 `memory`를 추가한다. `RoomsRepo`·`MessagesRepo`는 함수 추가만이라 기존 호출자 영향 없다. 서비스 호출자는 [messages.md](messages.md) §2.3뿐.
 
 파급(S3b 공개 API 변경): `Db`에 `llmUsage` 추가 → `Db`를 직접 구현하는 테스트 가짜 객체(`server/test/app.test.ts`의 `trap`, `rooms.test.ts`·`messages.test.ts`·`auth.test.ts`의 가짜 `Db`)에 `llmUsage`를 추가한다. `server/test/helpers.ts` `resetDb`에 `DELETE FROM llm_usage`를 더하고 `insertUsage` 헬퍼를 추가한다. 기존 저장소 함수 시그니처는 바뀌지 않는다. 호출자는 [index.md](index.md) §2.3 S3b 배선(컨테이너)뿐이다.
+
+파급(S4 공개 API 변경): `MemoryRepo`에 3함수, `MessagesRepo`에 2함수 추가 — `Db` 필드는 늘지 않는다. `Db`를 흉내 내는 테스트 가짜(`server/test/app.test.ts`의 `trap` Proxy, `messages.test.ts`·`messages-generate.test.ts`·`auth.test.ts`의 부분 객체 `as unknown as Db`)는 캐스팅이라 타입 오류가 나지 않는다. `MemoryRepo`·`MessagesRepo`를 `satisfies`로 직접 구현한 가짜가 있으면 새 함수를 추가한다(2026-10-07 `server/test`에서 확인된 것 없음). 기존 `getSummary`·`SQL_MEMORY_DELETE_BY_ROOM`·`pageDesc` 시그니처 불변. `server/test/helpers.ts` `resetDb`는 이미 `memory`를 지운다.

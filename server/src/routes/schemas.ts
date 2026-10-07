@@ -46,10 +46,7 @@ export const editMessageBody = z.object({ text: z.string() })
 const CHARACTER_IDS = ['sebastian', 'ciel'] as const satisfies readonly CharacterId[]
 
 /** speak 대상 — SpeakTarget 과 같은 집합 (api.md §4.13 · §5.2, v0.6 'auto'). 캐릭터 2명 고정 + 'auto' */
-const SPEAK_TARGETS = [
-  ...CHARACTER_IDS,
-  'auto',
-] as const satisfies readonly SpeakTarget[]
+const SPEAK_TARGETS = [...CHARACTER_IDS, 'auto'] as const satisfies readonly SpeakTarget[]
 
 /** POST /api/rooms/:id/speak 본문. 세 값 밖은 400(기본 문구) — 대소문자·공백을 고쳐 주지 않는다 (api.md §4.13) */
 export const speakBody = z.object({ character: z.enum(SPEAK_TARGETS) })
@@ -67,3 +64,9 @@ export const settingsIssueMessage = (data: unknown): string | undefined => {
 
 /** E16 본문 상한 초과 문구 (api.md §4.16 판정 4) */
 export const SETTINGS_BODY_TOO_LARGE = '공통 · 설정 본문은 128KB 이하여야 합니다.'
+
+/** PUT /api/rooms/:id/memory 본문. 타입만 — trim·0~4000자는 서비스 (api.md §4.18) */
+export const putMemoryBody = z.object({ summary: z.string() })
+
+/** E14 본문 상한(바이트). 4000 코드 포인트 × JSON.stringify 최악 6바이트 + 봉투 = 24014 < 32768 (api.md §4.18) */
+export const MEMORY_BODY_MAX_BYTES = 32_768

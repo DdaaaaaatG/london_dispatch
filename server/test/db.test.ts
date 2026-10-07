@@ -1,4 +1,4 @@
-// SRV-T-020~031, 269 — doc/200_설계/server/db.md §8·§12
+// SRV-T-020~031, 269, 322~325 — doc/200_설계/server/db.md §8·§12·§13
 import { env } from 'cloudflare:test'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { USER_DISPLAY_NAME } from '@shared/characters'
@@ -585,7 +585,14 @@ describe('toMessage 투영 (S3d, db.md §12)', () => {
     expect((await db.messages.getById(named))?.authorName).toBe(USER_DISPLAY_NAME)
     expect((await db.messages.getById(bot))?.authorName).toBeNull()
     const inserted = await db.messages.insert(
-      { roomId: 'a', speaker: 'user', kind: 'line', text: 'x', authorMbId: 'mb_y', authorName: '닉' },
+      {
+        roomId: 'a',
+        speaker: 'user',
+        kind: 'line',
+        text: 'x',
+        authorMbId: 'mb_y',
+        authorName: '닉',
+      },
       5,
     )
     expect(inserted?.authorName).toBe(USER_DISPLAY_NAME)
@@ -594,5 +601,94 @@ describe('toMessage 투영 (S3d, db.md §12)', () => {
     expect(updated?.authorName).toBe(USER_DISPLAY_NAME)
     expect(await stored(named)).toBe('닉')
     expect(await stored(unnamed)).toBe('다른닉')
+  })
+})
+
+describe('S4 memory·messages 저장소 (db.md §13)', () => {
+  const rec = async (roomId: string) =>
+    env.DB.prepare('SELECT summary, source_until_id, updated_at FROM memory WHERE room_id = ?1')
+      .bind(roomId)
+      .first<{ summary: string; source_until_id: number; updated_at: number }>()
+  const count = async (): Promise<number> =>
+    (await env.DB.prepare('SELECT COUNT(*) AS n FROM memory').first<{ n: number }>())?.n ?? -1
+
+  it('SRV-T-322 memory_getState_null_or_record', async () => {
+    const db = createDb(env.DB)
+    await insertRoom('a', 'A', 1, 100)
+    expect(await db.memory.getState('a')).toBeNull()
+    await env.DB.prepare(
+      "INSERT INTO memory (room_id, summary, source_until_id, updated_at) VALUES ('a', 's', 7, 123)",
+    ).run()
+    const state = await db.memory.getState('a')
+    expect(state).toEqual({ summary: 's', sourceUntilId: 7, updatedAt: 123 })
+    expect(typeof state?.sourceUntilId).toBe('number')
+    expect(typeof state?.updatedAt).toBe('number')
+  })
+
+  it('SRV-T-323 memory_putSummary_upsert_keeps_source_and_rejects_missing_room', async () => {
+    const db = createDb(env.DB)
+    await insertRoom('a', 'A', 1, 100)
+    expect(await db.memory.putSummary('a', '처음', 10)).toEqual({
+      summary: '처음',
+      sourceUntilId: 0,
+      updatedAt: 10,
+    })
+    await env.DB.prepare("UPDATE memory SET source_until_id = 7 WHERE room_id = 'a'").run()
+    expect(await db.memory.putSummary('a', '교체', 20)).toEqual({
+      summary: '교체',
+      sourceUntilId: 7,
+      updatedAt: 20,
+    })
+    expect(await db.memory.putSummary('zzz', '방 없음', 30)).toBeNull()
+    expect(await rec('zzz')).toBeNull()
+    await expect(db.memory.putSummary('a', 'x'.repeat(4001), 40)).rejects.toThrow()
+    expect((await rec('a'))?.summary).toBe('교체')
+  })
+
+  it('SRV-T-324 memory_advance_optimistic_lock', async () => {
+    const db = createDb(env.DB)
+    await insertRoom('a', 'A', 1, 100)
+    const empty = { summary: '', sourceUntilId: 0 }
+    // 행 없음: 기대값과 무관하게 넣는다
+    expect(await db.memory.advance('a', { summary: 'v1', sourceUntilId: 5 }, empty, 10)).toBe(true)
+    expect(await rec('a')).toEqual({ summary: 'v1', source_until_id: 5, updated_at: 10 })
+    // 기대 일치 → 교체
+    const v1 = { summary: 'v1', sourceUntilId: 5 }
+    expect(await db.memory.advance('a', { summary: 'v2', sourceUntilId: 9 }, v1, 20)).toBe(true)
+    expect(await rec('a')).toEqual({ summary: 'v2', source_until_id: 9, updated_at: 20 })
+    // source 불일치 / summary 불일치 → 행 불변
+    const next = { summary: 'v3', sourceUntilId: 12 }
+    expect(await db.memory.advance('a', next, { summary: 'v2', sourceUntilId: 5 }, 30)).toBe(false)
+    expect(await db.memory.advance('a', next, { summary: 'vX', sourceUntilId: 9 }, 30)).toBe(false)
+    expect(await rec('a')).toEqual({ summary: 'v2', source_until_id: 9, updated_at: 20 })
+    // 방 없음 → false, 행 0
+    expect(await db.memory.advance('zzz', next, empty, 40)).toBe(false)
+    expect(await rec('zzz')).toBeNull()
+    // 같은 기대값 2건 동시 → 정확히 1건 성공
+    const v2 = { summary: 'v2', sourceUntilId: 9 }
+    const [x, y] = await Promise.all([
+      db.memory.advance('a', { summary: 'A', sourceUntilId: 20 }, v2, 50),
+      db.memory.advance('a', { summary: 'B', sourceUntilId: 21 }, v2, 51),
+    ])
+    expect([x, y].filter(Boolean)).toHaveLength(1)
+    expect(await count()).toBe(1)
+  })
+
+  it('SRV-T-325 messages_countAfter_listAfter_boundaries', async () => {
+    const db = createDb(env.DB)
+    await insertRoom('a', 'A', 1, 100)
+    await insertRoom('b', 'B', 1, 100)
+    const a = await insertLines('a', 6)
+    await insertLines('b', 4)
+    expect(await db.messages.countAfter('a', 0, 100)).toBe(6)
+    expect(await db.messages.countAfter('a', a[1] ?? 0, 100)).toBe(4)
+    expect(await db.messages.countAfter('a', a[5] ?? 0, 100)).toBe(0)
+    expect(await db.messages.countAfter('a', 0, 3)).toBe(3)
+    expect(await db.messages.countAfter('zzz', 0, 3)).toBe(0)
+    const list = await db.messages.listAfter('a', a[1] ?? 0, 2)
+    expect(list.map(m => m.id)).toEqual([a[2], a[3]])
+    expect(list.every(m => m.roomId === 'a')).toBe(true)
+    expect((await db.messages.listAfter('a', 0, 100)).map(m => m.id)).toEqual(a)
+    expect(await db.messages.listAfter('a', a[5] ?? 0, 5)).toEqual([])
   })
 })

@@ -1,10 +1,10 @@
 /**
  * [목적] SQL 문자열 상수(S1 조회 + S2 쓰기·레이트리밋). 문자열 연결·보간 금지, 값은 전부 bind (R-DB-003). 설계 db.md §3.1·§3.2
- * [공개 API] S3c SQL_CHARACTER_SETTINGS_GET·UPSERT / S3b SQL_LLM_USAGE_ADD·BY_MONTH / S3 SQL_ROOMS_ACQUIRE_SPEAK_LOCK·RELEASE_SPEAK_LOCK, SQL_MESSAGES_BY_ID, SQL_MEMORY_SUMMARY_BY_ROOM / S1 SQL_ROOMS_LIST_SUMMARIES·EXISTS·TOUCH, SQL_MESSAGES_PAGE_LATEST·BEFORE / S2 SQL_ROOMS_INSERT·UPDATE_TITLE·SUMMARY_BY_ID·DELETE·TOUCH_BY_MESSAGE, SQL_MEMORY_DELETE_BY_ROOM, SQL_MESSAGES_DELETE_BY_ROOM·INSERT_IF_ROOM·UPDATE_TEXT·DELETE, SQL_RATE_LIMITS_HIT·PURGE_BEFORE
+ * [공개 API] S4 SQL_MEMORY_STATE_BY_ROOM·PUT_SUMMARY·ADVANCE, SQL_MESSAGES_COUNT_AFTER·LIST_AFTER / S3c SQL_CHARACTER_SETTINGS_GET·UPSERT / S3b SQL_LLM_USAGE_ADD·BY_MONTH / S3 SQL_ROOMS_ACQUIRE_SPEAK_LOCK·RELEASE_SPEAK_LOCK, SQL_MESSAGES_BY_ID, SQL_MEMORY_SUMMARY_BY_ROOM / S1 SQL_ROOMS_LIST_SUMMARIES·EXISTS·TOUCH, SQL_MESSAGES_PAGE_LATEST·BEFORE / S2 SQL_ROOMS_INSERT·UPDATE_TITLE·SUMMARY_BY_ID·DELETE·TOUCH_BY_MESSAGE, SQL_MEMORY_DELETE_BY_ROOM, SQL_MESSAGES_DELETE_BY_ROOM·INSERT_IF_ROOM·UPDATE_TEXT·DELETE, SQL_RATE_LIMITS_HIT·PURGE_BEFORE
  * [비동기] 없음
  * [에러] 없음
  * [설정] 없음
- * [테스트] server/test/db.test.ts (SRV-T-024~029, 121~128, 187~190)
+ * [테스트] server/test/db.test.ts (SRV-T-024~029, 121~128, 187~190, 322~325)
  */
 export const SQL_ROOMS_LIST_SUMMARIES = `SELECT r.id, r.title, r.created_at, r.updated_at,
        (SELECT COUNT(*) FROM messages m WHERE m.room_id = r.id) AS message_count
@@ -107,3 +107,36 @@ ON CONFLICT (id) DO UPDATE SET
   updated_at = excluded.updated_at,
   updated_by = excluded.updated_by
 RETURNING version, updated_at`
+
+// ---- S4 ----
+export const SQL_MEMORY_STATE_BY_ROOM =
+  'SELECT summary, source_until_id, updated_at FROM memory WHERE room_id = ?1'
+
+/** 방이 있을 때만. 새 행은 source_until_id 0, 기존 행은 summary·updated_at 만 바꾼다 */
+export const SQL_MEMORY_PUT_SUMMARY = `INSERT INTO memory (room_id, summary, source_until_id, updated_at)
+SELECT ?1, ?2, 0, ?3
+WHERE EXISTS (SELECT 1 FROM rooms WHERE id = ?1)
+ON CONFLICT (room_id) DO UPDATE SET summary = excluded.summary, updated_at = excluded.updated_at
+RETURNING summary, source_until_id, updated_at`
+
+/** 낙관적 잠금. 행이 없으면 넣고, 있으면 기대값(?5 source_until_id, ?6 summary)과 같을 때만 바꾼다 */
+export const SQL_MEMORY_ADVANCE = `INSERT INTO memory (room_id, summary, source_until_id, updated_at)
+SELECT ?1, ?2, ?3, ?4
+WHERE EXISTS (SELECT 1 FROM rooms WHERE id = ?1)
+ON CONFLICT (room_id) DO UPDATE SET
+  summary = excluded.summary,
+  source_until_id = excluded.source_until_id,
+  updated_at = excluded.updated_at
+WHERE memory.source_until_id = ?5 AND memory.summary = ?6
+RETURNING room_id`
+
+/** cap 이상은 세지 않는다(읽기 행 수 상한) */
+export const SQL_MESSAGES_COUNT_AFTER = `SELECT COUNT(*) AS n FROM (
+  SELECT 1 FROM messages WHERE room_id = ?1 AND id > ?2 LIMIT ?3
+)`
+
+export const SQL_MESSAGES_LIST_AFTER = `SELECT ${MESSAGE_COLUMNS}
+FROM messages
+WHERE room_id = ?1 AND id > ?2
+ORDER BY id ASC
+LIMIT ?3`

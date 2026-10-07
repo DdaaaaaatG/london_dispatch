@@ -1,10 +1,11 @@
 # API 계약 (api.md)
 
-- 상태: **초안 v0.6** · 최종 갱신 2026-10-06 · 소유 contract-designer
+- 상태: **초안 v0.7** · 최종 갱신 2026-10-07 · 소유 contract-designer
+- (v0.7) **S4 상세 확정**(구현 전) = 장기기억 보기·편집. `GET /api/rooms/:id/memory`(E13, §4.17) · `PUT /api/rooms/:id/memory`(E14, §4.18). 두 행은 v0.1부터 §4.0 표에 있었으므로 엔드포인트 수는 16개 그대로다. 타입 2개(`MemoryResponse`·`PutMemoryBody`)·경로 1개(`PATHS.roomMemory`, §5.9) · E9 부수 효과 1줄(응답 뒤 자동 요약, §4.12·§4.13) · §6.1 S4 카운트(GET 미카운트·PUT 1회) · 본문 상한 32KiB(§4.18) · §11.16 · §12.6(예정) · §13.6 · §14.19·§14.20 · §15.14 · 「ui 인계 메모」 S4 · 「contract-implementer 인계 목록」 S4. 에러 코드·env·마이그레이션·토큰 형식·handoff 불변. §4.15·§4.16은 S3c E15·E16이 쓰고 있어 절 번호를 바꾸지 않고 §4.17·§4.18에 둔다. 입력: `requirements.md` R-MEM-001~003 · R-CHAT-012 · R-NFR-003, `doc/200_설계/server/memory.md`(2026-10-07 S4 초안) 「contract 인계 요구 명세」·「ui 인계 메모」·§4.4·§11, `db.md` §13, `messages.md` §13, `index.md` §13, `ui/src/chat/design.md` §14.
 - (v0.6) **S3d 상세 확정**(구현 전) = 고정 명칭 「어떠한 의지」 + 전송 시 자동 응답. 새 엔드포인트·에러 코드 0. E9 speak 본문 `character`에 `'auto'` 추가(`SpeakTarget`, §4.13·§5.2) · 유저 메시지 응답 `authorName` = `USER_DISPLAY_NAME`(서버 투영, §2.3·§4.3·§4.9·§4.10·§5.5) · 생성 공통 AI 호출 수·시간 내역(§4.12) · §6.1 S3d 카운트 · §11.15 · §12.5 · §13.5 · §14.17·§14.18 · §15.13 · 「ui 인계 메모」 S3d · 「contract-implementer 인계 목록」 S3d. handoff 불변. 입력: `requirements.md` R-MSG-003·009 · R-AUTH-004 · R-CHAT-002·006·014 · R-LLM-003·008 · R-NFR-001(2026-10-06 S3d 개정), `doc/200_설계/architecture/s3d-02-전반설계.md` §1·§2·§4·§5, `s3d-03-인계패킷.md` §0·§1·§2.
 - (v0.6 복구) S3c 커밋(0be2f4c)의 §12.4 교체 스크립트가 §13~§16·「ui 인계 메모」·「contract-implementer 인계 목록」을 잘라 냈다. S3·S3b분은 git `11125c2` 원문으로, S3c분(§13.4 · §14.14~§14.16 · §15.12 · §16 · 인계 메모·목록 S3c)은 메인 세션이 s3c-contract-designer 편집 기록으로 재조립한 원문(`.claude/reports/api-v05-recovered-tail.md`)으로 되살렸다. 배치는 절 번호·묶음 순(S3·S3b → S3c → S3d)이다.
 - (v0.5) **S3c 상세 확정**(구현 전) = 캐릭터 설정(갠홈 주인 전용) — 설정 엔드포인트 예외·주인 판정 규약(§2.7) · 에러 코드 15종째 `OWNER_ONLY` 403(§3.2) · `GET /api/settings/characters`(E15, §4.15) · `PUT /api/settings/characters`(E16, §4.16) · 설정 타입 4종·`shared/src/settings.ts` 전문(§5.8) · 내보내기 파일 형식·가져오기 매핑(§16). 엔드포인트 14 → 16개. 토큰 형식·handoff 불변. 입력: `requirements.md` §11-1 R-SET-001~012 · R-API-001·002 · R-AUTH-003(2026-10-06 개정), `doc/200_설계/architecture/s3c-02-전반설계.md` §2.1·§4·§6, `s3c-03-인계패킷.md` §0·§1.3·§2.
-- 묶음: **S1 상세 확정**(구현 완료) = `GET /api/health` · `GET /api/rooms` · `GET /api/rooms/:id/messages` · `GET /embed`. **S2 상세 확정**(구현 전) = 토큰 규약(§2) · `POST /api/rooms` · `PATCH`·`DELETE /api/rooms/:id` · `POST /api/rooms/:id/user` · `PATCH`·`DELETE /api/messages/:id` · 쓰기 레이트리밋(§6). **S3 상세 확정**(구현 전, v0.4) = 생성 공통 규칙(§4.12) · `POST /api/rooms/:id/speak`(E9, §4.13) · `POST /api/messages/:id/regenerate`(E12, §4.14). **S3b 상세 확정**(구현 전, v0.4.1) = 월 AI 비용 상한(R-LLM-007 🔒) — 에러 코드 14종째 `LLM_BUDGET_EXCEEDED`(§3.2) · 429 두 종류 구분(§3.4) · E9·E12 판정 순서(§4.12~§4.14) · 레이트리밋 카운트(§6.1). 엔드포인트·타입·경로 추가 없음. 나머지(S4 memory)는 §4.0 표에 행만 두고 S4에서 상세를 정한다.
+- 묶음: **S1 상세 확정**(구현 완료) = `GET /api/health` · `GET /api/rooms` · `GET /api/rooms/:id/messages` · `GET /embed`. **S2 상세 확정**(구현 전) = 토큰 규약(§2) · `POST /api/rooms` · `PATCH`·`DELETE /api/rooms/:id` · `POST /api/rooms/:id/user` · `PATCH`·`DELETE /api/messages/:id` · 쓰기 레이트리밋(§6). **S3 상세 확정**(구현 전, v0.4) = 생성 공통 규칙(§4.12) · `POST /api/rooms/:id/speak`(E9, §4.13) · `POST /api/messages/:id/regenerate`(E12, §4.14). **S3b 상세 확정**(구현 전, v0.4.1) = 월 AI 비용 상한(R-LLM-007 🔒) — 에러 코드 14종째 `LLM_BUDGET_EXCEEDED`(§3.2) · 429 두 종류 구분(§3.4) · E9·E12 판정 순서(§4.12~§4.14) · 레이트리밋 카운트(§6.1). 엔드포인트·타입·경로 추가 없음. 나머지(S4 memory)는 §4.0 표에 행만 두고 S4에서 상세를 정한다 — (v0.7) §4.17·§4.18에서 확정했다.
 - 이 문서가 단일 소스다: **api.md → `shared/src/*` → `server/src/routes/*` → `ui/src/api/*` → `doc/handoff/*`(S5)**. 넷이 어긋나면 contract 결함이다(확정사항 §3).
 - 입력: `doc/000_프로젝트_확정사항.md` §1·§2·§3·§5.2~§5.4·§6, `doc/100_요구조건/requirements.md` §3·§4·§5·§7(R-LLM-002)·§8·§9, `doc/200_설계/server/{index,env,db,rooms,messages}.md`, `doc/200_설계/architecture/ui-layout-01-rooms-chat.md`. (v0.4) `doc/200_설계/server/llm.md` 「contract 인계 요구 명세」·§2.3·§2.6·§4.2·§5, `messages.md` §2.3·§4.2·§4.3·§5·§9, `db.md` §2.3, `ui/src/chat/design.md` §8.3·§14. (v0.4.1) `requirements.md` R-LLM-007·R-API-002(2026-10-06 개정), `llm.md` §11 D-LLM-16~23·§12·「contract 인계」 S3b 절, `messages.md` §4.2·§5, `index.md` §2.4·§5.1·§5.2.
 - 절 구성: §1~§10은 contract-design-strategy §13 고정 절이다(번호 변경 금지). §11~§15는 구현 설계 부록이다.
@@ -78,6 +79,19 @@ S3c 추가(v0.5):
 | 화면 쪽 | `ui/src/api/{settings(신규),client,index}.ts` | `getCharacterSettings` · `saveCharacterSettings` · `RequestOptions.method`에 `'PUT'` |
 | 갠홈 쪽 | `doc/handoff/*` | **변경 없음**(토큰 형식 불변). S5 embed-guide TODO 1줄(§8) |
 
+S4 추가(v0.7):
+
+| 당사자 | 파일 | S4 추가 |
+|---|---|---|
+| 문서(정본) | `doc/200_설계/contract/api.md` | §4.0 E13·E14 · §4.17 · §4.18 · §2.1·§2.2·§3.5·§4.12·§4.13 S4 문구 · §5.6·§5.7 행 · §5.9 · §6·§6.1 S4 행 · §8 TODO · §11.16 · §12.6 · §13.6 · §14.19·§14.20 · §15.14 · 「ui 인계 메모」 S4 · 「contract-implementer 인계 목록」 S4 |
+| 공용 타입 | `shared/src/types.ts` | `MemoryResponse` · `PutMemoryBody` |
+| 에러 코드 | `shared/src/errors.ts` | **변경 없음**(15종 그대로) |
+| 경로 | `shared/src/endpoints.ts` | `PATHS.roomMemory` · `endpoints.roomMemory` |
+| 캐릭터 · 길이 · 설정 | `characters.ts` · `limits.ts` · `settings.ts` | **변경 없음.** 서버 서비스와 화면이 `MEMORY_SUMMARY_MAX`·`countCodePoints`·`normalizeText`를 그대로 쓴다 |
+| 서버 쪽 | `server/src/routes/{memory(신규),index,schemas}.ts` | E13·E14 · `putMemoryBody` · `MEMORY_BODY_MAX_BYTES` |
+| 화면 쪽 | `ui/src/api/{memory(신규),index}.ts` | `getMemory` · `putMemory`. `client.ts` 변경 없음(`'PUT'`은 S3c에 있다) |
+| 갠홈 쪽 | `doc/handoff/*` | **변경 없음**(토큰·임베드 주소 불변). S5 비용 안내에 요약 호출 1줄(§8 TODO) |
+
 ### 1.2 경계 규칙
 
 - **단방향.** 화면·컴포넌트·state는 `@/api`(= `ui/src/api/index.ts`)만 import한다. `fetch`를 `ui/src/api/` 밖에서 쓰면 경계 위반이다.
@@ -95,6 +109,7 @@ S3c 추가(v0.5):
 - (v0.4, 2026-10-06) S3 4자는 **전부 아직 없다.** `shared/src/endpoints.ts`에 speak·regenerate 경로가 없고 routes에 핸들러가 없어 두 경로는 지금 `404 NOT_FOUND`다. server 쪽도 `server/src/llm/`·`messages.speak`·`regenerate`가 없다(설계만 있음).
 - (v0.4) S2 routes 테스트의 실제 파일은 `server/test/routes-write.test.ts`다. §14.5 제목의 `routes.test.ts` 표기와 다르다(계약 영향 없음, analyst 확인용).
 - (v0.4.1, 2026-10-06) S3 4자는 구현됐다(§12.2). **S3b 4자는 전부 아직 없다.** `shared/src/errors.ts`는 13종이고(`shared/test/errors.test.ts` API-T-040이 `toHaveLength(13)`), `server/src/llm/usage.ts`·`Llm.ensureBudget`도 없다. `shared/src/types.ts`·`server/src/app-error.ts`·`server/src/app.ts`·`ui/src/api/client.ts`의 `retryAfterSec` 주석은 "RATE_LIMITED 전용"이다. 다만 `app.ts` `errorResponse`는 코드 종류를 보지 않고 `err.retryAfterSec`이 있으면 본문·`Retry-After`를 붙인다. routes 테스트 `expectContractError`(`routes-write.test.ts`·`routes-generate.test.ts` 두 벌)는 `RATE_LIMITED`만 3키를 허용한다(§14.12에서 갱신).
+- (v0.7, 2026-10-07) S4 4자는 **전부 아직 없다.** `shared/src/endpoints.ts`의 `PATHS`는 10개이고 `roomMemory`가 없으며, routes에 핸들러가 없어 E13·E14는 지금 `404 NOT_FOUND`다. `shared/src/limits.ts`의 `MEMORY_SUMMARY_MAX`(4000)·`countCodePoints`·`normalizeText`는 있다. server 쪽은 `server/src/memory/`가 없고 `server/src/services.ts`에 `memory`·`afterSpeak` 배선이 없다(memory.md 설계만 있음). `server/test/routes-generate.test.ts`의 `call` 도우미는 `createExecutionContext()`를 만들기만 하고 `waitOnExecutionContext`를 부르지 않는다. `ui/src/api/client.ts`의 `RequestOptions.method`에는 `'PUT'`이 이미 있다(S3c).
 
 ### 1.4 묶음별 범위
 
@@ -105,7 +120,7 @@ S3c 추가(v0.5):
 | S3 (**v0.4 확정**) | §4.12 생성 공통(70초 상한·화면 타임아웃 규약·잠금·레이트리밋 카운트), §4.13 speak, §4.14 regenerate, §5.2·§5.4 델타(`SpeakBody`·경로 2개), §11.8~§11.10 routes·ui/api 설계, 「ui 인계 메모」 |
 | S3b (**v0.4.1 확정**) | §3.2 14종째 코드, §3.4 429 두 종류 구분, §4.12~§4.14 판정 순서·에러 행, §6.1 카운트, §8 handoff 메모 예정, §11.11 구현 부록, 「ui 인계 메모」 S3b. 엔드포인트 추가 0 |
 | S3c (**v0.5 확정**) | §2.7 설정 엔드포인트 예외·주인 판정, §3.2 15종째 `OWNER_ONLY`, §4.15 E15·§4.16 E16, §5.8 타입·`settings.ts`, §6.1 S3c 카운트, §11.12~§11.14 routes·ui/api, §16 파일 형식·가져오기 매핑. 엔드포인트 2개 추가 |
-| S4 | memory GET·PUT |
+| S4 (**v0.7 확정**) | §4.17 E13 · §4.18 E14(본문 32KiB·경합), §4.12·§4.13 E9 응답 뒤 자동 요약 부수 효과, §5.9 타입 2·경로 1, §6.1 S4 카운트, §11.16 routes·ui/api, §12.6 대조표(예정), 「ui 인계 메모」 S4. 엔드포인트 추가 0(§4.0 행 상세화)·에러 코드 0 |
 | S5 | §8 handoff 3종 |
 
 ---
@@ -121,7 +136,7 @@ S3c 추가(v0.5):
 | S1 엔드포인트 토큰 | 전부 **불필요** |
 | 읽기 엔드포인트에 `Authorization` 헤더가 있을 때 | **무시한다.** 검증하지 않고, 잘못된 토큰이어도 읽기를 거절하지 않는다(401·403 없음) |
 | S2 이후 유지 약속 | 토큰 미들웨어는 쓰기 엔드포인트에만 붙는다. `GET /api/health`·`GET /api/rooms`·`GET /api/rooms/:id/messages`는 계속 토큰 불필요 |
-| 예외(요구 명시) | `GET /api/rooms/:id/memory`는 읽기지만 **토큰 필요**(확정사항 §5.2, R-MEM-001). S4에서 상세. (v0.5) `GET /api/settings/characters`(E15)도 읽기지만 **토큰 + 주인 판정 필요**(R-AUTH-003 2026-10-06 개정 · R-SET-004, §2.7). 이 경로는 헤더를 무시하지 않고 검증하며, 래퍼 `getCharacterSettings`는 `auth: true`로 헤더를 붙인다 |
+| 예외(요구 명시) | `GET /api/rooms/:id/memory`는 읽기지만 **토큰 필요**(확정사항 §5.2, R-MEM-001). (v0.7) 상세는 §4.17 — `requireToken`만 붙고 주인 판정은 없다. 이 경로는 헤더를 무시하지 않고 검증하며, 래퍼 `getMemory`는 `auth: true`로 헤더를 붙인다. (v0.5) `GET /api/settings/characters`(E15)도 읽기지만 **토큰 + 주인 판정 필요**(R-AUTH-003 2026-10-06 개정 · R-SET-004, §2.7). 이 경로는 헤더를 무시하지 않고 검증하며, 래퍼 `getCharacterSettings`는 `auth: true`로 헤더를 붙인다 |
 | S1 화면 | **항상 읽기 전용**이다. R-CHAT-009(토큰 메모리 보관)는 S2로 옮겨졌다(requirements §0, 2026-10-05) |
 | 토큰 보관(S2 확정) | §2.4. 보관은 `ui/src/state/token.ts`가 소유한다. `ui/src/api/client.ts`는 `configureClient({ getToken })`로 getter를 주입받아 **쓰기 요청에만** 헤더를 붙인다 |
 | S2 이후 읽기 | 화면이 토큰을 가지고 있어도 읽기 래퍼(`getHealth`·`listRooms`·`listMessages`)는 `Authorization`을 붙이지 않는다. 서버도 읽기 경로에서 헤더를 보지 않는다 |
@@ -135,7 +150,7 @@ S3c 추가(v0.5):
 | 꺼낼 수 없음 | 헤더 없음 · 빈 값 · 공백뿐 · `Bearer`만 있고 토큰 자리 빔 · 다른 scheme(`Basic …`) → `401 TOKEN_REQUIRED` |
 | 꺼냈는데 실패 | §2.3 검증 실패 → `401 TOKEN_INVALID` 또는 `403 LEVEL_TOO_LOW` |
 | 적용 범위 | **쓰기 라우트마다** `requireToken → rateLimitWrites → validate → 핸들러` 순서로 붙인다. 전역·라우터 단위(`apiRoutes.use`) 금지(server auth.md §9.1, index.md D-IDX-9) |
-| S2 적용 대상 | E4 · E5 · E6 · E8 · E10 · E11(§4.0) 6개 전부. S3 E9·E12도 같다. S4 E13(GET memory)은 `requireToken`만 붙인다(S4에서 확정) |
+| S2 적용 대상 | E4 · E5 · E6 · E8 · E10 · E11(§4.0) 6개 전부. S3 E9·E12도 같다. (v0.7) S4 E13(GET memory)은 `requireToken`만, E14(PUT memory)는 `requireToken` → `rateLimitWrites`를 붙인다(§4.17·§4.18) |
 | 순서의 결과 | 인증 실패가 본문 검증 실패보다 먼저 나온다. 토큰 없이 잘못된 본문을 보내면 `400`이 아니라 `401 TOKEN_REQUIRED`다 |
 | 화면 쪽 | 쓰기 래퍼만 `Authorization: Bearer <getToken()>`을 붙인다. getter가 `null`이면 헤더 없이 보낸다(서버가 `TOKEN_REQUIRED`로 답하고 래퍼는 그대로 돌려준다). API 호출 URL에 `?t=`를 붙이지 않는다 |
 
@@ -363,7 +378,7 @@ V7  eyJtYl9pZCI6InRlc3RlcjAxIiwibmljayI6Ilx1ZDE0Y1x1YzJhNFx1ZDEzMCIsImNoX25hbWUi
 - 라우트와 서비스는 `AppError`를 throw만 한다. 응답 본문은 server 진입점의 `onError` 한 곳이 `{ error: { code, message } }`로 만든다(index.md §5.1).
 - zod 검증 실패는 라우트의 `validate` 훅이 `AppError('VALIDATION_ERROR', 400, ERROR_MESSAGES.VALIDATION_ERROR)`를 throw한다(§11.2). zod-validator 기본 실패 응답은 계약 형식이 아니라서 쓰지 않는다.
 - 매칭 없는 경로와 메서드는 `notFound`가 `404 NOT_FOUND`(`요청한 주소를 찾을 수 없습니다.`)로 닫는다. S1 시점에 `POST /api/rooms` 같은 미구현 쓰기 경로도 이 응답이다.
-- (S2) `GET /api/rooms/:id`·`PUT /api/rooms/:id`·`GET /api/messages/:id`처럼 경로는 있으나 메서드가 등록되지 않은 요청도 `404 NOT_FOUND`다(405를 쓰지 않는다). S4 경로(memory)는 그 묶음 전까지 이 응답이다. (v0.4) S3 경로도 구현 전까지는 `404`이고, 구현 뒤에도 `GET`·`PUT /api/rooms/:id/speak`, `GET /api/messages/:id/regenerate`처럼 POST가 아닌 메서드는 `404`다.
+- (S2) `GET /api/rooms/:id`·`PUT /api/rooms/:id`·`GET /api/messages/:id`처럼 경로는 있으나 메서드가 등록되지 않은 요청도 `404 NOT_FOUND`다(405를 쓰지 않는다). S4 경로(memory)는 그 묶음 전까지 이 응답이다((v0.7) 구현 뒤에도 `POST`·`PATCH`·`DELETE /api/rooms/:id/memory`는 `404`다). (v0.4) S3 경로도 구현 전까지는 `404`이고, 구현 뒤에도 `GET`·`PUT /api/rooms/:id/speak`, `GET /api/messages/:id/regenerate`처럼 POST가 아닌 메서드는 `404`다.
 - (S2) `RATE_LIMITED`의 `retryAfterSec`·`Retry-After`도 `onError`가 `AppError`의 선택 필드에서 옮긴다. 라우트·미들웨어는 헤더를 만들지 않는다(server index.md D-IDX-11). (v0.4.1) `LLM_BUDGET_EXCEEDED`도 같은 경로다 — 서비스가 `new AppError('LLM_BUDGET_EXCEEDED', undefined, { retryAfterSec })`를 throw하고 `onError`가 옮긴다. `onError`는 코드 종류를 보지 않으므로 server 진입점 코드는 바뀌지 않는다(index.md §2.4 S3b · SRV-T-233).
 - (S2) 본문 JSON이 깨졌으면 Hono가 `HTTPException(400)`을 던지고 `onError`가 `400 VALIDATION_ERROR`(기본 문구)로 바꾼다. `Content-Type`이 JSON이 아니면 본문을 `{}`로 보고 zod가 실패해 같은 `400`이 나간다(hono 4.13 validator 동작).
 
@@ -387,15 +402,15 @@ V7  eyJtYl9pZCI6InRlc3RlcjAxIiwibmljayI6Ilx1ZDE0Y1x1YzJhNFx1ZDEzMCIsImNoX25hbWUi
 | E10 | `PATCH /api/messages/:id` | ○ | 메시지 수정 | S2 | **확정** | R-MSG-004 · R-MSG-008 | §4.10 |
 | E11 | `DELETE /api/messages/:id` | ○ | 메시지 삭제 | S2 | **확정** | R-MSG-005 · R-MSG-008 | §4.11 |
 | E12 | `POST /api/messages/:id/regenerate` | ○ | 같은 캐릭터로 재생성 | S3 | **확정**(구현 전) | R-MSG-006 · R-MSG-007 | §4.12 · §4.14 |
-| E13 | `GET /api/rooms/:id/memory` | ○ | 장기기억 보기 | S4 | S4 상세 예정 | R-MEM-001 | — |
-| E14 | `PUT /api/rooms/:id/memory` | ○ | 장기기억 편집 | S4 | S4 상세 예정 | R-MEM-001 | — |
+| E13 | `GET /api/rooms/:id/memory` | ○ | 장기기억 보기 | S4 | **확정**(구현 전, v0.7) | R-MEM-001 · R-AUTH-003 | §4.17 |
+| E14 | `PUT /api/rooms/:id/memory` | ○ | 장기기억 편집 | S4 | **확정**(구현 전, v0.7) | R-MEM-001 · R-AUTH-005 | §4.18 |
 | E15 | `GET /api/settings/characters` | ○ + 주인 | 캐릭터 설정 읽기(주인 판정 탐침 겸용) | S3c | **확정**(구현 전) | R-SET-004 · R-SET-001 · R-AUTH-003 | §2.7 · §4.15 |
 | E16 | `PUT /api/settings/characters` | ○ + 주인 | 캐릭터 설정 전체 교체 저장 | S3c | **확정**(구현 전) | R-SET-005 · R-SET-001 · R-SET-002 | §2.7 · §4.16 |
 
 - (v0.5) 엔드포인트는 **16개**다(R-API-001 2026-10-06 개정). E15·E16은 경로 하나를 두 메서드가 쓴다(`PATHS.characterSettings`). 내보내기·가져오기·시드 복원·주인 여부 조회 엔드포인트는 없다 — 내보내기·가져오기는 화면이 E15 응답과 E16 요청으로 처리한다(§16).
 
 - **방 단건 조회(`GET /api/rooms/:id`)는 없다.** 대화 화면 상단 바의 방 제목·생성일(R-CHAT-001)은 `listRooms()` 결과에서 찾는다. 마지막 본 방 복원(R-ROOMS-004)도 `listRooms()`를 먼저 부른 뒤 id로 찾는다.
-- S4 행(E13·E14)의 요청·응답 필드는 S4에서 정한다. 이 문서는 아직 추측하지 않는다. (v0.4) S3 행(E9·E12)은 확정했다.
+- (v0.7) S4 행(E13·E14)을 확정했다(§4.17·§4.18). 두 행은 v0.1부터 표에 있었으므로 엔드포인트 수는 16개 그대로다(R-API-001 불변). 경로 하나를 두 메서드가 쓴다(`PATHS.roomMemory` — GET E13 · PUT E14). (v0.4) S3 행(E9·E12)은 확정했다.
 - 같은 경로 패턴을 여러 메서드가 쓴다: `PATHS.rooms`(GET E3 · POST E4), `PATHS.room`(PATCH E5 · DELETE E6), `PATHS.message`(PATCH E10 · DELETE E11). (v0.4) E9·E12는 경로마다 메서드가 하나다(`PATHS.roomSpeak` POST · `PATHS.messageRegenerate` POST).
 
 ### 4.1 `GET /api/health` (E2)
@@ -728,7 +743,7 @@ AI가 대사를 만드는 두 쓰기다. 주방에 화구가 방마다 하나뿐
 | 월 비용 상한 (R-LLM-007 🔒, v0.4.1) | 서버가 제공사 응답의 토큰 사용량 × 단가 × 환율로 **추정 원화**를 월(KST) 단위로 누적한다. 누적이 `LLM_MONTHLY_BUDGET_KRW`(기본 100000) 이상이면 이 두 엔드포인트만 **키 확인 다음·잠금 선점 전·제공사 호출 전**에 `429 LLM_BUDGET_EXCEEDED`로 거절한다. 다음 달 1일 00:00 KST에 저절로 풀린다. 읽기·다른 쓰기는 영향이 없다. 사용량·예산을 보는 엔드포인트는 없고 health에도 싣지 않는다(R-API-001). 성공 응답 모양은 바뀌지 않는다 |
 | 응답 메시지 | 기존 `Message` 그대로. `speaker`는 `'sebastian'`·`'ciel'`, `kind: 'line'`, `authorName: null`. 누가 눌렀는지는 저장·응답하지 않는다(messages.md D-MSG-12). 이름·아바타는 화면이 `CHARACTERS[speaker]`로 그린다(R-LLM-002, §5.5) |
 | `text` | 제공사 응답의 후처리 결과(앞머리 이름표 제거·양끝 공백·연속 빈 줄 정리, R-LLM-004). 최대 2000자(코드 포인트, llm.md D-LLM-9). 빈 결과면 `502 LLM_EMPTY` |
-| 응답 뒤 작업 | S3에는 없다. S4 장기기억 요약(R-MEM-002)이 성공 응답 뒤 백그라운드로 붙어도 응답 형태·status는 바뀌지 않는다 |
+| 응답 뒤 작업 | S3에는 없다. (v0.7) S4부터 **E9 성공 응답 뒤에만** 장기기억 자동 요약(R-MEM-002 🔒)이 백그라운드(`waitUntil`)로 붙는다(§4.13 부수 효과). 응답 형태·status·소요(70초 상한)·레이트리밋은 바뀌지 않는다. E12와 실패한 E9에는 붙지 않는다 |
 
 공통 에러(§4.5 공통에 더함):
 
@@ -758,12 +773,12 @@ AI가 대사를 만드는 두 쓰기다. 주방에 화구가 방마다 하나뿐
 | 직전 발화자 | 무관. 같은 캐릭터가 연속으로 말해도 된다(R-MSG-003). (v0.6) `'auto'`의 기본 화자 규칙만 직전 캐릭터 발화자를 본다 |
 | 컨텍스트 | 서버가 그 방의 최근 메시지(`CONTEXT_MESSAGES`개, 기본 40)와 장기기억 요약을 읽어 프롬프트를 만든다. 화면은 대화 내용을 보내지 않는다. 프롬프트의 유저 줄은 `[어떠한 의지] …`이고 저장 실명은 쓰지 않는다(R-LLM-003 S3d 개정, server 소관) |
 | 에러 | §4.5 공통 + §4.12 공통 + 아래. (v0.6) `'auto'`도 **같은 표**를 쓴다 — 새 코드·새 status 없음(R-API-002 불변) |
-| 부수 효과 | `messages` 1행 + 방 `updatedAt` = 저장 시각(같은 batch, R-ROOM-005). 잠금 선점·해제(`updatedAt`은 바꾸지 않는다). 제공사 호출 **최대 3회**(v0.6.1 — `'auto'`: 선택 1 + 생성 1~2 · 지정 캐릭터: 1~2, 생성의 1회 재시도 포함) — 선택 호출 사용량도 월 비용 누적에 더한다(R-LLM-007). 호출 수와 무관하게 레이트리밋 소모는 요청당 1회이고, 월 비용 상한 게이트(판정 4b)도 선택 호출 **앞** 1회뿐이다(선택 뒤·재시도 전에 다시 보지 않는다). 실패면 아무것도 저장하지 않는다 |
+| 부수 효과 | `messages` 1행 + 방 `updatedAt` = 저장 시각(같은 batch, R-ROOM-005). 잠금 선점·해제(`updatedAt`은 바꾸지 않는다). 제공사 호출 **최대 3회**(v0.6.1 — `'auto'`: 선택 1 + 생성 1~2 · 지정 캐릭터: 1~2, 생성의 1회 재시도 포함) — 선택 호출 사용량도 월 비용 누적에 더한다(R-LLM-007). 호출 수와 무관하게 레이트리밋 소모는 요청당 1회이고, 월 비용 상한 게이트(판정 4b)도 선택 호출 **앞** 1회뿐이다(선택 뒤·재시도 전에 다시 보지 않는다). 실패면 아무것도 저장하지 않는다. (v0.7) **성공 응답 뒤** 서버가 그 방의 장기기억 자동 요약을 백그라운드(`waitUntil`)로 1회 등록한다(R-MEM-002 🔒). 미요약 메시지가 `MEMORY_SUMMARY_THRESHOLD`(기본 60)를 넘을 때만 제공사를 1~2회(재시도 포함) 더 부르고(월 비용 누적·게이트 대상, R-LLM-007) `memory` 행을 바꾼다. 요약의 성공·실패·건너뜀은 이 요청의 응답 본문·status·소요에 영향이 없고(실패는 서버 로그만), 레이트리밋을 더 쓰지 않는다. 판정·구간·동시성은 server 몫(memory.md §4). 그래서 E9 응답 직후의 E13은 아직 이전 요약을 줄 수 있다(§4.17) |
 | 레이트리밋 | 1회(`'auto'`도 1회 — v0.6.1 제공사 호출 최대 3회와 무관). (v0.6) 화면의 **전송 1회 = E8 1회 + E9 `'auto'` 1회 = 2회**를 같은 분당 한도에서 쓴다. 기본 20/분이면 전송은 최대 10/분이다(§6.1 규칙 그대로, S3d로 바뀌는 규칙 없음) |
 | 소요 | 최대 70초(§4.12). (v0.6) `'auto'`의 선택 호출(최대 8초)은 LLM 단계 66초 안에 들어간다 — 상한 불변(R-NFR-001 🔒) |
 | server | `messages.speak(roomId: string, input: SpeakInput, background: Background): Promise<Message>` — `SpeakInput = SpeakBody`(v0.6 `character: SpeakTarget`). 반환 `speaker`는 늘 `CharacterId`다. 라우트가 `background = { waitUntil: task => c.executionCtx.waitUntil(task) }`를 넘긴다(messages.md §2.3). 서비스 이름·인자 개수는 S3d에서 바뀌지 않는다 |
-| 요구ID | R-MSG-003 · R-MSG-007 · R-ROOM-005 · R-NFR-001 · R-NFR-003 · R-LLM-002 · R-LLM-004 · R-LLM-005 · R-CHAT-005 · (v0.4.1) R-LLM-007 · (v0.6) R-MSG-009 · R-LLM-008 · R-CHAT-006 · R-CHAT-014 |
-| 테스트 | API-T-050 ~ 053(쓰기 표에 추가) · 070 ~ 077 · 084 · (v0.4.1) 085 · 086 · 088 ~ 090 · (v0.6) 109 ~ 111 |
+| 요구ID | R-MSG-003 · R-MSG-007 · R-ROOM-005 · R-NFR-001 · R-NFR-003 · R-LLM-002 · R-LLM-004 · R-LLM-005 · R-CHAT-005 · (v0.4.1) R-LLM-007 · (v0.6) R-MSG-009 · R-LLM-008 · R-CHAT-006 · R-CHAT-014 · (v0.7) R-MEM-002 |
+| 테스트 | API-T-050 ~ 053(쓰기 표에 추가) · 070 ~ 077 · 084 · (v0.4.1) 085 · 086 · 088 ~ 090 · (v0.6) 109 ~ 111 · (v0.7) 123 |
 
 판정 순서(server 설계 고정 — messages.md §4.2. 앞 단계에서 실패하면 뒤 단계는 보지 않는다):
 
@@ -1020,6 +1035,132 @@ AI가 대사를 만드는 두 쓰기다. 주방에 화구가 방마다 하나뿐
 ```json
 { "settings": { "world": "19세기 말 런던.", "characters": { "sebastian": { "sourceMaterial": "흑집사", "age": "", "gender": "남성", "role": "집사", "persona": "완벽한 집사.", "personalityTags": "", "appearance": "", "relationships": "", "speech": "정중한 존댓말.", "sampleDialogue": ["분부대로."], "rules": [] }, "ciel": { "…": "…" } } }, "version": 3, "updatedAt": 1767231000000, "isDefault": false }
 ```
+
+### 4.17 `GET /api/rooms/:id/memory` (E13) — 장기기억 보기 (S4, v0.7)
+
+장기기억은 두꺼운 일기장 맨 앞에 끼워 둔 "지난 줄거리" 쪽지다. E13은 쪽지를 읽고, E14는 쪽지 글을 통째로 새로 쓴다. 쪽지 귀퉁이의 "몇 번 장까지 옮겼는지"(`sourceUntilId`)는 서버의 서기(자동 요약)만 고친다.
+
+| 항목 | 값 |
+|---|---|
+| 토큰 | ○ — 읽기지만 **토큰 필요**(R-MEM-001 · R-AUTH-003 예외, §2.1). 등급 통과자 누구나이고 주인 판정은 없다(§2.7 대상 아님). 받는 곳은 §2.2와 같다(Bearer 헤더만, `?t=` 무시) |
+| 처리 순서 | 부트스트랩(server) → `requireToken` → `validate('param', roomIdParam)` → 핸들러 → `services.memory.get(id)` |
+| 경로 | `id: string`(방 id, §4.5 `roomIdParam`). 형식 검사 없이 없으면 `404` |
+| 요청 | 쿼리·본문 없음(쿼리가 있어도 무시) |
+| 성공 | `200` · `MemoryResponse`(§5.9) |
+| 행 없음 | 방은 있는데 자동 요약·편집이 한 번도 없으면 `200` `{ "summary": "", "sourceUntilId": 0, "updatedAt": null }`. `404`가 아니다(memory.md D-MEM-12) |
+| 응답 필드 | 정확히 `summary` · `sourceUntilId` · `updatedAt` 셋. `roomId`·저장자 `mbId`·요약 이력·프롬프트는 싣지 않는다 |
+| 부수 효과 | 없음(D1 읽기: 방 존재 1행 + `memory` PK 1행). 응답 캐시 없음 — 자동 요약(§4.13)이 언제든 값을 바꾸므로 화면은 시트를 열 때마다 다시 읽는다 |
+| 레이트리밋 | 없음(세지 않는다, §6.1 S4 행) |
+| server | `services.memory.get(roomId: string): Promise<MemoryResponse>`(memory.md §2 — `MemoryState = MemoryResponse`) |
+| 요구ID | R-MEM-001 · R-AUTH-003 · R-CHAT-012 · R-API-004 |
+| 테스트 | API-T-113 · 114 · 115 · 116 · 121 · 122 |
+
+판정 순서:
+
+| 순서 | 검사 | 실패 |
+|---|---|---|
+| 1 | 토큰(§2.3) | `401 TOKEN_REQUIRED`·`TOKEN_INVALID` / `403 LEVEL_TOO_LOW` |
+| 2 | 방 존재 | `404 NOT_FOUND` |
+| 3 | 읽기 | `500 INTERNAL`(D1 장애) |
+
+에러:
+
+| 코드 | status | message | 조건 | 판정 위치 |
+|---|---|---|---|---|
+| `CONFIG_INVALID` | 500 | 기본 문구 | 설정 오류(가장 먼저) | server 부트스트랩 |
+| `TOKEN_REQUIRED` | 401 | 기본 문구 | Bearer 토큰을 꺼낼 수 없음(§2.2). 토큰 없는 읽기 전용 화면은 이 엔드포인트를 부르지 않는다 | `requireToken` |
+| `TOKEN_INVALID` | 401 | 기본 문구 | 형식·서명·payload·만료 실패(§2.3) | `requireToken` |
+| `LEVEL_TOO_LOW` | 403 | 기본 문구 | `level < TOKEN_MIN_LEVEL` | `requireToken` |
+| `NOT_FOUND` | 404 | `방을 찾을 수 없습니다.` | 없는 방(삭제된 방 포함) | `memory.get` |
+| `INTERNAL` | 500 | 기본 문구 | D1 읽기 실패 | onError |
+
+응답 예:
+
+```json
+{ "summary": "시엘은 체스 시합에서 세바스찬에게 졌고, 다음 주 런던 출장을 약속받았다.\n어떠한 의지는 저택의 새 하인으로 들어왔다.", "sourceUntilId": 21, "updatedAt": 1767231000000 }
+```
+
+```json
+{ "summary": "", "sourceUntilId": 0, "updatedAt": null }
+```
+
+- `sourceUntilId`는 "요약에 반영된 마지막 메시지 id"다. 0이면 자동 요약이 아직 한 번도 없었다는 뜻이고, 편집(E14)만 한 방도 0이다. 화면은 표시하지 않아도 된다(요구 없음).
+- `updatedAt`은 마지막 저장(자동 요약 반영 또는 편집) 시각이다. 방 목록의 `RoomSummary.updatedAt`과 별개다 — 장기기억 저장은 방 `updatedAt`을 바꾸지 않는다(§4.18).
+
+### 4.18 `PUT /api/rooms/:id/memory` (E14) — 장기기억 편집 (S4, v0.7)
+
+| 항목 | 값 |
+|---|---|
+| 토큰 | ○ — 등급 통과자 누구나(§4.5 권한 규칙과 같다. 주인 판정 없음) |
+| 처리 순서 | 부트스트랩 → `requireToken` → `rateLimitWrites` → `validate('param', roomIdParam)` → 본문 상한(32KiB) → `validate('json', putMemoryBody)` → 핸들러 → `services.memory.put(id, body)` |
+| 경로 | `id: string`(§4.17과 같다) |
+| 본문 | `PutMemoryBody` = `{ summary: string }`(§5.9), `Content-Type: application/json`. 필수. 모르는 키는 버린다(§4.5). zod는 **타입만** 본다(`z.string()`) |
+| 길이 규칙 | `normalizeText`(앞뒤 공백·줄바꿈 trim) 뒤 `countCodePoints` **0~4000**(`MEMORY_SUMMARY_MAX`, §5.7). 0자 허용 = 요약 비우기. 중간 줄바꿈·공백은 그대로. 이모지 1개 = 1자. 판정은 서비스가 DB 전에 한다(memory.md §2.1 · D-MEM-11) |
+| 의미 | `summary` **전체 교체**. 부분 수정·이어 붙이기 없음. `sourceUntilId`는 **바꾸지 않는다**(R-MEM-001 🔒) — 행이 없으면 0으로 새로 만든다. 낙관적 잠금 없음: 마지막 저장이 남는다(아래 경합 표) |
+| 본문 상한 | **32768바이트(32KiB)**, routes 상수 `MEMORY_BODY_MAX_BYTES`(§11.16). `Content-Length`가 있으면 그 값으로, 없으면 실제로 읽은 바이트로 판정한다(§4.16과 같은 hono `bodyLimit`). 넘으면 `400 VALIDATION_ERROR` 기본 문구(`413`을 쓰지 않는다). 근거: 4000 코드 포인트 × `JSON.stringify` 최악 6바이트(제어 문자 `\u00XX`) + 봉투 `{"summary":""}` 14바이트 = 24014바이트라, 앞뒤 공백을 덧붙이지 않은 유효한 요약은 늘 상한 안이다(이모지 4000개 = 16014바이트). 상한은 trim 전 원문 기준이라 앞뒤 공백을 수천 자 덧붙인 본문은 걸릴 수 있다 |
+| 성공 | `200` · `MemoryResponse`. `summary` = 저장값(trim 결과), `sourceUntilId` = 기존 값(행이 없었으면 0), `updatedAt` = 저장 시각(서버 시계, epoch ms). 화면은 이 응답으로 입력을 다시 맞춘다 |
+| 부수 효과 | `memory` 1행 UPSERT(방 존재 확인을 포함한 한 문장, db.md §13 `memory.putSummary`). **방 `updatedAt`은 바꾸지 않는다** — 방 목록(E3) 순서 불변(memory.md D-MEM-5). AI 호출 없음. 저장한 요약은 다음 speak·regenerate부터 프롬프트의 "지난 이야기 요약"으로 들어간다(이미 진행 중인 생성은 이전 값). 로그에 요약 본문을 남기지 않는다(R-NFR-004) |
+| 레이트리밋 | 1회 — 쓰기 공용 분당 한도(§6.1 S4 행). `401`·`403`은 세지 않고, 본문 상한·형식·길이 `400`과 `404`는 센다(S2 규칙 그대로) |
+| server | `services.memory.put(roomId: string, input: PutMemoryBody): Promise<MemoryResponse>`(memory.md §2 — `PutMemoryInput = PutMemoryBody`) |
+| 요구ID | R-MEM-001 · R-AUTH-005 · R-NFR-003 · R-CHAT-012 · R-API-004 |
+| 테스트 | API-T-113 · 116 ~ 122 |
+
+판정 순서(앞 단계에서 실패하면 뒤 단계는 보지 않는다):
+
+| 순서 | 검사 | 실패 |
+|---|---|---|
+| 1 | 토큰(§2.3) | `401 TOKEN_REQUIRED`·`TOKEN_INVALID` / `403 LEVEL_TOO_LOW` |
+| 2 | 레이트리밋(§6.1) — 여기서 1회 소모 | `429 RATE_LIMITED` |
+| 3 | 본문 크기(32KiB) | `400 VALIDATION_ERROR` 기본 문구 |
+| 4 | 본문 JSON 파싱 | `400 VALIDATION_ERROR` 기본 문구(onError, HTTPException 400) |
+| 5 | 본문 형식(라우트 zod — `summary`가 문자열) | `400 VALIDATION_ERROR` 기본 문구 |
+| 6 | 길이(서비스, DB 전) — trim 후 4001 코드 포인트 이상 | `400 VALIDATION_ERROR` `장기기억은 0~4000자로 입력해 주세요.` |
+| 7 | 방 존재 + 저장(한 문장) | `404 NOT_FOUND` |
+| 8 | D1 장애 | `500 INTERNAL` |
+
+- 그래서 없는 방에 4001자를 보내면 `400`이고, 없는 방에 유효한 요약을 보내면 `404`다.
+- 비문자열 `summary`(`1`·`null`·`[]`)는 라우트 zod가 먼저 막으므로 HTTP로는 기본 문구다. 서비스의 비문자열 검사는 라우트를 거치지 않는 호출의 안전망이다(§15.14 어긋난 점 1).
+
+에러(§4.5 공통 표에 더함):
+
+| 코드 | status | message | 조건 |
+|---|---|---|---|
+| `VALIDATION_ERROR` | 400 | `요청 형식이 올바르지 않습니다.` | 판정 3·4·5: 본문 32KiB 초과 · JSON 깨짐 · `Content-Type`이 JSON 아님 · `summary` 없음 · 문자열 아님 · 본문이 객체 아님 |
+| `VALIDATION_ERROR` | 400 | `장기기억은 0~4000자로 입력해 주세요.` | 판정 6 |
+| `NOT_FOUND` | 404 | `방을 찾을 수 없습니다.` | 판정 7. 없는 방(삭제된 방 포함) |
+
+요청·응답 예(앞뒤 공백은 지우고 중간 줄바꿈은 남긴다. `sourceUntilId`는 기존 값 21 유지):
+
+```json
+{ "summary": "  시엘은 체스 시합에서 세바스찬에게 졌다.\n다음 주 런던 출장이 잡혀 있다.  " }
+```
+
+```json
+{ "summary": "시엘은 체스 시합에서 세바스찬에게 졌다.\n다음 주 런던 출장이 잡혀 있다.", "sourceUntilId": 21, "updatedAt": 1767231000000 }
+```
+
+비우기:
+
+```json
+{ "summary": "" }
+```
+
+```json
+{ "summary": "", "sourceUntilId": 21, "updatedAt": 1767231060000 }
+```
+
+- 비워도 `sourceUntilId`가 그대로라 이미 요약된 구간(id ≤ 21)은 다시 요약되지 않는다. 그 구간의 줄거리는 AI 기억에서 빠진다(R-MEM-001 🔒의 결과, 「ui 인계 메모」 S4 · §15.14 확인 필요 3).
+
+경합(memory.md §4.4 · D-MEM-2 · D-MEM-10 — `409` 없음):
+
+| 상황 | 결과 |
+|---|---|
+| 같은 방 PUT 2건 동시 | 둘 다 `200`. 나중에 실행된 저장이 남는다. 각 응답은 자기 저장값이다 |
+| 자동 요약(E9 뒤 백그라운드)이 도는 중 PUT | PUT `200`, 편집이 남는다. 그 자동 요약은 반영되지 않고 버려진다. `sourceUntilId`가 그대로라 다음 speak 뒤 **편집본을 기준으로** 같은 구간을 다시 요약한다 |
+| 자동 요약이 끝난 뒤 PUT(시트를 미리 열어 둔 경우) | PUT이 이긴다(마지막 저장). 자동 요약이 더한 내용은 사라지고 `sourceUntilId`는 요약이 전진시킨 값 그대로다. 충돌 감지·`409`는 없다(요구·에러 코드 밖, §15.14 확인 필요 2) |
+| speak·regenerate 진행 중 PUT | 둘 다 진행한다. PUT은 생성 잠금을 보지 않는다(`409 SPEAK_IN_PROGRESS` 없음). 진행 중 생성은 잠금 직후 읽은 요약을 쓴다 |
+| PUT과 방 삭제(E6) 동시 | 삭제가 먼저면 PUT `404`. PUT이 먼저면 `200` 뒤 삭제가 `memory` 행도 지운다(고아 행 없음, §4.8) |
+| E9 직후 E13 | 자동 요약이 아직 끝나지 않았으면 이전 값이다(응답 뒤 최대 약 30초) |
 
 ---
 
@@ -1391,6 +1532,7 @@ export const USER_DISPLAY_NAME = '어떠한 의지'
 | 타입 대조(S2) | 핸들러에서 `const body: CreateRoomBody = c.req.valid('json')`처럼 shared 본문 타입에 대입한다 | S1과 같은 방식 |
 | 길이 규칙(v0.3.1) | 상수·정규화·세기 함수는 `@shared/limits`(§5.7) 하나. 서버 서비스가 판정에, 화면이 입력 제한·글자 수 표시에 같은 것을 쓴다 | 화면과 서버가 같은 입력을 다르게 세지 않게 한다 |
 | 생성 본문(S3) | `speakBody = z.object({ character: z.enum(CHARACTER_IDS) })`. `CHARACTER_IDS = ['sebastian', 'ciel'] as const satisfies readonly CharacterId[]`(schemas.ts 내부 상수). E12는 본문 스키마가 없다 | 값 두 개뿐인 열거라 타입 검사의 일부로 zod가 끝낸다. 서비스의 `isCharacterId` 재검사는 라우트를 거치지 않는 호출을 위한 안전망이라 HTTP로는 닿지 않는다(§15.9 S3-R1) |
+| 장기기억 본문(S4, v0.7) | `putMemoryBody = z.object({ summary: z.string() })`. `.min()`·`.max()`·`.trim()`을 쓰지 않는다. 본문 상한 `MEMORY_BODY_MAX_BYTES`(32768)는 routes 상수다(shared에 두지 않는다) | S2 본문 스키마와 같은 이유(zod 길이는 UTF-16 단위). 상한은 화면이 쓸 일이 없다 — 4000자 안의 유효한 요약은 늘 32KiB 안이다(§4.18) |
 
 ### 5.7 `shared/src/limits.ts` 전문 초안 (v0.3.1 신규)
 
@@ -1421,7 +1563,7 @@ export const normalizeText = (s: string): string => s.trim()
 |---|---|
 | server `rooms.normalizeTitle` | `t = normalizeText(raw)` → `1 <= countCodePoints(t) <= ROOM_TITLE_MAX` 아니면 `VALIDATION_ERROR`(§4.6 문구). 상수는 rooms 모듈이 새로 정의하지 않는다 |
 | server `messages.normalizeMessageText` | 같은 방식, 상한 `MESSAGE_TEXT_MAX`(§4.9 문구) |
-| server memory(S4) | 하한 0, 상한 `MEMORY_SUMMARY_MAX`. trim 여부는 S4 설계가 정한다 |
+| server memory(S4) | 하한 0, 상한 `MEMORY_SUMMARY_MAX`. (v0.7) **앞뒤 trim 후** 코드 포인트로 센다. 0자 허용, 중간 줄바꿈 유지(memory.md D-MEM-11, §4.18) |
 | ui `limits.ts`(화면) | 상수·함수를 재노출하거나 그대로 import한다. 전송 비활성 판정(`countCodePoints(normalizeText(s)) === 0`)과 글자 수 표시에 쓴다 |
 | routes zod | 쓰지 않는다. zod는 타입만 본다(§5.6) |
 
@@ -1734,14 +1876,54 @@ export const checkCharacterSettings = (value: unknown): SettingsCheckResult => {
 | 실패 문구 | 기본 문구 | shared `checkCharacterSettings`의 첫 위반 문구(§4.16 표). zod 문구는 쓰지 않는다 |
 | 타입 대조 | `const body: X = c.req.valid('json')` | 같다 — `const body: PutCharacterSettingsBody = c.req.valid('json')`가 zod 출력과 shared 타입을 tsc로 대조한다 |
 
+### 5.9 S4 추가분 (v0.7 — 장기기억)
+
+`errors.ts`·`limits.ts`·`characters.ts`·`settings.ts`는 **변경 없음**. 서버 서비스와 화면 카운터가 `MEMORY_SUMMARY_MAX`·`countCodePoints`·`normalizeText`(§5.7)를 그대로 import한다. JSON 예시는 §4.17·§4.18.
+
+#### 5.9.1 `shared/src/types.ts` 추가분 (`PutCharacterSettingsBody` 다음, `ApiErrorBody` 앞)
+
+```ts
+/** GET · PUT /api/rooms/:id/memory 응답 (R-MEM-001). 행이 없으면 { summary: '', sourceUntilId: 0, updatedAt: null } */
+export type MemoryResponse = {
+  /** 장기기억 요약. 앞뒤 trim 된 0~4000 코드 포인트(MEMORY_SUMMARY_MAX). 없으면 '' */
+  summary: string
+  /** 요약에 반영된 마지막 메시지 id(정수 ≥ 0). 0 = 자동 요약 전. PUT 은 바꾸지 않는다. 화면은 표시하지 않아도 된다 */
+  sourceUntilId: number
+  /** epoch ms. 마지막 저장(자동 요약·편집) 시각. 한 번도 저장되지 않았으면 null. 방 updatedAt 과 별개 */
+  updatedAt: number | null
+}
+
+/** PUT /api/rooms/:id/memory 본문 (R-MEM-001). 모르는 키는 버린다. trim·0~4000자 판정은 서버 */
+export type PutMemoryBody = {
+  summary: string
+}
+```
+
+- 이름은 S3c 선례(`CharacterSettingsResponse`·`PutCharacterSettingsBody`)와 server 요청안(memory.md 「contract 인계」)을 따른다. server는 `MemoryState = MemoryResponse`·`PutMemoryInput = PutMemoryBody` 별칭으로 재노출한다.
+- `updatedAt: number | null`의 `null`은 "한 번도 저장 안 됨"이다. 설정 시드의 `updatedAt: null`과 같은 규칙이다(R-API-004 "없음은 null").
+
+#### 5.9.2 `shared/src/endpoints.ts` 추가분
+
+```ts
+// PATHS 에 추가 (characterSettings 다음)
+  /** GET · PUT 장기기억 (S4, R-MEM-001). GET 도 토큰 필요 */
+  roomMemory: `${API}/rooms/:id/memory`,
+
+// endpoints 에 추가 (characterSettings 다음)
+  /** (S4) GET · PUT 이 같이 쓴다 */
+  roomMemory: (roomId: string): string => withId(PATHS.roomMemory, roomId),
+```
+
+- 이름은 방 하위 경로 규칙(`roomMessages`·`roomUser`·`roomSpeak`)을 따른다. `PATHS` 값은 **11개**가 된다(API-T-042 기대 갱신).
+
 ---
 
 ## 6. 레이트리밋·페이지네이션
 
 | 항목 | S1 | 이후 |
 |---|---|---|
-| 읽기 레이트리밋 | 없음(E2·E3·E7) | 없음 |
-| 쓰기 레이트리밋 | 해당 없음 | **S2 확정** — §6.1. (S3) speak·regenerate도 같은 한도 |
+| 읽기 레이트리밋 | 없음(E2·E3·E7) | 없음. (v0.5) E15 · (v0.7) E13도 없음 |
+| 쓰기 레이트리밋 | 해당 없음 | **S2 확정** — §6.1. (S3) speak·regenerate도 같은 한도. (v0.7) E14 PUT memory도 같은 한도 |
 | 방 목록 페이지네이션 | 없음(요구 없음) | 요구가 생기면 §13 참고 |
 | 히스토리 페이지네이션 | `before` 커서 + `limit`(기본 30, 최대 100), `hasMore`(§4.3) | 변경 없음 |
 
@@ -1759,7 +1941,8 @@ export const checkCharacterSettings = (value: unknown): SettingsCheckResult => {
 | S3 카운트 (v0.4) | speak·regenerate도 요청 1건 = 1회. `409 SPEAK_IN_PROGRESS`·`409 NOT_LAST_MESSAGE`·`400 NOT_CHARACTER_MESSAGE`·`500 CONFIG_INVALID`·`502 LLM_FAILED`·`502 LLM_EMPTY`로 끝나도 센다. 근거: ① 세는 시점이 핸들러 전이라 결과를 보고 되돌리는 경로가 없다(S2 규칙 그대로) ② `502`는 이미 제공사 호출을 1~3회 썼다 ③ 실패 뒤 연타가 제공사 할당량을 태우는 것을 분당 한도가 막는다. `401`·`403`은 여전히 세지 않는다 |
 | S3b 카운트 (v0.4.1) | `429 LLM_BUDGET_EXCEEDED`로 끝난 speak·regenerate도 1회다. 레이트리밋 미들웨어가 서비스(예산 게이트)보다 먼저 돌아 되돌릴 경로가 없다(S3 규칙 그대로). 분 한도를 넘긴 요청은 예산 상태와 무관하게 `429 RATE_LIMITED`다(미들웨어가 먼저). 예산 초과 중 버튼을 연타하면 `LLM_BUDGET_EXCEEDED`가 이어지다가 `RATE_LIMITED`로 바뀐다 — 두 429는 코드로 구분한다(§3.4) |
 | S3c 카운트 (v0.5) | E16(PUT 설정)은 요청 1건 = 1회이고 쓰기 공용 분당 한도를 나눠 쓴다. `rateLimitWrites`가 `requireOwner` **뒤**라 `403 OWNER_ONLY`는 세지 않는다(주인 아닌 회원의 저장 시도가 한도를 태우지 않고, 주인 판정은 설정값만 보는 싼 검사다). 본문 상한·검증 `400`은 센다(S2 규칙 그대로). E15(GET 설정)는 읽기라 세지 않는다 — 주인 판정 탐침이 첫 로드마다 오기 때문이다 |
-| 읽기 | 세지 않는다(E2·E3·E7). (v0.5) E15도 세지 않는다 |
+| S4 카운트 (v0.7) | E14(PUT memory)는 요청 1건 = 1회이고 쓰기 공용 분당 한도를 나눠 쓴다. 세는 시점은 S2 규칙 그대로다(`requireToken` 직후 — 본문 상한·형식·길이 `400`과 `404`도 센다). E13(GET memory)은 토큰이 필요한 읽기지만 세지 않는다 — 시트를 열 때마다 1회 오고 D1 읽기 2행뿐이다. speak 뒤 자동 요약은 서버 백그라운드 작업이라 레이트리밋을 쓰지 않는다(E9 1회 그대로) |
+| 읽기 | 세지 않는다(E2·E3·E7). (v0.5) E15도 세지 않는다. (v0.7) E13도 세지 않는다 |
 | 초과 응답 | `429 RATE_LIMITED`, 본문 `error.retryAfterSec`(정수 ≥ 1) + 헤더 `Retry-After`(같은 값). 핸들러·서비스는 실행되지 않는다 |
 | `retryAfterSec` | `max(1, ceil((windowStart + 60000 − nowMs) / 1000))`. 예: 창 시작 후 20초 → `40` |
 | 동시성 | D1 조건부 UPSERT 한 문장이라 동시 요청에도 한도를 넘지 않는다 |
@@ -1802,6 +1985,7 @@ export const checkCharacterSettings = (value: unknown): SettingsCheckResult => {
 - (v0.5, S3c) **handoff 변경 없음**(토큰 형식·PHP 조각 불변). S5 TODO 2건: ① `embed-guide.md`에 "갠홈 iframe에 `sandbox` 속성을 쓰면 `allow-downloads`를 넣어야 설정 화면 「파일로 저장」이 된다(없어도 복사로 내보낼 수 있다)" 한 줄. ② 갠홈 주인 회원 ID(`OWNER_MB_IDS`)를 지인에게 받는 절차는 server 셋팅 절차 몫이다. handoff·이 문서에는 실제 회원 ID를 쓰지 않는다.
 - (v0.6.1, S5 TODO 추가 — verify-S3c SEC-001) `secret-handover.md`에 "운영 `TOKEN_SECRET`은 32자 이상 랜덤이고 개발(`server/.dev.vars`) 값과 달라야 한다"를 적는다. 주인 설정 쓰기(E16) 권한이 이 비밀값 하나에 걸려 있기 때문이다(`mb_id`는 공개값).
 - (v0.6.1, S5 TODO 추가) 운영 Secrets 목록(`wrangler secret put`)에 `TOKEN_SECRET`·`LLM_API_KEY`와 함께 `OWNER_MB_IDS`를 넣는다. 값은 지인(갠홈 주인) 회원 ID만이며, 비우면 설정 화면(E15·E16)은 전원 `403 OWNER_ONLY`다. 실제 회원 ID는 handoff·이 문서에 쓰지 않는다.
+- (v0.7, S4) **handoff 변경 없음**(토큰·`?t=`·임베드 주소 불변). S5 TODO 1건: 위 AI 비용 상한 안내 단락에 "장기기억 자동 요약 호출(대화가 길어지면 캐릭터 발화 뒤 가끔 1회)도 같은 월 AI 비용에 포함된다"를 한 줄 더한다(R-LLM-007 · R-MEM-002).
 
 ---
 
@@ -1827,6 +2011,8 @@ export const checkCharacterSettings = (value: unknown): SettingsCheckResult => {
 | v0.6 복구 | 2026-10-06 | 0be2f4c에서 지워진 §13~§15·「ui 인계 메모」·「contract-implementer 인계 목록」(S3·S3b분)을 git `11125c2` 원문 그대로 되살렸다 | 변경 없음(문서 복구) | 아니오 |
 | v0.6 | 2026-10-06 | S3c 유실분 복원(0be2f4c 절단, 메인 세션 재조립). §13.4 · §14.14~§14.16 · §15.12 · §16(16.1~16.4) · 「ui 인계 메모」 S3c · 「contract-implementer 인계 목록」 S3c를 `.claude/reports/api-v05-recovered-tail.md` 원문 그대로 병합하고 자리표시 7곳을 지웠다. 복원본의 S3·S3b 앵커 줄은 이미 있는 한 벌만 남겼다. §12.4는 contract-implementer 실물 대조표 유지 | 변경 없음(문서 복원) | 아니오 |
 | v0.6.1 | 2026-10-07 | S3d verify SEC-002(LOW) 후속. §4.13 부수 효과를 "제공사 호출 최대 3회(`'auto'`: 선택 1 + 생성 1~2 · 지정 캐릭터: 1~2)"로 고치고, 레이트리밋 요청당 1회·월 비용 게이트 선택 앞 1회를 같은 행과 레이트리밋 행에 명시(실물 `server/src/messages/generate.ts` speak 대조). §8 S5 TODO 2건 추가(운영 `TOKEN_SECRET` 32자 이상·개발 값과 다름 — verify-S3c SEC-001 / 운영 Secrets에 `OWNER_MB_IDS`). 같은 기준으로 §6.1 S3 카운트 행 `502` 호출 수 1~3회, §11.8 speak 주석 초안 부수효과 정정. §7 CSP 행을 `/embed` 허용 출처 · `/api/*` `frame-ancestors 'none'`으로 나누고 「기본 보안 헤더」 행 추가(hono `secureHeaders` 기본값, `/api/*`만), §14.1 API-T-004 기대값 갱신 — verify-S3c SEC-003 server 반영분, R-API-006 🔒 원문 개정 필요 | 문구 정정 + `/api/*` 응답 헤더 변경(비파괴 — 소비자는 같은 출처 화면의 fetch뿐이고 JSON을 iframe에 넣지 않는다. `/embed` 헤더 불변) | 아니오 |
+| v0.7 | 2026-10-07 | S4 상세 확정(R-MEM-001 🔒 · R-MEM-002 🔒 contract 몫 · R-CHAT-012 🔒 contract 몫 · R-AUTH-003 · R-AUTH-005 · R-NFR-003 🔒). §4.17 E13 `GET /api/rooms/:id/memory`(토큰 필요·주인 판정 없음·레이트리밋 미카운트·행 없음 기본값) · §4.18 E14 `PUT`(trim 후 0~4000 코드 포인트·`sourceUntilId` 유지·본문 32KiB·판정 순서·마지막 저장 승리 경합), §4.0 E13·E14 확정, §2.1·§2.2·§3.5·§4.12·§4.13(응답 뒤 자동 요약 부수 효과)·§5.6·§5.7 행, §5.9 `MemoryResponse`·`PutMemoryBody`·`PATHS.roomMemory`, §6·§6.1 S4 카운트, §8 S5 TODO, §11.16(라우트 `routes/memory.ts`·래퍼 `ui/src/api/memory.ts` 신규), §12.6(예정), §13.6, §14.19·§14.20(API-T-113~124 · API-T-UI-030~032, speak 테스트 `waitOnExecutionContext`), §15.14, 인계 2종 S4. 엔드포인트 16·에러 코드 15·env·마이그레이션 불변 | 추가(타입 2·경로 1·래퍼 2. 기존 요청·응답·status·문구 불변. E9 응답 형태 불변) | 아니오 |
+| v0.7 구현 | 2026-10-07 | S4 구현 완료(shared 타입 2·경로 1 · routes `memory.ts` E13·E14 · `schemas.ts` `putMemoryBody`·`MEMORY_BODY_MAX_BYTES` · ui/api `getMemory`·`putMemory`). 테스트 API-T-042(갱신)·113~124 · API-T-UI-030~032, speak 호출 테스트 도우미 `waitOnExecutionContext`, §12.6 실물 파일:줄. 계약 내용 변경 없음 | 구현 반영(계약 변경 없음) | 아니오 |
 
 ---
 
@@ -1914,6 +2100,13 @@ export const checkCharacterSettings = (value: unknown): SettingsCheckResult => {
 | R-NFR-001 🔒 (S3d 개정) | `'auto'`도 70초, 선택 8초는 LLM 단계 66초 안 | §4.12 · §4.13 | 확장 | 추가 | server fake timer | 계약 확정(S3d) |
 | R-API-001 🔒 · R-API-002 🔒 (S3d 확인) | 엔드포인트 16개·에러 코드 15종 그대로 | §4.0 · §3.2 | 변경 없음 | — | API-T-040 · 042 무수정 통과 | 확인(S3d) |
 | R-API-004 (S3d) | `'auto'`는 문자열 리터럴 유니온, `authorName`은 `string \| null` 유지 | §5.1 · §5.2 | 확장 | 추가 | tsc | 확인(S3d) |
+| R-MEM-001 🔒 (S4) | E13 GET·E14 PUT, `MemoryResponse`(`summary`·`sourceUntilId`·`updatedAt`, 행 없음 = `''`·0·`null`), `PutMemoryBody`, trim 후 코드 포인트 0~4000, PUT은 `sourceUntilId` 유지, 둘 다 토큰 필요, 본문 32KiB, `PATHS.roomMemory` | §2.1 · §4.0 · §4.17 · §4.18 · §5.9 · §11.16 | 확장(§4.0 행 상세화) | 추가 | API-T-113 ~ 122 · 124, API-T-UI-030 ~ 032 | 계약 확정(S4, 구현 전) |
+| R-MEM-002 🔒 (contract 몫) | E9 부수 효과: 성공 응답 뒤 백그라운드 자동 요약, 응답·status·소요·레이트리밋 불변, 실패는 로그만. E12·실패한 E9에는 없음 | §4.12 · §4.13 · §6.1 | 확장(부수 효과 명시) | 추가(응답 불변) | API-T-123, server SRV-T-326 · 327 | 계약 확정(S4) |
+| R-AUTH-003 🔒 (S4) | E13은 읽기지만 토큰 필요(주인 판정 없음), 라우트 단위 미들웨어 | §2.1 · §2.2 · §4.17 · §11.16 | 확장 | 추가 | API-T-113 · 114 | 계약 확정(S4) |
+| R-AUTH-005 · R-NFR-003 🔒 (S4) | E14는 쓰기 공용 분당 한도 1회, E13·자동 요약은 세지 않음 | §6.1 · §4.18 | 확장 | 추가 | API-T-120 · 121 | 계약 확정(S4) |
+| R-CHAT-012 🔒 (contract 몫) | 래퍼 `getMemory`·`putMemory`(`Result`, throw 없음, 둘 다 헤더 부착), 시트 열 때마다 GET·경합·비우기 안내 | §11.16 · 「ui 인계 메모」 S4 | 신규(래퍼) | 추가 | API-T-UI-030 ~ 032, 화면 TC | 계약 확정(S4) |
+| R-API-001 🔒 · R-API-002 🔒 (S4 확인) | 엔드포인트 16개(E13·E14는 v0.1부터 표에 있음)·에러 코드 15종 그대로 | §4.0 · §3.2 | 변경 없음 | — | API-T-040 무수정 · 042(갱신: `PATHS` 11) · 122 | 확인(S4) |
+| R-API-004 (S4) | camelCase · `updatedAt: number \| null` · `sourceUntilId` 정수 | §5.1 · §5.9 | 확장 | 추가 | API-T-114 · 115 · 119 | 확인(S4) |
 
 ---
 
@@ -2847,6 +3040,119 @@ export const speak = (roomId: string, body: SpeakBody): Promise<Result<Message>>
 4. contract-implementer(6단계): ui/api 주석 + API-T-UI-028·029.
 5. 증거: 세 워크스페이스 `npx tsc --noEmit` exit 0, `npx vitest run --project shared`·`--project server`·`--project ui ui/src/api` 결과.
 
+### 11.16 S4 routes · ui/api 설계 (v0.7)
+
+| 파일 | 변경 | 근거 |
+|---|---|---|
+| `shared/src/types.ts` | `MemoryResponse` · `PutMemoryBody` 추가 | §5.9.1 |
+| `shared/src/endpoints.ts` | `PATHS.roomMemory` · `endpoints.roomMemory` | §5.9.2 |
+| `server/src/routes/schemas.ts` | `putMemoryBody` · `MEMORY_BODY_MAX_BYTES` 추가 | 아래 |
+| `server/src/routes/memory.ts` | **신규** — E13 · E14 | 아래 |
+| `server/src/routes/index.ts` | `import { memoryRoutes } from './memory'` · `apiRoutes.route('/', memoryRoutes)`(`settingsRoutes` 다음) | — |
+| `ui/src/api/memory.ts` | **신규** — `getMemory` · `putMemory` | 아래 |
+| `ui/src/api/index.ts` | `export { getMemory, putMemory } from './memory'` | — |
+| `ui/src/api/client.ts` · `shared/src/errors.ts` · `limits.ts` · `server/src/routes/{rooms,messages,settings,validate}.ts` | **변경 없음.** `RequestOptions.method`의 `'PUT'`은 S3c에 이미 있다(§11.13) | — |
+| `server/test/routes-generate.test.ts` | `call` 도우미가 `waitOnExecutionContext(ctx)`를 기다린다 + API-T-123 | §14.19 |
+
+- **라우트 파일 판정: 신규 `routes/memory.ts`.** E13·E14는 `services.memory`만 부른다. 경로가 `/api/rooms/…`로 시작해도 `rooms.ts`에 넣지 않는다 — routes 파일은 URL 접두어가 아니라 **부르는 서비스** 기준으로 나눈다(`/rooms/:id/user`·`/rooms/:id/speak`가 `messages.ts`에 있는 것과 같다).
+- **래퍼 파일 판정: 신규 `ui/src/api/memory.ts`.** 같은 기준이고 S3c `settings.ts` 선례와 같다.
+
+routes `schemas.ts` 추가분:
+
+```ts
+/** PUT /api/rooms/:id/memory 본문. 타입만 — trim·0~4000자는 서비스 (api.md §4.18) */
+export const putMemoryBody = z.object({ summary: z.string() })
+
+/** E14 본문 상한(바이트). 4000 코드 포인트 × JSON.stringify 최악 6바이트 + 봉투 = 24014 < 32768 (api.md §4.18) */
+export const MEMORY_BODY_MAX_BYTES = 32_768
+```
+
+routes `memory.ts`(신규):
+
+```ts
+/**
+ * [목적] 장기기억 E13 · E14 (api.md §4.17 · §4.18)
+ * [요구] R-MEM-001 · R-AUTH-003(memory GET 토큰 예외) · R-AUTH-005
+ * [에러] 서비스·미들웨어가 throw → server onError. 라우트는 변환하지 않는다
+ */
+import { PATHS } from '@shared/endpoints'
+import type { MemoryResponse, PutMemoryBody } from '@shared/types'
+import { Hono } from 'hono'
+import { bodyLimit } from 'hono/body-limit'
+import { AppError } from '../app-error'
+import { rateLimitWrites, requireToken } from '../auth'
+import type { AppEnv } from '../services'
+import { MEMORY_BODY_MAX_BYTES, putMemoryBody, roomIdParam } from './schemas'
+import { validate } from './validate'
+
+/** 본문 32KiB 초과 → 400 VALIDATION_ERROR 기본 문구 (hono 기본 413 을 쓰지 않는다) */
+const memoryBodyLimit = bodyLimit({
+  maxSize: MEMORY_BODY_MAX_BYTES,
+  onError: () => {
+    throw new AppError('VALIDATION_ERROR')
+  },
+})
+
+export const memoryRoutes = new Hono<AppEnv>()
+  /// [계약] api.md §4.17 · [요구] R-MEM-001 · [에러] TOKEN_* · LEVEL_TOO_LOW · NOT_FOUND · INTERNAL · [부수효과] 없음(레이트리밋 미소모)
+  .get(PATHS.roomMemory, requireToken, validate('param', roomIdParam), async c => {
+    const { id } = c.req.valid('param')
+    const memory: MemoryResponse = await c.get('services').memory.get(id)
+    return c.json(memory, 200)
+  })
+  /// [계약] api.md §4.18 · [요구] R-MEM-001 · R-AUTH-005 · [에러] §4.5 공통 + VALIDATION_ERROR · NOT_FOUND · [부수효과] memory 1행 UPSERT · 레이트리밋 1회 · 방 updatedAt 불변
+  .put(
+    PATHS.roomMemory,
+    requireToken,
+    rateLimitWrites,
+    validate('param', roomIdParam),
+    memoryBodyLimit,
+    validate('json', putMemoryBody),
+    async c => {
+      const { id } = c.req.valid('param')
+      const body: PutMemoryBody = c.req.valid('json')
+      const memory: MemoryResponse = await c.get('services').memory.put(id, body)
+      return c.json(memory, 200)
+    },
+  )
+```
+
+- 핸들러는 각 3~4줄이다(30줄 한계 안, R-API-007). 존재·길이 판정은 서비스다.
+- `memoryBodyLimit`는 `settingsBodyLimit`와 같은 모양이고 문구만 기본 문구다. 정상 화면은 4000자 초과면 저장을 막으므로 이 경로에 닿지 않는다.
+- 미들웨어는 라우트 단위로 붙인다(전역 금지, §2.2). GET에는 `rateLimitWrites`를 붙이지 않는다(§6.1 S4 행).
+
+ui/api `memory.ts`(신규):
+
+```ts
+import { endpoints } from '@shared/endpoints'
+import type { MemoryResponse, PutMemoryBody } from '@shared/types'
+import { request, type Result } from './client'
+
+/** [계약] api.md §4.17 · [요구] R-MEM-001 · R-CHAT-012 — 장기기억 읽기(토큰 필요, 200). 행이 없으면 summary '' · sourceUntilId 0 · updatedAt null */
+export const getMemory = (roomId: string): Promise<Result<MemoryResponse>> =>
+  request<MemoryResponse>(endpoints.roomMemory(roomId), { auth: true })
+
+/** [계약] api.md §4.18 · [요구] R-MEM-001 · R-CHAT-012 — 장기기억 교체 저장(200). 응답 summary 가 trim 된 저장값, sourceUntilId 는 유지 */
+export const putMemory = (roomId: string, body: PutMemoryBody): Promise<Result<MemoryResponse>> =>
+  request<MemoryResponse>(endpoints.roomMemory(roomId), {
+    method: 'PUT',
+    body: { summary: body.summary },
+    auth: true,
+  })
+```
+
+- 둘 다 `auth: true`다 — GET도 헤더를 붙인다(§2.1 예외). `Result`로만 끝나고 throw·reject하지 않는다(`request` 규약).
+- 래퍼는 `summary`를 trim·검사하지 않는다. 서버가 정규화하고 응답이 저장값이다. 화면 카운터·버튼 비활성은 ui 몫(`@shared/limits`).
+- 본문은 `{ summary: body.summary }`로 다시 만든다. 화면 상태 객체의 다른 키가 섞여 나가지 않게 한다(`speak`와 같은 방식).
+
+구현 순서:
+
+1. contract-implementer(4단계): shared `types.ts`·`endpoints.ts` + API-T-042 갱신·124. server memory 서비스가 `@shared/types`의 두 타입을 import하므로 먼저다.
+2. server-implementer(5단계): `server/src/memory/`·db 저장소 확장·`services.memory`·`afterSpeak` 배선(memory.md · db.md §13 · index.md §13 · messages.md §13).
+3. contract-implementer(6단계): `schemas.ts` · `routes/memory.ts` · `routes/index.ts` + 신규 `server/test/routes-memory.test.ts`(API-T-113 ~ 122), `routes-generate.test.ts` 도우미 갱신 + API-T-123(2 뒤).
+4. contract-implementer(6단계): `ui/src/api/memory.ts` · `index.ts` + 신규 `ui/src/api/memory.test.ts`(API-T-UI-030 ~ 032).
+5. 증거: 세 워크스페이스 `npx tsc --noEmit` exit 0, `npx vitest run --project shared`·`--project server`·`--project ui ui/src/api` 결과. §12.6을 실물 파일:줄로 다시 채우고 §9에 "v0.7 구현" 행.
+
 ---
 
 ## 12. 4자 대조표 (S1)
@@ -2941,6 +3247,35 @@ export const speak = (roomId: string, body: SpeakBody): Promise<Result<Message>>
 
 테스트 위치: `server/test/routes-generate.test.ts:217`(072) · `:460`(109) · `:476`(110) · `:496`(111), `server/test/routes-write.test.ts:297`(061, 설계표의 "062 갱신"에 해당하는 authorName 단언) · `:411`(108), `ui/src/api/api.test.ts:339`(UI-028) · `:353`(UI-029).
 증거: `tsc --noEmit -p server` · `-p ui` exit 0, `vitest run --project server` 340 passed, `vitest run --project ui ui/src/api` 29 passed.
+
+### 12.6 4자 대조표 (S4 — 구현 완료 2026-10-07, 실물 파일:줄)
+
+| 계약 항목 | api.md | shared | routes | ui/api | 판정 |
+|---|---|---|---|---|---|
+| E13 `GET /api/rooms/:id/memory` | §4.17 | `endpoints.ts:28` `PATHS.roomMemory` · `:62` `endpoints.roomMemory` | `routes/memory.ts:26` `.get` — `requireToken` → `validate('param')` → `memory.get(id)` | `ui/src/api/memory.ts:6` `getMemory(roomId)` `auth: true` (`:7`) | ✅ |
+| E14 `PUT /api/rooms/:id/memory` | §4.18 | 〃 | `routes/memory.ts:32~45` `.put` — `requireToken` → `rateLimitWrites` → `validate('param')` → `memoryBodyLimit` → `validate('json', putMemoryBody)` → `memory.put(id, body)` | `memory.ts:10` `putMemory(roomId, body)` `method: 'PUT'`(`:12`) · `auth: true`(`:14`) | ✅ |
+| 응답 `MemoryResponse` | §4.17 · §5.9.1 | `types.ts:142` | `memory.ts:28` · `:42` `const memory: MemoryResponse` | `memory.ts:6` · `:10` `Result<MemoryResponse>` | ✅ |
+| 본문 `PutMemoryBody` | §4.18 · §5.9.1 | `types.ts:152` | `schemas.ts:69` `putMemoryBody` → `memory.ts:41` `const body: PutMemoryBody` | `memory.ts:10` `body: PutMemoryBody`(`:13` `{ summary: body.summary }`) | ✅ |
+| trim 후 0~4000 코드 포인트 | §4.18 · §5.7 | `limits.ts` 기존 3개(변경 없음) | 서비스 판정(라우트는 타입만 — API-T-118) | 화면 카운터(ui 몫) | ✅ |
+| 본문 상한 32KiB | §4.18 | — | `schemas.ts:72` `MEMORY_BODY_MAX_BYTES` · `memory.ts:17` `memoryBodyLimit`(`throw new AppError('VALIDATION_ERROR')` 기본 문구) | — | ✅ |
+| 레이트리밋 GET 0 · PUT 1 | §6.1 | — | GET 에 `rateLimitWrites` 없음(`memory.ts:26`) · PUT 에 있음(`:35`) — API-T-121 | — | ✅ |
+| E9 응답 뒤 자동 요약 | §4.12 · §4.13 | — | `routes/messages.ts:94` `waitUntil` 주입 불변 — API-T-123 | `speak` 불변 | ✅ |
+| 엔드포인트 16 · 에러 15 불변 | §4.0 · §3.2 | `PATHS` 11(API-T-042) · `ERROR_CODES` 15(API-T-040 무수정) | `routes/index.ts:19` 등록 1줄 외 변경 없음 | `ui/src/api/index.ts:5` export 1줄 | ✅ |
+
+요구ID 반영: R-MEM-001 ✅ · R-AUTH-003 ✅(GET 토큰 필요) · R-AUTH-005 ✅ · R-NFR-003 ✅ · R-CHAT-012 ✅(래퍼) · R-API-004 ✅ · R-API-001 ✅(API-T-122) · R-MEM-002 ✅(API-T-123, 요약 실패에도 speak 201). 누락 0.
+
+테스트 실물: `server/test/routes-memory.test.ts`(API-T-113~122) · `routes-generate.test.ts`(`call` 도우미 `waitOnExecutionContext` + API-T-123) · `routes-write.test.ts`(`send` 도우미 같은 대기) · `shared/test/endpoints.test.ts`(API-T-042 갱신·124, 1단계) · `ui/src/api/memory.test.ts`(API-T-UI-030~032).
+
+---|---|---|---|---|---|
+| E13 `GET /api/rooms/:id/memory` | §4.17 | `PATHS.roomMemory` · `endpoints.roomMemory` | `routes/memory.ts` `.get` — `requireToken` → `validate('param')` | `getMemory(roomId)` `auth: true` | 예정 |
+| E14 `PUT /api/rooms/:id/memory` | §4.18 | 〃 | `.put` — `requireToken` → `rateLimitWrites` → `validate('param')` → `memoryBodyLimit` → `validate('json', putMemoryBody)` | `putMemory(roomId, body)` `method: 'PUT'` · `auth: true` | 예정 |
+| 응답 `MemoryResponse` | §4.17 · §5.9.1 | `types.ts` `MemoryResponse` | `const memory: MemoryResponse = await …memory.get/put` | `Result<MemoryResponse>` | 예정 |
+| 본문 `PutMemoryBody` | §4.18 · §5.9.1 | `types.ts` `PutMemoryBody` | `schemas.ts` `putMemoryBody` → `const body: PutMemoryBody` | `body: PutMemoryBody` | 예정 |
+| trim 후 0~4000 코드 포인트 | §4.18 · §5.7 | `limits.ts` 기존 3개 | 서비스 판정(라우트는 타입만) | 화면 카운터(ui 몫) | 예정 |
+| 본문 상한 32KiB | §4.18 | — | `schemas.ts` `MEMORY_BODY_MAX_BYTES` | — | 예정 |
+| 레이트리밋 GET 0 · PUT 1 | §6.1 | — | 미들웨어 유무 | — | 예정 |
+| E9 응답 뒤 자동 요약 | §4.12 · §4.13 | — | `routes/messages.ts` 불변(`background` 그대로) | `speak` 불변 | 예정 |
+| 엔드포인트 16 · 에러 15 불변 | §4.0 · §3.2 | `PATHS` 11 · `ERROR_CODES` 15 | — | — | 예정 |
 
 ---
 
@@ -3046,6 +3381,20 @@ S1은 처음 만드는 계약이라 **전부 「추가」**다. ui·갠홈 영�
 - 파괴로 볼 여지가 있는 것은 `authorName` 값 변경 하나다. 화면이 실명을 기대해 분기하면 파괴지만, s3d-03 §3 기준 ui는 이 값을 표시와 대체 이름에만 쓴다(Bubble · MessageMenuSheet).
 - **handoff 변경 없음.** 토큰 payload·서명·`?t=`·임베드 주소가 그대로라 `doc/handoff/*` 갱신도 저쪽 PHP 재적용도 없다. 토큰의 `ch_name`·`nick`은 계속 필요하다(D1 저장용).
 
+
+### 13.6 S4 변경 분류 (v0.7)
+
+| 변경 | 분류 | 영향 받는 곳 | 비고 |
+|---|---|---|---|
+| E13·E14 상세 확정 | 추가 | 없음 — 두 경로는 지금 `404`이고 부르는 화면 코드가 없다 | §4.0 행은 v0.1부터 있었다(엔드포인트 수 불변) |
+| `MemoryResponse`·`PutMemoryBody` | 추가 | 없음 | 새 export |
+| `PATHS.roomMemory`·`endpoints.roomMemory` | 추가 | `shared/test/endpoints.test.ts` API-T-042 기대값(10 → 11) | 기존 키 불변 |
+| `getMemory`·`putMemory` | 추가 | 없음 | 새 export |
+| E9 응답 뒤 자동 요약 | 추가(서버 동작) | 응답·status·소요·레이트리밋 불변. 월 AI 비용이 요약 호출만큼 늘 수 있다(R-LLM-007 누적) | 응답 직후 E13이 이전 값을 줄 수 있다 |
+| `routes-generate.test.ts` `call` 도우미 | 테스트 갱신 | 소비자 영향 없음 | `waitOnExecutionContext` |
+
+- **파괴 변경 0건.** 기존 엔드포인트·타입·필드·에러 코드·status·문구·레이트리밋 한도는 그대로다.
+- **handoff 변경 없음.** 토큰 payload·서명·`?t=`·임베드 주소가 그대로라 저쪽 PHP 재적용이 없다. S5 비용 안내에 한 줄을 더한다(§8 TODO).
 
 ---
 
@@ -3350,6 +3699,56 @@ grep -n "OWNER_ONLY" ui/src/api/client.ts
 - 타입 확인: `SpeakBody`에 `'auto'` 대입이 컴파일되고 `'Auto'` 대입은 `tsc` 오류다(`// @ts-expect-error` 한 줄, API-T-UI-028 안).
 
 
+### 14.19 S4 routes — `server/test/routes-memory.test.ts`(신규, API-T-113 ~ 122) · `routes-generate.test.ts`(API-T-123 · 도우미 갱신)
+
+준비:
+
+- §14.9 준비 그대로(`NOW = 1_700_000_000_000`, `signTestToken`, env 덮어쓰기 방식, `LLM_PROVIDER: 'fake'`). 토큰 2종: 통과 등급 `mb_id 'writer_a'`, 등급 미달 `TOKEN_MIN_LEVEL - 1`. 주인 바인딩은 넣지 않는다(주인 판정이 없음을 보인다).
+- 방·`memory` 행은 D1에 직접 INSERT한다(`memory` 테이블은 0001에 있고 S4 마이그레이션은 없다).
+- `expectContractError(res, code)`는 S3b 판 그대로 쓴다(`RATE_LIMITED`만 3키, `NOT_FOUND`·`VALIDATION_ERROR`는 `code`·`message` 두 키).
+- 요청 도우미는 `createExecutionContext()`로 만든 `ctx`를 `waitOnExecutionContext(ctx)`로 기다린 뒤 응답을 돌려준다(아래 도우미 갱신과 같은 모양).
+
+| 테스트ID | 이름 | 입력 | 기대 | 요구 |
+|---|---|---|---|---|
+| API-T-113 | `memory_require_token` | GET·PUT 각각 ① 헤더 없음 ② `Bearer garbage` ③ 헤더 없이 `?t=<유효 토큰>` ④ 등급 미달 토큰 ⑤ 헤더 없이 깨진 JSON PUT | ① 401 `TOKEN_REQUIRED` ② 401 `TOKEN_INVALID` ③ 401 `TOKEN_REQUIRED` ④ 403 `LEVEL_TOO_LOW` ⑤ 401(400 아님). `memory` 행 불변 | R-MEM-001 · R-AUTH-003 |
+| API-T-114 | `memory_get_default_without_row` | 방 있음·`memory` 행 없음, 일반 회원 토큰(`OWNER_MB_IDS` 비어 있음) | 200, 키 정확히 `summary`·`sourceUntilId`·`updatedAt`, 값 `''`·`0`·`null`. `memory` 행이 생기지 않는다 | R-MEM-001 · R-API-004 |
+| API-T-115 | `memory_get_returns_row` | `memory(room, '지난 요약\n둘째 줄', 21, NOW - 1000)` | 200 `{ summary: '지난 요약\n둘째 줄', sourceUntilId: 21, updatedAt: NOW - 1000 }`. 응답 문자열에 `writer_a`·`roomId` 없음 | R-MEM-001 · R-API-004 |
+| API-T-116 | `memory_404_for_missing_room` | ① 없는 방 GET ② 없는 방 PUT `{ summary: 'a' }` ③ 방 삭제(E6) 뒤 GET ④ 없는 방 PUT 4001자 | ①②③ 404 `NOT_FOUND` `방을 찾을 수 없습니다.`, `memory` 행 0 ④ 400 `장기기억은 0~4000자로 입력해 주세요.`(길이가 방 존재보다 먼저) | R-MEM-001 |
+| API-T-117 | `memory_put_replaces_and_keeps_source` | ① 행(`'old'`, 7)이 있는 방에 PUT `{ summary: '  새 요약\n둘째 줄  ' }` → GET ② 행 없는 방에 PUT `{ summary: 'a' }` ③ 두 경우 방 `updated_at`과 `GET /api/rooms` 순서를 전후 비교 | ① 200 `{ summary: '새 요약\n둘째 줄', sourceUntilId: 7, updatedAt: NOW }`, GET이 같은 값, D1 `source_until_id` 7 ② 200 `sourceUntilId: 0`, 행 생성 ③ 방 `updated_at` 불변, 목록 순서 불변 | R-MEM-001 |
+| API-T-118 | `memory_put_length_by_code_points` | `''` · `'   '` · `'a'`×4000 · 이모지×4000(UTF-16 8000) · `'  '` + `'a'`×4000 + `'  '` · `'a'`×4001 · 이모지×4001 | 앞 다섯은 200(저장값 `''`·`''`·그대로·그대로·`'a'`×4000) / 뒤 둘은 400 `장기기억은 0~4000자로 입력해 주세요.`, D1 불변 | R-MEM-001 |
+| API-T-119 | `memory_put_rejects_bad_body` | ① `{ summary: 1 }` ② `{ summary: null }` ③ `{}` ④ `[]` ⑤ 깨진 JSON ⑥ `Content-Type: text/plain` ⑦ `{ summary: 'x', extra: 1 }` | ①~⑥ 400 `VALIDATION_ERROR` `요청 형식이 올바르지 않습니다.`, D1 불변 ⑦ 200(모르는 키는 버림), 응답에 `extra` 없음 | R-API-004 · R-MEM-001 |
+| API-T-120 | `memory_put_body_over_32kib` | ① 유효 JSON + 공백 패딩으로 32769바이트 ② 공백 패딩으로 정확히 32768바이트인 유효 본문 ③ `'\u0001'`×4000(`JSON.stringify` 24014바이트) ④ `RATE_LIMIT_PER_MIN: '1'`에서 ① 다음 유효 PUT | ① 400 기본 문구(413 아님), D1 불변 ② 200 ③ 200(4000 코드 포인트) ④ 429 `RATE_LIMITED`(①이 1회 소모) | R-MEM-001 · R-AUTH-005 |
+| API-T-121 | `memory_put_rate_limited_get_not` | `RATE_LIMIT_PER_MIN: '2'`: ① PUT 3회 ② 같은 창에서 GET 3회 ③ (새 분 창) PUT · `POST /api/rooms` · PUT ④ (새 분 창) 무토큰 PUT 3회 뒤 유효 PUT 2회 | ① 200 · 200 · 429 `RATE_LIMITED`(`retryAfterSec` 40) ② 200 × 3 ③ 200 · 201 · 429(쓰기 공용 한도) ④ 401 × 3 뒤 200 · 200(인증 실패는 세지 않는다) | R-AUTH-005 · R-NFR-003 · R-MEM-001 |
+| API-T-122 | `memory_unregistered_methods_404` | 유효 토큰으로 `POST`·`PATCH`·`DELETE /api/rooms/:id/memory`, `GET /api/rooms/:id/memory/x` | 404 `NOT_FOUND` | R-API-001 |
+| API-T-123 | `speak_ok_even_if_summary_fails`(`routes-generate.test.ts`) | env `CONTEXT_MESSAGES: '1'`·`MEMORY_SUMMARY_THRESHOLD: '2'`, 메시지 2개인 방에 `{ character: 'ciel' }`. ① `LLM_PROVIDER: 'fake'` ② §14.9의 google + 가짜 키 + 전역 `fetch` 대체: 1번째 호출(생성)은 정상 200 응답, 2번째(요약)부터 HTTP 400 | 두 경우 모두 `201`·같은 응답 형태(`speaker 'ciel'`·`kind 'line'`·`authorName null`)이고 응답 본문에 요약 관련 키가 없다. `waitOnExecutionContext` 뒤 ① E13 GET `sourceUntilId` = 방의 2번째 메시지 id, `summary` 비어 있지 않음 ② E13 GET `{ summary: '', sourceUntilId: 0, updatedAt: null }`(요약 실패 — 행 없음), 방 메시지 3개 | R-MEM-002 · R-NFR-001 |
+
+- 정상 경로(114·115·117·118 앞부분·123)보다 에러 입력이 많다(113 10건 · 116 · 118 뒤 2건 · 119 6건 · 120 · 121 · 122).
+- API-T-123은 R-MEM-002 검증 방법 "실패 주입 시 응답 성공 확인"의 계약 쪽이다. 요약 판정·구간·동시성 자체는 server SRV-T-296 ~ 315·327이 본다.
+
+도우미 갱신(`routes-generate.test.ts`의 `call`):
+
+```ts
+  const ctx = createExecutionContext()
+  const res = await app.fetch(new Request(`http://test${path}`, init), opts.e ?? baseEnv(), ctx)
+  await waitOnExecutionContext(ctx) // S4: speak 성공이 waitUntil 로 자동 요약을 등록한다
+  return res
+```
+
+- 이유: S4부터 speak 성공이 백그라운드 작업을 등록한다. 기다리지 않으면 그 작업이 다음 테스트의 `resetDb`와 겹쳐 D1 상태가 섞인다(memory.md 「contract 인계」 speak 절).
+- 기존 speak 성공 테스트의 방이 메시지 60개(기본 기준) 이하면 요약은 LLM을 부르지 않으므로 `fake` 호출 수·`llm_usage` 단언이 그대로다. contract-implementer는 `/speak`를 부르는 테스트 파일을 grep으로 모두 찾아 같은 대기를 넣고, 61개 이상을 만드는 테스트가 있으면 호출 수 단언을 다시 본다.
+
+### 14.20 S4 shared · ui/api — `shared/test/endpoints.test.ts` · `ui/src/api/memory.test.ts`(신규, §14.7 준비 그대로)
+
+| 테스트ID | 파일 | 이름 | 기대 | 요구 |
+|---|---|---|---|---|
+| API-T-042(갱신) | `shared/test/endpoints.test.ts` | (기존 이름 유지) | `PATHS` 값 11개, `roomMemory: '/api/rooms/:id/memory'` 포함 | R-API-001 · R-API-008 |
+| API-T-124 | `shared/test/endpoints.test.ts` | `room_memory_builder_encodes_id` | `endpoints.roomMemory('r1') === '/api/rooms/r1/memory'`, `endpoints.roomMemory('a b/c') === '/api/rooms/a%20b%2Fc/memory'` | R-MEM-001 · R-API-008 |
+| API-T-UI-030 | `ui/src/api/memory.test.ts` | `get_memory_sends_bearer` | `configureClient({ getToken: () => 'tok' })` 뒤 `getMemory('r 1')` → `GET /api/rooms/r%201/memory`, `Authorization: Bearer tok`, 본문·`Content-Type` 없음. 200 응답 → `ok: true`, `value`가 응답과 같다(`updatedAt: null` 포함) | R-MEM-001 · R-API-003 |
+| API-T-UI-031 | `ui/src/api/memory.test.ts` | `put_memory_sends_summary_only` | `putMemory('r1', { summary: '  a  ', extra: 1 } as PutMemoryBody)` → `PUT /api/rooms/r1/memory`, 본문 정확히 `{"summary":"  a  "}`(trim하지 않는다, `extra` 없음), `Authorization` 있음, `Content-Type: application/json`. 200 `{ summary: 'a', sourceUntilId: 7, updatedAt: 1 }` → `value` 그대로. `putMemory('r1', { summary: 1 })`는 `// @ts-expect-error` | R-MEM-001 · R-CHAT-012 |
+| API-T-UI-032 | `ui/src/api/memory.test.ts` | `memory_errors_normalized` | ① GET 401 `TOKEN_INVALID` → `ok: false`, `isAuthFailure` true ② PUT 400 `장기기억은 0~4000자로 입력해 주세요.` → `error.message` 그대로 ③ PUT 429 `RATE_LIMITED` `retryAfterSec: 40` → `error.retryAfterSec === 40` ④ 404 `NOT_FOUND` ⑤ `fetch` reject → `NETWORK`. 어느 경우도 throw·reject 없음 | R-API-002 · R-CHAT-012 |
+
+- `errors.test.ts` API-T-040(15종)은 무수정 통과해야 한다.
+
 ---
 
 ## 15. server 의존 · 변경 요청 · 확인 필요
@@ -3591,6 +3990,35 @@ server-designer에게 알릴 점(막지 않음):
 3. 라우트 테스트 API-T-109는 fake 제공사에서 각본 없이 `201`을 기대한다. 선택 응답 파싱 불가 → 기본 화자 경로가 fake 기본 응답에서도 성립해야 한다.
 4. API-T-111②는 예산 초과면 선택 호출도 0회(`llm_usage.calls` 불변)라고 본다. 예산 게이트가 선택 호출보다 앞이어야 한다(s3d-02 §4 순서와 같다).
 
+### 15.14 S4 server 의존 · 어긋난 점 · 확인 필요 (v0.7)
+
+사용하는 server 함수·타입(모두 server S4 설계에 있음, **구현 전** — `server/src/memory/` 없음):
+
+| 항목 | 시그니처·형태 | 근거 |
+|---|---|---|
+| 장기기억 읽기 | `services.memory.get(roomId: string): Promise<MemoryState>`, `MemoryState = MemoryResponse` | memory.md §2 |
+| 장기기억 편집 | `services.memory.put(roomId: string, input: PutMemoryInput): Promise<MemoryState>`, `PutMemoryInput = PutMemoryBody` | memory.md §2 |
+| 컨테이너 | `Services.memory: MemoryService` | index.md §13.1 |
+| speak 훅 | `messages.speak(roomId, input, background)` 불변. 컨테이너가 `afterSpeak`로 `memory.summarizeIfNeeded`를 연결한다 — routes는 부르지 않는다 | messages.md §13 · index.md §13.1 |
+| 미들웨어 | `requireToken` · `rateLimitWrites`(기존) | auth.md |
+| 저장소 | `memory.getState`·`memory.putSummary` 등 — routes는 부르지 않는다 | db.md §13 |
+
+server 변경 요구 명세: **없음.** 새 서비스 메서드·에러 코드·env 키·마이그레이션이 0이고, 이름·입출력이 memory.md 「contract 인계 요구 명세」와 같다.
+
+server 설계와 어긋나 보이는 점(막지 않음, server-designer에게 알릴 것):
+
+1. memory.md §2 표 `put` 실패 조건 ①은 "문자열 아님·4000 초과 → `장기기억은 0~4000자로 입력해 주세요.`"다. HTTP로는 라우트 zod `z.string()`이 비문자열을 먼저 막아 **기본 문구**가 나간다(§4.18 판정 5, S2 본문 규칙과 같다). 서비스의 비문자열 분기는 라우트를 거치지 않는 호출의 안전망이고, SRV-T-314 `summary: 1` 기대는 서비스 직접 호출이라 그대로 맞다.
+2. 본문 상한: memory.md는 "32KiB 이상 권고, 값은 contract 확정"이었다. contract는 **정확히 32768바이트, 400 기본 문구**로 정했다(§4.18). 상수는 routes에 두고 shared·server 서비스에는 두지 않는다.
+3. E13 미들웨어: memory.md는 "`requireToken`만"이라 했다. contract는 기존 방 경로 관례대로 `validate('param', roomIdParam)`을 함께 붙인다. 동작 차이는 없다(빈 id는 경로가 매칭되지 않는다).
+4. E13·E14 상세는 §4.17·§4.18이다(§4.15·§4.16은 S3c E15·E16). server 문서·화면 설계가 api.md 절을 인용할 때 이 번호를 쓴다.
+5. API-T-123은 `CONTEXT_MESSAGES: '1'`·`MEMORY_SUMMARY_THRESHOLD: '2'`를 쓴다. parseEnv가 이 조합(1~100 · 2~1000 · 기준 > 컨텍스트)을 받아야 한다(env.md 기존 범위 안).
+
+확인 필요:
+
+1. (server 열린 질문 1 연동) 자동 요약 기준은 "미요약 메시지 수"다(memory.md D-MEM-1). §4.13 부수 효과 문구가 이 해석을 따른다. 요구 문구 그대로("방 메시지 수")로 정해지면 그 한 줄만 고친다(비파괴).
+2. (server 열린 질문 2 연동) 편집 경합은 마지막 저장 승리이고 `409`가 없다(§4.18 경합 표). 시트를 연 채 자동 요약이 끝난 뒤 저장하면 그 요약을 덮는다. 충돌 감지가 필요하면 R-API-002 개정(16종째 코드)과 `PutMemoryBody`의 기대 버전 필드가 필요하다. 요구로 승격되기 전에는 만들지 않는다.
+3. 요약 비우기(`summary: ''`)는 `sourceUntilId`를 되돌리지 않는다. 그래서 이미 요약된 구간은 다시 요약되지 않는다(R-MEM-001 🔒 "편집은 `source_until_id` 유지"의 결과). "처음부터 다시 요약"은 요구 밖이다. 사용자가 이 동작을 원하지 않으면 요구 변경이 필요하다.
+
 ---
 
 ## 16. 부록 — 캐릭터 설정 파일 형식 · 가져오기 매핑 (S3c — R-SET-007 🔒 · R-SET-008)
@@ -3751,6 +4179,25 @@ world 고르기: 백업은 `DB.worlds`를 앞에서부터 보고, `characters` �
 
 ---
 
+## 「ui 인계 메모」 (S4 — v0.7, 장기기억 시트가 계약에서 알아야 할 것만)
+
+| 주제 | 계약 |
+|---|---|
+| 래퍼 | `getMemory(roomId)` · `putMemory(roomId, { summary })` — `@/api`에서 import한다. 둘 다 `Result<MemoryResponse>`이고 throw하지 않는다 |
+| 권한 | 두 래퍼 모두 토큰이 필요하다. **토큰 없는 읽기 전용 화면에서는 ⋯ 메뉴의 "장기기억" 항목을 렌더하지 않는다**(보기만 하는 경로도 없다, R-MEM-001). 주인 판정은 없다 — 등급 통과자 누구나 보고 고친다 |
+| 열 때 | 시트를 **열 때마다 `getMemory`**(캐시 금지). speak 직후 최대 약 30초는 자동 요약 전의 이전 값일 수 있다 |
+| 빈 상태 | `summary === ''`(특히 `updatedAt === null`)이면 빈 입력창과 안내. 자동 요약은 미요약 메시지가 60개(기본)를 넘은 뒤 캐릭터 발화가 끝나면 생긴다 |
+| 길이 | 앞뒤 trim 후 코드 포인트 0~4000. 카운터는 `countCodePoints(normalizeText(v))`와 `MEMORY_SUMMARY_MAX`(`@shared/limits`). 4000 초과면 저장 비활성. 0자 저장 허용 |
+| 저장 | `putMemory` 동안 입력·저장 버튼 비활성(중복 제출 방지). 성공하면 응답 `summary`(trim된 저장값)로 입력을 다시 맞춘다 |
+| 실패 | 입력 내용을 보존한다. `400`은 서버 `message`를 그대로 보인다(길이 위반 = `장기기억은 0~4000자로 입력해 주세요.`). `429 RATE_LIMITED`는 기존 쓰기와 같은 안내, `404`는 방이 사라짐, `NETWORK`·`500`은 재시도 안내. `isAuthFailure`(401·`LEVEL_TOO_LOW`)면 기존 규칙대로 읽기 전용 전환(§2.4) — 항목이 사라지므로 시트 처리는 ui 결정 |
+| 자동 요약과 경합 | 시트를 연 채 자동 요약이 끝난 뒤 저장하면 저장한 내용이 그 요약을 **대체**한다(마지막 저장 승리, `409` 없음). 자동 요약 도중에 저장하면 편집이 남고, 다음 캐릭터 발화 뒤 편집본을 기준으로 다시 요약된다. 안내 문구·위치는 ui 결정(memory.md 「ui 인계 메모」 후보 문구 참고) |
+| 비우기 | 비워도 이미 요약된 구간은 다시 요약되지 않는다. 그 줄거리는 AI 기억에서 빠진다. 안내 여부는 ui 결정 |
+| 표시 필드 | `sourceUntilId`는 표시하지 않아도 된다. `updatedAt` 표시 여부는 ui 결정(요구 없음). 저장해도 방 목록 순서는 바뀌지 않는다 |
+| 요구 밖 | 요약 이력·여러 요약본·"지금 요약" 버튼·처음부터 다시 요약은 없다 |
+| AI 반영 | 저장한 요약은 다음 캐릭터 발화부터 쓰인다. 요약 안의 지시 문장은 설정을 바꾸지 못한다(서버 처리, 화면 안내 불필요) |
+
+---
+
 ## 「contract-implementer 인계 목록」 (S3b — v0.4.1)
 
 | 순서 | 파일 | 식별자 | 할 일 | 테스트 |
@@ -3795,3 +4242,19 @@ world 고르기: 백업은 `DB.worlds`를 앞에서부터 보고, `characters` �
 | 6 | `ui/src/api/messages.ts` | `speak` 문서주석 | §11.15. 시그니처 변경 없음 | API-T-UI-028 · 029 |
 | — | `server/src/routes/messages.ts` · `ui/src/api/client.ts` | — | **소스 변경 없음** | 리뷰 diff |
 | 끝 | `doc/200_설계/contract/api.md` | §12.5 | 구현 후 실물 기준으로 다시 채우고 §9에 "v0.6 구현" 행 | — |
+
+---
+
+## 「contract-implementer 인계 목록」 (S4 — v0.7)
+
+| 순서 | 파일 | 식별자 | 할 일 | 테스트 |
+|---|---|---|---|---|
+| 4 | `shared/src/types.ts` | `MemoryResponse` · `PutMemoryBody` | §5.9.1 그대로(`PutCharacterSettingsBody` 다음) | tsc |
+| 4 | `shared/src/endpoints.ts` · `shared/test/endpoints.test.ts` | `PATHS.roomMemory` · `endpoints.roomMemory` | §5.9.2 | API-T-042(갱신) · 124 |
+| 4 | `shared/src/errors.ts` · `limits.ts` | — | **변경 없음** | API-T-040 무수정 |
+| 6 | `server/src/routes/schemas.ts` | `putMemoryBody` · `MEMORY_BODY_MAX_BYTES` | §11.16 | API-T-119 · 120 |
+| 6 | 신규 `server/src/routes/memory.ts` · `routes/index.ts` · 신규 `server/test/routes-memory.test.ts` | `memoryRoutes` | §11.16. server 5단계(`services.memory`) 뒤 | API-T-113 ~ 122 |
+| 6 | `server/test/routes-generate.test.ts`(+ `/speak`를 부르는 다른 테스트 파일) | `call` | `waitOnExecutionContext(ctx)` 대기(§14.19) + API-T-123 | 기존 전부 회귀 · API-T-123 |
+| 6 | 신규 `ui/src/api/memory.ts` · `ui/src/api/index.ts` · 신규 `ui/src/api/memory.test.ts` | `getMemory` · `putMemory` | §11.16 | API-T-UI-030 ~ 032 |
+| — | `server/src/routes/{rooms,messages,settings,validate}.ts` · `ui/src/api/client.ts` | — | **소스 변경 없음** | 리뷰 diff |
+| 끝 | `doc/200_설계/contract/api.md` | §12.6 · §9 | 구현 후 실물 파일:줄로 대조표를 다시 채우고 §9에 "v0.7 구현" 행 | — |

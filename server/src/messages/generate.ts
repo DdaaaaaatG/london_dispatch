@@ -2,10 +2,10 @@
  * [목적] 캐릭터 1턴 생성(speak, R-MSG-003)과 마지막 캐릭터 메시지 재작성(regenerate, R-MSG-006). 방 단위 잠금(R-MSG-007)·updated_at 갱신(R-ROOM-005)·응답 뒤 훅 자리(R-MEM-002). 설계 messages.md §2.3·§4.2·§4.3
  * [S3d] speak 'auto': 잠금·읽기 3종 뒤 llm.selectSpeaker → 고른 캐릭터로 기존 경로(설계 messages.md §12). 예산 게이트는 선택 앞 1회
  * [공개 API] createGenerateOps(deps) -> { speak, regenerate }, SPEAK_LOCK_MS, 타입 SpeakInput·Background·AfterSpeakEvent·AfterSpeakHook·GenerateDeps·GenerateOps
- * [비동기] llm() 확인 → ensureBudget(S3b) → 잠금 선점 → Promise.all(pageDesc ∥ getSummary ∥ loadPromptSettings(S3c)) → llm.complete → 저장 → finally 해제(실패는 warn 로그만). afterSpeak 는 background.waitUntil 로 등록
+ * [비동기] llm() 확인 → ensureBudget(S3b) → 잠금 선점 → Promise.all(pageDesc ∥ getSummary ∥ loadPromptSettings(S3c)) → llm.complete → 저장 → finally 해제(실패는 warn 로그만). afterSpeak 는 background.waitUntil 로 등록(S4: 등록 실패는 삼키고 warn after_speak_schedule_failed)
  * [에러] VALIDATION_ERROR·NOT_FOUND·SPEAK_IN_PROGRESS·NOT_LAST_MESSAGE·NOT_CHARACTER_MESSAGE, llm 의 LLM_FAILED·LLM_EMPTY·LLM_BUDGET_EXCEEDED(S3b, 429)와 CONFIG_INVALID 는 그대로 전파
  * [설정] contextMessages(config.contextMessages)와 llm 지연 생성 함수, S3c loadPromptSettings(없으면 시드)를 deps 값으로 받는다. 바인딩을 읽지 않는다
- * [테스트] server/test/messages-generate.test.ts (SRV-T-191~209, 256~258, 270~278)
+ * [테스트] server/test/messages-generate.test.ts (SRV-T-191~209, 256~258, 270~278, 326)
  */
 import type { CharacterId, SpeakBody, SpeakTarget } from '@shared/types'
 import { AppError } from '../app-error'
@@ -41,7 +41,7 @@ export type GenerateDeps = {
   contextMessages: number
   /** 지연 생성. 부를 때 키를 확인한다 */
   llm: () => Llm
-  /** 없으면 no-op(S4 가 채운다) */
+  /** 없으면 no-op. 컨테이너가 memory.summarizeIfNeeded 를 넣는다(S4) */
   afterSpeak?: AfterSpeakHook
   /** S3c. 잠금 선점 뒤 speak·regenerate 마다 1회 부른다(캐시 없음). 없으면 시드 */
   loadPromptSettings?: () => Promise<PromptSettings>
@@ -161,7 +161,12 @@ export const createGenerateOps = (deps: GenerateDeps): GenerateOps => {
     })
     const hook = deps.afterSpeak
     if (hook !== undefined) {
-      background.waitUntil(runAfterSpeak(hook, { roomId, messageId: saved.id }))
+      try {
+        background.waitUntil(runAfterSpeak(hook, { roomId, messageId: saved.id }))
+      } catch (e) {
+        // S4: 실행 컨텍스트가 없는 런타임 등에서 등록 자체가 throw 해도 저장된 대사를 실패로 바꾸지 않는다
+        logger.warn('after_speak_schedule_failed', { roomId, errName: errName(e) })
+      }
     }
     const done = { roomId, messageId: saved.id, character: pick.character, ms: now() - startMs }
     logger.info(

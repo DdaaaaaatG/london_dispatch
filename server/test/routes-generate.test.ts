@@ -1,6 +1,6 @@
 // API-T-070~084 — doc/200_설계/contract/api.md §14.9 (E9 speak · E12 regenerate 라우트)
 // 성공 경로는 LLM_PROVIDER=fake, 502 경로는 google + 가짜 키 + 전역 fetch 대체(실제 네트워크 0회)
-import { createExecutionContext, env } from 'cloudflare:test'
+import { createExecutionContext, env, waitOnExecutionContext } from 'cloudflare:test'
 import { CHARACTERS } from '@shared/characters'
 import { ERROR_MESSAGES, ERROR_STATUS, type ErrorCode } from '@shared/errors'
 import type { Message, MessagesPage } from '@shared/types'
@@ -57,11 +57,10 @@ const call = async (
     if (contentType !== null) headers['Content-Type'] = contentType
     init.body = typeof opts.body === 'string' ? opts.body : JSON.stringify(opts.body)
   }
-  return app.fetch(
-    new Request(`http://test${path}`, init),
-    opts.e ?? baseEnv(),
-    createExecutionContext(),
-  )
+  const ctx = createExecutionContext()
+  const res = await app.fetch(new Request(`http://test${path}`, init), opts.e ?? baseEnv(), ctx)
+  await waitOnExecutionContext(ctx) // S4: speak 성공이 waitUntil 로 자동 요약을 등록한다
+  return res
 }
 
 const speak = (body: Body, opts: { e?: Env; room?: string; contentType?: string | null } = {}) =>
@@ -373,6 +372,46 @@ describe('POST /api/messages/:id/regenerate', () => {
     await expectError(res, 'LLM_FAILED')
     expect(await textOf(firstId)).toBe('원문')
     await expectUntouched(1, 100)
+  })
+})
+
+describe('S4 자동 요약은 speak 응답을 막지 않는다 (R-MEM-002)', () => {
+  const MEMORY_ENV = { CONTEXT_MESSAGES: '1', MEMORY_SUMMARY_THRESHOLD: '2' }
+  type MemoryBody = { summary: string; sourceUntilId: number; updatedAt: number | null }
+  const readMemory = async (): Promise<MemoryBody> =>
+    (await call('GET', `/api/rooms/${ROOM}/memory`)).json<MemoryBody>()
+
+  const expectCielLine = async (res: Response): Promise<void> => {
+    expect(res.status).toBe(201)
+    const body = await res.json<Message>()
+    expect(body).toMatchObject({ speaker: 'ciel', kind: 'line', authorName: null })
+    expect(Object.keys(body)).not.toContain('summary')
+    expect(JSON.stringify(body)).not.toMatch(/summary|sourceUntilId/)
+  }
+
+  it('API-T-123 speak_ok_even_if_summary_fails', async () => {
+    const secondId = await insertMessage('user', 'line', '둘째', 6)
+
+    const ok = await speak({ character: 'ciel' }, { e: baseEnv(MEMORY_ENV) })
+    await expectCielLine(ok)
+    const done = await readMemory()
+    expect(done.sourceUntilId).toBe(secondId)
+    expect(done.summary).not.toBe('')
+
+    await resetDb()
+    await insertRoom(ROOM, '방', 1, 100)
+    await insertLine(ROOM, '원문', 5)
+    await insertMessage('user', 'line', '둘째', 6)
+    let calls = 0
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => (++calls === 1 ? geminiText('생성 대사') : providerHttp400())),
+    )
+    const failed = await speak({ character: 'ciel' }, { e: googleEnv(MEMORY_ENV) })
+    await expectCielLine(failed)
+    expect(calls).toBe(2)
+    expect(await readMemory()).toEqual({ summary: '', sourceUntilId: 0, updatedAt: null })
+    expect(await countMessages()).toBe(3)
   })
 })
 

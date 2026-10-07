@@ -1,5 +1,5 @@
 // API-T-050~066 — doc/200_설계/contract/api.md §14.5 · §14.9 (쓰기 8종: 토큰 · 레이트리밋 · 검증 · 정상)
-import { createExecutionContext, env } from 'cloudflare:test'
+import { createExecutionContext, env, waitOnExecutionContext } from 'cloudflare:test'
 import { USER_DISPLAY_NAME } from '@shared/characters'
 import { ERROR_MESSAGES, ERROR_STATUS, type ErrorCode } from '@shared/errors'
 import type { Message, MessagesPage, RoomSummary } from '@shared/types'
@@ -53,9 +53,15 @@ const send = (
   if (call.body !== undefined) {
     init.body = typeof call.body === 'string' ? call.body : JSON.stringify(call.body)
   }
-  return Promise.resolve(
-    app.fetch(new Request(`http://test${call.path}`, init), e, createExecutionContext()),
-  )
+  return sendWithContext(new Request(`http://test${call.path}`, init), e)
+}
+
+/** S4: speak 성공이 waitUntil 로 자동 요약을 등록하므로 끝까지 기다린 뒤 응답을 돌려준다 */
+const sendWithContext = async (req: Request, e: Env): Promise<Response> => {
+  const ctx = createExecutionContext()
+  const res = await app.fetch(req, e, ctx)
+  await waitOnExecutionContext(ctx)
+  return res
 }
 
 /** 유효 토큰(기본 payload, over 로 일부 변경)으로 호출 */

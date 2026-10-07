@@ -1,6 +1,6 @@
 # index(Workers 진입점·공통 기반) 설계
 
-- 상태: S1 확정(구현 동기화) · S2 초안 · S3 초안(§2.3 컨테이너 델타) · S3b 초안(§2.3 meter 배선·§2.4·§5·§6.1 델타) · S3c 구현 완료(§2.3.1 settings 배선·§3.1.2·§5.3·§6.2) · **S3d 구현 완료(2026-10-06, server 343/343, SRV-T-261~281 · §12 배선 변화 없음)** · verify 후속 동기화(2026-10-07 — `/api/*` 보안 헤더 SEC-003: §3·§3.1 ②·②a·SRV-T-291·D-IDX-14, 의존 방향 보충 §3) · 최종 갱신: 2026-10-07
+- 상태: S1 확정(구현 동기화) · S2 초안 · S3 초안(§2.3 컨테이너 델타) · S3b 초안(§2.3 meter 배선·§2.4·§5·§6.1 델타) · S3c 구현 완료(§2.3.1 settings 배선·§3.1.2·§5.3·§6.2) · **S3d 구현 완료(2026-10-06, server 343/343, SRV-T-261~281 · §12 배선 변화 없음)** · verify 후속 동기화(2026-10-07 — `/api/*` 보안 헤더 SEC-003: §3·§3.1 ②·②a·SRV-T-291·D-IDX-14, 의존 방향 보충 §3) · **S4 초안(2026-10-07, §13 `Services.memory` 배선·llm thunk 공유·afterSpeak 연결 · `scheduled` 미도입)** · 최종 갱신: 2026-10-07
 - 묶음: S1 = `fetch` 진입·Hono 앱 조립·부트스트랩·보안 헤더·공통 에러 핸들러·로거·`/embed` 서빙·health 서비스·`wrangler.toml`. S2 = 서비스 컨테이너에 `auth`·`config` 주입, `AppEnv.Variables.principal`, 인증 미들웨어의 **라우트 단위** 적용 원칙, `RATE_LIMITED`의 `retryAfterSec` 응답 변환. `scheduled` 진입은 S2에서 **추가하지 않는다**(레이트리밋 정리는 요청 경로에서 — [auth.md](auth.md) D-AUTH-7). S4(요약)에서 필요하면 추가한다.
 - 라우트(`server/src/routes/`)는 contract 소유다. 이 문서는 **라우트를 정의하지 않고**, 라우트가 쓸 타입·서비스·규약만 정한다.
 - 관련 문서: [env.md](env.md), [db.md](db.md), [auth.md](auth.md), [rooms.md](rooms.md), [messages.md](messages.md).
@@ -680,10 +680,114 @@ run_worker_first = true                     # 정적 파일 요청도 Worker 를
 | R-NFR-001 🔒 개정 | §12 표 · [llm.md](llm.md) §13.7 | ✅(설계) |
 | R-MSG-009 · R-LLM-008 | 배선 불변 확인 | ✅(설계) |
 
+## 13. S4 — memory 배선 · `scheduled` 미도입 (R-MEM-001 🔒 · R-MEM-002 🔒 · R-MEM-003)
+
+- 상태: 초안(2026-10-07). 결론: **컨테이너에 `memory` 서비스 1개가 늘고 messages의 `afterSpeak`가 그것을 부른다. `index.ts`·`app.ts`·`wrangler.toml`·onError 변환표는 바뀌지 않는다.** Cron(`scheduled`)은 도입하지 않는다([memory.md](memory.md) D-MEM-3).
+
+비유: 극장(컨테이너)에 기록 담당(memory)을 한 명 들이고, 무대 감독(messages)의 퇴장 쪽지 수신인으로 적어 둔다. 극장 출입문(index.ts)과 야간 경비 일정표(Cron)는 그대로다.
+
+### 13.1 `server/src/services.ts` 델타
+
+```ts
+import { createMemoryService, type MemoryService } from './memory'
+import { createLlm, createProvider, createUsageMeter, type Llm } from './llm'
+
+export type Services = {
+  auth: AuthService
+  rooms: RoomsService
+  messages: MessagesService
+  settings: SettingsService
+  /** S4. 장기기억 GET/PUT(라우트 E13·E14)과 speak 뒤 자동 요약 */
+  memory: MemoryService
+  getHealth: () => HealthStatus
+}
+
+export const createServices = (deps: ServiceDeps): Services => {
+  const settings = createSettingsService({ db: deps.db, logger: deps.logger, now: deps.now })
+  // S4: messages·memory 가 같은 지연 생성 함수를 쓴다(부를 때마다 새 Llm — 상태 없음). 본문은 기존 thunk 그대로 옮긴다
+  const llm = (): Llm =>
+    createLlm({
+      provider: createProvider({
+        provider: deps.config.llmProvider,
+        apiKey: requireLlmApiKey(deps.config),
+        model: deps.config.llmModel,
+      }),
+      timeoutMs: deps.config.llmTimeoutMs,
+      logger: deps.logger,
+      now: deps.now,
+      meter: createUsageMeter({ store: deps.db.llmUsage, config: { /* 기존 4필드 */ }, logger: deps.logger, now: deps.now }),
+    })
+  const memory = createMemoryService({
+    db: deps.db,
+    now: deps.now,
+    logger: deps.logger,
+    contextMessages: deps.config.contextMessages,
+    summaryThreshold: deps.config.memorySummaryThreshold,
+    llm,
+  })
+  return {
+    auth: createAuthService({ /* 기존 그대로 */ }),
+    rooms: createRoomsService({ db: deps.db, now: deps.now }),
+    messages: createMessagesService({
+      db: deps.db,
+      now: deps.now,
+      logger: deps.logger,
+      contextMessages: deps.config.contextMessages,
+      loadPromptSettings: settings.loadForPrompt,
+      llm,
+      // S4: speak 성공 뒤 waitUntil 로 실행(messages.md §13). messages 는 memory 를 import 하지 않는다
+      afterSpeak: async ({ roomId }) => {
+        await memory.summarizeIfNeeded(roomId)
+      },
+    }),
+    settings,
+    memory,
+    getHealth: () => ({ ok: true, version: APP_VERSION }),
+  }
+}
+```
+
+- `Config.memorySummaryThreshold`를 처음 소비한다(키·검증은 S1부터 있음 — [env.md](env.md) 변경 없음).
+- 팩토리는 생성 시 `db`에 손대지 않는다(SRV-T-087 `trap` 통과 유지). `llm`은 부를 때만 키를 확인한다(R-ENV-003 그대로).
+
+### 13.2 진입점·설정·라우트
+
+| 항목 | S4 영향 |
+|---|---|
+| `server/src/index.ts` | 없음. `export default { fetch: app.fetch }` 그대로 — **`scheduled` export 없음** |
+| `server/wrangler.toml` | 없음. `[triggers] crons` 없음. `[vars]`의 `CONTEXT_MESSAGES`·`MEMORY_SUMMARY_THRESHOLD`는 이미 있음 |
+| `server/src/app.ts`·onError(§5) | 없음. 새 에러 코드 0(15종 유지) |
+| 라우트 등록(contract) | E13 `GET /api/rooms/:id/memory`(`requireToken`) · E14 `PUT`(`requireToken` → `rateLimitWrites`) 추가 — [memory.md](memory.md) 「contract 인계」 |
+| 로그 키 | 추가: `memory_summarized`·`memory_summary_skipped`·`memory_summary_conflict`(info), `memory_summary_failed`(warn) — [memory.md](memory.md) §5.1. `after_speak_schedule_failed`(warn) — [messages.md](messages.md) §13.2. 본문·요약 미기록(R-NFR-004) |
+| 마이그레이션 | 없음. 배포는 `wrangler deploy` 1회 |
+
+### 13.3 테스트 (`server/test/app.test.ts`에 추가)
+
+| ID | 조건 | 기대 |
+|---|---|---|
+| SRV-T-327 | ① `createServices({ db: trap, … })` ② 실제 D1 + `parseEnv`(`LLM_PROVIDER=fake`) + 메시지 60개인 방, `services.messages.speak(roomId, { character: 'ciel' }, { waitUntil: t => tasks.push(t) })` 후 `await Promise.all(tasks)` | ① `services.memory`의 `get`·`put`·`summarizeIfNeeded`가 함수이고 생성 시 `db` 미접촉 ② `tasks` 1개, memory 행 생성(`source_until_id` = 21번째 메시지 id, `summary` = Fake 출력), speak 반환값은 훅 결과와 무관 |
+
+### 13.4 요구 추적
+
+| 요구ID | 반영 | 테스트 | 상태 |
+|---|---|---|---|
+| R-MEM-001 🔒 | §13.1 `Services.memory` · §13.2 라우트 행 | SRV-T-327 ① · contract | ✅(설계) |
+| R-MEM-002 🔒 | §13.1 `afterSpeak` 연결 | SRV-T-327 ② | ✅(설계) |
+| R-MEM-003 | §13.2 `scheduled` 미도입 | 설계 기록 | ✅(결정 기록) |
+
+### 13.5 설계 결정
+
+| # | 결정 | 대안 | 채택 근거 |
+|---|---|---|---|
+| D-IDX-15 | `scheduled`·`[triggers]`를 S4에서 만들지 않는다 | 미리 빈 `scheduled` 핸들러 | 요구ID로 역추적되는 동작이 없다(스킬 §11). 전환 기준·설계 요지는 [memory.md](memory.md) D-MEM-3 |
+| D-IDX-16 | llm thunk를 지역 상수로 뽑아 messages·memory가 공유 | 서비스마다 thunk 복제 | Config에서 고르는 필드·meter 배선이 한 곳이다. 동작은 기존과 같다(부를 때마다 새 `Llm`) |
+| D-IDX-17 | `afterSpeak`는 컨테이너의 화살표 함수로 연결 | messages가 memory를 import | 서비스끼리 import하지 않는다. 테스트는 훅을 바꿔 끼운다 |
+
 ## 변경 이력
 
 | 날짜 | 내용 |
 |---|---|
+| 2026-10-07 | S4 설계(§13): `Services.memory`(`createMemoryService` — `contextMessages`·`memorySummaryThreshold`·공유 `llm` thunk), messages `afterSpeak` = `memory.summarizeIfNeeded`, llm thunk 지역 상수 추출, `index.ts`·`wrangler.toml`·`app.ts`·onError 불변, `scheduled`·`[triggers]` 미도입, 로그 키 5개, SRV-T-327, D-IDX-15~17 |
 | 2026-10-07 | verify 후속 동기화(소스 기준, SEC-003·SRV-006): `/api/*` CSP `'none'` + `secureHeaders` 기본값(§1 R-API-006 행, §3 파일 표·미사용 미들웨어 줄, §3.1 그림·② 행·②a 행, §8 SRV-T-291·수동 curl, §9.1 헤더 행, §10, D-IDX-5 보충·D-IDX-14, 확인 필요 1건, Referrer-Policy 제안 부분 반영). §3 의존 방향을 실물 import로 보충(services→llm·settings·env, messages→llm, settings→db·llm). 공개 API 변경 없음 |
 | 2026-10-07 | §12 로그 키에 이름 지목 형태 1행 추가(`speaker_select` mention·`speak_done.selected 'mention'`·fallback warn 없음), 상태 줄 "구현 완료(server 343/343, SRV-T-261~281)" — 구현 실물 기준 |
 | 2026-10-06 | S3d(§12): 배선·env·라우트 등록·onError·마이그레이션 변화 없음 확인, 로그 키 `speaker_select`·`speaker_select_fallback`·`speak_done.auto·selected` 추가 기록, 70초 분배 참조 |
@@ -704,3 +808,5 @@ run_worker_first = true                     # 정적 파일 요청도 Worker 를
 - `[observability] enabled = true`(Workers Logs 보관). 지금은 `wrangler tail` 실시간 수집뿐이다.
 
 파급(S3b): `services.ts` `createServices`의 `llm` thunk에 `meter` 1항목. `ServiceDeps`·`Services`·`AppEnv` 변경 없음. `server/wrangler.toml [vars]` 4줄 추가(§6.1 전문 반영). `app-error.ts`는 주석만. `Db.llmUsage` 추가로 `app.test.ts` `trap` 가짜 `Db` 갱신은 [db.md](db.md) 파급 문단.
+
+파급(S4 공개 API 변경): `Services`에 `memory: MemoryService` 필수 추가 → 라우트(contract)가 E13·E14에서 `c.get('services').memory`를 쓴다. `Services` 키 집합을 단언하는 테스트(`server/test/app.test.ts` SRV-T-161 주변)가 있으면 `memory`를 더한다. `ServiceDeps`·`AppEnv`·`createServices` 시그니처 불변. `createServices` 본문은 llm thunk를 지역 상수로 옮기고 memory 생성·`afterSpeak` 1항목을 더한다. `server/src/index.ts`·`app.ts`·`wrangler.toml` 변경 없음.

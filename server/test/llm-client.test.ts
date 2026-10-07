@@ -1,4 +1,4 @@
-// SRV-T-180~184 — doc/200_설계/server/llm.md §8 (재시도·예산·로그). 실제 타이머 없이 가짜 시계로 검증한다
+// SRV-T-180~184, 319~321 - doc/200_설계/server/llm.md 8, 14.7 (재시도·예산·로그). 실제 타이머 없이 가짜 시계로 검증한다
 import { describe, expect, it } from 'vitest'
 import { AppError } from '../src/app-error'
 import {
@@ -7,13 +7,16 @@ import {
   DEFAULT_PROMPT_SETTINGS,
   FAKE_USAGE,
   FakeProvider,
+  buildSummaryPrompt,
   LLM_BUDGET_MS,
   planRetryTimeout,
+  SUMMARY_BUDGET_MS,
   SELECT_TIMEOUT_MS,
   type FakeStep,
   type LlmUsage,
   type Prompt,
   type UsagePricing,
+  type UsageTotals,
   type UsageMeter,
 } from '../src/llm'
 import { GeminiProvider } from '../src/llm/gemini'
@@ -428,5 +431,81 @@ describe('S3d 이름 지목 (R-LLM-008 개정)', () => {
     expect(log).toHaveLength(1)
     expect(log[0]).toMatchObject({ event: 'speaker_select', result: 'mention', character: 'ciel' })
     expect(lines.join('')).not.toContain('말해 줘')
+  })
+})
+
+describe('S4 요약 시간 예산·사용량 (R-MEM-002·R-LLM-007)', () => {
+  it('SRV-T-319 complete_budgetMs_limits_first_timeout_and_retry', async () => {
+    const budget = { budgetMs: 25_000 }
+    // ① 정상: 1차 타임아웃 = 25000
+    const a = setup(() => [{ text: 'ok' }])
+    expect(await a.llm.complete(PROMPT, budget)).toBe('ok')
+    expect(a.provider.calls.map(c => c.timeoutMs)).toEqual([25_000])
+    // ② 1차 timeout 이 25초를 다 씀 → 재시도 없음
+    const b = setup(c => [failAfter(c, 25_000, new LlmError('timeout'))])
+    expect((await appError(b.llm.complete(PROMPT, budget))).code).toBe('LLM_FAILED')
+    expect(b.provider.calls).toHaveLength(1)
+    const failed = b.logs().find(l => l.event === 'llm_failed')
+    expect(failed).toMatchObject({ budget: true, attempts: 1 })
+    // ③ 1차 network 즉시 실패(100ms) → 1초 대기 → 2차 = 25000 − 100 − 1000
+    const c = setup(c2 => [failAfter(c2, 100, new LlmError('network')), { text: 'ok2' }])
+    expect(await c.llm.complete(PROMPT, budget)).toBe('ok2')
+    expect(c.provider.calls.map(x => x.timeoutMs)).toEqual([25_000, 23_900])
+  })
+
+  it('SRV-T-320 complete_budgetMs_minus_spentMs_and_default_unchanged', async () => {
+    const a = setup(() => [{ text: 'ok' }])
+    await a.llm.complete(PROMPT, { budgetMs: 25_000, spentMs: 5_000 })
+    expect(a.provider.calls.map(c => c.timeoutMs)).toEqual([20_000])
+    const b = setup(() => [{ text: 'ok' }])
+    await b.llm.complete(PROMPT)
+    await b.llm.complete(PROMPT, { spentMs: 6_000 })
+    expect(b.provider.calls.map(c => c.timeoutMs)).toEqual([60_000, 60_000])
+    const c = setup(() => [{ text: 'ok' }])
+    await c.llm.complete(PROMPT, { spentMs: 10_000 })
+    expect(c.provider.calls.map(x => x.timeoutMs)).toEqual([56_000])
+  })
+
+  it('SRV-T-321 complete_with_summary_prompt_accumulates_usage', async () => {
+    const clock = makeClock()
+    const store = new Map<string, UsageTotals>()
+    const meter = createUsageMeter({
+      store: {
+        get: async month => store.get(month) ?? null,
+        add: async (month, delta) => {
+          const prev = store.get(month)
+          const next: UsageTotals = {
+            month,
+            calls: (prev?.calls ?? 0) + 1,
+            promptTokens: (prev?.promptTokens ?? 0) + delta.promptTokens,
+            outputTokens: (prev?.outputTokens ?? 0) + delta.outputTokens,
+            estKrw: (prev?.estKrw ?? 0) + delta.estKrw,
+          }
+          store.set(month, next)
+          return next
+        },
+      },
+      config: { ...PRICING, monthlyBudgetKrw: 100_000 },
+      logger: createLogger(() => undefined),
+      now: clock.now,
+    })
+    const llm = createLlm({
+      provider: new FakeProvider([{ text: '요약' }]),
+      timeoutMs: 60_000,
+      logger: createLogger(() => undefined),
+      now: clock.now,
+      sleep: clock.sleep,
+      meter,
+    })
+    const prompt = buildSummaryPrompt({
+      previous: '',
+      messages: [{ speaker: 'ciel', kind: 'line', text: '본문' }],
+    })
+    expect(await llm.complete(prompt, { budgetMs: SUMMARY_BUDGET_MS })).toBe('요약')
+    const rows = [...store.values()]
+    expect(rows).toHaveLength(1)
+    expect(rows[0]?.calls).toBe(1)
+    expect(rows[0]?.estKrw).toBeGreaterThan(0)
+    expect(rows[0]?.promptTokens).toBe(FAKE_USAGE.promptTokens)
   })
 })

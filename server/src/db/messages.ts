@@ -1,17 +1,19 @@
 /**
  * [목적] messages 테이블 접근 함수(S1 페이지 조회 + S2 쓰기: 모두 방 updated_at 갱신을 같은 batch 에 포함). author_mb_id 는 조회하지 않는다 (R-DB-005, D-DB-5). S3d: 응답 authorName 은 toMessage 가 투영(저장 author_name 은 실명 유지, db.md §12). 설계 db.md §2.1
- * [공개 API] createMessagesRepo(binding) -> MessagesRepo { pageDesc, insert(S2), updateText(S2), deleteById(S2), getById(S3) }, toMessage(row)
+ * [공개 API] createMessagesRepo(binding) -> MessagesRepo { pageDesc, insert(S2), updateText(S2), deleteById(S2), getById(S3), countAfter·listAfter(S4) }, toMessage(row)
  * [비동기] D1 prepare().bind().all() await. 쓰기는 batch(원자적, 왕복 1회)
  * [에러] D1 오류 전파. speaker·kind 좁히기 실패 → AppError INTERNAL
  * [설정] 없음
- * [테스트] server/test/db.test.ts (SRV-T-028·029, 124·125·128, 190, 269)
+ * [테스트] server/test/db.test.ts (SRV-T-028·029, 124·125·128, 190, 269, 325)
  */
 import { USER_DISPLAY_NAME } from '@shared/characters'
 import type { D1Database, D1Result } from '@cloudflare/workers-types'
 import {
   SQL_MESSAGES_BY_ID,
+  SQL_MESSAGES_COUNT_AFTER,
   SQL_MESSAGES_DELETE,
   SQL_MESSAGES_INSERT_IF_ROOM,
+  SQL_MESSAGES_LIST_AFTER,
   SQL_MESSAGES_PAGE_BEFORE,
   SQL_MESSAGES_PAGE_LATEST,
   SQL_MESSAGES_UPDATE_TEXT,
@@ -31,6 +33,10 @@ export type MessagesRepo = {
   deleteById: (id: number, nowMs: number) => Promise<boolean>
   /** S3. 메시지 1건. 없으면 null. author_mb_id 는 조회하지 않는다(D-DB-5) */
   getById: (id: number) => Promise<Message | null>
+  /** S4. 그 방에서 id > afterId 인 메시지 수. cap 이상은 세지 않는다(반환 ≤ cap) */
+  countAfter: (roomId: string, afterId: number, cap: number) => Promise<number>
+  /** S4. id > afterId 인 메시지를 오래된 → 새 순으로 최대 take 개(toMessage 투영 그대로) */
+  listAfter: (roomId: string, afterId: number, take: number) => Promise<Message[]>
 }
 
 /** 행(snake_case)을 도메인 객체로 변환. S3d: authorName 은 저장값(author_name)을 쓰지 않는다 — 유저면 USER_DISPLAY_NAME, 캐릭터면 null */
@@ -89,5 +95,19 @@ export const createMessagesRepo = (binding: D1Database): MessagesRepo => ({
   getById: async id => {
     const row = await binding.prepare(SQL_MESSAGES_BY_ID).bind(id).first<MessageRow>()
     return row === null ? null : toMessage(row)
+  },
+  countAfter: async (roomId, afterId, cap) => {
+    const row = await binding
+      .prepare(SQL_MESSAGES_COUNT_AFTER)
+      .bind(roomId, afterId, cap)
+      .first<{ n: number }>()
+    return row?.n ?? 0
+  },
+  listAfter: async (roomId, afterId, take) => {
+    const result = await binding
+      .prepare(SQL_MESSAGES_LIST_AFTER)
+      .bind(roomId, afterId, take)
+      .all<MessageRow>()
+    return result.results.map(toMessage)
   },
 })

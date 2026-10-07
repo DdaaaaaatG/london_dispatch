@@ -1,12 +1,14 @@
-// SRV-T-080~089·160~162 — doc/200_설계/server/index.md §8
+// SRV-T-080~089, 160~162, 327 - doc/200_설계/server/index.md 8, 13.3
 import { createExecutionContext, env } from 'cloudflare:test'
 import { Hono } from 'hono'
 import { HTTPException } from 'hono/http-exception'
 import { describe, expect, it } from 'vitest'
 import { AppError } from '../src/app-error'
 import { createApp, buildCsp } from '../src/app'
-import type { Db } from '../src/db'
+import { createDb, type Db } from '../src/db'
 import { parseEnv, type Env } from '../src/env'
+import { FAKE_DEFAULT_TEXT } from '../src/llm'
+import { insertLines, insertRoom, resetDb } from './helpers'
 import { createLogger, type LogLevel } from '../src/logger'
 import { APP_VERSION, createServices, type AppEnv } from '../src/services'
 
@@ -344,5 +346,59 @@ describe('S2 앱 계층', () => {
     )
     expect(log.lines.length).toBeGreaterThan(0)
     expect(log.lines.map(l => l.line).join('\n')).not.toContain('SENTINEL_BEARER')
+  })
+})
+
+describe('S4 memory 배선 (index.md §13.3)', () => {
+  const quiet = createLogger(() => {})
+
+  it('SRV-T-327 memory_service_wired_and_speak_triggers_summary', async () => {
+    // ① 생성 시 db 미접촉
+    const trap = new Proxy(
+      {},
+      {
+        get: () => () => {
+          throw new Error('db touched')
+        },
+      },
+    ) as unknown as Db
+    const idle = createServices({
+      db: trap,
+      logger: quiet,
+      now: () => NOW,
+      config: parseEnv(baseEnv()),
+    })
+    expect(typeof idle.memory.get).toBe('function')
+    expect(typeof idle.memory.put).toBe('function')
+    expect(typeof idle.memory.summarizeIfNeeded).toBe('function')
+
+    // ② 실제 D1 + fake 제공사: speak → 훅 → 요약
+    await resetDb()
+    await insertRoom('r', 'R', 1, 100)
+    const ids = await insertLines('r', 60)
+    const services = createServices({
+      db: createDb(env.DB),
+      logger: quiet,
+      now: () => NOW,
+      config: parseEnv(baseEnv({ LLM_PROVIDER: 'fake' })),
+    })
+    const tasks: Promise<unknown>[] = []
+    const saved = await services.messages.speak(
+      'r',
+      { character: 'ciel' },
+      { waitUntil: t => void tasks.push(t) },
+    )
+    expect(saved.speaker).toBe('ciel')
+    expect(tasks).toHaveLength(1)
+    await Promise.all(tasks)
+    const row = await env.DB.prepare(
+      "SELECT summary, source_until_id FROM memory WHERE room_id = 'r'",
+    ).first<{ summary: string; source_until_id: number }>()
+    expect(row).toEqual({ summary: FAKE_DEFAULT_TEXT, source_until_id: ids[20] })
+    expect(await services.memory.get('r')).toMatchObject({
+      summary: FAKE_DEFAULT_TEXT,
+      sourceUntilId: ids[20],
+      updatedAt: NOW,
+    })
   })
 })
