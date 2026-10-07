@@ -7,25 +7,17 @@
 import { CHARACTERS } from '@shared/characters'
 import { ERROR_MESSAGES } from '@shared/errors'
 import type { ApiError, ApiErrorCode } from '@/api'
+import { AUTH_FAILURE_TEXT, NETWORK_TEXT } from '@/components/utils/errorText'
 import { formatMonthDay, formatTime } from '@/components/utils/formatDate'
 import type { FieldIssue, SettingsStatus } from '@/state/settings'
 import type { ImportApplied, ImportFailure, ImportSuccess } from '@/state/settingsFile'
-
-const NETWORK_TEXT = '서버에 연결할 수 없습니다.'
-
-/** 인증 실패 3종 — rooms writeErrorText 와 같은 문장(두 labels 에 같은 행, TC-ST-031) */
-const AUTH_TEXT: Partial<Record<ApiErrorCode, string>> = {
-  TOKEN_REQUIRED: '로그인 정보가 없어 열람 전용으로 바뀌었습니다.',
-  TOKEN_INVALID: '인증이 만료되어 열람 전용으로 바뀌었습니다. 새로 고쳐 주세요.',
-  LEVEL_TOO_LOW: '대화 참여 등급이 아니어서 열람 전용으로 바뀌었습니다.',
-}
 
 /** 코드별 기본 문구. 서버 error.message 는 쓰지 않는다(VALIDATION_ERROR 저장 토스트만 예외) */
 const errorText = (code: ApiErrorCode): string =>
   code === 'NETWORK' ? NETWORK_TEXT : ERROR_MESSAGES[code]
 
 /** 설정 열 때 rooms 로 넘기는 인증 실패 안내 */
-const authText = (code: ApiErrorCode): string => AUTH_TEXT[code] ?? errorText(code)
+const authText = (code: ApiErrorCode): string => AUTH_FAILURE_TEXT[code] ?? errorText(code)
 
 /** 저장 실패 토스트 문구(requirements.md §5.7). 인증 실패·OWNER_ONLY 는 토스트가 아니라 stale·rooms 안내로 간다 */
 const saveErrorText = (error: ApiError): string => {

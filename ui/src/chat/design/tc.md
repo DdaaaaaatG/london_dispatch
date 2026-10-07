@@ -76,7 +76,7 @@
 | TC-CH-057 | PromptSheet(공용) | 초기값·카운터, `canSave` false면 저장 disabled·Enter 무시, `isBusy`면 입력 readOnly, `errorText` → `role=alert` |
 | TC-CH-058 | TextArea(공용) | `scrollHeight` 모킹 → 1줄 36px·3줄 76px 상한·넘으면 `overflow-y: auto` · `onEnter` 있음/없음 Enter 동작 · IME 가드 · `counterMode` overflow/always |
 | TC-CH-059 | Toggle(공용) | `role=switch`, `aria-checked`, 클릭·Space → `onChange(!isOn)`, 글자 on/off |
-| TC-CH-060 | useLongPress(공용) | 500ms 발화, 이동 10px 허용/11px 취소, up·leave·cancel 취소, 오른쪽 버튼 pointerdown 무시, contextmenu preventDefault + 발화, 롱프레스 직후 contextmenu 중복 없음, 언마운트 타이머 해제 |
+| ~~TC-CH-060~~ | ~~useLongPress(공용)~~ **폐기 — 훅 삭제됨(S3e 후작업 2026-10-07)** | 500ms 발화, 이동 10px 허용/11px 취소, up·leave·cancel 취소, 오른쪽 버튼 pointerdown 무시, contextmenu preventDefault + 발화, 롱프레스 직후 contextmenu 중복 없음, 언마운트 타이머 해제 |
 | TC-CH-061 | 390×565 쓰기 판 스크린샷(수동) | 하단 바 96(1줄)·136(3줄), A 44, 가로 스크롤 없음, 시트 3종·확인 시트 각 1장, E 토스트 1장 |
 | TC-CH-062 | 토큰 비노출(리뷰) | rooms TC-RM-030과 같은 grep + `ui/src/chat` 안 `getToken`·`initToken` 호출 0건 |
 | TC-CH-063 | 늦은 쓰기 응답 무시 | 전송·수정·삭제 대기 중 언마운트(‹ 뒤로) → dispatch·토스트·`onAuthFailure`·`onBack` 호출 없음 |

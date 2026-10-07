@@ -66,20 +66,23 @@ description: 공용 컴포넌트(ui/src/components — ui·hooks·utils) 인벤�
 
 | 후보 | 분류 | 예상 용도 | 예상 사용처 |
 |---|---|---|---|
-| Button | Primitive | primary/secondary/danger/ghost, 잠금(`isBusy`) 상태 | 두 화면 전부 |
+| Button | Primitive | primary/secondary/danger/ghost, 잠금(`isBusy`) 상태, `ariaDescribedBy`(aria-describedby) | 두 화면 전부 |
 | Bubble | Complex | 화자(세바스찬/시엘/유저/OOC)별 말풍선. 아바타·시각·`aria-busy` 임시 상태·오류 상태 | chat — 히스토리 |
-| BottomSheet | Container | 하단에서 올라오는 메뉴/확인 시트. `Esc`·바깥 탭 닫기, 포커스 트랩 | chat·rooms — 수정/재작성/삭제, confirm |
-| ConfirmDialog | Complex | BottomSheet 안 2버튼 확인(파괴 조작) | 메시지·방 삭제, 재작성 |
+| BottomSheet | Container | 하단에서 올라오는 메뉴/확인 시트. `Esc`·바깥 탭 닫기, 포커스 트랩 | chat — 방 메뉴 ⋯·confirm, settings — 「설정 파일」 메뉴 (메시지 메뉴 시트는 S3e에서 제거) |
+| ConfirmDialog | Complex | BottomSheet 안 2버튼 확인(파괴 조작) | 메시지·방 삭제 (재작성은 confirm 없음) |
 | TextArea | Primitive | 자동 높이, `Enter` 전송/`Shift+Enter` 줄바꿈 옵션, maxLength 표시 | chat 입력창·인라인 수정·메모리 편집 |
 | Toggle | Primitive | OOC on/off | chat 하단 바 |
-| ListRow | Primitive | 제목·부제·날짜 한 행, 롱프레스 메뉴 트리거 | rooms |
-| useLongPress | hook | 터치·마우스 공통 롱프레스(500ms) + 우클릭 통합 | Bubble·ListRow |
+| ListRow | Primitive | 제목·부제·날짜 한 행(탭/Enter 진입, 롱프레스 메뉴 없음) | rooms |
 | useAutoScroll | hook | 맨 아래 근접 판정·자동 스크롤·위치 보존 | chat 히스토리 |
 | cx | util | 클래스 조합 | 전부 |
 | formatDate | util | `MM.DD`·`HH:mm` 표기 | rooms·chat |
+
+- 비고(S3e): 말풍선 아래 「수정」「삭제」「재작성」 버튼 줄은 **`BubbleActions`(`ui/src/chat/components/BubbleActions.tsx`, chat 지역 컴포넌트)**가 맡는다. 공용 `Button size='sm' variant='ghost'` 3개를 조립한 것이라 **공용 카탈로그 등록 대상이 아니다**(승격 후보도 아님). 글자색 톤 prop 부재는 `component-usage-lessons`에 코어 결함 후보(Button ghost `tone`)로 남아 있다(후작업 보류: BubbleActions 테스트가 `.danger` 래퍼를 단언). `MessageMenuSheet`는 S3e에서 삭제됐다.
 
 ## 변경 이력
 
 | 날짜 | 변경 | 주체 |
 |---|---|---|
 | 2026-10-05 | 초판(빈 인벤토리 + 미구현 후보) | 자산 변환 |
+| 2026-10-07 | S3e 반영: useLongPress 사용처 0(정리 후보), 메시지 메뉴 시트 제거, BubbleActions 비고(chat 지역) | 메인 세션 대행(문서 배치) |
+| 2026-10-07 | 후작업: useLongPress 삭제(S3e, 사용처 0), Button `ariaDescribedBy` 추가 | ui-postprocessor |

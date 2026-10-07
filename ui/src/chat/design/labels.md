@@ -72,6 +72,8 @@
 
 ## 8.2 오류 상세 `errorDetail(code)` (읽기, S1)
 
+> (후작업 2026-10-07) §8.2·§8.3의 `NETWORK` 행과 인증 3종 행은 공용 `ui/src/components/utils/errorText.ts`(`NETWORK_TEXT`·`AUTH_FAILURE_TEXT`)를 `labels.ts`가 import해 쓴다. rooms·settings와 같은 단일 정의이고 문장은 바뀌지 않았다.
+
 | code | 문구 |
 |---|---|
 | `NETWORK` | `서버에 연결할 수 없습니다.` |

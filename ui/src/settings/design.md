@@ -24,6 +24,7 @@
 | v1.1 | 2026-10-06 | 검증 반영: 가져오기 분류 3종·무시 계수(SF-07·09 한 곳)·후보 검사 = 마지막 저장값 + 후보 → `checkCharacterSettings`(D-ST-11, api.md 보정 2)·후보 0개 처리 · 보정 벡터 6행(state.md §3.3, TC-ST-041) · 저장 뒤·시트 닫힘 포커스 · 타입 `ReadyState`·`ImportSuccess`·`ImportFailure` · counterMode·최소 줄 · stale+토스트 배분 · §2.1 확정 라벨 · §7 8종. TC-ST-024·026·029·035 기대 갱신, TC-ST-039·040 추가. Toast `success` 승인 | ui-design-checker FAIL(HIGH 1 · MINOR 10) · 메인 세션 결정 |
 | v1.2 | 2026-10-06 | 재검증 반영: 가져오기 규칙 정본 = api.md §16.2·§16.3 문구. S-15를 `checkPatchedSettings`(덮기 + `checkCharacterSettings`)로 재정의, 필수 빈 값도 거부, 화면 조립 거부 문구 폐기 · "값 있음" = 키 있음·`undefined`·`null` 아님, E.No.S trim 뒤 빈 값 = 없음 · `importFailureText(ImportFailure)` 호출 통일 · RTM·state.md §2.4에 S-15. TC-ST-026·035·041 기대 갱신 | ui-design-checker 재검증 FAIL(HIGH-A·B · LOW 1·2) · 메인 세션 결정 |
 | v1.2.1 | 2026-10-06 | **구현 동기화(동작·문구 변경 없음).** 실물 분해 ReadyBody·SheetLayer·`useSettingsUi`·`useImportForm`·`state/settingsCandidate.ts`, 훅 반환·props·시트 실측 높이 반영(C §1·§2·§5 · S 머리말·§1 · F §1 · A §1). 시나리오 가정 Q1~Q7 확정(C §5.3). §7 mock 표기 `@/api/settings` · §14 R-SET-010 TC 합집합. TC-ST-024·026·029·035 기대 변경과 039·040·041 신규가 §14에 들어 있음을 확인 | S3c 구현 보고 · scenarios.md v0.1 Q1~Q7 · result.md(ui 592/592) · 캡처 `doc/300_검증/screenshots/20261006-2033/` |
+| v1.2.2 | 2026-10-07 | **후작업 동기화(동작·문구 변경 없음)**: `NETWORK`·인증 3코드 문구를 공용 `errorText.ts`에서 import(§8 비고 · §13 행 "공용화 완료"). `ui/src/state/settingsCandidate.ts` 주석 정정은 문서 영향 없음(확인) | ui-postprocessor 후작업 · 사용자 승인 |
 
 ---
 
@@ -127,6 +128,8 @@ api.md **v0.5**를 **인용**한다(재정의 아님).
 
 `ui/src/settings/labels.ts`가 §5의 키를 그대로 가진다. 필드 라벨은 shared spec의 `label`(세계관 필드 `세계관`, 탭 이름은 `공통 세계관`). 하단 줄 사전 검사·저장 400 문구는 `checkCharacterSettings`의 첫 위반 문장을 그대로 쓴다(화면과 서버가 같은 문장). 가져오기 `invalid`도 같은 함수의 문장이다(마지막 저장값 위에 후보만 덮어 검사하므로 위반은 늘 후보 필드, requirements.md §5.5).
 
+- **(후작업 2026-10-07) 공용 `errorText` 사용.** `NETWORK` 문구(`서버에 연결할 수 없습니다.`)와 인증 3코드 문구는 `ui/src/components/utils/errorText.ts`의 `NETWORK_TEXT`·`AUTH_FAILURE_TEXT`를 `labels.ts`가 import해 쓴다(rooms·chat과 같은 단일 정의). 문장은 바뀌지 않았다. 그 밖 문구는 `labels.ts`에 남는다.
+
 ## 9. 접근성 → `design/a11y.md`
 
 요약: `<main aria-label="캐릭터 설정">`, 마운트 h1 포커스, tablist·tab·tabpanel(←/→/Home/End, 로빙 tabindex), 탭 `!` 접근성 이름 접미사, 하단 줄 `aria-live=polite`, 토스트·stale·③ 오류 `role=alert`, 시트 포커스 트랩·복귀(공용 BottomSheet), ConfirmDialog 첫 포커스 취소.
@@ -194,7 +197,7 @@ api.md **v0.5**를 **인용**한다(재정의 아님).
 | FormField | settings 로컬 | 라벨+입력+안내 묶음이 다른 화면에 생길 때 | 후보 |
 | FilePicker | settings 로컬 | 파일 입력이 다른 화면에 생길 때 | 후보 |
 | 탭 폼 편집형 · 내보내기/가져오기 시트 쌍 | 패턴 | 구성안 §12 풀 저장 후보 | ui-manager 사용자 확인 몫 |
-| 인증 3코드 안내 문구 | rooms·chat·settings labels | 세 화면 재발 | 후보 표시만(rooms design.md §13과 같은 규칙) |
+| 인증 3코드 안내 문구 · `NETWORK` 문구 | **공용 `ui/src/components/utils/errorText.ts`** | 세 화면 재발 | **공용화 완료(후작업 2026-10-07, 사용자 승인)** — rooms design.md §13 행과 같음 |
 
 ---
 

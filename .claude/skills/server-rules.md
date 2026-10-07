@@ -34,12 +34,15 @@ export default {
 // Bad
 throw new Error('room not found')
 throw 'not found'
-// Good
-throw new AppError('ROOM_NOT_FOUND', 404, '방을 찾을 수 없습니다.')
-// Good — 외부 에러 감싸기
-catch (cause) { throw new AppError('LLM_PROVIDER_ERROR', 502, 'AI 응답 생성에 실패했습니다.', { cause }) }
+// Good — status 는 ERROR_STATUS[code](404), 문구는 ERROR_MESSAGES[code] 기본값
+throw new AppError('NOT_FOUND')
+// Good — 상황별 문구만 덮어쓰기(status 는 여전히 코드에서)
+throw new AppError('NOT_FOUND', '방을 찾을 수 없습니다.')
+// Good — 외부 에러 감싸기 + 재시도 안내
+catch (cause) { throw new AppError('LLM_FAILED', undefined, { cause }) }
+throw new AppError('LLM_BUDGET_EXCEEDED', undefined, { retryAfterSec })
 ```
-- 서비스는 `AppError`만 throw. 코드는 `@shared/errors`의 상수. 메시지는 한국어 한 문장(사용자 노출 가능).
+- 실물 시그니처는 `server/src/app-error.ts`의 `new AppError(code: ErrorCode, message?: string, options?: { cause?, retryAfterSec? })`. **status 인자는 없다** — 코드 1개 = status 1개(`ERROR_STATUS[code]`, `@shared/errors`). 코드는 shared 15종 상수만. 메시지를 덮어쓸 때는 한국어 한 문장(사용자 노출 가능).
 - 변환은 진입점 `server/src/app.ts`의 Hono `app.onError`·`notFound` 한 곳(server 소유). routes는 throw만. 핸들러 안 try/catch로 응답을 직접 만들지 않는다.
 - 예상 못 한 에러는 `INTERNAL`(500)로 닫고 `logger.error({ err })`. 응답에 스택 없음.
 
@@ -74,7 +77,7 @@ await db.batch([
 ])
 // Good — 경합은 조건부 UPDATE + meta.changes
 const r = await db.prepare('UPDATE rooms SET speaking_until = ? WHERE id = ? AND (speaking_until IS NULL OR speaking_until < ?)').bind(until, roomId, now).run()
-if (r.meta.changes === 0) throw new AppError('SPEAK_IN_PROGRESS', 409, '이미 생성 중입니다.')
+if (r.meta.changes === 0) throw new AppError('SPEAK_IN_PROGRESS')   // 409 는 ERROR_STATUS 가 정한다
 ```
 - 파라미터 바인딩만(`?`). `db`는 `createDb(env.DB)`로 감싼 D1 바인딩이며 서비스에 주입한다.
 - 행 → 도메인 객체 변환(`snake_case` → `camelCase`, INTEGER → number)은 `db/` 경계 함수 한 곳에서.

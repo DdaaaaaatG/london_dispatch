@@ -13,7 +13,7 @@
 | S3c | 상단 바 ⚙ 진입·App 주인 판정(R-SET-009·010). 구성안 `doc/200_설계/architecture/ui-layout-02-settings.md` §7 수용. 설정 화면 본체는 `ui/src/settings/design.md` |
 | 레이아웃 확정 상태 | **확정**(읽기 전용 판 · 토큰 있음 판 · S3c 주인 판). 토큰 있음 판의 토스트 줄 위치는 설계 가정 A-3(구성안 §3 "Toast 두 화면" 근거, 그림에는 없음) |
 | 문서 분할 | 40KB 한계로 분할: `design/components.md`(컴포넌트·공용 요소 단일 정의·스타일) · `design/functions.md`(상태·기능) · `design/a11y.md`(접근성) · `design/pipeline.md`(§6 파이프라인, v1.6.1). RTM은 이 문서 §14 |
-| 이 설계가 단일 정의하는 공용 요소 | `ui/src/App.tsx`(화면 분기·viewer) · `ui/src/main.tsx` · `ui/src/state/{viewer,token,limits,writeFailure}.ts` · `ui/src/components/ui/{TopBar,Button,IconButton,StateView,TextInput,TextArea,Toggle,BottomSheet,ConfirmDialog,PromptSheet,Toast}` · `ui/src/components/hooks/{useToast,useLongPress}.ts` · `ui/src/components/utils/{cx,formatDate,storage}.ts`. chat 설계는 이 정의를 인용한다 |
+| 이 설계가 단일 정의하는 공용 요소 | `ui/src/App.tsx`(화면 분기·viewer) · `ui/src/main.tsx` · `ui/src/state/{viewer,token,limits,writeFailure}.ts` · `ui/src/components/ui/{TopBar,Button,IconButton,StateView,TextInput,TextArea,Toggle,BottomSheet,ConfirmDialog,PromptSheet,Toast}` · `ui/src/components/hooks/useToast.ts`(`useLongPress`는 **삭제됨(S3e 후작업 2026-10-07)**) · `ui/src/components/utils/{cx,formatDate,storage,errorText}.ts`(`errorText` = 후작업 2026-10-07, §8.2·§8.3). chat 설계는 이 정의를 인용한다 |
 
 비유: 앱은 도서관 열람실이다. 방 목록은 서가 안내판이고, 대화 화면은 펼친 책이다. 안내판은 지난번에 펼쳐 둔 책을 기억해 두었다가(책갈피 = `localStorage`) 다시 오면 그 책을 바로 펼쳐 준다. 출입증(토큰)이 있는 회원은 안내판 옆 「+ 새 방」으로 새 책을 꽂고 곧장 펼친다. 출입증은 주머니(메모리)에만 있고 서랍에는 넣지 않는다.
 
@@ -25,6 +25,7 @@
 | v1.6 | 2026-10-06 | **S3c(보강, CR-001)**: 상단 바 ⚙(주인일 때만, 「+ 새 방」 왼쪽) §2.2·§3.1·§8.1·§10 · App 주인 판정·View `settings` 확장·설정 진입/이탈·진입 안내(functions.md §1.1 · F-RM-24~29) · 공용 델타 IconButton `settings`·ToastTone `success`(components.md §1.3·§1.18) · §7 E15 판정 행 · §14 R-SET-009·010 행 · TC-RM-033~040. 계약 인용 api.md v0.5 | S3c 승인 ① · 메인 세션 확정 결정 |
 | v1.6.1 | 2026-10-06 | **40KB 분할**: §6 파이프라인 전체와 S3c 판정 파이프라인(옛 §5.1)을 `design/pipeline.md`(§6.1~§6.6)로 옮기고 본문은 참조 한 줄. RTM 절 표기 `P` 추가. ToastTone `success` 승인 반영(components.md §1.18) | 메인 세션 실측 43,111바이트 · 메인 세션 승인 |
 | v1.5.1 | 2026-10-06 | S3b: `toastToneOf`(F-RM-22) warning 조건에 `LLM_BUDGET_EXCEEDED`(429, R-LLM-007) 추가 — functions.md F-RM-22 · §8.3 비고 · TC-RM-029 기대. 사용처는 chat 재작성 토스트(chat design v1.8), rooms 화면 동작 변경 없음 | 메인 세션 승인(chat S3b 공용 변경 요청) |
+| v1.5.2 | 2026-10-07 | **후작업 동기화(동작·문구 변경 없음)**: ① 공용 Button `ariaDescribedBy?: string`(components.md §1.2) ② `NETWORK`·인증 3종 문구를 공용 `ui/src/components/utils/errorText.ts`로(§1 공용 요소 · §8.3 비고 · §13 행 "공용화 완료") ③ 공용 `useLongPress` 삭제(S3e 사용처 0 — §1 · §3.2 · §13 · components.md §1.19) | ui-postprocessor 후작업 · 사용자 승인 |
 | v1.6.2 | 2026-10-06 | **S3c 구현 동기화(CR-001 적용·검증됨, 동작 변경 없음).** 진입 안내 = `useEntryNotice` 훅(functions.md F-RM-29) · App의 설정 진입·이탈 = `useSettingsNav`, 주인 판정 = `useOwner`(F-RM-24~27 동작 같음) · `useNewRoomUi`가 `showToast` 반환 · labels `settingsAriaLabel` = `캐릭터 설정` · View 유니온 실물이 functions.md §1.1과 같음 · ⚙ 실측 44×44 · chat 스펙 격리 권고(functions.md §2 끝) | S3c 구현 보고 · ui 592/592 · OwnerGate 7건 · 캡처 `doc/300_검증/screenshots/20261006-2033/` |
 
 ---
@@ -149,7 +150,7 @@ ui/src/main.tsx                     global.css · initToken(location.search) · 
 | `TextArea` · `Toggle` (S2) | `ui/src/components/ui/` | ① 공용 ui 신규 | 구성안 §3 · 카탈로그 후보 | chat | §1.13 · §1.14 |
 | `BottomSheet`+`SheetItem` · `ConfirmDialog` · `PromptSheet` (S2) | `ui/src/components/ui/` | ① 공용 ui 신규 | 구성안 §3 · 카탈로그 후보 | chat | §1.15~§1.17 |
 | `Toast` (S2) | `ui/src/components/ui/Toast/` | ① 공용 ui 신규 | 구성안 §3(두 화면) | rooms · chat | §1.18 |
-| `useToast` · `useLongPress` (S2) | `ui/src/components/hooks/` | ② 공용 훅 신규 | 구성안 §3 · 카탈로그 후보 | rooms·chat · chat | §1.18 · §1.19 |
+| `useToast` · ~~`useLongPress`~~ (S2) | `ui/src/components/hooks/` | ② 공용 훅 신규 | 구성안 §3 · 카탈로그 후보 | rooms·chat · (`useLongPress` **삭제됨(S3e 후작업 2026-10-07)**, 사용처 0) | §1.18 · ~~§1.19~~ |
 | `cx` · `formatDate` · `storage` | `ui/src/components/utils/` | ③ 공용 유틸 | ui_design_concept §1 | 전체 | §1.5~§1.7 |
 | `viewer` · `token` · `limits` · `writeFailure` | `ui/src/state/` | 상태 모듈(순수·메모리) | 스킬 §6.6 · api.md §2.4 | rooms · chat | §1.8 · §1.10 · §1.11 · functions.md F-RM-22 |
 | `useRoomsLoader` · `useCreateRoom`(S2) | `ui/src/rooms/` | 화면 로컬 훅 | 50줄 한계 분리 | rooms | functions.md §1.2 |
@@ -238,7 +239,8 @@ api.md **v0.3**을 **인용**한다(재정의 아님).
 
 - 톤 판정 `toastToneOf`(F-RM-22)는 (v1.5.1, S3b) `LLM_BUDGET_EXCEEDED`도 warning이다. 방 생성은 이 코드를 받지 않으므로 이 표의 문구 행은 늘지 않는다(사용처는 chat 재작성 토스트).
 - 서버 `error.message`는 화면에 쓰지 않는다. 화면 문구는 `code`로 정한다(api.md §3.1).
-- 같은 규칙의 chat판은 chat design.md §8.3(대상 동작별 `NOT_FOUND`·`VALIDATION_ERROR` 문구가 더 있다). 두 표의 인증·레이트리밋 행은 같은 문구다(§13 공용화 후보).
+- 같은 규칙의 chat판은 chat design.md §8.3(대상 동작별 `NOT_FOUND`·`VALIDATION_ERROR` 문구가 더 있다). 두 표의 인증·레이트리밋 행은 같은 문구다.
+- **(후작업 2026-10-07) 공용 `errorText` 사용.** `NETWORK` 문구와 인증 3종(`TOKEN_REQUIRED`·`TOKEN_INVALID`·`LEVEL_TOO_LOW`) 문구는 `ui/src/components/utils/errorText.ts`의 `NETWORK_TEXT`·`AUTH_FAILURE_TEXT`가 단일 정의다. rooms·chat·settings `labels.ts`가 import해 §8.2·§8.3 표의 해당 행을 만든다. 문장은 바뀌지 않았다. 화면별 문구(방 제목 검증·`NOT_FOUND`·레이트리밋 등)는 각 `labels.ts`에 남는다.
 
 ---
 
@@ -318,8 +320,8 @@ contract 변경 요청(설계에 끼워 넣지 않음):
 | ListRow | rooms 로컬 | 두 번째 화면에서 같은 행 패턴이 생길 때 | 후보 표시만. 임의 승격 금지 |
 | TopBar · Button · IconButton · StateView | 처음부터 공용 | 두 화면이 S1에서 이미 함께 쓴다 | 공용 |
 | TextInput · Toast · useToast (S2) | 처음부터 공용 | 두 화면이 S2에서 함께 쓴다(rooms B·토스트, chat 이름 변경·E 줄) | 공용 신규 |
-| TextArea · Toggle · BottomSheet · ConfirmDialog · PromptSheet · useLongPress (S2) | 공용 | 지금은 chat만 쓰지만 구성안 §3이 공용으로 배치했고 문구 없이 동작하는 비종속 부품이다 | 공용 신규(구성안 수용) |
-| 쓰기 실패 문구 `writeErrorText`의 인증·레이트리밋 행 | 두 화면 `labels.ts`에 같은 문구 | 두 화면 재발 · 화면 비종속 | **후보 표시만**(labels는 화면 단일 소스 규칙이라 지금은 두 곳에 같은 행을 두고 TC로 같음을 확인한다) |
+| TextArea · Toggle · BottomSheet · ConfirmDialog · PromptSheet · ~~useLongPress~~(삭제됨, S3e 후작업 2026-10-07) (S2) | 공용 | 지금은 chat만 쓰지만 구성안 §3이 공용으로 배치했고 문구 없이 동작하는 비종속 부품이다 | 공용 신규(구성안 수용) |
+| 쓰기 실패 문구 `writeErrorText`의 인증·`NETWORK` 행 | **공용 `ui/src/components/utils/errorText.ts`**(`NETWORK_TEXT`·`AUTH_FAILURE_TEXT`) | 세 화면 재발 · 화면 비종속 | **공용화 완료(후작업 2026-10-07, 사용자 승인).** rooms·chat·settings `labels.ts`가 import한다. 레이트리밋 행은 화면별 `labels.ts`에 남는다 |
 
 ---
 

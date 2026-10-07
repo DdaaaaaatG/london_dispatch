@@ -7,6 +7,7 @@ import { USER_DISPLAY_NAME } from '@shared/characters'
 import { ERROR_MESSAGES } from '@shared/errors'
 import { MESSAGE_TEXT_MAX, ROOM_TITLE_MAX } from '@shared/limits'
 import type { ApiError, ApiErrorCode } from '@/api'
+import { AUTH_FAILURE_TEXT, NETWORK_TEXT } from '@/components/utils/errorText'
 
 export const labels = {
   /** 화면 루트 main aria-label */
@@ -81,7 +82,6 @@ export const labels = {
 export const userAuthorLabel = (authorName: string | null): string =>
   authorName === null || authorName === '' ? USER_DISPLAY_NAME : authorName
 
-const NETWORK_TEXT = '서버에 연결할 수 없습니다.'
 const ROOM_NOT_FOUND_TEXT = '방을 찾을 수 없습니다. 목록으로 돌아가 주세요.'
 
 /**
@@ -97,13 +97,6 @@ export const errorDetail = (code: ApiErrorCode): string => {
 /** 쓰기 6종 중 화면이 실패를 안내하는 동작(deleteMessage·deleteRoom 의 NOT_FOUND 는 실패로 보지 않는다) */
 export type WriteAction =
   'send' | 'editMessage' | 'deleteMessage' | 'renameRoom' | 'deleteRoom' | 'speak' | 'regenerate'
-
-/** 인증 실패 3종 — 읽기 전용으로 바뀌었음을 알린다(R-CHAT-011). rooms 화면 labels 와 같은 문구 */
-const AUTH_FAILURE_TEXT: Partial<Record<ApiErrorCode, string>> = {
-  TOKEN_REQUIRED: '로그인 정보가 없어 열람 전용으로 바뀌었습니다.',
-  TOKEN_INVALID: '인증이 만료되어 열람 전용으로 바뀌었습니다. 새로 고쳐 주세요.',
-  LEVEL_TOO_LOW: '대화 참여 등급이 아니어서 열람 전용으로 바뀌었습니다.',
-}
 
 const rateLimitedText = (retryAfterSec: number | undefined): string =>
   retryAfterSec === undefined

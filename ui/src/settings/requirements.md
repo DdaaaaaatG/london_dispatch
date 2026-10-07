@@ -17,6 +17,7 @@
 | v1.0.1 | 2026-10-06 | §5.6 `importNothing` 추가. 요구 원문 변경 없음 | ui-design-checker MINOR 7 |
 | v1.0.2 | 2026-10-06 | §5.5 `invalid` 문구 재변경 — 계약 §16.2 문구 그대로: 마지막 저장값 위에 후보만 덮어 `checkCharacterSettings`, 첫 위반 `issue.message`를 그대로 표시(화면 조립 문구 없음). 요구 원문 변경 없음 | ui-design-checker HIGH-1 · HIGH-A · api.md v0.5 보정 2 |
 | v1.0.3 | 2026-10-06 | labels.ts 실물과 대조. 문구 글자는 모두 일치. 키 표기만 실물로 정정: §5.2 `fieldIssueText(issue)`·§5.3 `statusText(status)`·§5.5 `importFailureText(failure)`의 kind·reason별 행, `labels` 객체 단일 export. §5.1 목록 필드 aria-label에 힌트 없음. §5.6 요약 구분자 `·` 앞뒤 공백 없음, `importNothing(ignoredCount)`. 요구 원문 변경 없음 | S3c 구현 동기화 · scenarios.md 가정 ③④⑦ |
+| v1.0.4 | 2026-10-07 | §5 오류 표 아래 비고: 인증 3코드·`NETWORK` 문구의 단일 정의가 공용 `errorText.ts`로 바뀜(문장 불변). 요구 원문 변경 없음 | ui-postprocessor 후작업 · 사용자 승인 |
 
 ---
 
@@ -215,5 +216,5 @@
 | `CONFIG_INVALID` · `INTERNAL` · 그 밖 | StateView error + 상세 `ERROR_MESSAGES[code]` | 토스트 danger `ERROR_MESSAGES[code]` |
 
 - labels.ts 키: `ownerOnly`(OWNER_ONLY 문구) · `authText(code)`(인증 3코드, 열 때 rooms로 넘김) · `saveErrorText(error)`(저장 열) · `loadErrorDetail(code)`(열 때 StateView 상세).
-- 인증 3코드 문구는 rooms `writeErrorText`와 같은 문장이다(rooms design.md §13 공용화 후보 행과 같은 규칙 — 두 labels에 같은 행, TC로 같음 확인).
+- 인증 3코드 문구는 rooms `writeErrorText`와 같은 문장이다. (v1.0.4) 후작업 2026-10-07부터 단일 정의는 공용 `ui/src/components/utils/errorText.ts`(`AUTH_FAILURE_TEXT`·`NETWORK_TEXT`)이고 rooms·chat·settings `labels.ts`가 import한다(옛 "두 labels에 같은 행" 규칙 대체).
 - `VALIDATION_ERROR`만 서버 `message`를 쓴다(api.md 「ui 인계 메모」 S3c). 그 밖은 `code`로 정한다.

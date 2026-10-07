@@ -38,6 +38,7 @@ export type ButtonProps = {
   isDisabled?: boolean                                    // 기본 false
   ariaLabel?: string                                      // 보이는 글자와 다를 때만
   buttonRef?: Ref<HTMLButtonElement>                      // S2 추가: 포커스 복귀 대상(「+ 새 방」·ConfirmDialog 취소)
+  ariaDescribedBy?: string                                // 후작업 2026-10-07 추가: aria-describedby 로 그대로 전달, 생략하면 속성 없음(잠금 안내 연결 — chat 인라인 수정 저장 버튼)
 }
 ```
 - 클래스 키(v1.5, 확정): 루트에 `cx(styles.root, styles[variant], styles[size])` → 변형 클래스명은 `primary`·`secondary`·**`danger`**·`ghost`, 크기는 `sm`·`md`·`lg` 그대로다. CSS Modules가 non-scoped라 테스트는 `toHaveClass('danger')`로 단언한다.
@@ -300,31 +301,9 @@ export const useToast = (): UseToastResult
 - 위치는 화면이 정한다(rooms 맨 아래 줄, chat E 줄). 시트가 열린 동안에는 토스트를 띄우지 않도록 화면 기능 명세가 경로를 나눈다.
 - (S3c) `success` 톤: 왼쪽 3px 막대 `--color-success`(ui_design_concept §3 "정상·저장됨"). 그 밖 모양은 같다. 사용처는 settings(저장 성공·가져오기 요약)뿐이고 rooms·chat 동작 변경 없음. `toastToneOf`(F-RM-22)는 `success`를 내지 않는다(실패 전용). 메인 세션 승인(2026-10-06, 디자인 컨셉 상태 색 규칙 · R-SET-009 범위). rooms CR-001 공용 변경 2건 중 하나.
 
-### 1.19 useLongPress (`ui/src/components/hooks/useLongPress.ts`) — S2
+### 1.19 ~~useLongPress~~ — **삭제됨(S3e 후작업 2026-10-07)**
 
-```ts
-export const LONG_PRESS_MS = 500
-export const LONG_PRESS_MOVE_TOLERANCE_PX = 10
-export type UseLongPressOptions = { onLongPress: () => void; delayMs?: number }  // 기본 500
-export type LongPressHandlers = {
-  onPointerDown: (e: PointerEvent<HTMLElement>) => void
-  onPointerMove: (e: PointerEvent<HTMLElement>) => void
-  onPointerUp: () => void
-  onPointerLeave: () => void
-  onPointerCancel: () => void
-  onContextMenu: (e: MouseEvent<HTMLElement>) => void
-}
-export const useLongPress = (options: UseLongPressOptions): LongPressHandlers
-```
-| 시점 | 동작 |
-|---|---|
-| `pointerdown`, `e.button === 0` | 시작 좌표 기록, `firedRef = false`, 타이머 시작(`delayMs`) |
-| `pointermove` | 시작점에서 x 또는 y가 10px 넘게 움직이면 타이머 해제 |
-| `pointerup`·`pointerleave`·`pointercancel` | 타이머 해제 |
-| 타이머 만료 | `firedRef = true` → `onLongPress()` |
-| `contextmenu` | `e.preventDefault()`. 이번 누름에서 이미 `firedRef`면 아무것도 안 함 후 `firedRef = false`. 아니면 `onLongPress()` |
-| 언마운트 | 타이머 해제 |
-- 최신 `onLongPress`는 ref로 읽는다(핸들러 객체는 같은 참조). 훅은 메시지를 모른다 → 화면 비종속.
+`ui/src/components/hooks/useLongPress.ts`와 스펙은 지워졌다. 유일한 사용처였던 chat 말풍선 메뉴가 S3e(R-CHAT-007 🔒 개정, chat CR-003)로 말풍선 액션 버튼으로 바뀌어 사용처가 0이 됐기 때문이다(rooms는 처음부터 쓰지 않았다). 옛 정의(500ms·10px 허용·contextmenu 통합)는 git 이력에 있다.
 
 ### 1.20 S2 전역 토큰 추가 (`ui/src/styles/global.css` `:root`, 없으면 추가)
 

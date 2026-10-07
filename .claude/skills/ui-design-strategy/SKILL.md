@@ -1,13 +1,13 @@
 ---
 name: ui-design-strategy
-description: 런던_디스패치 화면(ui 계층, React+TypeScript, 390px iframe) 개발 표준. 화면 폴더 구조(ui/src/rooms·ui/src/chat)와 문서 4종(requirements.md·design.md·manual.md·test/scenarios.md), 문서↔소스 양방향 일치, 요구 추적 매트릭스(RTM)·요구 범위 준수·구현 충분성 체크리스트, 컴포넌트 재사용 우선순위, 데이터 계층 경계(ui/src/api 래퍼만 호출, fetch 직접 사용 금지, 계약 변경은 contract 인계), 대화 화면 특수 규칙(390×565·토큰 분기 미렌더·생성 중 상태·페이지네이션·자동 스크롤·롱프레스 메뉴·토큰 메모리 보관), 방 목록 규칙, TDD 원칙, 스타일(CSS Modules), 파괴 조작 confirm을 정의한다. 화면을 설계·구현·검토할 때 반드시 참조한다.
+description: 런던_디스패치 화면(ui 계층, React+TypeScript, 390px iframe) 개발 표준. 화면 폴더 구조(ui/src/rooms·ui/src/chat)와 문서 4종(requirements.md·design.md·manual.md·test/scenarios.md), 문서↔소스 양방향 일치, 요구 추적 매트릭스(RTM)·요구 범위 준수·구현 충분성 체크리스트, 컴포넌트 재사용 우선순위, 데이터 계층 경계(ui/src/api 래퍼만 호출, fetch 직접 사용 금지, 계약 변경은 contract 인계), 대화 화면 특수 규칙(390×565·토큰 분기 미렌더·생성 중 상태·페이지네이션·자동 스크롤·말풍선 액션 버튼·토큰 메모리 보관), 방 목록 규칙, 캐릭터 설정 화면(주인 전용) 규칙, TDD 원칙, 스타일(CSS Modules), 파괴 조작 confirm을 정의한다. 화면을 설계·구현·검토할 때 반드시 참조한다.
 ---
 
 # ui 계층 개발 표준
 
 - 단일 기준: `doc/000_프로젝트_확정사항.md`(제품 동작·권한·화면 규격·API 요약·계층 위상). 이 스킬은 그 위에서 **화면을 어떻게 만들 것인가**만 정한다.
 - 적용 대상: ui-manager · ui-layout-designer · ui-designer · ui-design-checker · ui-test-designer · ui-test-checker · ui-test-conflict-checker · ui-implementer · ui-tester · ui-fixer · ui-debug · ui-error-analyst · ui-postprocessor · ui-manual-writer · ui-component-designer · ui-component-implementer.
-- 화면은 두 개뿐이다: **rooms**(방 목록)와 **chat**(대화). 둘은 한 SPA 안의 뷰이고 `ui/src/App.tsx`가 내부 상태(`{ screen: 'rooms' } | { screen: 'chat', room }`)로 분기한다. `ui/src/main.tsx`는 App만 렌더한다(라우터 라이브러리 없음, URL은 `?t=`만 읽는다).
+- 화면은 셋이다: **rooms**(방 목록) · **chat**(대화) · **settings**(캐릭터 설정, S3c — 갠홈 주인 전용. 토큰 `mbId`가 `OWNER_MB_IDS`에 있을 때만 진입, rooms 상단 ⚙에서 연다. 진입 시 `getCharacterSettings` 1회 탐침으로 주인 판정, `OWNER_ONLY`면 안내 후 되돌아간다). 셋은 한 SPA 안의 뷰이고 `ui/src/App.tsx`가 내부 상태(`{ screen: 'rooms' } | { screen: 'chat', room } | { screen: 'settings' }`)로 분기한다. `ui/src/main.tsx`는 App만 렌더한다(라우터 라이브러리 없음, URL은 `?t=`만 읽는다).
 - 이 화면은 **저쪽 패널(390×640, 헤더 75px) 안의 iframe**에서만 산다. 독립 페이지로 보일 일은 없다.
 
 ---
@@ -17,7 +17,7 @@ description: 런던_디스패치 화면(ui 계층, React+TypeScript, 390px ifram
 ### 1.1 폴더
 
 ```
-ui/src/{screen}/                   screen ∈ { rooms, chat }
+ui/src/{screen}/                   screen ∈ { rooms, chat, settings }
 ├─ index.tsx                       화면 진입 컴포넌트(조립·상태·핸들러만 — 얇게)
 ├─ components/                     화면 로컬 컴포넌트 (다른 화면에서 쓰지 않는 것)
 ├─ labels.ts                       확정 문구·aria-label의 단일 소스
@@ -154,14 +154,16 @@ ui/src/{screen}/                   screen ∈ { rooms, chat }
 
 ### 6.2 토큰 분기 — 미렌더
 
-- `viewer.canWrite === false`면 하단 바 전체·⋯ 메뉴·말풍선 컨텍스트 메뉴를 **렌더하지 않는다**(`display:none`·`disabled` 금지 — DOM에 없어야 한다). 히스토리 하단에 한 줄 안내(`labels.readOnlyNotice`)만.
+- `viewer.canWrite === false`면 하단 바 전체·⋯ 메뉴·말풍선 액션 버튼 줄을 **렌더하지 않는다**(`display:none`·`disabled` 금지 — DOM에 없어야 한다). 히스토리 하단에 한 줄 안내(`labels.readOnlyNotice`)만.
 - `canWrite`는 앱 기동 시 1회 결정되고 쓰기 가능 → 읽기 전용 한 방향으로만 바뀐다. 쓰기 요청이 `TOKEN_REQUIRED`·`TOKEN_INVALID`(만료 포함)·`LEVEL_TOO_LOW`를 받으면 토큰을 버리고 안내 1회 + 쓰기 UI DOM 제거로 전환한다(api.md v0.3 §2 `isAuthFailure`). `RATE_LIMITED`는 안내만(`retryAfterSec`).
 
 ### 6.3 생성 중 상태
 
-- 캐릭터 버튼 클릭 → 즉시 "…" 임시 말풍선(해당 캐릭터 아바타, `aria-busy`) 추가 + 캐릭터 버튼 2개·전송·재작성 **잠금**. 입력창은 타이핑 허용(전송만 잠금).
-- 성공 → 임시 말풍선을 응답 메시지로 교체. 실패 → 임시 말풍선 자리에 에러 문구(코드별 `labels.errors[code]`) + 「재시도」 버튼. `409 SPEAK_IN_PROGRESS`는 "다른 요청이 진행 중" 안내 후 3초 뒤 자동 해제.
-- 중복 클릭 방지는 상태 기반(잠금 플래그)으로. `setTimeout` 디바운스로 때우지 않는다.
+- 캐릭터 버튼 클릭(또는 전송 — S3d부터 전송은 저장 + 자동 응답) → 즉시 임시 말풍선(`PendingBubble`, `role="status"`; 캐릭터 지정이면 그 캐릭터 판, 자동 응답이면 중립 "…" 판) 추가 + 캐릭터 버튼 2개·전송·재작성·인라인 수정 저장 **잠금**(네이티브 `disabled`). 입력창은 타이핑 허용(전송만 잠금). 버튼 묶음 `aria-busy`는 쓰지 않는다(S3 결정 D-16 ②).
+- 성공 → 임시 말풍선을 응답 메시지로 교체. 실패 → 임시 말풍선 자리에 **실패 말풍선**(코드별 `labels.errors[code]`) + 「재시도」 버튼. **`409 SPEAK_IN_PROGRESS`도 같은 실패 말풍선 + 「재시도」**다 — "3초 뒤 자동 해제" 같은 화면 타이머는 두지 않는다(R-CHAT-005 🔒·R-CHAT-011, D-16 ①). `CONFIG_INVALID`도 「재시도」 유지(승인 ②(S3) ①).
+- 재작성은 별도 임시 말풍선을 만들지 않는다. **대상 말풍선을 흐리게** + `다시 쓰는 중…` 표시로 진행을 보이고, 응답이 오면 같은 id 자리에서 교체한다(api.md §4.14, D-16 ③).
+- 화면 타이머 없음: 서버가 70초 안에 끝낸다는 계약(R-NFR-001)을 믿는다. 래퍼 타임아웃을 두면 75초 이상(api.md §4.12).
+- 중복 클릭 방지는 상태 기반(리듀서 `pending` + 쓰기 팻말 `useWriteGate`)으로. `setTimeout` 디바운스로 때우지 않는다.
 
 ### 6.4 페이지네이션·스크롤
 
@@ -170,11 +172,12 @@ ui/src/{screen}/                   screen ∈ { rooms, chat }
 - 새 메시지 추가 시: 사용자가 맨 아래 근처(≤ 120px)에 있었을 때만 자동 스크롤. 위에 있었으면 「새 메시지 ↓」 배지.
 - 스크롤 상태·마지막 본 방은 `localStorage`에 try/catch로 저장. 없거나 실패해도 동작은 같다.
 
-### 6.5 말풍선 메뉴 (수정·재작성·삭제)
+### 6.5 말풍선 액션 버튼 (수정·재작성·삭제)
 
-- 트리거: 롱프레스(500ms, 터치·마우스 공통 `useLongPress`) 또는 우클릭(`onContextMenu` + `preventDefault`). 키보드: 말풍선 포커스 후 `Shift+F10`/메뉴 키.
-- 메뉴는 바텀시트(`S1` 패턴) 하나로 통일. 항목: 수정 / 재작성(캐릭터 발화이고 **마지막 메시지**일 때만) / 삭제. 조건 안 맞는 항목은 미렌더.
-- 수정은 말풍선 자리에서 인라인 textarea → 저장/취소. 삭제는 confirm(§11).
+- **S3e(2026-10-07, R-CHAT-007 🔒 개정)부터 chat은 말풍선 아래 항상 보이는 액션 버튼 줄(`BubbleActions`, chat 지역 컴포넌트)로 한다. 롱프레스/우클릭/`Shift+F10` 바텀시트 메뉴는 없다.** 옛 규칙(롱프레스 500ms → S1 시트)은 chat에 적용하지 않는다(actions.md D-24·D-29).
+- 버튼: 모든 메시지에 「수정」「삭제」, **마지막 캐릭터 메시지**에만 「재작성」이 DOM에 더 있다(조건 안 맞으면 미렌더, 비활성이 아님). 형태는 공용 `Button size='sm' variant='ghost'` 3개, 글자색만 지역 CSS 덧칠(D-25).
+- 토큰 있을 때만 렌더(§6.2). 잠금은 `isActionLocked = !canSpeak(state) || roomBusy !== null`(쓰기 대기·생성 중·인라인 수정 중·방 이름 변경·삭제 중) → 네이티브 `disabled`(D-27). 버튼 줄은 `Bubble` 안이 아니라 `MessageItem`에서 `Bubble`의 형제로 둔다(D-28 — Bubble은 `memo` 격리 유지).
+- 수정은 말풍선 자리에서 인라인 textarea → 저장/취소. 편집기가 닫히면 포커스는 같은 말풍선의 「수정」으로(D-26). 삭제는 confirm(§11, S1 확인 시트 유지). 재작성은 confirm 없음.
 - 낙관적 갱신 금지 — 응답을 받은 뒤 반영한다(서버가 단일 진실).
 
 ### 6.6 상태 소유 (`ui/src/state/`)
@@ -185,8 +188,8 @@ ui/src/{screen}/                   screen ∈ { rooms, chat }
 
 ### 6.7 접근성
 
-- 캐릭터 버튼은 `aria-label`(`labels.speakAs.sebastian`), 생성 중 `aria-busy`. 히스토리 컨테이너 `role="log" aria-live="polite"`.
-- 입력창 `Enter` 전송 / `Shift+Enter` 줄바꿈. `Esc`는 시트·인라인 수정 닫기.
+- 캐릭터 버튼은 `aria-label`(`labels.speakAs.sebastian`), 생성 중은 네이티브 `disabled` + 임시 말풍선 `role="status"`(§6.3). 히스토리 컨테이너 `role="log" aria-live="polite"`.
+- 입력창 `Enter` 전송 / `Shift+Enter` 줄바꿈. `Esc`는 시트·인라인 수정 닫기. 말풍선 액션은 Tab으로 닿는 버튼이라 별도 메뉴 키가 없다(S3e).
 - 포커스 순서: 뒤로 → ⋯ → 히스토리 → 캐릭터 버튼 → OOC → 입력창 → 전송.
 
 ---
@@ -198,6 +201,14 @@ ui/src/{screen}/                   screen ∈ { rooms, chat }
 - 이름 변경·삭제는 방 목록 행이 아니라 대화 화면의 ⋯ 메뉴 시트에서 한다(구성안 미채택: 행 롱프레스 메뉴, R-CHAT-001). 삭제는 confirm.
 - 빈 목록: `labels.rooms.empty` 한 줄 + (canWrite면) 새 방 유도.
 - 로딩·오류: 순서 error → loading → data → empty(tsx-rules).
+- 상단 ⚙(캐릭터 설정 진입, R-SET-009)은 「+ 새 방」 왼쪽, `canWrite`일 때만 렌더. 주인 여부는 설정 화면 진입 시 `getCharacterSettings` 1회로 판정한다(rooms는 판정 결과를 들고 있지 않는다).
+
+### 7.1 캐릭터 설정 화면(settings, S3c — 갠홈 주인 전용)
+
+- 요구 R-SET-001~012. 탭 셋(공통 세계관 · 세바스찬 · 시엘), 처음 탭은 공통 세계관. 저장은 `putCharacterSettings`(D1), 내보내기/가져오기는 상단 ⋯ 「설정 파일」 메뉴 시트(S1). 비밀값(API 키 등)은 어떤 파일에도 들어가지 않는다.
+- 입력 검사의 단일 소스는 shared `checkCharacterSettings`(contract 소유). 화면은 문구를 따로 조립하지 않고 첫 위반 `message`를 보인다.
+- `OWNER_ONLY`(403)·인증 실패면 안내 후 rooms로 되돌아간다. 주인이 아닌 토큰에는 설정 UI가 DOM에 없다(§6.2와 같은 미렌더 원칙).
+- 상세는 `ui/src/settings/design.md`·`design/*`와 `doc/200_설계/architecture/` S3c 문서.
 
 ---
 
@@ -213,7 +224,7 @@ ui/src/{screen}/                   screen ∈ { rooms, chat }
 - **테스트 스펙 없는 구현 금지.** 순서: design.md 확정 → `test/scenarios.md` + vitest 스펙 초안 → ui-test-checker·ui-test-conflict-checker PASS → 구현 → 실행.
 - 커버 기준 세 축: ① design.md 모든 항목(컴포넌트·function·상태·계약·파이프라인·접근성·스크롤) → TC ≥1 ② 모든 요구ID → TC ≥1 ③ 사용자·이용 시나리오 모든 행(토큰 있음/없음 각각) → `TC-FLOW` ≥1.
 - 기대 결과는 **3단**(화면에 보이는 것 · 상태/저장 값 · api 호출 인자)으로 쓴다. "정상 동작한다"는 기대가 아니다.
-- 자동화 불가(실제 iframe 안 표시·저쪽 패널과의 높이 맞춤·실제 LLM 응답·모바일 터치 롱프레스)는 `test/manual-checklist.md`에 수동 항목으로 분리한다. 리듀서·컴포넌트는 vitest로 100% 자동화.
+- 자동화 불가(실제 iframe 안 표시·저쪽 패널과의 높이 맞춤·실제 LLM 응답·모바일 터치 영역 실측)는 `test/manual-checklist.md`에 수동 항목으로 분리한다. 리듀서·컴포넌트는 vitest로 100% 자동화.
 - 보강(maintain) 모드에서는 변경에 걸리는 TC만 돌린다. 전건은 `/doc-sync`·verify-manager.
 - 실행 증거(`test/result.md`: 일자·명령·PASS/FAIL 수·실패 사유·스크린샷 경로) 없는 완료 보고 금지.
 
@@ -234,7 +245,7 @@ ui/src/{screen}/                   screen ∈ { rooms, chat }
 |---|---|---|
 | 메시지 삭제 | 필수 | labels.ts |
 | 방 삭제 | 필수 (메시지·장기기억 함께 삭제됨 명시, 되돌릴 수 없음) | labels.ts |
-| 재작성 | 불필요 (R-CHAT-007 🔒: 마지막 캐릭터 메시지만 대상, confirm 없이 즉시. 생성 중 임시 말풍선으로 진행을 보임) | — |
+| 재작성 | 불필요 (R-CHAT-007 🔒: 마지막 캐릭터 메시지만 대상, 액션 버튼 「재작성」으로 confirm 없이 즉시. 대상 말풍선을 흐리게 해 진행을 보임, §6.3) | — |
 | 장기기억 직접 편집 저장 | 불필요 | — |
 | 수정 취소 | 불필요 | — |
 

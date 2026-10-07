@@ -410,11 +410,11 @@
 - Then ⓐ `button role=switch` 이름 = ariaLabel, `aria-checked` false → 글자 offLabel / true → onLabel ⓑ 상태는 props(부품은 바꾸지 않음) ⓒ 클릭·Space·Enter → `onChange(true)` 각 1회
 - 스펙: `ui/src/components/ui/Toggle/Toggle.test.tsx`
 
-### TC-CH-060 · (S2) useLongPress · 종류: 자동 · 요구: R-CHAT-007 · 설계: C §1.19 · 토큰: 무관
+### TC-CH-060 · (S2) useLongPress · **폐기(S3e 후작업 2026-10-07, 훅 삭제)**(chat·rooms 사용처 0 → 공용 `useLongPress`와 테스트 파일 삭제. 아래 본문은 이력으로 보존) · 종류: 자동 · 요구: R-CHAT-007 · 설계: C §1.19 · 토큰: 무관
 - Given 하네스 요소에 핸들러, 가짜 시계
 - When 누름 → 499/500ms · 10px/11px 이동 · up·leave·cancel · 오른쪽 버튼 · contextmenu · 누름 500ms 뒤 contextmenu · 누름 중 언마운트
 - Then ⓐ 해당 없음 ⓑ `LONG_PRESS_MS=500`·`LONG_PRESS_MOVE_TOLERANCE_PX=10`. 언마운트 뒤 타이머 0개 ⓒ `onLongPress`: 500ms 1회·499ms 0회 · 10px 1회·11px 0회 · up·leave·cancel 0회 · 오른쪽 버튼 0회 · contextmenu 1회 + `defaultPrevented` · 롱프레스 직후 contextmenu 추가 0회(합계 1) · 핸들러 객체는 리렌더해도 같은 참조, 리렌더로 바뀐 최신 `onLongPress`가 불림
-- 스펙: `ui/src/components/hooks/useLongPress.test.tsx`
+- 스펙: ~~`ui/src/components/hooks/useLongPress.test.tsx`~~ (삭제됨 — S3e 후작업 2026-10-07)
 
 ### TC-CH-061 · (S2) 390×565 쓰기 판 스크린샷 · 종류: 수동 · 요구: R-CHAT-013 · R-CHAT-004 · 설계: §2.2 · §2.3 · C §4 S2 행 · rooms C §1.20 · 토큰: 있음
 - Given 개발 서버, 390×565, 유효 토큰 주소
@@ -541,7 +541,7 @@
 ### TC-CH-081 · (S3) 재작성 실패 · 종류: 자동 · 요구: R-CHAT-007 · R-CHAT-011 · 설계: F-CH-34 그 밖 · generate §3 regenerate 열 · D-13 · 토큰: 있음
 - Given 72 재작성 대기
 - When 실패 `LLM_FAILED` · `LLM_EMPTY` · `SPEAK_IN_PROGRESS` · `CONFIG_INVALID` · `NOT_CHARACTER_MESSAGE` · `RATE_LIMITED`+40 → 다시 72 메뉴
-- Then ⓐ 72 원 본문 그대로·`regenerating` 없음, alert(토스트) 1개 = `대사를 다시 만들지 못했습니다. 메뉴에서 다시 시도해 주세요.`(LLM 두 코드) / `ERROR_MESSAGES.SPEAK_IN_PROGRESS` / `ERROR_MESSAGES.CONFIG_INVALID` / `ERROR_MESSAGES.NOT_CHARACTER_MESSAGE` / `요청이 너무 많습니다. 40초 후 다시 시도해 주세요.`. 톤 클래스: `RATE_LIMITED`만 `warning`, 나머지 5코드 `danger`(반대 클래스 없음, S2 `toastToneOf`). `/재시도/` 버튼 없음, `SERVER-RAW-MESSAGE` 없음. 다시 연 메뉴의 `재작성` 활성 ⓑ `onAuthFailure` 0회 ⓒ `regenerate` 1회
+- Then ⓐ 72 원 본문 그대로·`regenerating` 없음, alert(토스트) 1개 = `대사를 다시 만들지 못했습니다. 재작성을 다시 눌러 주세요.`(LLM 두 코드, S3e D-30 개정) / `ERROR_MESSAGES.SPEAK_IN_PROGRESS` / `ERROR_MESSAGES.CONFIG_INVALID` / `ERROR_MESSAGES.NOT_CHARACTER_MESSAGE` / `요청이 너무 많습니다. 40초 후 다시 시도해 주세요.`. 톤 클래스: `RATE_LIMITED`만 `warning`, 나머지 5코드 `danger`(반대 클래스 없음, S2 `toastToneOf`). `/재시도/` 버튼 없음, `SERVER-RAW-MESSAGE` 없음. 다시 연 메뉴의 `재작성` 활성 ⓑ `onAuthFailure` 0회 ⓒ `regenerate` 1회
 - 스펙: `Regenerate.test.tsx`
 
 ### TC-CH-082 · (S3) NOT_LAST_MESSAGE 재조회 · 종류: 자동 · 요구: R-CHAT-007 · R-CHAT-011 · 설계: F-CH-36 `stale` · D-15 · F-CH-30 · 토큰: 있음
@@ -571,7 +571,7 @@
 ### TC-CH-086 · (S3) 문구 함수 · 종류: 자동(순수) · 요구: R-CHAT-011 · 설계: generate §3 · F-CH-37 · F-CH-16 `WriteAction` 확장 · labels §8.3 · 토큰: 무관
 - Given `ApiError`(message `SERVER-RAW-MESSAGE`)
 - When `speakErrorText(e)` · `writeErrorText(e, 'regenerate')` · `writeErrorText(인증, 'speak')`
-- Then ⓐ 해당 없음 ⓑ speak: SPEAK_IN_PROGRESS 기본 문구 · LLM_FAILED/LLM_EMPTY `생성에 실패했습니다.` · CONFIG_INVALID 기본 · RATE_LIMITED 40초/기본 · NETWORK `서버에 연결할 수 없습니다.` · INTERNAL·VALIDATION_ERROR `ERROR_MESSAGES[code]`. regenerate: 위 표 + LLM 두 코드 `대사를 다시 만들지 못했습니다. 메뉴에서 다시 시도해 주세요.` · NOT_LAST_MESSAGE 재조회 문구 · NOT_CHARACTER_MESSAGE 기본 · NOT_FOUND 메시지 문구 · VALIDATION_ERROR `ERROR_MESSAGES.VALIDATION_ERROR`(generate §3 "그 밖" 행) · 인증 3종 전환 문구(speak도 같음). 서버 message 미포함 ⓒ api 호출 없음
+- Then ⓐ 해당 없음 ⓑ speak: SPEAK_IN_PROGRESS 기본 문구 · LLM_FAILED/LLM_EMPTY `생성에 실패했습니다.` · CONFIG_INVALID 기본 · RATE_LIMITED 40초/기본 · NETWORK `서버에 연결할 수 없습니다.` · INTERNAL·VALIDATION_ERROR `ERROR_MESSAGES[code]`. regenerate: 위 표 + LLM 두 코드 `대사를 다시 만들지 못했습니다. 재작성을 다시 눌러 주세요.`(S3e D-30 개정) · NOT_LAST_MESSAGE 재조회 문구 · NOT_CHARACTER_MESSAGE 기본 · NOT_FOUND 메시지 문구 · VALIDATION_ERROR `ERROR_MESSAGES.VALIDATION_ERROR`(generate §3 "그 밖" 행) · 인증 3종 전환 문구(speak도 같음). 서버 message 미포함 ⓒ api 호출 없음
 - 스펙: `PendingBubble.test.tsx`(speakErrorText) · `Regenerate.test.tsx`(writeErrorText)
 
 ### TC-CH-087 · (S3) 늦은 생성 응답 무시 · 종류: 자동 · 요구: R-CHAT-005 · R-CHAT-007 · 설계: F-CH-31·34 비활성 분기 · F §3 `isActiveRef` · 토큰: 있음
@@ -883,7 +883,8 @@ S1·S2 행. **ⓒ 호출 횟수는 단계 증분으로 읽는다**: 체인 안�
 | TC-CH-094 · 095 · 107 | 개정 | 편집기·삭제·재작성 진입 = 버튼(095(b)는 71 `[지시] 대사 삭제`) | `SpeakFlow` · `Regenerate` · `AutoReply`(`openEditorOn103`) |
 | TC-CH-100 | 개정 | (c) 자동으로 고른 대사 재작성 = 결과 말풍선 `세바스찬 대사 재작성` 버튼 | `AutoReply.test.tsx` |
 | TC-CH-108 | **대체(일부) → 118** | 메뉴 머리 줄 `authorName` it → 버튼 이름 it(`미샤`·`어떠한 의지`). Bubble·`userAuthorLabel`·읽기 전용 단언 유지 | `AutoReply.test.tsx` |
-| TC-CH-053 · 055 · 056 · 060 | **유지** | 리듀서 불변 · 공용 BottomSheet·ConfirmDialog·useLongPress는 공용 부품 TC로 남는다(060은 chat 사용처 0, 공용 정리 후보) | 없음 |
+| TC-CH-053 · 055 · 056 | **유지** | 리듀서 불변 · 공용 BottomSheet·ConfirmDialog는 공용 부품 TC로 남는다 | 없음 |
+| TC-CH-060 | **폐기**(S3e 후작업 2026-10-07, 훅 삭제) | 공용 `useLongPress`가 chat·rooms 사용처 0이 되어 훅·테스트째 삭제(옛 판정 「유지 — 공용 정리 후보」) | `ui/src/components/hooks/useLongPress.test.tsx` 삭제(후작업) |
 | TC-CH-015 | 유지 | `ChatState`·초기값 10필드 불변(AC §2) | 없음 |
 | TC-CH-011 · 014 · 019 | 영향(렌더 도우미) | `MessageList` S3e 필수 prop `isActionLocked: false`·`regenerateTargetId: null`·`editFocusId: null`·`onEditFocusDone` 기본값(Q-09). `actions` 생략 = 버튼 줄 없음. 단언 불변 | `MessageList.test.tsx` |
 | S2 공통 전제 "말풍선 메뉴 대상 요소" · 롱프레스 절차 | **폐기** | 「S3e 공통 전제」 폐기 전제 | — |
@@ -891,7 +892,7 @@ S1·S2 행. **ⓒ 호출 횟수는 단계 증분으로 읽는다**: 체인 안�
 | TC-FLOW-CH-05 · 11 · 13 | 개정 | 022 단계 → 112 · "말풍선 메뉴" → 버튼 줄(110) | 없음 |
 | MC-CH-11 · 12 · 13 · 16 · 17 | 개정 · 12 폐기 | 확인표 v0.5 | `manual-checklist.md` |
 
-집계: **폐기 2**(039 · 041) · **대체 4**(022 · 040 · 079 · 108 일부) · **개정 27**(AC §11.2의 26 + 086 문구) · **유지 명시 4**(053 · 055 · 056 · 060).
+집계: **폐기 3**(039 · 041 · 060 — 060은 S3e 후작업 2026-10-07) · **대체 4**(022 · 040 · 079 · 108 일부) · **개정 27**(AC §11.2의 26 + 086 문구) · **유지 명시 3**(053 · 055 · 056).
 
 ### 요구 ↔ TC (S3e)
 
@@ -1351,3 +1352,4 @@ ui-test-checker S2 판정 FAIL 지적 반영: TC-CH-038 내용 높이 mock을 "�
 | v0.8 | 2026-10-06 | **S3d 증분**(전송 뒤 자동 응답): TC-CH-098~109 · TC-FLOW-CH-18 · 「추적표 — S3d 추가분」. 상세는 「변경이력 보충 — v0.8」 | S3d, design/auto.md · CR-002 · Q-08 |
 | v0.9 | 2026-10-07 | **S3e 보강**(말풍선 액션 버튼, 메뉴 대체): TC-CH-110~121(자동 11 · 수동 1) · TC-FLOW-CH-19(U-CH-14) · 「S3e 공통 전제」 · 「추적표 — S3e 추가분」. 폐기 2(039·041) · 대체 4(022·040·079·108 일부) · 개정 27(actions.md §11.2의 26 + 086 문구) · 유지 명시 4(053·055·056·060). 스펙 신규 `BubbleActions`·`MessageActions`, `BubbleMenu.test.tsx` 삭제 대상. 확인표 v0.5(MC-CH-20). 상세는 「변경이력 보충 — v0.9」 | S3e, design/actions.md v2.0 · requirements.md v2.0 · CR-003 · Q-09 |
 | v0.9.1 | 2026-10-07 | 스펙 결함 2건 수정(Given/When/기대 의미 불변, 조회 방식만): TC-CH-115 D-17 it — 전송된 105와 103의 그룹 이름이 같아 화면 전체 `getByRole('group')`이 중복 오류 → 103 `li` 안으로 범위를 좁힘 · TC-CH-118 — 공용 Button도 non-scoped `root` 키라 `classList.contains('root')` 판별이 항상 참 → 포커스 요소 태그 `BUTTON` 단언. 「S3e 공통 전제」 질의·클래스 키 줄에 같은 규칙 추가 | 구현 후 ui 실행 결과(686건 중 684 통과, 메인 세션) |
+| v0.9.2 | 2026-10-07 | S3e 후작업 반영: 공용 `useLongPress`(훅·테스트) 삭제로 TC-CH-060 **폐기** 표시(본문은 이력 보존, 스펙 줄 취소선) · S3e 영향표 060 행 유지 → 폐기, 집계 폐기 3 · 유지 명시 3 · TC-CH-086 Then 재작성 실패 문구 개정(D-30, 스펙은 v0.9부터 새 문구). v0.9 행·Q-09·보충 v0.9의 "유지 4"는 당시 기록으로 둔다 | 메인 세션 위임(S3e 후작업) |

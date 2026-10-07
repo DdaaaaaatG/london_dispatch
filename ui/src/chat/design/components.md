@@ -33,8 +33,7 @@ ConfirmDialogProps = { title; message; confirmLabel; cancelLabel; onConfirm(); o
 PromptSheetProps = { title; inputAriaLabel; initialValue; maxChars; canSave(v); saveLabel; cancelLabel;
                      onSave(v); onCancel(); isBusy?; errorText? }                              // §1.17
 ToastProps = { message; tone: 'warning'|'danger' } · useToast() => { toast, showToast(m, tone) }  // §1.18
-useLongPress({ onLongPress, delayMs? = 500 }) => { onPointerDown, onPointerMove, onPointerUp, onPointerLeave,
-                                                    onPointerCancel, onContextMenu }           // §1.19
+// useLongPress — 삭제됨(S3e 후작업 2026-10-07, 사용처 0)
 formatMonthDay(ms): 'MM.DD' · formatTime(ms): 'HH:mm' · toIsoDate(ms) · toIsoDateTime(ms)   // 로컬 시간대
 loadLastRoomId() · saveLastRoomId(id) · clearLastRoomId()
 loadScrollOffset(roomId): number | null · saveScrollOffset(roomId, distanceFromBottom): void  // try/catch, throw 없음
@@ -43,7 +42,7 @@ MESSAGE_TEXT_MAX_CHARS = 2000 · ROOM_TITLE_MAX_CHARS = 60 · countChars(v) · i
 toastToneOf(error): 'warning' | 'danger'                                                       // rooms F-RM-22
 ```
 
-chat 사용: TopBar `variant='room'`, IconButton `back`·(S2)`more`, StateView(첫 로드 3상태), Button(B0 「다시 시도」 sm secondary · 배지 sm primary · (S2) 전송 md primary · 인라인 수정 취소/저장 sm), (S2) TextArea(입력창·인라인 수정), Toggle(OOC), BottomSheet+SheetItem(방 메뉴), ConfirmDialog(메시지·방 삭제), PromptSheet(이름 변경), Toast(E 줄), useToast. (S3) Button(캐릭터 버튼 2 md secondary · 실패 말풍선 「재시도」 sm secondary). (S3e) Button(말풍선 버튼 줄 sm ghost, AC §1) · 말풍선 메뉴·SheetItem 재작성·useLongPress 사용 중단. **공용 부품 변경 없음**(Button의 `ariaLabel`·`isDisabled`·`buttonRef`로 충분).
+chat 사용: TopBar `variant='room'`, IconButton `back`·(S2)`more`, StateView(첫 로드 3상태), Button(B0 「다시 시도」 sm secondary · 배지 sm primary · (S2) 전송 md primary · 인라인 수정 취소/저장 sm), (S2) TextArea(입력창·인라인 수정), Toggle(OOC), BottomSheet+SheetItem(방 메뉴), ConfirmDialog(메시지·방 삭제), PromptSheet(이름 변경), Toast(E 줄), useToast. (S3) Button(캐릭터 버튼 2 md secondary · 실패 말풍선 「재시도」 sm secondary). (S3e) Button(말풍선 버튼 줄 sm ghost, AC §1) · 말풍선 메뉴·SheetItem 재작성 사용 중단 · `useLongPress`는 삭제됨(S3e 후작업 2026-10-07). **공용 부품 변경 없음**(Button의 `ariaLabel`·`isDisabled`·`buttonRef`로 충분).
 
 ---
 
@@ -192,7 +191,7 @@ export type InlineEditorProps = {
   onCancel: () => void
 }
 ```
-- (S3d) `isSaveLocked`는 생성 중 저장만 잠근다(취소·입력 활성, `isSaving` 재사용 안 함). (v1.9.1 실물) 버튼 줄은 지역 `EditorActions`, 숨은 안내 `labels.editSaveLockedNote`(지역 `.srOnly`)의 `aria-describedby`는 지역 훅 `useDescribedBy`가 건다(D-23 우회) — auto.md §2.3.
+- (S3d) `isSaveLocked`는 생성 중 저장만 잠근다(취소·입력 활성, `isSaving` 재사용 안 함). (v1.9.1 실물) 버튼 줄은 지역 `EditorActions`, 숨은 안내 `labels.editSaveLockedNote`(지역 `.srOnly`)의 `aria-describedby`는 (후작업 2026-10-07) 공용 Button `ariaDescribedBy` prop으로 건다(D-23 해소, 지역 훅 삭제).
 - 로컬 상태: `text`(초기 `message.text`). `canSave = !isSaving && !isSaveLocked && isMessageTextValid(text) && text !== message.text`(S3d `!isSaveLocked` 추가).
 - 렌더: `<div role="group" aria-label={labels.editAriaLabel} class={cx(editor, variantClass)}>` — 정렬은 원래 말풍선 변형과 같다(v1.6: `sebastian` 왼쪽 · `ciel` 오른쪽 · `user`·`ooc` 가운데. 폭은 캐릭터 `--bubble-max-width`, 유저·OOC `--bubble-user-max-width`). 클래스는 `cx(styles.editor, styles[bubbleVariantOf(message)])`. 안: `TextArea value onChange ariaLabel={labels.editInputAriaLabel} maxRows={6} maxChars={MESSAGE_TEXT_MAX_CHARS} counterMode='overflow' onEscape={isSaving ? undefined : onCancel} isReadOnly={isSaving}` + 버튼 줄(오른쪽 정렬) `Button sm secondary isDisabled={isSaving}` 취소 · `Button sm primary isDisabled={!canSave}` 저장.
 - Enter는 줄바꿈이다(`onEnter` 없음). 저장은 버튼으로만.

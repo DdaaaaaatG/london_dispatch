@@ -429,7 +429,7 @@ S1·S2 행. **ⓒ 호출 횟수는 단계 증분으로 읽는다**: 체인 안�
 | C §1.12 TextInput | TC-RM-019 · 020 · 026 · 032 |
 | C §1.13~§1.17 TextArea·Toggle·BottomSheet·ConfirmDialog·PromptSheet | chat TC-CH-055 ~ 059 |
 | C §1.18 Toast·useToast | TC-RM-023 · 032 |
-| C §1.19 useLongPress | chat TC-CH-060 |
+| C §1.19 useLongPress | chat TC-CH-060 — **삭제됨**(S3e 후작업 2026-10-07: 공용 훅·테스트 파일 삭제, chat TC-CH-060 폐기) |
 | C §1.20 S2 전역 토큰 | TC-RM-031 |
 | C §2.4 NewRoomRow | TC-RM-019 · 020 · 022 · 025 · 026 |
 | C §3 S2 스타일 행 | TC-RM-031 |

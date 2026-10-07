@@ -130,7 +130,7 @@ export const BubbleActions = memo(BubbleActionsView)   // named export만
 
 ## 3. 메뉴 제거 델타 (파일·심볼별)
 
-공용 부품(`BottomSheet`·`SheetItem`·`ConfirmDialog`·`PromptSheet`·`useLongPress`)은 **건드리지 않는다**(제약). 방 메뉴(⋯ `RoomMenuSheet`)·메시지 삭제 확인·이름 변경·방 삭제 확인은 그대로다.
+공용 부품(`BottomSheet`·`SheetItem`·`ConfirmDialog`·`PromptSheet`)은 **건드리지 않는다**(제약). `useLongPress`도 S3e에서는 남겼으나 후작업(2026-10-07)이 삭제했다(D-32). 방 메뉴(⋯ `RoomMenuSheet`)·메시지 삭제 확인·이름 변경·방 삭제 확인은 그대로다.
 
 | 파일 | 삭제 | 남김 |
 |---|---|---|
@@ -145,7 +145,7 @@ export const BubbleActions = memo(BubbleActionsView)   // named export만
 | `labels.ts` | `messageMenuAriaLabel` · `messageMenuHeader` | `edit`·`delete`·`regenerate`·`cancel`(버튼 글자·확인 시트) |
 
 - 쓰기 판에서 말풍선 우클릭·길게 누르기는 **브라우저 기본 동작**이 된다(읽기 전용 판과 같다).
-- `useLongPress`는 chat 사용처가 0이 된다(rooms도 쓰지 않는다). 공용 훅은 지우지 않고 공용 정리 후보로 보고만 한다(주 문서 §12).
+- `useLongPress`는 chat 사용처가 0이 된다(rooms도 쓰지 않는다). → **삭제됨(S3e 후작업 2026-10-07)** — 훅·스펙 모두 지워졌다(D-32).
 
 ---
 
@@ -272,7 +272,7 @@ export const BubbleActions = memo(BubbleActionsView)   // named export만
 
 | # | 결정 | 근거 |
 |---|---|---|
-| D-24 | **메뉴 제거 범위**: 말풍선 메뉴의 트리거(롱프레스·우클릭·Shift+F10)·시트(`MessageMenuSheet`)·시트 종류(`messageMenu`)·여는 함수(`openMessageMenu`)·문구 2키·`menuEnabled` 스타일을 지운다. 공용 `BottomSheet`·`SheetItem`·`ConfirmDialog`·`useLongPress`는 남긴다 | 요구 🔒 "롱프레스/우클릭 메뉴는 제거(버튼으로 대체)". 방 메뉴·확인 시트가 공용 부품을 계속 쓴다. 공용 부품 변경 금지 |
+| D-24 | **메뉴 제거 범위**: 말풍선 메뉴의 트리거(롱프레스·우클릭·Shift+F10)·시트(`MessageMenuSheet`)·시트 종류(`messageMenu`)·여는 함수(`openMessageMenu`)·문구 2키·`menuEnabled` 스타일을 지운다. 공용 `BottomSheet`·`SheetItem`·`ConfirmDialog`는 남긴다(`useLongPress`는 후작업 2026-10-07 삭제됨, D-32) | 요구 🔒 "롱프레스/우클릭 메뉴는 제거(버튼으로 대체)". 방 메뉴·확인 시트가 공용 부품을 계속 쓴다. 공용 부품 변경 금지 |
 | D-25(**우회 — 지역 덧칠**) | 버튼 형태 = 공용 `Button size='sm' variant='ghost'` 3개. 색은 BubbleActions 지역 CSS가 자손 선택자로 덧칠한다(수정·재작성 `--color-fg-muted`, 삭제 `--color-danger`, 삭제는 `<span class=danger>` 래퍼) | ① `sm`이 이미 28px 높이·44px 터치 영역·포커스 링·네이티브 `disabled`를 준다 ② `variant='danger'`는 채운 빨간 버튼이라 "작은 텍스트 버튼"(캡처)과 맞지 않는다 ③ 전용 경량 버튼은 화면 코드의 `<button>` 직접 사용 금지에 걸린다 ④ 공용 Button에 글자색 톤 prop이 없다 → D-23과 같은 방식으로 우회하고 공용화 후보(Button ghost `tone`)로 올린다(주 문서 §12) |
 | D-26 | **포커스**: 편집기가 닫히면(저장 성공·취소) 같은 말풍선의 「수정」으로 보낸다(옛 "히스토리 log"에서 변경, 사전 확정 4). 「수정」이 `disabled`면 log. 재작성은 잠금이 풀릴 때 같은 「재작성」(포커스를 잃었을 때만). 삭제 취소·실패는 BottomSheet 복귀 규칙이 「삭제」로 돌린다 | 사용자가 작업을 시작한 자리로 돌아간다. 말풍선이 더 이상 포커스를 받지 않으므로 옛 목적지("말풍선 루트")가 없다. 잠긴 버튼은 포커스를 못 받아 body로 빠지므로 대체 목적지가 필요하다 |
 | D-27 | 비활성 판정 `isActionLocked = !canSpeak(state) \|\| roomBusy !== null`. 새 판정 함수를 만들지 않는다 | 사전 확정 3(쓰기 대기 · 생성 중 · 인라인 수정 중)이 `canSpeak`의 정의(`ready ∧ writing=null ∧ editingId=null`)와 같다. `roomBusy`는 옛 메뉴 가드(D-10)를 그대로 옮긴 것이다(새 규칙 아님). 옛 메뉴는 인라인 수정 중에도 열렸으나(generate.md §6 표 2행) 사전 확정 3에 따라 버튼 줄은 편집 중 잠근다 |
@@ -281,7 +281,7 @@ export const BubbleActions = memo(BubbleActionsView)   // named export만
 | D-30 | 재작성 실패 토스트 `LLM_FAILED`·`LLM_EMPTY` 문구의 "메뉴에서"를 "재작성을 다시 눌러"로 바꾼다 | 메뉴가 없어져 안내가 틀린다. 설계가 정한 문구(generate.md §3)라 요구 원문 변경이 아니다 |
 | D-31 | 같은 화자의 버튼 이름이 겹쳐도 시각을 넣지 않는다 | 사전 확정 6 문안 · 버튼 줄이 말풍선 바로 뒤라 읽는 순서로 구분된다 |
 
-| D-32(v2.0.1, 결정 노트) | 공용 `useLongPress`는 S3e 뒤 **사용처 0**(chat 삭제, rooms 미사용)이다. 이 작업에서 지우지 않고 **공용 정리 후보**로 둔다(TC-CH-060 유지) | 공용 부품 변경 금지. 정리는 후작업(ui-postprocessor) 판단 |
+| D-32(v2.0.1, 결정 노트) | 공용 `useLongPress`는 S3e 뒤 **사용처 0**(chat 삭제, rooms 미사용)이다. S3e에서는 지우지 않고 공용 정리 후보로 뒀다. → **삭제됨(S3e 후작업 2026-10-07, 사용자 승인)**: 훅·스펙 삭제, TC-CH-060 폐기 대상 | 공용 부품 변경 금지(화면 작업). 정리는 후작업(ui-postprocessor)이 했다 |
 | D-25 보충(v2.0.1) | Button 글자색 톤 부재는 구현자가 `component-usage-lessons`에 **코어 결함 후보**로 기록했다(지역 덧칠 우회, D-23과 같은 처리) | 구현 보고 |
 
 구성안·계약과 다르게 정한 것: 없음. 스킬과 다른 것: D-29 하나.

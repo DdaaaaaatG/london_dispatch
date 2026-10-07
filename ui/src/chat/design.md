@@ -14,8 +14,8 @@
 | 구현 상태 | S3d 구현 완료(2026-10-07): ui 660/660 · tsc 0 · lint 0 · build 0. **S3e 설계 완료 · 구현 대기**(CR-003) |
 | 묶음 | S1 · S2 구현 완료 + **S3 상세**: R-CHAT-004(캐릭터 버튼 2) · 005(speak · 임시/실패 말풍선 · 재시도) · 007(재작성) · 011(S3 코드) · 003(speak 트리거) · 002(임시 말풍선 배치) · 013(S3 요소). S4는 §14 |
 | 레이아웃 확정 상태 | **확정**(읽기 전용 판 · 토큰 있음 판 · S3 생성 중/실패/재작성 중 조각). 장기기억 항목(S4)만 **미렌더 자리** |
-| 문서 분할 | 40KB 한계로 분할: **`design/layout.md`**(§0 토큰 있음 판·시트 ASCII = 옛 §2.2, v1.7.1 이전) · `design/components.md`(로컬 컴포넌트·useAutoScroll·스타일) · `design/functions.md`(리듀서·스크롤 계산·상태·기능) · `design/a11y.md`(접근성) · `design/tc.md`(예정 TC 목록, v1.4 분리) · **`design/labels.md`**(§8.1~§8.3 문구·라벨, v1.7 이전) · **`design/generate.md`**(S3 speak·재작성 흐름 = 옛 §6.8·§6.9, 생성 실패 문구 = 옛 §8.4, 결정 D-11~15·A-6, 한계 L-1~3 = 옛 §13.1, v1.7 신규) · **`design/decisions.md`**(§11.2 결정·가정·S1 소급 델타 · §13 contract 변경 요청, v1.7 이전). RTM 본문은 **`design/rtm.md`**(v1.9.1, 실측 42,204바이트로 한계 초과 — 메인 세션 지시로 이전. 이 문서 §15는 참조 한 줄). 절 표기 `L` = labels.md, `G` = generate.md, `D` = decisions.md, `AU` = auto.md, **`AC` = actions.md(v2.0 S3e)** |
-| 공용 요소 | `App`·`viewer`·`token`·`limits`·`TopBar`·`Button`·`IconButton`·`StateView`·`TextInput`·`TextArea`·`Toggle`·`BottomSheet`·`ConfirmDialog`·`PromptSheet`·`Toast`·`useToast`·`useLongPress`·`cx`·`formatDate`·`storage`의 단일 정의는 `ui/src/rooms/design/components.md` §1. chat은 인용만 한다 |
+| 문서 분할 | 40KB 한계로 분할: **`design/layout.md`**(§0 토큰 있음 판·시트 ASCII = 옛 §2.2, v1.7.1 이전) · `design/components.md`(로컬 컴포넌트·useAutoScroll·스타일) · `design/functions.md`(리듀서·스크롤 계산·상태·기능) · `design/a11y.md`(접근성) · `design/tc.md`(예정 TC 목록, v1.4 분리) · **`design/labels.md`**(§8.1~§8.3 문구·라벨, v1.7 이전) · **`design/generate.md`**(S3 speak·재작성 흐름 = 옛 §6.8·§6.9, 생성 실패 문구 = 옛 §8.4, 결정 D-11~15·A-6, 한계 L-1~3 = 옛 §13.1, v1.7 신규) · **`design/decisions.md`**(§11.2 결정·가정·S1 소급 델타 · §13 contract 변경 요청, v1.7 이전 · **§12 공용화 후보, v2.0.3 이전**). RTM 본문은 **`design/rtm.md`**(v1.9.1, 실측 42,204바이트로 한계 초과 — 메인 세션 지시로 이전. 이 문서 §15는 참조 한 줄). 절 표기 `L` = labels.md, `G` = generate.md, `D` = decisions.md, `AU` = auto.md, **`AC` = actions.md(v2.0 S3e)** |
+| 공용 요소 | `App`·`viewer`·`token`·`limits`·`TopBar`·`Button`·`IconButton`·`StateView`·`TextInput`·`TextArea`·`Toggle`·`BottomSheet`·`ConfirmDialog`·`PromptSheet`·`Toast`·`useToast`·`cx`·`formatDate`·`storage`·`errorText`(후작업 2026-10-07)의 단일 정의는 `ui/src/rooms/design/components.md` §1. chat은 인용만 한다 |
 
 비유: 히스토리는 아래로 길게 이어지는 두루마리다. 처음에는 가장 최근 30줄만 펼친다. 위 끝에 닿으면 더 오래된 30줄을 위에 이어 붙이는데, 읽던 줄이 밀려나지 않도록 붙인 길이만큼 두루마리를 내려 준다. 출입증이 있는 회원은 두루마리 끝에 직접 한 줄을 적을 수 있고, 적은 줄은 접수 창구(서버)가 받아 준 뒤에야 두루마리에 붙는다.
 
@@ -37,6 +37,8 @@
 | v1.9.1 | 2026-10-07 | **S3d 구현 동기화**(ui 660/660): 머리 표 구현 상태 행 · §11.2 D-23 포인터 · §12 공용화 후보 2행(Button `ariaDescribedBy?` · `.srOnly`). auto.md v1.9.1(§2.1 `PendingBody` · §2.3 `MessageRows`·`EditorActions`·`useDescribedBy` · §3 `useRunSpeak`·`useRoomGone`·`write` 반환 · §6 `.srOnly` · §8 D-23) · 신규 `design/auto-tests.md`(옛 AU §9, 스펙 실물 위치) · components.md §2.1·§2.7·§2.12 · functions.md §4.3 끝 · labels.md §8.1.3 | S3d 구현자·시나리오 작성자 보고 · CR-002 |
 | v2.0 | 2026-10-07 | **S3e(CR-003, 보강)**: R-CHAT-007 🔒 개정 — 말풍선 액션 버튼. 신규 분할 `design/actions.md`(전체 델타, 절 표기 `AC`). 주 문서는 머리 표(요구 v2.0 · S3e 델타 · 구현 상태 · 절 표기) · §3.1 트리 · §3.2 분류 · §5 기능 목록 · §6.4(흐름 → AC §6 포인터, 옛 메뉴 흐름 폐기) · §6.8 요약 · §7 캐릭터 메타 행 · §9 요약 · §10 토큰 분기표(버튼 줄 행 · 메뉴 행 삭제 · 재작성 행) · §12 공용화 후보 3행. components.md·functions.md·generate.md·a11y.md·labels.md·layout.md·tc.md·rtm.md는 포인터·삭제 표시 | 사용자 지정 🔒 2026-10-07 · 메인 세션 사전 확정 1~7 |
 | v2.0.1 | 2026-10-07 | **S3e 구현 동기화**: 머리 표 S3e 행(D-32 · `actions-tests.md`). actions.md v2.0.1(§1 `ActionButton` · §2 `ActionsLine`·`useIsActionLocked`·`useConfirmDeleteMessage`·`useRevokeCleanup` — 50줄 한계 분리, DOM 같음 · D-32 `useLongPress` 정리 후보 · D-25 보충 Button 톤 결함 후보) · 신규 `design/actions-tests.md`(옛 AC §11 + TC-CH-086 개정 + 스펙 전제 `within(li)`·태그 `BUTTON` 판별) · rtm.md·tc.md 포인터 | S3e 구현 보고 · 테스트 설계자 지적 · CR-003 |
+| v2.0.2 | 2026-10-07 | **후작업 동기화(동작·문구 변경 없음)**: ① 공용 Button `ariaDescribedBy?` → §12 행 "해소", AU §8 D-23 해소(지역 훅 `useDescribedBy` 삭제) ② `NETWORK`·인증 3종 문구 공용 `errorText.ts` → 머리 표 공용 요소 · §8 비고 · §12 행 "공용화 완료" · labels.md §8.2·§8.3 ③ 공용 `useLongPress` 삭제 → 머리 표 · §3.2 · §12 · components.md §1·§2.2 · actions.md §3·D-24·D-32 · actions-tests.md · tc.md TC-CH-060 | ui-postprocessor 후작업 · 사용자 승인 |
+| v2.0.3 | 2026-10-07 | **40KB 분할**: §12 공용화 후보 표 → `design/decisions.md` §12(내용 그대로), 이 문서에는 포인터 한 줄. §1 분할 표 갱신 | 메인 세션 실측 41,569바이트 |
 
 ---
 
@@ -132,7 +134,7 @@ App (ui/src/App.tsx)                                view.screen === 'chat'
 |---|---|---|---|---|
 | `TopBar`·`Button`·`IconButton`·`StateView` | `ui/src/components/ui/` | ① 공용 ui | rooms 단일 정의 | rooms components.md §1.1~§1.4 |
 | `TextArea`·`TextInput`·`Toggle`·`BottomSheet`·`ConfirmDialog`·`PromptSheet`·`Toast` (S2) | `ui/src/components/ui/` | ① 공용 ui 신규 | 구성안 §3 | rooms components.md §1.12~§1.18 |
-| `useAutoScroll` · (S2) `useLongPress`·`useToast` | `ui/src/components/hooks/` | ② 공용 훅 | 구성안 §3 | components.md §3 · rooms §1.18·§1.19 |
+| `useAutoScroll` · (S2) `useToast` · ~~`useLongPress`~~(삭제됨, S3e 후작업 2026-10-07) | `ui/src/components/hooks/` | ② 공용 훅 | 구성안 §3 | components.md §3 · rooms §1.18 |
 | `cx`·`formatDate`·`storage` | `ui/src/components/utils/` | ③ 공용 유틸 | rooms 단일 정의 | rooms §1.5~§1.7 |
 | `chatReducer` 외 · `scroll.ts` | `ui/src/state/` | 상태(순수) | 스킬 §6.6 | functions.md §1·§2 |
 | `viewer`·`token`·`limits`·`writeFailure` | `ui/src/state/` | 상태 | rooms 단일 정의 | rooms §1.8·§1.10·§1.11 · F-RM-22 |
@@ -273,6 +275,7 @@ v1.7에서 40KB 한계로 표 본문을 분할 문서로 옮겼다. 절 번호�
 | §8.4 | S3 생성 실패 문구 `speakErrorText` · `writeErrorText(…, 'regenerate')` | `design/generate.md` §3 |
 
 - 캐릭터 이름은 labels가 아니라 `CHARACTERS[id].shortName`이 단일 소스다. 서버 `error.message`·토큰 값은 표시하지 않는다.
+- (후작업 2026-10-07) `NETWORK`·인증 3종 문구는 공용 `ui/src/components/utils/errorText.ts`(`NETWORK_TEXT`·`AUTH_FAILURE_TEXT`)를 `labels.ts`가 import한다. 문장 불변(L §8.2·§8.3).
 
 ---
 
@@ -323,20 +326,7 @@ v1.7에서 40KB 한계로 표 본문을 분할 문서로 옮겼다. 절 번호�
 
 ## 12. 공용화 후보
 
-| 후보 | 현재 위치 | 판정 |
-|---|---|---|
-| `useAutoScroll` | 공용 훅 | 화면 비종속. 공용 |
-| S2 공용 부품(TextArea·Toggle·BottomSheet·ConfirmDialog·PromptSheet·Toast·useLongPress·useToast) | 공용 | rooms design.md §13 판정 인용 |
-| `InlineStatus` | chat 로컬 | 사용처 chat뿐. 후보 아님 |
-| `Composer`·`InlineEditor`·`MessageMenuSheet`·`RoomMenuSheet`·`ChatSheets`·`NewMessageBadge`·`ReadOnlyNotice`·`Bubble`·`MessageList`·`ChatTopBar` | chat 로컬 | chat 전용(메시지·방 의미를 안다). 후보 아님 |
-| `writeErrorText` 인증·레이트리밋 행 | 두 화면 labels | 후보 표시만(rooms design.md §13) |
-| (S3) `SpeakButtons`·`PendingBubble`·`speakErrorText` | chat 로컬 | 캐릭터·생성을 안다, 사용처 chat뿐. 후보 아님 |
-| (S3) `useAutoScroll` `tailKey` | 공용 훅 | 메시지 타입을 모르는 문자열 키라 비종속 유지 |
-| (S3d) 공용 `Button`에 `ariaDescribedBy?: string` prop 추가 | 공용(`ui/src/components/ui/Button`) | **후보(후작업 ui-postprocessor).** 지금은 `InlineEditor.tsx` 지역 훅 `useDescribedBy`가 `buttonRef`로 우회한다(AU §8 D-23 「우회(지역 훅)」). prop이 생기면 지역 훅을 지우고 prop으로 넘긴다. `component-usage-lessons` 코어 결함 후보 등록(2026-10-07) |
-| (S3d) `.srOnly` 규칙 | `PendingBubble.module.css` · `InlineEditor.module.css` 지역 | 같은 규칙이 두 모듈에 있다. 사용처 chat뿐이라 지금은 후보 표시만(전역 유틸 없음, components.md §2.12) |
-| (S3e) 공용 `Button` ghost 글자색 톤(`tone?: 'muted' \| 'danger'` 등) | 공용(`ui/src/components/ui/Button`) | **후보(후작업 ui-postprocessor).** 지금은 `BubbleActions.module.css`가 자손 선택자로 덧칠한다(AC §10 D-25 「우회」). prop이 생기면 덧칠·`danger` 래퍼를 지운다 |
-| (S3e) `useLongPress` | 공용 훅 | **정리 후보(보고만).** S3e로 사용처 0(chat 삭제, rooms 미사용). 공용 부품이라 이 작업에서 지우지 않는다. `component-catalog` 사용처 표기도 낡는다(AC D-29) |
-| (S3e) `BubbleActions` | chat 로컬 | 메시지·화자를 안다, 사용처 chat뿐. 후보 아님 |
+→ `design/decisions.md` §12(v2.0.3에서 40KB 한계로 이전 — 공용화 완료 `errorText` · 해소 Button `ariaDescribedBy` · 삭제 `useLongPress` · 남은 후보 Button ghost 글자색 톤 · `.srOnly`).
 
 ---
 

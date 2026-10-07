@@ -47,7 +47,7 @@ type CharacterCandidate = {
   readonly text: Partial<Record<TextFieldKey, string>>
   readonly list: Partial<Record<ListFieldKey, string[]>>
 }
-/** 모듈 내부 타입(export 안 함). 후보 위치의 값만 든다 */
+/** 후보 위치의 값만 든다(settingsFile 이 쓰므로 export) */
 export type Candidate = {
   readonly world?: string
   readonly characters: Partial<Record<CharacterId, CharacterCandidate>>

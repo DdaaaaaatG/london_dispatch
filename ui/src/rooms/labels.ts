@@ -5,6 +5,7 @@
 import { ERROR_MESSAGES } from '@shared/errors'
 import { ROOM_TITLE_MAX } from '@shared/limits'
 import type { ApiError, ApiErrorCode } from '@/api'
+import { AUTH_FAILURE_TEXT, NETWORK_TEXT } from '@/components/utils/errorText'
 
 export const labels = {
   /** TopBar 제목(h1) */
@@ -32,18 +33,9 @@ export const labels = {
   settingsAriaLabel: '캐릭터 설정',
 } as const
 
-const NETWORK_TEXT = '서버에 연결할 수 없습니다.'
-
 /** 오류 코드별 상세 문구. 서버 error.message 는 화면에 쓰지 않는다(api.md §3.1) */
 export const errorDetail = (code: ApiErrorCode): string =>
   code === 'NETWORK' ? NETWORK_TEXT : ERROR_MESSAGES[code]
-
-/** 인증 실패 3종 — 읽기 전용으로 바뀌었음을 알린다(R-CHAT-011). chat 화면 labels 와 같은 문구 */
-const AUTH_FAILURE_TEXT: Partial<Record<ApiErrorCode, string>> = {
-  TOKEN_REQUIRED: '로그인 정보가 없어 열람 전용으로 바뀌었습니다.',
-  TOKEN_INVALID: '인증이 만료되어 열람 전용으로 바뀌었습니다. 새로 고쳐 주세요.',
-  LEVEL_TOO_LOW: '대화 참여 등급이 아니어서 열람 전용으로 바뀌었습니다.',
-}
 
 /**
  * 방 생성 실패 문구(설계 §8.3). 문구는 code 로 정한다 — 서버 error.message 는 쓰지 않는다.

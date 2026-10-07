@@ -89,14 +89,14 @@ useEffect(() => {
 ```
 - 화면·컴포넌트·state에서 `fetch` 직접 사용 금지. 래퍼 함수 이름은 `api.md`와 동일하게.
 - 래퍼는 `Result<T>`를 반환한다. 화면은 `result.ok` 분기로 오류 문구(`labels.errors[code]`)를 보여준다. `try/catch` 없음.
-- 에러 코드별 처리는 design.md 계약 사용표가 정한다. 특히 `TOKEN_EXPIRED`는 쓰기 UI 미렌더 전환, `SPEAK_IN_PROGRESS`는 안내 후 자동 해제, `RATE_LIMITED`는 `Retry-After` 안내.
+- 에러 코드별 처리는 design.md 계약 사용표가 정한다. 특히 `TOKEN_INVALID`(만료 포함)·`TOKEN_REQUIRED`·`LEVEL_TOO_LOW`는 쓰기 UI 미렌더 전환, `SPEAK_IN_PROGRESS`는 실패 말풍선 + 「재시도」(자동 해제 타이머 없음, S3 D-16), `RATE_LIMITED`는 `retryAfterSec` 안내.
 
 ## 5. 대화 화면 처리 규칙 (ui/src/chat 전용)
 - **생성 중 잠금은 상태**(`pending !== null`)로. `setTimeout` 디바운스·`disabled` 플래그를 따로 두지 않는다.
 - **스크롤 보존**: 과거 로드 전 `scrollHeight`를 ref에 저장 → 렌더 후 `useLayoutEffect`에서 차이만큼 `scrollTop` 보정. 새 메시지는 맨 아래 근접(≤120px)일 때만 `scrollIntoView({ block: 'end' })`.
-- **롱프레스**: `useLongPress(500)` 훅 하나로 `pointerdown/up/cancel` + `contextmenu`를 통합. 스크롤 중(`pointermove` 10px 이상)이면 취소.
-- **인라인 수정**: 말풍선 자리에서 `TextArea` 전환, `Esc` 취소, 저장은 응답 후 반영.
-- 히스토리 컨테이너 `role="log" aria-live="polite" aria-busy={pending !== null}`.
+- **말풍선 액션 버튼**(S3e, 2026-10-07): 수정·삭제·재작성은 말풍선 아래 `BubbleActions`(chat 지역 컴포넌트, 공용 `Button sm ghost` 3개)로 늘 보인다. 롱프레스/우클릭 메뉴는 없다. 공용 `useLongPress`는 사용처 0(정리 후보)이며 새 화면에서 메뉴 트리거로 되살리지 않는다. 잠금은 `isActionLocked`(`!canSpeak || roomBusy !== null`) → 네이티브 `disabled`.
+- **인라인 수정**: 말풍선 자리에서 `TextArea` 전환, `Esc` 취소, 저장은 응답 후 반영. 생성 중에는 저장 버튼만 `disabled`(취소·입력은 활성, S3d).
+- 히스토리 컨테이너 `role="log" aria-live="polite"`. 생성 중 표시는 임시 말풍선 `role="status"` + 버튼 네이티브 `disabled`(`aria-busy` 묶음 없음, S3 D-16).
 - 말풍선 목록은 `memo`로 격리하고 key는 서버 id(임시는 `temp-{n}`).
 
 ## 6. CSS Modules 규약
@@ -110,7 +110,7 @@ useEffect(() => {
 - 시맨틱 태그 우선(`button`·`label`·`ul/li`·`textarea`). 클릭 가능한 `div` 금지.
 - 아이콘 버튼은 `aria-label`(문구는 `labels.ts`). 입력은 `<label htmlFor>` + `id`.
 - 오류는 `role="alert"`, 동적 갱신 영역은 `aria-live="polite"`, 생성 중은 `aria-busy`.
-- 키보드: Tab 순서 자연스럽게, `Esc`로 시트·수정 닫기, `Enter` 전송 / `Shift+Enter` 줄바꿈, 말풍선 메뉴는 `Shift+F10`. 포커스 링은 `:focus-visible`.
+- 키보드: Tab 순서 자연스럽게, `Esc`로 시트·수정 닫기, `Enter` 전송 / `Shift+Enter` 줄바꿈. 말풍선 액션은 Tab으로 닿는 버튼(메뉴 키 없음, S3e). 포커스 링은 `:focus-visible`.
 - 바텀시트는 포커스 트랩 + 닫힐 때 트리거로 복귀.
 
 ## 8. 파일 크기·분리
@@ -121,7 +121,7 @@ useEffect(() => {
 - 파일: 컴포넌트 옆 `{Name}.test.tsx`, 리듀서는 `ui/src/state/{name}.test.ts`.
 - 케이스 이름은 시나리오 TC-ID로 시작: `it('TC-CH-015 세바스찬 버튼 클릭 시 speak를 호출하고 버튼을 잠근다', …)`.
 - 조회는 `getByRole`(name 지정) 우선 → `getByLabelText` → `getByText`. `data-testid`는 role이 없을 때만.
-- 사용자 조작은 `@testing-library/user-event`. 타이머는 `vi.useFakeTimers()`로 롱프레스·자동 해제를 결정적으로 만든다.
+- 사용자 조작은 `@testing-library/user-event`. 타이머가 있는 코드(토스트 등)는 `vi.useFakeTimers()`로 결정적으로 만든다(생성 중 상태에는 타이머가 없다 — 응답으로만 풀린다).
 - **api mock 패턴**: `vi.mock('@/api/messages')`·`vi.mock('@/api/rooms')`로 래퍼를 모킹한다. `fetch`를 직접 모킹하지 않는다.
   ```tsx
   vi.mock('@/api/messages', () => ({

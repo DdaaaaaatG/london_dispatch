@@ -6,7 +6,6 @@
  * 마운트 시 입력에 포커스하고 커서를 끝에 둔다. 토큰이 없으면(전환 포함) 호출 쪽이 이 컴포넌트를 렌더하지 않는다.
  */
 import { useId, useLayoutEffect, useRef, useState } from 'react'
-import type { RefObject } from 'react'
 import type { Message } from '@shared/types'
 import { Button } from '@/components/ui/Button'
 import { TextArea } from '@/components/ui/TextArea'
@@ -25,19 +24,6 @@ export type InlineEditorProps = {
   onCancel: () => void
 }
 
-/**
- * 잠긴 동안만 저장 버튼에 aria-describedby 를 건다. 공용 Button 에 해당 prop 이 없어 buttonRef 로 건다.
- * TODO(component): Button 에 ariaDescribedBy 가 생기면 이 훅을 지우고 prop 으로 넘긴다
- */
-const useDescribedBy = (ref: RefObject<HTMLButtonElement | null>, id: string | null): void => {
-  useLayoutEffect(() => {
-    const el = ref.current
-    if (el === null || id === null) return
-    el.setAttribute('aria-describedby', id)
-    return () => el.removeAttribute('aria-describedby')
-  }, [ref, id])
-}
-
 type EditorActionsProps = Pick<InlineEditorProps, 'isSaving' | 'isSaveLocked' | 'onCancel'> & {
   canSave: boolean
   onSave: () => void
@@ -46,9 +32,7 @@ type EditorActionsProps = Pick<InlineEditorProps, 'isSaving' | 'isSaveLocked' | 
 /** 버튼 줄(오른쪽 정렬): 취소는 저장 요청 중에만 잠기고, 저장은 canSave 일 때만 열린다. 생성 중 잠금은 숨은 안내로 알린다(S3d) */
 const EditorActions = (props: EditorActionsProps) => {
   const { isSaving, isSaveLocked, canSave, onSave, onCancel } = props
-  const saveRef = useRef<HTMLButtonElement>(null)
   const noteId = useId()
-  useDescribedBy(saveRef, isSaveLocked ? noteId : null)
   return (
     <div className={styles.actions}>
       <Button size="sm" variant="secondary" isDisabled={isSaving} onClick={onCancel}>
@@ -58,7 +42,7 @@ const EditorActions = (props: EditorActionsProps) => {
         size="sm"
         variant="primary"
         isDisabled={!canSave}
-        buttonRef={saveRef}
+        ariaDescribedBy={isSaveLocked ? noteId : undefined}
         onClick={onSave}
       >
         {labels.save}

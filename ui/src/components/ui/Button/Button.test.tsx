@@ -34,6 +34,20 @@ describe('Button S2 (R-ROOMS-002)', () => {
   })
 })
 
+describe('Button ariaDescribedBy', () => {
+  it('ariaDescribedBy → aria-describedby 로 전달, 생략하면 속성 없음', () => {
+    const { rerender } = render(<Button onClick={vi.fn()}>저장</Button>)
+    const button = screen.getByRole('button', { name: '저장' })
+    expect(button.hasAttribute('aria-describedby')).toBe(false)
+    rerender(
+      <Button onClick={vi.fn()} ariaDescribedBy="note-1">
+        저장
+      </Button>,
+    )
+    expect(button.getAttribute('aria-describedby')).toBe('note-1')
+  })
+})
+
 describe('IconButton more (R-CHAT-001)', () => {
   it('TC-RM-032: 이름 = ariaLabel, SVG aria-hidden, isDisabled → disabled, buttonRef 연결', () => {
     const ref = { current: null as HTMLButtonElement | null }

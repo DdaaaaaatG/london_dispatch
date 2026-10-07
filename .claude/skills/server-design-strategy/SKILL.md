@@ -1,6 +1,6 @@
 ---
 name: server-design-strategy
-description: 런던_디스패치 server 계층(Cloudflare Workers + Hono 4 + D1, server/src) 설계·구현·검토 표준. 모듈 경계 6종(env/db/auth/rooms/messages/memory/llm)과 책임, 의존 방향(routes→services→db), env 단일 진입(Workers env 바인딩을 env.ts의 parseEnv로만 파싱), 에러 처리(AppError + shared 에러코드·한국어 메시지), 비동기·동시성(speak 방당 1건 D1 조건부 UPDATE 잠금·요약 ctx.waitUntil), D1 규칙(비동기 prepare/bind/run·batch 트랜잭션·wrangler 마이그레이션), LLM 어댑터 인터페이스(fetch 기반)와 타임아웃·재시도, 프롬프트 조립 규칙(프롬프트 주입 완화), 캐릭터 상수, 로그, 명명, 테스트 표준, 요구 기반 최소 구현, 문서↔코드 일치, contract 인계 규약을 정의한다. "서버 모듈 설계", "speak 구현", "server 감사", "토큰 검증", "장기기억 요약", "LLM 어댑터" 작업 시 반드시 참조한다.
+description: 런던_디스패치 server 계층(Cloudflare Workers + Hono 4 + D1, server/src) 설계·구현·검토 표준. 모듈 경계 7종(env/db/auth/rooms/messages/memory/llm/settings)과 책임, 의존 방향(routes→services→db), env 단일 진입(Workers env 바인딩을 env.ts의 parseEnv로만 파싱), 에러 처리(AppError + shared 에러코드·한국어 메시지), 비동기·동시성(speak 방당 1건 D1 조건부 UPDATE 잠금·요약 ctx.waitUntil), D1 규칙(비동기 prepare/bind/run·batch 트랜잭션·wrangler 마이그레이션), LLM 어댑터 인터페이스(fetch 기반)와 타임아웃·재시도, 프롬프트 조립 규칙(프롬프트 주입 완화), 캐릭터 상수, 로그, 명명, 테스트 표준, 요구 기반 최소 구현, 문서↔코드 일치, contract 인계 규약을 정의한다. "서버 모듈 설계", "speak 구현", "server 감사", "토큰 검증", "장기기억 요약", "LLM 어댑터" 작업 시 반드시 참조한다.
 ---
 
 # server 계층 설계 전략 (표준)
@@ -12,7 +12,7 @@ description: 런던_디스패치 server 계층(Cloudflare Workers + Hono 4 + D1,
 
 ---
 
-## 1. 모듈 경계 6종 (+ 진입점·인프라)
+## 1. 모듈 경계 7종 (+ 진입점·인프라)
 
 | 모듈 | 책임 | 금지 |
 |---|---|---|
@@ -22,7 +22,8 @@ description: 런던_디스패치 server 계층(Cloudflare Workers + Hono 4 + D1,
 | `rooms/` | 방 생성·목록·이름 변경·삭제(메시지·memory 연쇄 삭제) | LLM 호출 |
 | `messages/` | 메시지 목록(페이지네이션)·user 저장·speak(생성 파이프라인)·수정·삭제·regenerate·방당 speak 잠금 | 프롬프트 문자열 조립(llm 몫), 요약 판단 로직(memory 몫) |
 | `memory/` | 방 단위 장기기억: 요약 기준 판정, 오래된 구간 요약 요청(llm 경유), summary 저장·조회·편집 | 메시지 삭제 |
-| `llm/` | 제공사 어댑터(`provider.ts` 인터페이스 + 제공사별 파일), 캐릭터 상수(`characters.ts`), 프롬프트 조립(`prompt.ts`), 출력 후처리 | DB 접근, HTTP 라우트 |
+| `llm/` | 제공사 어댑터(`provider.ts` 인터페이스 + 제공사별 파일), 캐릭터 시드 로드(`characters.ts`), 프롬프트 조립(`prompt.ts`), 출력 후처리, 월 예산(`usage`) | DB 접근(usage 집계는 db 경유), HTTP 라우트 |
+| `settings/` (S3c) | 캐릭터 설정 저장·조회(D1 `character_settings`, 주인 전용 쓰기), 프롬프트용 설정 로드(`loadForPrompt` — D1 값 우선, 없으면 `server/characters/*.json` 시드). 검사는 shared `checkCharacterSettings`(contract 소유) 재사용 | 주인 판정(auth `requireOwner` 몫), 프롬프트 조립 |
 
 - 모듈 = 폴더 + `index.ts`. 공개 API는 `index.ts`에서 named export로 재노출한다. 다른 모듈은 `index.ts` export만 쓴다.
 - **의존 방향**: `routes → services(rooms·messages·memory) → db`. `llm`은 `messages`·`memory`만 호출한다. `auth`는 `routes`의 Hono 미들웨어로만 쓰이고 서비스는 `Principal`(auth.md §2: mbId·nick·chName·level·displayName)를 인자로 받는다. `env`는 `index.ts`가 `parseEnv`로 한 번 만들어 서비스 팩토리에 **값으로 주입**한다(모듈이 바인딩을 직접 import·접근하지 않는다). 역방향 import 금지.
@@ -41,11 +42,12 @@ description: 런던_디스패치 server 계층(Cloudflare Workers + Hono 4 + D1,
 
 ## 3. 에러 처리
 
-- 서비스는 `AppError { code, status, message, cause? }`를 throw한다. `code`는 `shared/src/errors.ts`의 상수만(문자열 리터럴 산재 금지). `message`는 **사용자에게 그대로 보여도 되는 한국어 한 문장**.
+- 서비스는 `AppError`만 throw한다. 생성은 `new AppError(code, message?, { cause?, retryAfterSec? })` — `status`는 `ERROR_STATUS[code]`에서, `message` 기본값은 `ERROR_MESSAGES[code]`에서 자동으로 정해진다(status·문구를 호출부가 따로 쓰지 않는다). `code`는 `shared/src/errors.ts`의 상수만(문자열 리터럴 산재 금지). `message`를 덮어쓸 때는 **사용자에게 그대로 보여도 되는 한국어 한 문장**. `retryAfterSec`는 `RATE_LIMITED`·`LLM_BUDGET_EXCEEDED`용이고 `onError`가 본문·`Retry-After` 헤더로 옮긴다.
 - `throw 'string'`·`throw new Error('...')`(코드 없는 에러)는 서비스에서 금지. 외부 라이브러리 에러는 잡아서 `AppError`로 감싸고 `cause`에 원본을 보존한다.
 - `AppError`를 `{ error: { code, message } }` + `status`로 변환하는 **단일 에러 핸들러**(Hono `app.onError`·`notFound`)는 **진입점 `server/src/app.ts`(server 소유)** 한 곳에만 둔다. 라우트(contract 소유)는 throw만 한다. 이유: 부트스트랩(CONFIG_INVALID)·`/embed`·notFound까지 한 핸들러로 덮고, `?t=` 토큰을 로그에서 빼기 위해서다(index.md 설계 결정). 핸들러마다 try/catch로 문자열을 만들지 않는다.
 - 예상 못 한 에러는 `500 INTERNAL`로 닫고 원본은 로그에만. 스택·경로·SQL을 응답에 넣지 않는다.
-- LLM 제공사 에러는 `llm/`에서 `LLM_TIMEOUT`·`LLM_PROVIDER_ERROR`·`LLM_AUTH_ERROR`·`LLM_RATE_LIMITED`로 분류해 올린다. 제공사 원문 메시지는 로그에만.
+- 에러 코드는 `shared/src/errors.ts`의 **15종**뿐이다: `VALIDATION_ERROR`·`TOKEN_REQUIRED`·`TOKEN_INVALID`·`LEVEL_TOO_LOW`·`RATE_LIMITED`·`NOT_FOUND`·`SPEAK_IN_PROGRESS`·`NOT_LAST_MESSAGE`·`NOT_CHARACTER_MESSAGE`·`LLM_FAILED`·`LLM_EMPTY`·`LLM_BUDGET_EXCEEDED`·`CONFIG_INVALID`·`OWNER_ONLY`·`INTERNAL`. 코드 1개 = status 1개(`ERROR_STATUS[code]`). 새 코드는 contract 변경(api.md §3.2, R-API-002)이다.
+- LLM 제공사 에러는 밖으로 `LLM_FAILED`(502: 네트워크·타임아웃·5xx 재시도 후, 429·4xx·형식 불일치 즉시)·`LLM_EMPTY`(502: 차단·빈 응답)·`LLM_BUDGET_EXCEEDED`(429: 월 예산 초과, 호출 전 거절) 셋으로만 나간다. 내부 분류(`network`·`timeout`·`http_5xx`·`http_429`·`http_4xx`·`bad_response`·`blocked`)는 `llm/provider.ts`의 `LlmError.reason`이 들고 있으며 `llm/client.ts`가 `AppError`로 바꾸는 유일한 지점이다. `LlmError`는 모듈 밖으로 나가지 않는다. 로그에는 제공사 상태 코드·분류만 남기고 제공사 오류 문장은 남기지 않는다(R-LLM-005 개정 2026-10-06).
 
 ## 4. 비동기·동시성 (Workers 전제: 인스턴스 여럿, 프로세스 메모리 공유 없음)
 
@@ -71,45 +73,57 @@ description: 런던_디스패치 server 계층(Cloudflare Workers + Hono 4 + D1,
 ## 6. LLM 어댑터 (`llm/`)
 
 ```ts
-// llm/provider.ts
-export type LlmMessage = { role: 'user' | 'assistant'; content: string }
-export type GenerateInput = { system: string; messages: LlmMessage[]; maxTokens: number; timeoutMs: number }
-export interface LlmProvider { generate(input: GenerateInput): Promise<string> }
+// llm/provider.ts (실물, R-LLM-001)
+export type LlmTurn = { readonly role: 'user' | 'assistant'; readonly text: string }
+export type GenerateInput = { readonly system: string; readonly turns: readonly LlmTurn[]; readonly timeoutMs: number }
+export type GenerateOutput = { readonly text: string; readonly usage?: LlmUsage }   // usage 는 S3b 월 예산용(Gemini 200 이면 항상 채움)
+export interface LlmProvider {
+  readonly name: LlmProviderName
+  generate(input: GenerateInput): Promise<GenerateOutput>   // 실패는 LlmError 로 throw (AppError 아님)
+}
 ```
 
-- 제공사별 파일(`anthropic.ts`·`openai.ts`·`gemini.ts`) 중 `env.LLM_PROVIDER`로 하나를 고르는 팩토리 `createProvider(env)`. 서비스는 `LlmProvider`만 안다.
-- 타임아웃 60초(`AbortSignal.timeout`), 재시도 1회(타임아웃·5xx·429만, 즉시 재시도 금지 — 1초 대기). 4xx 인증 오류는 재시도하지 않는다.
+- 제공사 파일은 `gemini.ts`(`GeminiProvider`)·`fake.ts`(`FakeProvider`)이고 `env.LLM_PROVIDER`(`'google' | 'fake'`)로 하나를 고르는 팩토리 `createProvider(env)`. 서비스는 `LlmProvider`만 안다. `timeoutMs`는 **이번 시도 1회**의 상한이고 재시도 예산은 `llm/client.ts`가 계산한다.
+- 재시도는 **네트워크·5xx·타임아웃만 1회**(1초 대기 뒤, `withRetry`). **429·4xx·형식 불일치·차단은 재시도하지 않는다**(R-LLM-005). 1차 타임아웃은 `env.LLM_TIMEOUT_MS`, LLM 단계 총 소요는 `LLM_BUDGET_MS` **66초** 안(R-NFR-001 70초 — 2차 타임아웃은 남은 예산으로 줄이고 2초 미만이면 재시도 안 함. S3d 화자 선택 호출이 쓴 시간도 같은 예산에서 뺀다).
 - 어댑터는 **`fetch` 기반**이 기본이다(Workers 호환). 제공사 SDK는 Workers 호환(네이티브 모듈 없음·`fetch` 사용·workerd 동작 확인)일 때만 후보이며 선택·설치는 사용자 승인 후(설치 허가제). 호환이 불명확하면 `fetch` 직접 호출 어댑터로 간다.
-- 출력 후처리(`postprocess.ts`): 앞뒤 공백·따옴표 정리, `세바스찬:`·`시엘:`·`[이름]` 같은 이름표 제거, 마크다운 펜스 제거, 빈 문자열이면 `LLM_EMPTY_OUTPUT`. 길이 상한(확정사항 1~3문장 지침이지만 하드 컷은 문자 수 기준 상수).
+- 출력 후처리(`postprocess.ts`): 앞뒤 공백·따옴표 정리, `세바스찬:`·`시엘:`·`[이름]` 같은 이름표 제거, 마크다운 펜스 제거, 빈 문자열이면 `LLM_EMPTY`. 길이 상한(확정사항 1~3문장 지침이지만 하드 컷은 문자 수 기준 상수).
 - `FakeProvider`(테스트용, 입력을 기록하고 고정 문자열 반환)를 `llm/fake.ts`에 둔다. 서비스 테스트는 전부 이걸 주입한다.
 
 ## 7. 프롬프트 조립 규칙 (`llm/prompt.ts`, 확정사항 §5.5)
 
 1. 입력: 방 `memory.summary`(있으면) + 최근 메시지 `env.CONTEXT_MESSAGES`개(기본 40, 오래된 순) + 눌린 캐릭터 id.
-2. **시스템 프롬프트** = 세계관 공통(`characters.ts`의 `WORLD`) + 눌린 캐릭터 설정(`characters[id].persona`) + 출력 규칙(고정 문자열: "지금은 {이름} 차례. {이름}의 행동·내면·대사만 1~3문장. 상대 캐릭터의 대사·행동 금지. 이름표·콜론·마크다운 금지.") + 장기기억("지금까지의 요약: …").
-3. **대화 기록**은 `messages` 배열로 넘긴다. 캐릭터 발화는 `assistant`(내용 앞에 `시엘: `처럼 화자 표기), 유저 발화·OOC는 `user`(`[지시] …` / `[유저] …`). 마지막에 `user` 역할로 `"{이름}의 차례입니다."` 한 줄을 붙여 턴을 명시한다.
+2. **시스템 프롬프트** = 세계관 공통(`common.world`) + 눌린 캐릭터 설정(`profiles[id]`의 persona·speech·rules, S3c 선택 필드) + 출력 규칙(`common.outputRules[]`, 시드 JSON — 화면에서 고치지 않음) + 주입 방어 문구(R-LLM-006). **장기기억 요약은 시스템 프롬프트에 넣지 않고** 대화 기록 쪽 **데이터 블록**(구분자로 감싼 `user` 턴)으로 넘긴다(llm.md D-LLM-10 — 요약 본문은 유저가 편집할 수 있는 텍스트라 유저 입력과 같은 취급).
+3. **대화 기록**은 `turns` 배열로 넘긴다. 캐릭터 발화는 `assistant`(내용 앞에 `시엘: `처럼 화자 표기), 유저 발화·OOC는 `user`(`[지시] …` / `[어떠한 의지] …` — S3d부터 유저 줄 라벨은 개인 이름이 아니라 shared `USER_DISPLAY_NAME` 고정 명칭 「어떠한 의지」다. `authorName`은 프롬프트에 쓰지 않는다. R-LLM-003 🔒 개정·R-MSG-009). 마지막에 `user` 역할로 `"{이름}의 차례입니다."` 한 줄을 붙여 턴을 명시한다.
 4. **유저 텍스트는 항상 대화 기록 쪽에만** 둔다. 시스템 프롬프트에 유저 입력을 섞지 않는다(프롬프트 주입 완화). 유저 텍스트 안의 `시스템:`·`무시하고` 같은 문구를 필터링하지는 않되, 출력 규칙은 시스템 프롬프트가 마지막에 다시 못 박는다.
-5. 토큰 예산: 시스템 + 기록이 상한(상수 `MAX_PROMPT_CHARS`)을 넘으면 오래된 기록부터 자른다(요약이 있으면 요약이 그 자리를 대신한다).
+5. 토큰 예산: 문자 수 상한 상수(`MAX_PROMPT_CHARS`)는 **도입하지 않았다**(llm.md D-LLM-8). 기록 길이는 `env.CONTEXT_MESSAGES`(최근 N개)가 상한이고, 메시지 본문 길이는 계약의 입력 상한이 이미 막는다. 상한 추가는 요구ID가 생길 때만.
 6. `prompt.ts`는 **순수 함수**(DB·env·네트워크 의존 없음) — 입력 객체를 받아 `GenerateInput`을 돌려준다. 테스트 100%.
 
-## 8. 캐릭터 상수 (`llm/characters.ts`)
+## 8. 캐릭터 설정 (`llm/characters.ts` + `server/characters/*.json`, R-LLM-002 개정)
 
 ```ts
+// shared/src/characters.ts — id·이름 상수(2명 고정)
 export const CHARACTER_IDS = ['sebastian', 'ciel'] as const
 export type CharacterId = (typeof CHARACTER_IDS)[number]
-export type Character = { id: CharacterId; name: string; profileImage: string; persona: string }
-export const WORLD: string
-export const CHARACTERS: Record<CharacterId, Character>
+// server/characters/{sebastian,ciel}.json — 캐릭터 시드. avatar 없음(R-LLM-002 개정)
+{ "id": CharacterId, "name": string, "persona": string, "speech": string, "rules": string[] }
+// server/characters/common.json — 공통 시드
+{ "world": string, "outputRules": string[] }
+// server/src/llm/characters.ts — 프롬프트 조립 입력(S3c 선택 필드 포함)
+export type CharacterProfile = { id; name; persona; speech; rules; sourceMaterial?; age?; gender?; role?; personalityTags?; appearance?; relationships?; sampleDialogue? }
+export type CommonPrompt = { world: string; outputRules: readonly string[] }
+export type PromptSettings = { profiles: Record<CharacterId, CharacterProfile>; common: CommonPrompt }
 ```
 
 - 2명 고정(확정사항 §1 🔒). 추가는 횡단 변경(system-architect).
-- `persona` 텍스트는 상수 파일에 두되 400줄 한계 예외 대상(데이터 파일). 작성자는 미결(확정사항 §9-3) — 임시 문구에는 `// TODO(R-LLM-xxx): 지인 검수 대기` 표기.
+- 텍스트는 TS 상수가 아니라 **JSON 파일**이다. 모듈 로드 시 스키마 검증(`id`·`name`·`persona`·`speech`·`rules[]` / `world`·`outputRules[]`)에 실패하면 배포 거부. `outputRules`는 시드에만 있고 화면에서 고치지 않는다.
+- **S3c부터 JSON은 기본값 시드로 강등**됐다. 프롬프트는 `settings.loadForPrompt`가 돌려주는 `PromptSettings`를 쓰고, 그 값은 D1 `character_settings`(주인이 설정 화면에서 저장)가 **우선**, 없거나 깨져 있을 때만 JSON 시드다. JSON 형식 자체는 바꾸지 않는다.
 - `speaker` DB 값과 `CharacterId`는 같은 문자열이다. 별도 매핑 금지.
 
 ## 9. 로그
 
 - 요청 로그는 `server/src/app.ts`의 자체 미들웨어(server 소유. `hono/logger`는 쓰지 않는다 — 쿼리의 `?t=` 토큰을 로그에서 제외해야 하므로). 서비스 로그는 주입받은 `Logger { info, warn, error }`를 쓴다 — 구현은 `index.ts`에서 만든 얇은 함수 하나(JSON 한 줄, 레벨은 `env.LOG_LEVEL`)이며 Workers `console`에 쓰는 것은 그 안에서만. 서비스·모듈에서 `console.*` 직접 호출·모듈 전역 logger import 금지(테스트에서 끄기 위해). 수집은 `wrangler tail`.
-- **금지 필드**: 토큰 원문·payload 전체, `TOKEN_SECRET`, `LLM_API_KEY`, 프롬프트 전문·LLM 응답 전문(길이·소요 ms만). 식별은 `mbId`·`roomId`·`messageId`.
+- **금지 필드**: 토큰 원문·payload 전체, `TOKEN_SECRET`, `LLM_API_KEY`, 프롬프트 전문·LLM 응답 전문(길이·소요 ms만), **제공사 오류 문장**. 식별은 `mbId`·`roomId`·`messageId`.
+- LLM 실패 로그는 **제공사 HTTP 상태 코드·`providerStatus` enum·내부 분류(`LlmError.reason`)·`finishReason`만** 남긴다(R-LLM-005 개정 2026-10-06 승인 ②). 제공사 응답 본문의 오류 문장은 키·내부 정보가 섞일 수 있어 로그에도 쓰지 않는다. 응답에는 shared 기본 문구만.
 - 유저가 입력한 텍스트는 로그에 남기지 않는다(개인 커뮤니티 대화).
 
 ## 10. 명명 규칙

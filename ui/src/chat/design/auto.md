@@ -285,7 +285,7 @@ export const userAuthorLabel = (authorName: string | null): string =>
 | D-20 | 상태 필드를 늘리지 않고 `PendingSpeak.character`·`MessageWrite.speak.character`의 타입을 `SpeakTarget`으로 넓힌다 | 계약 「ui 인계 메모」 "화면 상태의 생성 대상은 `SpeakTarget`" · 초기값 TC 불변 |
 | D-21 | 유저 작성자 표기는 받은 값 그대로, 비었을 때만 `USER_DISPLAY_NAME`. `unknownAuthor` 삭제 | Q6 · 「ui 인계 메모」 S3d · 인계 패킷 §3 |
 | D-22 | 구성안 §7 구조 제안 2건(보이는 "누가 대답할지 고르는 중" 문구 · 선택 순간 미리 옮기기)은 **미채택** | 요구 밖 · 계층 횡단(위임문 제약) |
-| D-23(v1.9.1 구현 동기화, **우회(지역 훅)**) | 잠긴 저장 버튼의 `aria-describedby`는 공용 `Button`에 해당 prop이 없어 `InlineEditor.tsx` 지역 훅 `useDescribedBy`가 `buttonRef`로 속성을 걸고(잠김) 푼다(풀림). 공용 컴포넌트는 고치지 않았다 | 화면 작업에서 공용 부품 시그니처를 바꾸지 않는다. 정식 해결은 주 문서 §12 공용화 후보 행(Button `ariaDescribedBy?` 추가 후 지역 훅 제거, 후작업 ui-postprocessor) · `component-usage-lessons` 코어 결함 후보 1건(2026-10-07) |
+| D-23(v1.9.1 구현 동기화, 우회(지역 훅) → **해소 2026-10-07**) | ~~잠긴 저장 버튼의 `aria-describedby`는 공용 `Button`에 해당 prop이 없어 `InlineEditor.tsx` 지역 훅 `useDescribedBy`가 `buttonRef`로 속성을 걸고(잠김) 푼다(풀림).~~ **해소(후작업 2026-10-07):** 공용 Button에 `ariaDescribedBy?: string`이 추가됐다. `EditorActions`는 지역 훅 없이 저장 버튼에 `ariaDescribedBy={isSaveLocked ? noteId : undefined}`를 넘긴다(동작 같음 — 잠김일 때만 속성, 풀리면 없음). 이 문서 §2.3·§6의 `useDescribedBy` 서술은 이 행으로 읽는다 | 화면 작업에서 공용 부품 시그니처를 바꾸지 않는다. 정식 해결은 주 문서 §12 공용화 후보 행(Button `ariaDescribedBy?` 추가 후 지역 훅 제거, 후작업 ui-postprocessor) · `component-usage-lessons` 코어 결함 후보 1건(2026-10-07) |
 
 구성안·계약과 다르게 정한 것: **없음.** 구성안이 ui-designer에게 맡긴 두 점(클래스 이름 · 유저 말풍선 표시 시점)만 AU §0에서 정했다.
 
