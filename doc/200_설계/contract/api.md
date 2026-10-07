@@ -1971,13 +1971,15 @@ export type PutMemoryBody = {
 
 ---
 
-## 8. handoff (저쪽 전달물) — **S5 예정**
+## 8. handoff (저쪽 전달물) — **S5 작성 2026-10-07 (v0.7.2)**
 
 | 파일 | 내용(요구) | 요구ID |
 |---|---|---|
 | `doc/handoff/embed-guide.md` | https 임베드 주소 입력 위치(`$rb_chatbot_embed_url`), 패널 390×640 전제, `?t=` 전달 방식, 허용 출처 | R-HANDOFF-001 |
 | `doc/handoff/token-snippet.php.md` | R-TOKEN-001 PHP 조각 전문, 붙이는 위치, LEVEL 바꾸는 법 | R-HANDOFF-002 · R-TOKEN-001 |
 | `doc/handoff/secret-handover.md` | SECRET 생성(32자 이상 랜덤)·전달 경로·양쪽 입력 위치·교체 절차. 실값 없음 | R-HANDOFF-003 |
+| `doc/handoff/cloudflare-setup.md` | (v0.7.2) 지인 몫(구성원 초대 · Google 예산 알림 선택)과 우리 몫(플랜 Free · D1 · Secrets 3개 · `[vars]` · 마이그레이션 0001~0003 · 배포 · 배포 뒤 확인), 대안 API 토큰. 실값 없음 | 확정사항 §6·§9-8 · R-ENV-002 · R-SET-001 · R-LLM-007 |
+| 링크 (v0.7.2 작성 완료) | [embed-guide.md](../../handoff/embed-guide.md) · [token-snippet.php.md](../../handoff/token-snippet.php.md) · [secret-handover.md](../../handoff/secret-handover.md) · [cloudflare-setup.md](../../handoff/cloudflare-setup.md). S5 TODO 반영 위치: AI 비용 상한·장기기억 요약 포함 → embed-guide §7 · `sandbox` `allow-downloads` → embed-guide §5.2 · 운영 `TOKEN_SECRET` 32자 이상·개발 값과 다름 → secret-handover §1 · `OWNER_MB_IDS` Secrets → secret-handover §5 · cloudflare-setup §5. 교차 벡터 V1·V4·V7·V3는 §2.5 원문 그대로(token-snippet §4). 토큰 형식·payload·`?t=`·12h는 §2.3~§2.6 그대로이고 첫 전달이라 재적용 대상 없음 | R-TOKEN-001 · R-HANDOFF-001~003 |
 
 - 저쪽 재적용이 필요한 변경: 토큰 payload 필드·서명 방식·`?t=` 파라미터 이름·임베드 주소. 이런 변경은 파괴 변경이며 §9에 "저쪽 재적용 필요"로 남긴다.
 - S1 변경은 handoff에 영향이 없다.
@@ -2016,6 +2018,8 @@ export type PutMemoryBody = {
 | v0.7 구현 | 2026-10-07 | S4 구현 완료(shared 타입 2·경로 1 · routes `memory.ts` E13·E14 · `schemas.ts` `putMemoryBody`·`MEMORY_BODY_MAX_BYTES` · ui/api `getMemory`·`putMemory`). 테스트 API-T-042(갱신)·113~124 · API-T-UI-030~032, speak 호출 테스트 도우미 `waitOnExecutionContext`, §12.6 실물 파일:줄. 계약 내용 변경 없음 | 구현 반영(계약 변경 없음) | 아니오 |
 | v0.7.1 | 2026-10-07 | R-MEM-001 🔒 개정(사용자 지정): E14 PUT에서 trim 결과가 빈 요약이면 `sourceUntilId`를 0으로 되돌린다(요약 삭제 = 처음부터 재요약, 비어 있지 않은 편집은 유지). §4.18 의미·성공·부수 효과·비우기 예시·경합 2행, §4.17 설명, §5.9.1 `sourceUntilId` 주석, §10 R-MEM-001 행, §11.16 `putMemory` 주석, §14.19 API-T-125, §15.14 server 변경 요구 1건(`memory.put`·`memory.putSummary`)·확인 필요 3 해소, 「ui 인계 메모」 S4 비우기 행, 인계 목록 S4 1행. §4.13·§4.17 동작 영향 없음 | 비파괴(응답 `sourceUntilId` 값 규칙 변경 — 타입·키 불변, 화면은 이 값을 표시·분기하지 않는다. 요청·status·문구 불변) | 아니오 |
 | v0.7.1 구현 | 2026-10-07 | contract 몫 구현 반영: `routes-memory.test.ts` API-T-125(① `''` ② 공백만 → `sourceUntilId` 0 ③ `'a'` → 21 유지), `types.ts` `MemoryResponse.sourceUntilId` 주석 · `ui/src/api/memory.ts` `putMemory` 주석에 "빈 요약이면 0", §12.6 갱신. 라우트·shared 모양 변경 없음 | 구현 반영(계약 변경 없음) | 아니오 |
+| v0.7.2 | 2026-10-07 | S5 handoff 4문서 작성(R-TOKEN-001 🔒 · R-HANDOFF-001 🔒 · R-HANDOFF-002 🔒 · R-HANDOFF-003): `embed-guide.md`(주소 위치·패널 390×640·`?t=`·허용 출처·sandbox·캐시·AI 비용 운영 메모) · `token-snippet.php.md`(조각 전문·위치·LEVEL·교차 벡터 V1·V4·V7·V3·자가 점검) · `secret-handover.md` · `cloudflare-setup.md`. §8 제목·표 2행. PHP 조각은 §2.6 규칙 그대로이고 SECRET 32자 미만이면 발급하지 않는다(서버 하한과 같음, 토큰 형식 무관). 사용자 결정 2026-10-07 반영: `OWNER_MB_IDS` = 지인 회원 ID 1개(실값 미기재) · 모델은 설정 화면 Pro/Flash 선택 예정(설계 중)이라 `LLM_MODEL`·`LLM_PRICE_*`는 폴백 기본값으로 기술 · Cloudflare 접근 방식·플랜은 두 선택지와 권고만(지인 선택) · LEVEL 5 유지. 엔드포인트·타입·에러 코드·토큰 형식 불변 | 추가(문서만) | 아니오(첫 전달 — 저쪽 최초 적용) |
+| v0.7.2 보정 | 2026-10-07 | 사용자 결정(지인은 비개발자): handoff 4종을 "지인 최소·나머지 우리" 기준으로 재정렬. SECRET은 우리가 생성·Cloudflare 입력하고 지인에게는 SECRET을 채운 PHP 덩어리를 1회성 비밀 링크로 전달(지인 직접 생성은 대안 강등, secret-handover §2·§7). Cloudflare는 구성원 초대가 기본·API 토큰은 대안, 플랜 Free로 우리가 시작, D1·Secrets·`[vars]`·마이그레이션·배포는 우리 몫(cloudflare-setup §0~§9). embed-guide 지인 할 일 = 주소 한 줄 교체·덩어리 붙이기·확인표, 캐시는 질문 대신 안내(§5.3). token-snippet 머리에 지인용 요약 3줄, §7 `npm run token:test -w server` 실물 사용법(sign·verify·vectors). §8 cloudflare-setup 행 문구 정정. 토큰 형식·PHP 조각 코드·교차 벡터 불변 | 변경 없음(전달 절차·문서만) | 아니오 |
 
 ---
 

@@ -12,8 +12,8 @@ description: Cloudflare Workers 배포 — verify PASS·clean tree·Secrets 키 
 
 | 주체 | 이 명령이 하는 일 |
 |---|---|
-| **지인이 직접 배포(기본값)** | 0단계 선행 확인과 `npm run build`까지만 실행하고, 1~3단계는 **절차서**로 써서 `doc/300_검증/deploy-{STAMP}.md`에 남긴다. `wrangler deploy`·`--remote`는 실행하지 않는다 |
-| 우리가 지인 계정의 API 토큰으로 배포 | 0~5단계 전부 실행. 토큰은 환경변수 `CLOUDFLARE_API_TOKEN`으로만 받고 파일·문서·보고에 값을 남기지 않는다 |
+| 지인이 직접 배포(접근 권한을 못 받았을 때) | 0단계 선행 확인과 `npm run build`까지만 실행하고, 1~3단계는 **절차서**로 써서 `doc/300_검증/deploy-{STAMP}.md`에 남긴다. `wrangler deploy`·`--remote`는 실행하지 않는다 |
+| **우리가 지인 계정으로 배포(기본값 — 확정사항 §9-8. 접근은 지인이 Cloudflare 구성원으로 초대(Administrator) → 우리 PC에서 `npx wrangler login`; API 토큰은 대안 — 2026-10-07, handoff/cloudflare-setup.md)** | 0~5단계 전부 실행. 토큰은 환경변수 `CLOUDFLARE_API_TOKEN`으로만 받고 파일·문서·보고에 값을 남기지 않는다 |
 
 어느 쪽인지 `doc/000_프로젝트_확정사항.md` §9-8을 보고, 미결이면 `AskUserQuestion`으로 묻는다.
 
@@ -33,11 +33,11 @@ npx wrangler --config server/wrangler.toml d1 migrations list <DB> --remote
 | 작업 트리 | `git status --porcelain` 비어 있음. 미커밋이면 `/sync` 먼저 |
 | Cloudflare 로그인 | `wrangler whoami`에 계정이 나온다. 안 나오면 `npx wrangler login`(브라우저) 또는 `CLOUDFLARE_API_TOKEN` 설정은 **사용자가** 한다 |
 | Secrets | `wrangler secret list`는 **이름만** 출력한다(값은 서버에만 있다). 필수 Secret이 모두 있어야 한다 |
-| 비밀 아닌 설정 | `server/wrangler.toml [vars]`에 필수 키가 있고, 비밀값(`TOKEN_SECRET`·`LLM_API_KEY`)이 `[vars]`에 **없어야** 한다 |
+| 비밀 아닌 설정 | `server/wrangler.toml [vars]`에 필수 키가 있고, 비밀값(`TOKEN_SECRET`·`LLM_API_KEY`·`OWNER_MB_IDS`)이 `[vars]`에 **없어야** 한다 |
 | D1 | `[[d1_databases]]`의 `binding = "DB"`·`database_id`가 운영 DB를 가리킨다. `migrations list --remote`로 미적용 마이그레이션 목록을 본다 |
 | 정적 화면 | `[assets] directory = "../ui/dist"`, `/embed`로 서빙 |
 
-필수 Secret: `TOKEN_SECRET` `LLM_API_KEY`
+필수 Secret: `TOKEN_SECRET`(32자 이상) `LLM_API_KEY` `OWNER_MB_IDS`(지인 회원 ID 1개 — 비우면 설정 화면 전원 403)
 필수 `[vars]`: `LLM_PROVIDER` `LLM_MODEL` `ALLOWED_FRAME_ANCESTORS` `TOKEN_MIN_LEVEL` `RATE_LIMIT_PER_MIN`
 
 - 빠진 Secret은 이름만 보고하고 멈춘다. 값은 지인(또는 사용자)이 `npx wrangler --config server/wrangler.toml secret put <NAME>`로 넣는다(이 세션은 비밀값을 받지 않는다). `server/.dev.vars.example`이 키 목록의 단일 소스다.
