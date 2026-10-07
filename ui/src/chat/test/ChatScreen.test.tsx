@@ -281,11 +281,22 @@ describe('ChatScreen 읽기 전용 (R-CHAT-008 · R-CHAT-004/007 부재 쪽)', (
     expect(mockedListMessages).toHaveBeenCalledTimes(1)
   })
 
-  it('TC-CH-022: 말풍선 우클릭·500ms 누름 뒤에도 dialog·menu 가 없고 우클릭 기본 동작을 막지 않는다', async () => {
+  // S3e: TC-CH-022(읽기 전용 메뉴 부재)는 TC-CH-112(버튼 줄 부재 + 메뉴 부재)로 대체(actions.md AC §11.2)
+  it('TC-CH-112: 토큰 없음 — 버튼 줄 group·「수정/재작성/삭제」 DOM 없음, 말풍선 tabIndex·aria-haspopup 없음, 우클릭·600ms 누름 뒤에도 dialog·menu 가 없고 우클릭 기본 동작을 막지 않는다', async () => {
     mockedListMessages.mockResolvedValueOnce(ok(PAGE))
     renderChat()
     const log = await screen.findByRole('log')
     const bubble = within(log).getAllByRole('listitem')[0]?.firstElementChild as HTMLElement
+    expect(screen.queryAllByRole('group', { name: /말풍선 작업/ })).toHaveLength(0)
+    expect(screen.queryByRole('button', { name: /수정|재작성|삭제/ })).toBeNull()
+    expect(screen.queryByText('수정')).toBeNull()
+    expect(screen.queryByText('삭제')).toBeNull()
+    for (const li of within(log).getAllByRole('listitem')) {
+      const root = li.firstElementChild as HTMLElement
+      expect(root.getAttribute('tabindex')).toBeNull()
+      expect(root.getAttribute('aria-haspopup')).toBeNull()
+      expect(li.children).toHaveLength(1) // Bubble 하나뿐(버튼 줄 형제 없음, D-28)
+    }
 
     expect(fireEvent.contextMenu(bubble)).toBe(true) // preventDefault 되지 않음
     vi.useFakeTimers()

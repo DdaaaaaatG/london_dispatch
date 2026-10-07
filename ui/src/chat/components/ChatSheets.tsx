@@ -1,6 +1,7 @@
 /**
  * ChatSheets(시트 스위치) — 설계 chat/design/components.md §2.10 · 요구 R-CHAT-001 · R-CHAT-007
- * sheet.kind 에 따라 시트 하나만 렌더한다: 말풍선 메뉴 · 메시지 삭제 확인 · 방 메뉴 · 이름 변경 · 방 삭제 확인.
+ * sheet.kind 에 따라 시트 하나만 렌더한다: 메시지 삭제 확인 · 방 메뉴 · 이름 변경 · 방 삭제 확인.
+ * S3e: 말풍선 메뉴 시트(messageMenu)는 없다. 수정·재작성·삭제는 말풍선 아래 버튼 줄(BubbleActions)이 맡고, 삭제만 이 확인 시트를 거친다.
  * ChatScreen 이 viewer.canWrite && sheet !== null 일 때만 이 컴포넌트를 렌더한다(토큰 없으면 시트 DOM 없음).
  * 이름 변경 실패 문구(errorText)가 바뀌어도 같은 PromptSheet 인스턴스라 입력값이 유지된다.
  */
@@ -10,11 +11,9 @@ import { PromptSheet } from '@/components/ui/PromptSheet'
 import { labels } from '@/chat/labels'
 import { ROOM_TITLE_MAX_CHARS, isRoomTitleValid } from '@/state/limits'
 import type { MessageWrite } from '@/state/chat'
-import { MessageMenuSheet } from './MessageMenuSheet'
 import { RoomMenuSheet } from './RoomMenuSheet'
 
 export type ChatSheet =
-  | { kind: 'messageMenu'; message: Message; canRegenerate: boolean }
   | { kind: 'confirmDeleteMessage'; message: Message }
   | { kind: 'roomMenu' }
   | { kind: 'rename'; errorText: string | null }
@@ -28,9 +27,6 @@ export type ChatSheetsProps = {
   /** 방 이름 변경·삭제 요청 중 */
   roomBusy: 'rename' | 'delete' | null
   onClose: () => void
-  onStartEdit: (message: Message) => void
-  onRegenerate: (message: Message) => void
-  onAskDeleteMessage: (message: Message) => void
   onConfirmDeleteMessage: (message: Message) => void
   onAskRename: () => void
   onSaveRename: (title: string) => void
@@ -38,37 +34,21 @@ export type ChatSheetsProps = {
   onConfirmDeleteRoom: () => void
 }
 
-/** 메시지 쪽 시트 두 종 */
+/** 메시지 삭제 확인(첫 포커스 취소) */
 const renderMessageSheet = (
-  sheet: Extract<ChatSheet, { kind: 'messageMenu' | 'confirmDeleteMessage' }>,
+  sheet: Extract<ChatSheet, { kind: 'confirmDeleteMessage' }>,
   props: ChatSheetsProps,
-) => {
-  const { message } = sheet
-  if (sheet.kind === 'messageMenu') {
-    return (
-      <MessageMenuSheet
-        message={message}
-        isWriteBusy={props.writing !== null}
-        canRegenerate={sheet.canRegenerate}
-        onEdit={() => props.onStartEdit(message)}
-        onRegenerate={() => props.onRegenerate(message)}
-        onDelete={() => props.onAskDeleteMessage(message)}
-        onClose={props.onClose}
-      />
-    )
-  }
-  return (
-    <ConfirmDialog
-      title={labels.deleteMessageTitle}
-      message={labels.deleteMessageBody}
-      confirmLabel={labels.delete}
-      cancelLabel={labels.cancel}
-      onConfirm={() => props.onConfirmDeleteMessage(message)}
-      onCancel={props.onClose}
-      isBusy={props.writing?.kind === 'delete'}
-    />
-  )
-}
+) => (
+  <ConfirmDialog
+    title={labels.deleteMessageTitle}
+    message={labels.deleteMessageBody}
+    confirmLabel={labels.delete}
+    cancelLabel={labels.cancel}
+    onConfirm={() => props.onConfirmDeleteMessage(sheet.message)}
+    onCancel={props.onClose}
+    isBusy={props.writing?.kind === 'delete'}
+  />
+)
 
 /** 방 쪽 시트 세 종 */
 const renderRoomSheet = (
@@ -118,8 +98,6 @@ const renderRoomSheet = (
 
 export const ChatSheets = (props: ChatSheetsProps) => {
   const { sheet } = props
-  if (sheet.kind === 'messageMenu' || sheet.kind === 'confirmDeleteMessage') {
-    return renderMessageSheet(sheet, props)
-  }
+  if (sheet.kind === 'confirmDeleteMessage') return renderMessageSheet(sheet, props)
   return renderRoomSheet(sheet, props)
 }

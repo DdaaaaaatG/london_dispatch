@@ -228,12 +228,19 @@ describe('ChatScreen 토큰 있음 렌더 (R-CHAT-004 · R-CHAT-008 · R-CHAT-00
     ).toBe('대사나 지시를 입력')
     expect(within(group).getByRole('button', { name: '전송' })).not.toBeNull()
     expect(screen.queryByRole('note')).toBeNull()
+    // S3e 개정(actions.md AC §11.2): 옛 "말풍선 메뉴 대상(tabindex·aria-haspopup·Shift+F10·menuEnabled)" →
+    // 말풍선마다 버튼 줄 group "{이름} 말풍선 작업"(「수정」「삭제」), 말풍선 루트에는 메뉴 속성 없음
     for (const li of items()) {
-      const target = li.querySelector('[aria-haspopup="dialog"]') as HTMLElement
-      expect(target).not.toBeNull()
-      expect(target.getAttribute('tabindex')).toBe('0')
-      expect(target.getAttribute('aria-keyshortcuts')).toBe('Shift+F10')
-      expect(target.classList.contains('menuEnabled')).toBe(true)
+      const g = within(li).getByRole('group', { name: /말풍선 작업$/ })
+      expect(
+        within(g)
+          .getAllByRole('button')
+          .map(b => b.textContent),
+      ).toEqual(['수정', '삭제'])
+      const root = li.querySelector('.root') as HTMLElement
+      expect(root.getAttribute('tabindex')).toBeNull()
+      expect(root.getAttribute('aria-haspopup')).toBeNull()
+      expect(root.classList.contains('menuEnabled')).toBe(false)
     }
     expect(localStorage.getItem('ld:lastRoomId')).toBe('r1')
     await flushPending()

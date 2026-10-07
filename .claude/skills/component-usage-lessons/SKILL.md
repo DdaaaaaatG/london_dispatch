@@ -61,9 +61,15 @@ description: 공용 컴포넌트(ui/src/components/ui·hooks) 사용 시 알려�
 - 우회: `ui/src/chat/components/InlineEditor.tsx` 지역 훅 `useDescribedBy(buttonRef, id | null)`가 `useLayoutEffect`로 `aria-describedby`를 걸고 푼다. 정식 해결 = `Button`에 `ariaDescribedBy?: string` 추가 후 지역 훅 제거(후작업 ui-postprocessor, chat design.md §12 · design/auto.md §8 D-23)
 - 재현: `Button.test.tsx`에 TC 없음 · Demo 케이스 없음
 
+### Button — ⏳ 코어 결함 후보(미수정)
+- 증상: `Button variant="ghost"`의 글자색이 `--color-fg`로 고정이다. 글자색 톤(보조색·danger)을 고르는 prop이 없어 "작은 텍스트 버튼"에 보조색·danger 글자를 줄 수 없다 (출처: chat 2026-10-07 · CR-003 S3e — 말풍선 버튼 줄 수정·재작성·삭제)
+- 우회: `ui/src/chat/components/BubbleActions.module.css`가 자손 선택자(`.actions button` 보조색, `.danger button` danger — 삭제 버튼을 `<span class="danger">` 래퍼로 감쌈)로 지역 덧칠한다. 정식 해결 = `Button` ghost에 톤 prop(예: `tone?: 'muted' | 'danger'`) 추가 후 지역 덧칠 제거(후작업 ui-postprocessor, chat design/actions.md D-25)
+- 재현: `Button.test.tsx`에 TC 없음 · Demo 케이스 없음
+
 ## 변경 이력
 
 | 날짜 | 변경 | 주체 |
 |---|---|---|
 | 2026-10-05 | 초판(빈 카탈로그) | 자산 변환 |
 | 2026-10-07 | 코어 결함 후보 1건: Button `aria-describedby` 전달 수단 없음(chat CR-002) | ui-designer(메인 세션 예외 허용) |
+| 2026-10-07 | 코어 결함 후보 1건 추가: Button ghost 글자색 톤 prop 없음(chat CR-003, 지역 덧칠로 우회) | ui-implementer |

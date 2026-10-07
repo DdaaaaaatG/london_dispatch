@@ -28,9 +28,8 @@
 | `inputPlaceholder` | `대사나 지시를 입력` | 입력창(구성안 §2) |
 | `send` | `전송` | 전송 버튼 |
 | `oocAriaLabel` · `oocOn` · `oocOff` | `OOC 지시 모드` · `OOC 켬` · `OOC 끔` | Toggle |
-| `messageMenuAriaLabel` | `메시지 메뉴` | 말풍선 메뉴 시트 |
-| `messageMenuHeader(name, time, excerpt)` | `` `${name} · ${time}  "${excerpt}"` `` | 말풍선 메뉴 머리(구성안 §2-1) |
-| `edit` · `delete` · `cancel` · `save` | `수정` · `삭제` · `취소` · `저장` | 시트 항목·버튼 |
+| ~~`messageMenuAriaLabel`~~ · ~~`messageMenuHeader(name, time, excerpt)`~~ | **삭제(S3e, CR-003)** — 말풍선 메뉴 제거 | — |
+| `edit` · `delete` · `cancel` · `save` | `수정` · `삭제` · `취소` · `저장` | (S3e) 말풍선 버튼 줄 글자 · 확인 시트·편집기 버튼 |
 | `editAriaLabel` · `editInputAriaLabel` | `메시지 수정` · `수정할 내용` | InlineEditor 그룹·입력 |
 | `deleteMessageTitle` · `deleteMessageBody` | `이 메시지를 삭제할까요?` · `삭제한 메시지는 되돌릴 수 없습니다.` | 메시지 삭제 확인(구성안 §2-4 "같은 틀", 문구는 이 설계가 정함) |
 | `roomMenuAriaLabel` · `roomMenuHeader(title)` | `방 메뉴` · `` `방 메뉴 · ${title}` `` | 방 메뉴 시트 |
@@ -49,7 +48,7 @@
 | `pendingStatus(name)` | `` `${name} 대사를 만드는 중` `` | 임시 말풍선 `role=status` 숨은 글자 |
 | `speakRetry` | `재시도` | 실패 말풍선 버튼 글자(요구 원문 「재시도」) |
 | `speakRetryAriaLabel(name)` | `` `${name} 대사 재시도` `` | 실패 말풍선 버튼 aria-label |
-| `regenerate` | `재작성` | 말풍선 메뉴 항목(요구 원문) |
+| `regenerate` | `재작성` | (S3e) 「재작성」 버튼 글자(요구 원문). 옛 말풍선 메뉴 항목 |
 | `regeneratingNote` | `다시 쓰는 중…` | 재작성 중 대상 머리 줄 `role=status` |
 
 - (S3b) `LLM_BUDGET_EXCEEDED`는 **새 labels 키를 두지 않는다.** `speakErrorText`·`writeErrorText(…, 'regenerate')` 둘 다 "그 밖" 분기 `ERROR_MESSAGES[code]`로 `ERROR_MESSAGES.LLM_BUDGET_EXCEEDED`(요구 원문 `이번 달 AI 사용 한도에 닿았습니다. 다음 달에 다시 시도해 주세요.`)를 쓴다. 이 문구는 서버 응답 `message`와 같은 요구 원문이지만(api.md §3.2 — 서버는 기본 문구만 보낸다), **화면은 응답 `error.message` 필드를 읽지 않고 `code` → `ERROR_MESSAGES`로 정한다**(§8.3 규칙 유지). 래퍼가 `message`를 비워 받으면 같은 `ERROR_MESSAGES` 값으로 채우므로(API-T-UI-022) 결과 문구는 같다. 초 값(`retryAfterSec`)은 넣지 않는다(래퍼가 버린다). 표는 `design/generate.md` §3
@@ -66,6 +65,10 @@
 | `userAuthorLabel(authorName)`(함수, `labels` 객체 밖 named export) | 받은 값 그대로 · `null`·`''`이면 `USER_DISPLAY_NAME`(`어떠한 의지`, `@shared/characters`) | Bubble `UserBubble` 작성자 줄 · MessageMenuSheet `nameOf` user 분기 |
 
 - `unknownAuthor` 키는 `labels.ts`에서 삭제됐다(실물 확인). 「어떠한 의지」 리터럴은 `labels.ts`에 없다.
+
+## 8.1.4 문구 (S3e, CR-003) → `design/actions.md` §8
+
+새 키 4개(함수): `bubbleActionsAriaLabel(name)` = `{이름} 말풍선 작업` · `editActionAriaLabel(name)` = `{이름} 대사 수정` · `regenerateActionAriaLabel(name)` = `{이름} 대사 재작성` · `deleteActionAriaLabel(name)` = `{이름} 대사 삭제`. 개정 1개: 재작성 실패 토스트 `LLM_FAILED`·`LLM_EMPTY` = `대사를 다시 만들지 못했습니다. 재작성을 다시 눌러 주세요.`(generate.md §3). 삭제 2개: `messageMenuAriaLabel` · `messageMenuHeader`.
 
 ## 8.2 오류 상세 `errorDetail(code)` (읽기, S1)
 

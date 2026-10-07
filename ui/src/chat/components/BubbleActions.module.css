@@ -1,0 +1,40 @@
+/*
+ * 설계 chat/design/actions.md §1 스타일(S3e) — 색·간격은 토큰만. 버튼 형태(28px · 터치 영역 44px · 포커스 링 · 비활성 흐림)는 공용 Button(sm · ghost)이 준다.
+ * 클래스 키(확정): 그룹 루트 actions + 변형 하나(sebastian · ciel · user · ooc), 「삭제」 래퍼 danger
+ * 28px 은 Bubble 의 아바타 폭이다. 세바스찬은 본문 시작선, 시엘은 본문 끝선에 맞춘다(DOM 순서는 수정 → 재작성 → 삭제 그대로).
+ */
+.actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin-top: var(--space-1);
+}
+
+.sebastian {
+  justify-content: flex-start;
+  padding-left: calc(28px + var(--space-2));
+}
+
+.ciel {
+  justify-content: flex-end;
+  padding-right: calc(28px + var(--space-2));
+}
+
+.user,
+.ooc {
+  justify-content: center;
+}
+
+/* 수정·재작성 보조색(D-25 지역 덧칠) */
+.actions button {
+  color: var(--color-fg-muted);
+}
+
+/* 삭제 danger 톤. 특이도가 같아 위 규칙보다 뒤에 둔다 */
+.danger {
+  display: inline-flex;
+}
+
+.danger button {
+  color: var(--color-danger);
+}

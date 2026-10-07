@@ -5,6 +5,7 @@
 > 공통 준비(S2): 쓰기 TC는 `viewer=WRITER_VIEWER`(또는 App 통합이면 `initToken('?t=test-token')`), 끝나면 `clearToken()`. 래퍼는 `vi.mock('@/api')`. 타이머는 `vi.useFakeTimers()`(롱프레스·토스트).
 > v1.5: TC-CH-033 단언 범위(DC-08) · TC-CH-046 재로드 스크롤(DC-04) · TC-CH-054 메뉴 진입 막음(DC-05) · TC-CH-064·065 TC-FLOW(DC-11).
 > v1.7(S3): §3 TC-CH-066~092 추가. **기존 TC 중 S3로 기대가 바뀌는 것**: TC-CH-031(토큰 있음 — 캐릭터 버튼이 **있다**, TC-CH-066으로 대체) · TC-CH-021(읽기 전용 — 버튼 이름 질의를 `/세바스찬\|시엘/` 정규식으로. 접근 이름이 `세바스찬 대사 생성`이라 정확 일치 질의는 S3에서도 null이 되어 단언이 무의미해진다) · TC-CH-040(메뉴 항목 — 대상이 "캐릭터+마지막"이면 `재작성`이 있다, TC-CH-079로 대체) · TC-CH-033(쓰기 경로 0회 단언에 `speak`·`regenerate` 포함 유지 — TC-CH-088) · TC-CH-053(T13~T16·T25 문구 변경분 — TC-CH-085).
+> **v2.0(S3e, CR-003): 신규 TC-CH-110~121과 기존 TC 영향표(폐기 039·041 · 대체 022·040·079·108 일부 · 개정 27건 — v2.0.1 TC-CH-086 추가)는 `design/actions-tests.md` §11(v2.0.1, 옛 actions.md §11).** 아래 표의 메뉴 전제 서술(contextmenu·롱프레스·Shift+F10·메뉴 항목·"다시 메뉴")은 그 영향표로 읽는다.
 > 공통 준비(S3): `vi.mock('@/api')`에 `speak`·`regenerate`를 더한다. 생성 대기는 "resolve하지 않은 Promise"로 만든 뒤 수동 resolve(화면 타이머가 없으므로 fake timers로 70초를 흘릴 필요 없음 — 흘려도 화면이 바뀌지 않음을 TC-CH-070에서 단언).
 
 ## 1. S1

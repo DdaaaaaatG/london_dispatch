@@ -197,8 +197,8 @@ const lastItem = () => items()[items().length - 1] as HTMLElement
 const rootOf = (li: HTMLElement) => li.firstElementChild as HTMLElement
 const pendings = () => document.querySelectorAll('.pending')
 const neutrals = () => document.querySelectorAll('.pending.neutral')
-const menuTargetOf = (li: HTMLElement) =>
-  li.querySelector('[aria-haspopup="dialog"]') as HTMLElement
+/** S3e(actions.md AC §1): 그 li 의 말풍선 버튼 줄(group "{이름} 말풍선 작업"). 옛 메뉴 대상(aria-haspopup)은 없다 */
+const actionsIn = (li: HTMLElement) => within(li).getByRole('group', { name: /말풍선 작업$/ })
 /** 저장·자동 응답 대기를 하나씩 건다 */
 const armSend = () => {
   const save = deferred<Result<Message>>()
@@ -243,11 +243,9 @@ const watchDisabled = (...els: HTMLElement[]) => {
 }
 const openEditorOn103 = async () => {
   const user = userEvent.setup()
-  fireEvent.contextMenu(menuTargetOf(items()[2] as HTMLElement))
+  // S3e: 진입 = 103 버튼 줄 「수정」(메뉴 단계 없음)
   await user.click(
-    within(screen.getByRole('dialog', { name: '메시지 메뉴' })).getByRole('button', {
-      name: '수정',
-    }),
+    within(actionsIn(items()[2] as HTMLElement)).getByRole('button', { name: /대사 수정$/ }),
   )
   return screen.getByRole('group', { name: '메시지 수정' })
 }
@@ -355,6 +353,7 @@ describe('T35 한 커밋 — S1 저장 중 → S2 생성 중 (R-CHAT-014 · R-CH
     expect(root.getAttribute('tabindex')).toBeNull()
     expect(root.querySelector('[aria-haspopup]')).toBeNull()
     expect(within(root).queryByRole('button')).toBeNull()
+    expect(within(lastItem()).queryAllByRole('group')).toHaveLength(0) // S3e: 중립 li 에 버튼 줄 없음(TC-CH-119)
 
     for (const name of [SEB, CIEL, '전송', MENU]) expect(btn(name).disabled).toBe(true)
     await waitFor(() => expect(input().value).toBe(''))
@@ -364,8 +363,14 @@ describe('T35 한 커밋 — S1 저장 중 → S2 생성 중 (R-CHAT-014 · R-CH
     fireEvent.change(input(), { target: { value: '다음' } })
     expect(input().value).toBe('다음')
     expect(btn('전송').disabled).toBe(true)
-    fireEvent.contextMenu(menuTargetOf(items()[2] as HTMLElement))
+    // S3e(옛 "메뉴 dialog 없음"): 생성 중에는 버튼 줄이 disabled, 눌러도 편집기·확인 시트 없음
+    for (const b of within(actionsIn(items()[2] as HTMLElement)).getAllByRole('button')) {
+      expect((b as HTMLButtonElement).disabled).toBe(true)
+      fireEvent.click(b)
+    }
     expect(screen.queryByRole('dialog')).toBeNull()
+    expect(screen.queryByRole('alertdialog')).toBeNull()
+    expect(screen.queryByRole('group', { name: '메시지 수정' })).toBeNull()
 
     expect(Object.keys(localStorage)).toEqual(['ld:lastRoomId'])
     expect(onAuthFailure).not.toHaveBeenCalled()
@@ -409,7 +414,7 @@ describe('결과 자리 (R-CHAT-014 · R-CHAT-002 · R-MSG-009)', () => {
     },
   )
 
-  it('TC-CH-100: (c) 자동으로 고른 대사도 메뉴 「재작성」 = regenerate(그 id) 1회, speak 추가 0회', async () => {
+  it('TC-CH-100: (c) 자동으로 고른 대사도 결과 말풍선 「재작성」 버튼 = regenerate(그 id) 1회, speak 추가 0회', async () => {
     renderChat()
     await screen.findByRole('log')
     const d = await sendToGenerating()
@@ -417,9 +422,9 @@ describe('결과 자리 (R-CHAT-014 · R-CHAT-002 · R-MSG-009)', () => {
       d.gen.resolve(ok(SEB_REPLY))
     })
     const user = userEvent.setup()
-    fireEvent.contextMenu(menuTargetOf(lastItem()))
-    const dialog = screen.getByRole('dialog', { name: '메시지 메뉴' })
-    await user.click(within(dialog).getByRole('button', { name: '재작성' }))
+    await user.click(
+      within(actionsIn(lastItem())).getByRole('button', { name: '세바스찬 대사 재작성' }),
+    )
     await flushPending()
     expect(mockedRegenerate.mock.calls).toEqual([[106]])
     expect(mockedSpeak).toHaveBeenCalledTimes(1)
@@ -870,22 +875,34 @@ describe('작성자 표기 (R-CHAT-002 · R-AUTH-004)', () => {
     },
   )
 
+  // S3e: 옛 "TC-CH-108 말풍선 메뉴 머리" it 은 TC-CH-118 버튼 이름 단언으로 대체(메뉴 머리 줄 삭제, actions.md AC §11.2)
   it.each([
-    ['미샤', /^미샤 · /],
-    [null, /^어떠한 의지 · /],
-  ] as const)('TC-CH-108: 말풍선 메뉴 머리 — 유저 authorName=%j', async (authorName, header) => {
-    const page: MessagesPage = {
-      ...PAGE,
-      messages: PAGE.messages.map(m => (m.id === 103 ? { ...m, authorName } : m)),
-    }
-    mockedList.mockResolvedValue(ok(page))
-    renderChat()
-    await screen.findByRole('log')
-    fireEvent.contextMenu(menuTargetOf(items()[2] as HTMLElement))
-    const dialog = screen.getByRole('dialog', { name: '메시지 메뉴' })
-    expect(within(dialog).getByText(header)).not.toBeNull()
-    expect(within(dialog).queryByText(/이름 없음/)).toBeNull()
-  })
+    ['미샤', '미샤'],
+    [null, USER_DISPLAY_NAME],
+  ] as const)(
+    'TC-CH-118: (TC-CH-108 대체) 유저 authorName=%j → 버튼 줄 이름 "%s 말풍선 작업"·"%s 대사 수정", 「이름 없음」 없음',
+    async (authorName, name) => {
+      const page: MessagesPage = {
+        ...PAGE,
+        messages: PAGE.messages.map(m => (m.id === 103 ? { ...m, authorName } : m)),
+      }
+      mockedList.mockResolvedValue(ok(page))
+      renderChat()
+      await screen.findByRole('log')
+      const g = within(items()[2] as HTMLElement).getByRole('group', {
+        name: `${name} 말풍선 작업`,
+      })
+      expect(within(g).getByRole('button', { name: `${name} 대사 수정` }).textContent).toBe(
+        '수정',
+      )
+      expect(within(g).getByRole('button', { name: `${name} 대사 삭제` }).textContent).toBe(
+        '삭제',
+      )
+      expect(screen.queryByText(/이름 없음/)).toBeNull()
+      await flushPending()
+      expect(mockedSpeak).not.toHaveBeenCalled()
+    },
+  )
 
   it('TC-CH-108: (토큰 없음) 읽기 전용에서도 같은 규칙 — 옛 값 그대로 · null 은 어떠한 의지, speak 0회', async () => {
     const page: MessagesPage = {

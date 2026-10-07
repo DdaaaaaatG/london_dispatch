@@ -1,16 +1,18 @@
 /**
- * useChatSheets — 설계 chat/design/functions.md §4.2 F-CH-18 · 19 · 21 · 22 · 23 · 24 · 25 · 26 · 27 · 28 · §4.3 F-CH-35 · F-CH-36 (50줄 한계 때문에 ChatScreen 에서 분리)
+ * useChatSheets — 설계 chat/design/functions.md §4.2 F-CH-21 · 23 · 24 · 25 · 26 · 27 · 28 · design/actions.md §5 F-CH-46 ~ F-CH-49 (50줄 한계 때문에 ChatScreen 에서 분리)
  * 요구: R-CHAT-001 · R-CHAT-007 · R-CHAT-011
- * 열린 시트(sheet) 상태와 시트에서 일어나는 동작(말풍선 메뉴 · 수정 · 삭제 확인 · ⋯ 방 메뉴 · 이름 변경 · 방 삭제)을 조립한다.
- * 쓰기 대기 중(writing · roomBusy)에는 메뉴를 열지 않는다(D-10) — 그래서 쓰기는 화면 전체에서 한 번에 하나다.
+ * 열린 시트(sheet) 상태와 말풍선 버튼 줄 동작(수정 · 삭제 확인 · 재작성) · ⋯ 방 메뉴 · 이름 변경 · 방 삭제를 조립한다.
+ * S3e: 말풍선 메뉴 시트는 없다. 버튼 줄이 startEdit · regenerateFromActions · askDeleteMessage 를 messageActions 로 직접 부른다(참조 안정 — memo 격리).
+ * 쓰기 대기 중 · 다른 편집 중 · 방 이름 변경/삭제 중에는 시작하지 않는다(D-10 · D-27, 버튼 줄 잠금과 같은 판정) — 그래서 쓰기는 화면 전체에서 한 번에 하나다.
  * 시트를 연 채 토스트를 띄우지 않는다(D-7): 이름 변경의 비인증 실패만 시트 안 문구로, 그 밖 실패는 시트를 닫은 뒤 토스트로 알린다.
  */
-import { useCallback, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import type { Dispatch, SetStateAction } from 'react'
 import type { Message, RoomSummary } from '@shared/types'
 import { type ApiError, isAuthFailure } from '@/api'
 import { clearLastRoomId } from '@/components/utils/storage'
-import { type ChatAction, type ChatState, isRegenerateTarget } from '@/state/chat'
+import { type ChatAction, type ChatState, canSpeak, chatReducer } from '@/state/chat'
+import type { BubbleActionHandlers } from './components/BubbleActions'
 import type { ChatSheet } from './components/ChatSheets'
 import { type WriteAction, writeErrorText } from './labels'
 import type { RegenerateResult, RemoveResult } from './useMessageWrites'
@@ -29,6 +31,8 @@ export type UseChatSheetsOptions = {
   regenerateMessage: (messageId: number) => Promise<RegenerateResult>
   /** S3: 다음 ready 커밋 뒤 히스토리로 포커스(F-CH-41) */
   requestLogFocus: () => void
+  /** S3e: 편집기가 닫힌 뒤 그 말풍선의 「수정」으로 포커스(F-CH-50) */
+  requestEditFocus: (messageId: number) => void
   handleWriteFailure: (error: ApiError, action: WriteAction) => void
   /** 히스토리 스크롤 박스로 포커스(없으면 ‹) */
   focusLog: () => void
@@ -105,23 +109,34 @@ type MessageSheetsOptions = Pick<
   | 'removeMessage'
   | 'regenerateMessage'
   | 'requestLogFocus'
+  | 'requestEditFocus'
   | 'focusLog'
 > & { setSheet: SetSheet; isRoomBusy: () => boolean }
 
-type RegenerateSheetOptions = Pick<
-  MessageSheetsOptions,
-  'loadInitial' | 'regenerateMessage' | 'requestLogFocus' | 'setSheet'
->
+type IsLocked = () => boolean
 
 /**
- * F-CH-36: 「재작성」. confirm 없이 시트를 닫고 요청한다. 대상이 사라졌거나 목록이 낡았으면 재조회하고,
- * 포커스는 동기로 옮기지 않고 다음 ready 커밋 뒤에 옮기도록 요청만 한다(F-CH-41, 재조회 중에는 log 가 없다)
+ * D-27: 버튼 줄 잠금(isActionLocked)과 같은 판정 — 쓰기 대기 · 생성 중 · 다른 편집 중 · 방 이름 변경/삭제 중.
+ * 잠기면 버튼이 disabled 라 정상 경로에서는 걸리지 않는다. 같은 틱 방어용 가드다
  */
-const useRegenerateFromMenu = (options: RegenerateSheetOptions) => {
-  const { loadInitial, regenerateMessage, requestLogFocus, setSheet } = options
+const useIsActionLocked = (getState: () => ChatState, isRoomBusy: () => boolean): IsLocked =>
+  useCallback((): boolean => !canSpeak(getState()) || isRoomBusy(), [getState, isRoomBusy])
+
+type RegenerateActionOptions = Pick<
+  MessageSheetsOptions,
+  'loadInitial' | 'regenerateMessage' | 'requestLogFocus'
+> & { isLocked: IsLocked }
+
+/**
+ * F-CH-48: 「재작성」. confirm·시트 없이 바로 요청한다. 대상이 사라졌거나 목록이 낡았으면 재조회하고,
+ * 포커스는 동기로 옮기지 않고 다음 ready 커밋 뒤에 옮기도록 요청만 한다(F-CH-41, 재조회 중에는 log 가 없다).
+ * 성공·일반 실패 뒤 포커스는 BubbleActions 가 잠금이 풀릴 때 같은 「재작성」으로 돌린다(F-CH-51)
+ */
+const useRegenerateAction = (options: RegenerateActionOptions) => {
+  const { isLocked, loadInitial, regenerateMessage, requestLogFocus } = options
   return useCallback(
     async (message: Message): Promise<void> => {
-      setSheet(null)
+      if (isLocked()) return
       const result = await regenerateMessage(message.id)
       if (result.kind === 'removed') {
         if (result.isEmptyWithMore) void loadInitial()
@@ -131,46 +146,19 @@ const useRegenerateFromMenu = (options: RegenerateSheetOptions) => {
         requestLogFocus()
       }
     },
-    [loadInitial, regenerateMessage, requestLogFocus, setSheet],
+    [isLocked, loadInitial, regenerateMessage, requestLogFocus],
   )
 }
 
-/** 말풍선 메뉴 · 수정 · 재작성 · 메시지 삭제 확인 (F-CH-18 ~ F-CH-23 · F-CH-35 · F-CH-36) */
-const useMessageSheets = (options: MessageSheetsOptions) => {
-  const { getState, dispatch, loadInitial, removeMessage, focusLog, setSheet, isRoomBusy } = options
-  const regenerate = useRegenerateFromMenu(options)
+type ConfirmDeleteOptions = Pick<
+  MessageSheetsOptions,
+  'removeMessage' | 'loadInitial' | 'focusLog' | 'setSheet'
+>
 
-  /** F-CH-18: 쓰기 대기 중이면 무시(D-10) */
-  const openMessageMenu = useCallback(
-    (message: Message): void => {
-      if (getState().writing !== null || isRoomBusy()) return
-      setSheet({
-        kind: 'messageMenu',
-        message,
-        canRegenerate: isRegenerateTarget(getState(), message.id),
-      })
-    },
-    [getState, isRoomBusy, setSheet],
-  )
-  /** F-CH-19: 시트가 닫히며 편집기가 같은 커밋에서 마운트되어 입력으로 포커스를 가져간다 */
-  const startEdit = useCallback(
-    (message: Message): void => {
-      setSheet(null)
-      dispatch({ type: 'editStarted', messageId: message.id })
-    },
-    [dispatch, setSheet],
-  )
-  /** F-CH-21 */
-  const cancelEdit = useCallback((): void => {
-    dispatch({ type: 'editCancelled' })
-    focusLog()
-  }, [dispatch, focusLog])
-  const askDeleteMessage = useCallback(
-    (message: Message): void => setSheet({ kind: 'confirmDeleteMessage', message }),
-    [setSheet],
-  )
-  /** F-CH-23: 제거되면 시트를 닫고 히스토리로 포커스(남은 0건 + 더 있음이면 최신 페이지 재로드). 실패는 시트만 닫는다 */
-  const confirmDeleteMessage = useCallback(
+/** F-CH-23: 제거되면 시트를 닫고 히스토리로 포커스(남은 0건 + 더 있음이면 최신 페이지 재로드). 실패는 시트만 닫는다 */
+const useConfirmDeleteMessage = (options: ConfirmDeleteOptions) => {
+  const { removeMessage, loadInitial, focusLog, setSheet } = options
+  return useCallback(
     async (message: Message): Promise<void> => {
       const result = await removeMessage(message.id)
       if (result.kind === 'rejected') return
@@ -181,14 +169,52 @@ const useMessageSheets = (options: MessageSheetsOptions) => {
     },
     [removeMessage, setSheet, focusLog, loadInitial],
   )
+}
+
+/** 말풍선 버튼 줄 동작: 수정(F-CH-46) · 삭제 확인(F-CH-47) · 재작성(F-CH-48) · 편집 취소(F-CH-49) · 삭제 실행(F-CH-23) */
+const useMessageSheets = (options: MessageSheetsOptions) => {
+  const { getState, dispatch, requestEditFocus, setSheet, isRoomBusy } = options
+  const isLocked = useIsActionLocked(getState, isRoomBusy)
+  const regenerateFromActions = useRegenerateAction({ ...options, isLocked })
+  const confirmDeleteMessage = useConfirmDeleteMessage(options)
+
+  /** F-CH-46: 시트 없이 편집기가 같은 커밋에서 마운트되어 입력으로 포커스를 가져간다 */
+  const startEdit = useCallback(
+    (message: Message): void => {
+      if (isLocked()) return
+      dispatch({ type: 'editStarted', messageId: message.id })
+    },
+    [isLocked, dispatch],
+  )
+  /** F-CH-47: 확인 시트(첫 포커스 취소). 닫히면 BottomSheet 가 열기 전 요소(「삭제」 버튼)로 포커스를 돌린다 */
+  const askDeleteMessage = useCallback(
+    (message: Message): void => {
+      if (isLocked()) return
+      setSheet({ kind: 'confirmDeleteMessage', message })
+    },
+    [isLocked, setSheet],
+  )
+  /** F-CH-49: 편집이 실제로 닫히면(저장 요청 중 취소 T24 는 무시) 그 말풍선의 「수정」으로 포커스를 요청한다 */
+  const cancelEdit = useCallback((): void => {
+    const current = getState()
+    const editingId = current.editingId
+    const next = chatReducer(current, { type: 'editCancelled' })
+    dispatch({ type: 'editCancelled' })
+    if (editingId !== null && next.editingId === null) requestEditFocus(editingId)
+  }, [getState, dispatch, requestEditFocus])
+
+  const messageActions = useMemo<BubbleActionHandlers>(
+    () => ({ onEdit: startEdit, onRegenerate: regenerateFromActions, onDelete: askDeleteMessage }),
+    [startEdit, regenerateFromActions, askDeleteMessage],
+  )
 
   return {
-    openMessageMenu,
     startEdit,
     cancelEdit,
     askDeleteMessage,
     confirmDeleteMessage,
-    regenerateFromMenu: regenerate,
+    regenerateFromActions,
+    messageActions,
   }
 }
 

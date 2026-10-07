@@ -6,14 +6,15 @@
 |---|---|
 | 화면 | chat · 폴더 `ui/src/chat/` |
 | 목적 | 고른 방의 히스토리를 메신저 말풍선으로 보여 준다. 위로 올리면 더 오래된 대화를 이어 붙이고 읽던 자리를 지킨다. 등급 통과 회원은 대사·지시를 적어 저장하고, 말풍선을 고치거나 지우고, 방 이름을 바꾸거나 방을 지운다. 토큰이 없으면 쓰기 UI 없이 열람 안내 한 줄만 둔다 |
-| 요구 | `ui/src/chat/requirements.md` **v1.9**(확정, S3d 동결) |
+| 요구 | `ui/src/chat/requirements.md` **v2.0**(확정, S3e 동결) |
 | 구성안 | `doc/200_설계/architecture/ui-layout-01-rooms-chat.md` §2(C1) · §2-1 · §2-2 · §2-4 · (S3d) `ui-layout-03-chat-auto.md` §1~§5 — **수용, 구조 변경 없음**(§7 구조 제안 2건 미채택) |
 | 계약 | `doc/200_설계/contract/api.md` **v0.6**(S3d: §4.9 `authorName` 고정 · §4.13 `'auto'` · §5.2 `SpeakTarget` · §5.5 `USER_DISPLAY_NAME` · §11.15 · 「ui 인계 메모」 S3d) + v0.4.1까지의 §2.4 · §3.2 · §3.4 · §4.3 · §4.5·§4.7~§4.14 · §11.6 · §11.9 · 「ui 인계 메모」 S3·S3b — 확정 |
 | S3d 델타 | **`design/auto.md`**(절 표기 `AU`, v1.9.1 구현 동기화): 상태 T35·T36 · `SpeakTarget` · PendingBubble 중립 변형 · 유저 작성자 표기 · F-CH-17·31·32 개정 · F-CH-42~44 · 잠금·끼어들기 0회 · 파이프라인 · 문구 · 접근성·읽기 전용 · 결정 D-17~23. TC 영향·TC-CH-098~109는 **`design/auto-tests.md`**(v1.9.1 분리). **다른 분할 문서의 S3 서술과 겹치면 AU가 우선**한다 |
-| 구현 상태 | S3d 구현 완료(2026-10-07): ui 660/660 · tsc 0 · lint 0 · build 0. CR-002 「적용·미검증」(ui-tester 결과 대기) |
+| S3e 델타 | **`design/actions.md`**(절 표기 `AC`, v2.0): R-CHAT-007 🔒 개정 — 말풍선 아래 「수정」「삭제」 + 마지막 캐릭터 「재작성」 버튼 줄 `BubbleActions`, 롱프레스/우클릭 바텀시트 메뉴 제거 · 배선 · 삭제 목록 · 비활성 규칙 · F-CH-45~52 · 포커스 · 문구 · D-24~32. TC-CH-110~121·기존 TC 영향표는 **`design/actions-tests.md`**(v2.0.1, 옛 AC §11). CR-003. **다른 분할 문서의 말풍선 메뉴 서술과 겹치면 AC가 우선**한다 |
+| 구현 상태 | S3d 구현 완료(2026-10-07): ui 660/660 · tsc 0 · lint 0 · build 0. **S3e 설계 완료 · 구현 대기**(CR-003) |
 | 묶음 | S1 · S2 구현 완료 + **S3 상세**: R-CHAT-004(캐릭터 버튼 2) · 005(speak · 임시/실패 말풍선 · 재시도) · 007(재작성) · 011(S3 코드) · 003(speak 트리거) · 002(임시 말풍선 배치) · 013(S3 요소). S4는 §14 |
 | 레이아웃 확정 상태 | **확정**(읽기 전용 판 · 토큰 있음 판 · S3 생성 중/실패/재작성 중 조각). 장기기억 항목(S4)만 **미렌더 자리** |
-| 문서 분할 | 40KB 한계로 분할: **`design/layout.md`**(§0 토큰 있음 판·시트 ASCII = 옛 §2.2, v1.7.1 이전) · `design/components.md`(로컬 컴포넌트·useAutoScroll·스타일) · `design/functions.md`(리듀서·스크롤 계산·상태·기능) · `design/a11y.md`(접근성) · `design/tc.md`(예정 TC 목록, v1.4 분리) · **`design/labels.md`**(§8.1~§8.3 문구·라벨, v1.7 이전) · **`design/generate.md`**(S3 speak·재작성 흐름 = 옛 §6.8·§6.9, 생성 실패 문구 = 옛 §8.4, 결정 D-11~15·A-6, 한계 L-1~3 = 옛 §13.1, v1.7 신규) · **`design/decisions.md`**(§11.2 결정·가정·S1 소급 델타 · §13 contract 변경 요청, v1.7 이전). RTM 본문은 **`design/rtm.md`**(v1.9.1, 실측 42,204바이트로 한계 초과 — 메인 세션 지시로 이전. 이 문서 §15는 참조 한 줄). 절 표기 `L` = labels.md, `G` = generate.md, `D` = decisions.md |
+| 문서 분할 | 40KB 한계로 분할: **`design/layout.md`**(§0 토큰 있음 판·시트 ASCII = 옛 §2.2, v1.7.1 이전) · `design/components.md`(로컬 컴포넌트·useAutoScroll·스타일) · `design/functions.md`(리듀서·스크롤 계산·상태·기능) · `design/a11y.md`(접근성) · `design/tc.md`(예정 TC 목록, v1.4 분리) · **`design/labels.md`**(§8.1~§8.3 문구·라벨, v1.7 이전) · **`design/generate.md`**(S3 speak·재작성 흐름 = 옛 §6.8·§6.9, 생성 실패 문구 = 옛 §8.4, 결정 D-11~15·A-6, 한계 L-1~3 = 옛 §13.1, v1.7 신규) · **`design/decisions.md`**(§11.2 결정·가정·S1 소급 델타 · §13 contract 변경 요청, v1.7 이전). RTM 본문은 **`design/rtm.md`**(v1.9.1, 실측 42,204바이트로 한계 초과 — 메인 세션 지시로 이전. 이 문서 §15는 참조 한 줄). 절 표기 `L` = labels.md, `G` = generate.md, `D` = decisions.md, `AU` = auto.md, **`AC` = actions.md(v2.0 S3e)** |
 | 공용 요소 | `App`·`viewer`·`token`·`limits`·`TopBar`·`Button`·`IconButton`·`StateView`·`TextInput`·`TextArea`·`Toggle`·`BottomSheet`·`ConfirmDialog`·`PromptSheet`·`Toast`·`useToast`·`useLongPress`·`cx`·`formatDate`·`storage`의 단일 정의는 `ui/src/rooms/design/components.md` §1. chat은 인용만 한다 |
 
 비유: 히스토리는 아래로 길게 이어지는 두루마리다. 처음에는 가장 최근 30줄만 펼친다. 위 끝에 닿으면 더 오래된 30줄을 위에 이어 붙이는데, 읽던 줄이 밀려나지 않도록 붙인 길이만큼 두루마리를 내려 준다. 출입증이 있는 회원은 두루마리 끝에 직접 한 줄을 적을 수 있고, 적은 줄은 접수 창구(서버)가 받아 준 뒤에야 두루마리에 붙는다.
@@ -34,6 +35,8 @@
 | v1.8 | 2026-10-06 | **S3b**(R-LLM-007 🔒 · R-API-002 14종): `LLM_BUDGET_EXCEEDED`(429) 화면 처리 — speak 실패 말풍선 + 「재시도」, 재작성 warning 토스트, 카운트다운·자동 재시도·해제 날짜 없음, 전환 없음, `RATE_LIMITED`와 `code`로 구분(G §3 · L §8.1.2 비고). 새 UI·labels 키 없음. TC-CH-096·097. 계약 인용 api.md v0.4.1 | 구축 S3b |
 | v1.9 | 2026-10-06 | **S3d(CR-002, 보강)**: R-CHAT-014 🔒 신규 · R-CHAT-006 🔒·002 🔒 개정. 신규 분할 `design/auto.md`(전체 델타). 주 문서는 머리 표 · §6.3 · §7 E8·E9 행 · §15 RTM만 갱신. components.md §2.2·§2.8 작성자 표기, functions.md §1.1 포인터, labels.md `unknownAuthor` 폐기, scenarios.md 변경 대기열 Q-08. 계약 인용 v0.6 | 사용자 결정 승인 ① 2026-10-06 · s3d-02 §5·§6 · 인계 패킷 §3 |
 | v1.9.1 | 2026-10-07 | **S3d 구현 동기화**(ui 660/660): 머리 표 구현 상태 행 · §11.2 D-23 포인터 · §12 공용화 후보 2행(Button `ariaDescribedBy?` · `.srOnly`). auto.md v1.9.1(§2.1 `PendingBody` · §2.3 `MessageRows`·`EditorActions`·`useDescribedBy` · §3 `useRunSpeak`·`useRoomGone`·`write` 반환 · §6 `.srOnly` · §8 D-23) · 신규 `design/auto-tests.md`(옛 AU §9, 스펙 실물 위치) · components.md §2.1·§2.7·§2.12 · functions.md §4.3 끝 · labels.md §8.1.3 | S3d 구현자·시나리오 작성자 보고 · CR-002 |
+| v2.0 | 2026-10-07 | **S3e(CR-003, 보강)**: R-CHAT-007 🔒 개정 — 말풍선 액션 버튼. 신규 분할 `design/actions.md`(전체 델타, 절 표기 `AC`). 주 문서는 머리 표(요구 v2.0 · S3e 델타 · 구현 상태 · 절 표기) · §3.1 트리 · §3.2 분류 · §5 기능 목록 · §6.4(흐름 → AC §6 포인터, 옛 메뉴 흐름 폐기) · §6.8 요약 · §7 캐릭터 메타 행 · §9 요약 · §10 토큰 분기표(버튼 줄 행 · 메뉴 행 삭제 · 재작성 행) · §12 공용화 후보 3행. components.md·functions.md·generate.md·a11y.md·labels.md·layout.md·tc.md·rtm.md는 포인터·삭제 표시 | 사용자 지정 🔒 2026-10-07 · 메인 세션 사전 확정 1~7 |
+| v2.0.1 | 2026-10-07 | **S3e 구현 동기화**: 머리 표 S3e 행(D-32 · `actions-tests.md`). actions.md v2.0.1(§1 `ActionButton` · §2 `ActionsLine`·`useIsActionLocked`·`useConfirmDeleteMessage`·`useRevokeCleanup` — 50줄 한계 분리, DOM 같음 · D-32 `useLongPress` 정리 후보 · D-25 보충 Button 톤 결함 후보) · 신규 `design/actions-tests.md`(옛 AC §11 + TC-CH-086 개정 + 스펙 전제 `within(li)`·태그 `BUTTON` 판별) · rtm.md·tc.md 포인터 | S3e 구현 보고 · 테스트 설계자 지적 · CR-003 |
 
 ---
 
@@ -103,7 +106,7 @@ App (ui/src/App.tsx)                                view.screen === 'chat'
    │   ├─ StateView [공용]                           첫 로드 error | loading | empty
    │   └─ MessageList [chat 로컬]                    data
    │       ├─ OlderStatus → InlineStatus [chat 로컬]  B0
-   │       ├─ <ol> → Bubble [chat 로컬] × n           (S2: canWrite면 useLongPress·우클릭·Shift+F10 · S3: isRegenerating)
+   │       ├─ <ol> → Bubble [chat 로컬] × n           (S3: isRegenerating. S3e: 메뉴 핸들러 삭제, 형제 BubbleActions — canWrite면 Button sm ghost × 2~3, AC §1)
    │       │        └ (editingId) InlineEditor [chat 로컬, S2] → TextArea · Button × 2
    │       │   └ (pending) PendingBubble [chat 로컬, S3]   목록 끝 li · 실패면 Button [공용] 재시도
    │       └─ NewMessageBadge [chat 로컬]            B1
@@ -114,12 +117,11 @@ App (ui/src/App.tsx)                                view.screen === 'chat'
    │   ├─ Toggle [공용] OOC
    │   └─ TextArea [공용] · Button [공용] 전송
    ├─ ReadOnlyNotice [chat 로컬]                     D (!viewer.canWrite)
-   └─ ChatSheets [chat 로컬, S2]                     viewer.canWrite && sheet · (S3) onRegenerate={regenerateFromMenu}
-       ├─ MessageMenuSheet → BottomSheet + SheetItem (수정 · (재작성, S3) · 삭제 · 취소)
+   └─ ChatSheets [chat 로컬, S2]                     viewer.canWrite && sheet (S3e: MessageMenuSheet 삭제 — AC §3)
        ├─ RoomMenuSheet → BottomSheet + SheetItem (이름 변경 · 방 삭제 · 취소)
        ├─ PromptSheet [공용] (이름 변경)
        └─ ConfirmDialog [공용] (메시지 삭제 · 방 삭제)
-훅: useChatScreen(조립) · useChatLoader · useAutoScroll · useScrollMemory · (S2) useWriteFailure · useMessageWrites(S3: speakAs · regenerateMessage) · useChatSheets(S3: regenerateFromMenu) · useRoomActions · useAccessRevoked · useToast
+훅: useChatScreen(조립, S3e: useEditFocusReturn) · useChatLoader · useAutoScroll · useScrollMemory · (S2) useWriteFailure · useMessageWrites(S3: speakAs · regenerateMessage) · useChatSheets(S3e: messageActions · regenerateFromActions) · useRoomActions · useAccessRevoked · useToast
 ```
 
 ### 3.2 배치 3단계 분류
@@ -137,6 +139,7 @@ App (ui/src/App.tsx)                                view.screen === 'chat'
 | `useChatLoader` · `useScrollMemory` · (S2) `useMessageWrites`·`useRoomActions` | `ui/src/chat/` | 화면 로컬 훅 | 50줄·400줄 한계 분리 | functions.md §3·§4 |
 | `ChatTopBar`·`MessageList`·`Bubble`·`InlineStatus`·`NewMessageBadge`·`ReadOnlyNotice` · (S2) `Composer`·`InlineEditor`·`MessageMenuSheet`·`RoomMenuSheet`·`ChatSheets` | `ui/src/chat/components/` | ④ chat 로컬 | 구성안 §3 | components.md §2 |
 | (S3) `SpeakButtons`·`PendingBubble` | `ui/src/chat/components/` | ④ chat 로컬 신규 | 캐릭터·생성 의미를 안다. 공용 Button만 조립 | components.md §2.11·§2.12 |
+| (S3e) `BubbleActions` · ~~`MessageMenuSheet`~~(삭제) | `ui/src/chat/components/` | ④ chat 로컬 신규 | 메시지·화자 의미를 안다. 공용 Button만 조립 | AC §1 · §3 |
 
 - 화면 코드(`index.tsx`)는 표준 HTML 원소를 직접 쓰지 않는다. `<button>`·`<textarea>`·`<input>`은 공용 ui 안에만, `<img>`는 Bubble 안에만 있다. `<main>`·`<section>`·`<ol>`·`<li>`·`<p>`·`<time>`은 시맨틱 컨테이너로 허용.
 - 말풍선 본문은 일반 텍스트로만 렌더한다. `dangerouslySetInnerHTML` 금지.
@@ -155,6 +158,7 @@ App (ui/src/App.tsx)                                view.screen === 'chat'
 
 S1: F-CH-01 `ChatScreen` · 02 마운트 layout effect · 03 `loadInitial` · 04 `retryInitial` · 05 `loadOlder` · 06 `retryOlder` · 07 `clearUnseen` · 08 `showNewest` · 09 `useScrollMemory` · 10 `back` · 11 `renderHistory` · 12 `chatReducer` 외 · 13 `scroll.ts` · 14 `useAutoScroll` · 15 `bubbleVariantOf`.
 S2: 16 `handleWriteFailure` · 17 `send` · 18 `openMessageMenu` · 19 `startEdit` · 20 `saveEdit` · 21 `cancelEdit` · 22 `askDeleteMessage` · 23 `confirmDeleteMessage` · 24 `openRoomMenu` · 25 `askRename`·`askDeleteRoom` · 26 `rename` · 27 `confirmDeleteRoom` · 28 `closeSheet` · 29 전환 effect · 30 `focusLog`.
+S3e(AC §5): 45 `BubbleActions` · 46 `startEdit`(19 대체) · 47 `askDeleteMessage`(22 대체) · 48 `regenerateFromActions`(36 대체) · 49 `cancelEdit`(21 개정) · 50 `useEditFocusReturn` · 51 재작성 뒤 포커스 · 52 `regenerateTargetIdOf`. **18 · 35 · 36 삭제**.
 S3(functions.md §4.3): 16 변경(`WriteAction` + `speak`·`regenerate`) · 31 `speakAs` · 32 `retrySpeak` · 33 `onRoomGone` · 34 `regenerateMessage` · 35 `openMessageMenu` 변경(`canRegenerate`) · 36 `regenerateFromMenu` · 37 `speakErrorText` · 38 `SpeakButtons` 포커스 복귀 · 39 `renderHistory` 변경 · 40 `useAutoScroll` `tailKey` · 41 `requestLogFocus`(재조회·제거 뒤 ready 커밋 후 포커스).
 
 ---
@@ -182,22 +186,9 @@ hasMore=false → 더 요청하지 않는다
 
 → `design/auto.md` §5(전체 흐름) · §4(잠금·끼어들기 0회). S2 흐름의 `messagesAppended` + `writeFinished`는 S3d에서 **`sendSucceeded`(T35) 한 액션**으로 바뀌고, 팻말을 내리지 않은 채 `speak(room.id, { character: 'auto' })`로 이어진다. 저장 실패면 S2 그대로(입력 유지 · handleWriteFailure §6.6 · speak 0회). 유저 말풍선 작성자 줄 = 응답 `authorName` 그대로(AU §2.2).
 
-### 6.4 말풍선 메뉴 · 수정 · 삭제 (R-CHAT-007, S2)
+### 6.4 말풍선 액션 버튼 · 수정 · 삭제 · 재작성 (R-CHAT-007 🔒, S2 → S3e 개정)
 
-```
-말풍선 롱프레스 500ms(10px 넘게 움직이면 취소) · 우클릭(기본 메뉴 막음) · Shift+F10
- → 말풍선 메뉴 시트(수정 · 삭제 · 취소, 쓰기 중이면 수정·삭제 비활성)
- ├ 수정 → 시트 닫힘 → editStarted → 말풍선 자리 InlineEditor(원문, 포커스)
- │        → 저장(1~2000자 · 바뀜) → writeStarted(edit) → editMessage(id, { text })
- │          ├ 200 → messageReplaced(편집 닫힘) → writeFinished → 히스토리 포커스
- │          └ 실패 → writeFinished → 편집기·입력 유지 → handleWriteFailure
- │        → 취소 · Esc → editCancelled → 원문 말풍선 → 히스토리 포커스
- └ 삭제 → 확인 시트 「이 메시지를 삭제할까요?」(첫 포커스 = 취소)
-          → 삭제 → writeStarted(delete) → 두 버튼 비활성 → deleteMessage(id)
-            ├ 204 · NOT_FOUND → messageRemoved → writeFinished → 시트 닫힘 → 히스토리 포커스
-            │                   (남은 0건 + hasMore → loadInitial)
-            └ 실패 → writeFinished → 시트 닫힘 → handleWriteFailure
-```
+→ `design/actions.md` §6(전체 흐름). S2 바텀시트 메뉴(롱프레스·우클릭·Shift+F10) 흐름은 **폐기(CR-003)**. 진입은 말풍선 아래 「수정」·「삭제」·(마지막 캐릭터) 「재작성」 버튼이다. 수정 저장·삭제 확인(confirm)·재작성(confirm 없음)의 요청·결과 처리는 S2·S3 그대로(F-CH-20·23·34). 포커스 목적지만 바뀐다: 편집기가 닫히면 그 말풍선 「수정」(AC §7).
 
 ### 6.5 ⋯ 방 메뉴 (R-CHAT-001, S2)
 
@@ -240,7 +231,7 @@ handleWriteFailure(error, action)
 
 ### 6.8 · 6.9 S3 speak · 재작성 → `design/generate.md` §1 · §2
 
-요약: 캐릭터 버튼 → `speakStarted`(임시 말풍선 · 잠금) → `speak` → 성공 교체 / 실패 말풍선 + 「재시도」(인증 = 전환, `NOT_FOUND` = 목록 복귀). 메뉴 「재작성」(confirm 없음) → `regenerate` → 같은 id 교체 / 토스트(`NOT_LAST_MESSAGE` = 첫 페이지 재조회).
+요약: 캐릭터 버튼 → `speakStarted`(임시 말풍선 · 잠금) → `speak` → 성공 교체 / 실패 말풍선 + 「재시도」(인증 = 전환, `NOT_FOUND` = 목록 복귀). 「재작성」 버튼(S3e, confirm 없음) → `regenerate` → 같은 id 교체 / 토스트(`NOT_LAST_MESSAGE` = 첫 페이지 재조회).
 
 ---
 
@@ -260,7 +251,7 @@ api.md **v0.4**를 **인용**한다. 쓰기 래퍼는 전부 `Authorization: Bea
 | `POST /api/rooms/:id/speak` (§4.13, E9, S3 · S3d) | `SpeakBody = { character: SpeakTarget }`(v0.6 `'sebastian' \| 'ciel' \| 'auto'`, 필수). 캐릭터 버튼 = 캐릭터 값 · 전송 뒤 자동 응답·중립 「재시도」 = `'auto'` | `201` `Message`(`speaker` = 지정 캐릭터 또는 **서버가 고른 캐릭터** — `'auto'`는 응답에 없다, `kind: 'line'`, `authorName: null`, `createdAt` = 저장 시각) | `speak(roomId: string, body: SpeakBody): Promise<Result<Message>>`(래퍼 추가 없음) | F-CH-31 · F-CH-42 | ○ | 실패 말풍선 §8.4 — `'auto'`면 중립 실패(AU §2.1)(인증 = 전환 · `NOT_FOUND` = 목록 복귀) |
 | `POST /api/messages/:id/regenerate` (§4.14, E12, S3) | 본문 없음 | `200` `Message`(`text`만 바뀜) | `regenerate(messageId: number): Promise<Result<Message>>` | F-CH-34 | ○ | E 토스트 §8.4 · `NOT_LAST_MESSAGE` = 토스트 + 첫 페이지 재조회 · `NOT_FOUND` = 제거 |
 | (엔드포인트 아님) | — | `isAuthFailure(error): boolean` · `ApiError.retryAfterSec?: number` | `@/api` | F-CH-16 | — | — |
-| (엔드포인트 아님) 캐릭터 메타 | — | `CHARACTERS[speaker]: { id; name; shortName; avatar }` | `@shared/characters` | Bubble · MessageMenuSheet | — | — |
+| (엔드포인트 아님) 캐릭터 메타 | — | `CHARACTERS[speaker]: { id; name; shortName; avatar }` | `@shared/characters` | Bubble · (S3e) BubbleActions `nameOf` | — | — |
 
 - 쓰기 6종 공통 코드(api.md §4.5): `CONFIG_INVALID`·`TOKEN_REQUIRED`·`TOKEN_INVALID`·`LEVEL_TOO_LOW`·`RATE_LIMITED`(+`retryAfterSec`)·`VALIDATION_ERROR`·`INTERNAL` + 클라이언트 `NETWORK`. 엔드포인트별 `NOT_FOUND`(방·메시지). 화면이 길이를 먼저 막으므로 `VALIDATION_ERROR`는 정상 경로에서 나오지 않는다.
 - 래퍼는 본문을 계약 키로 다시 만든다(여분 키 없음). 화면은 trim하지 않는다(서버 몫).
@@ -287,7 +278,7 @@ v1.7에서 40KB 한계로 표 본문을 분할 문서로 옮겼다. 절 번호�
 
 ## 9. 접근성 → `design/a11y.md`
 
-요약: 마운트 ‹ 포커스, `role="log" aria-live="polite"`, 상태 `role=status/alert`, D `role=note`. (S2) ⋯ `방 메뉴 열기`, OOC `role=switch`, Enter 전송·Shift+Enter 줄바꿈·IME 가드, 말풍선 Shift+F10, 시트 `aria-modal`·포커스 트랩·Esc·포커스 복귀, 확인 첫 포커스 취소, 전환 시 ‹ 포커스. (S3) 캐릭터 버튼 `세바스찬 대사 생성`·`시엘 대사 생성`, 잠금은 네이티브 `disabled`, 임시 말풍선 `role=status aria-live=polite`, 실패 문구 `role=alert`, 재작성 대상 본문 `aria-busy`, 잠금 해제 뒤 누른 버튼으로 포커스 복귀.
+요약: 마운트 ‹ 포커스, `role="log" aria-live="polite"`, 상태 `role=status/alert`, D `role=note`. (S2) ⋯ `방 메뉴 열기`, OOC `role=switch`, Enter 전송·Shift+Enter 줄바꿈·IME 가드, (S3e) 말풍선 버튼 줄 `role=group` `{이름} 말풍선 작업`·버튼 `{이름} 대사 수정/재작성/삭제`·편집 종료 뒤 「수정」 포커스(AC §7, 옛 Shift+F10 삭제), 시트 `aria-modal`·포커스 트랩·Esc·포커스 복귀, 확인 첫 포커스 취소, 전환 시 ‹ 포커스. (S3) 캐릭터 버튼 `세바스찬 대사 생성`·`시엘 대사 생성`, 잠금은 네이티브 `disabled`, 임시 말풍선 `role=status aria-live=polite`, 실패 문구 `role=alert`, 재작성 대상 본문 `aria-busy`, 잠금 해제 뒤 누른 버튼으로 포커스 복귀.
 
 ---
 
@@ -300,9 +291,10 @@ v1.7에서 40KB 한계로 표 본문을 분할 문서로 옮겼다. 절 번호�
 | ⋯ 방 메뉴 버튼 | 미렌더 | 렌더(쓰기 대기 중 `disabled`, D-10) | `ChatTopBar onOpenMenu={canWrite ? openRoomMenu : undefined} isMenuDisabled={state.writing !== null \|\| roomBusy !== null}` | R-CHAT-001 · 008 |
 | C 하단 바(OOC·입력·전송) | 미렌더 | 렌더 | `canWrite ? <Composer/> : <ReadOnlyNotice/>` | R-CHAT-004 · 008 |
 | 세바스찬·시엘 버튼 | 미렌더 | **렌더(S3)**(쓰기 대기 중 `disabled`) | Composer 안 `SpeakButtons` — Composer 자체가 `canWrite`일 때만 렌더되므로 따로 분기하지 않는다 | R-CHAT-004 · 005 |
-| 말풍선 메뉴(롱프레스·우클릭·Shift+F10) | 미렌더(핸들러·tabIndex 없음, 우클릭은 브라우저 기본) | 연결 | `MessageList onOpenMenu={canWrite ? openMessageMenu : undefined}` | R-CHAT-007 · 008 |
-| 시트(메뉴·확인·이름 변경) | 미렌더 | `sheet`가 있을 때 | `canWrite && sheet && <ChatSheets/>` + 전환 effect `sheet=null` | R-CHAT-001 · 007 |
-| 재작성 항목 | 미렌더(메뉴 자체가 없다) | **렌더(S3)** — 캐릭터 `line`이고 화면 목록 마지막일 때만, 아니면 DOM에 없음 | `sheet.canRegenerate && <SheetItem 재작성/>`(F-CH-35) | R-CHAT-007 |
+| (S3e) 말풍선 버튼 줄(「수정」·「삭제」) | **미렌더** | 렌더(생성·쓰기 대기·인라인 수정 중 `disabled`, AC §4) | `MessageList actions={canWrite ? sheets.messageActions : undefined}`(AC §2) | R-CHAT-007 · 008 |
+| ~~말풍선 메뉴(롱프레스·우클릭·Shift+F10)~~ | 없음 | **없음(S3e 삭제, AC §3)** — 우클릭은 두 판 모두 브라우저 기본 | 핸들러 자체 없음 | R-CHAT-007 |
+| 시트(방 메뉴·확인·이름 변경) | 미렌더 | `sheet`가 있을 때 | `canWrite && sheet && <ChatSheets/>` + 전환 effect `sheet=null` | R-CHAT-001 · 007 |
+| 「재작성」 버튼 | 미렌더(버튼 줄 자체가 없다) | 캐릭터 `line`이고 화면 목록 마지막인 말풍선에만, 아니면 DOM에 없음 | `canRegenerate={message.id === regenerateTargetIdOf(state)}`(F-CH-52) | R-CHAT-007 |
 | 재작성 중 표시 | 미렌더 | `writing.kind==='regenerate'`일 때 대상 하나 | `regeneratingId={canWrite && … ? id : null}`(F-CH-39) | R-CHAT-007 · 005 |
 | 장기기억 항목 | 미렌더 | **미렌더(S4)** | RoomMenuSheet에 항목 없음 | R-CHAT-001 · 012 |
 | 인라인 수정 | 미렌더 | `editingId`일 때 | `renderHistory`가 `editingId={viewer.canWrite ? state.editingId : null}`로 넘긴다(전환 커밋에서 바로 사라짐) + 전환 effect T25 | R-CHAT-007 |
@@ -311,6 +303,7 @@ v1.7에서 40KB 한계로 표 본문을 분할 문서로 옮겼다. 절 번호�
 | D 열람 안내 | **렌더** | 미렌더 | `!canWrite && <ReadOnlyNotice/>` | R-CHAT-008 · 011 · 013 |
 | 히스토리·이전 페이지·배지·‹·제목·날짜 | 렌더 | 렌더 | 토큰과 무관 | R-CHAT-001 · 002 · 003 |
 
+- (S3e) 버튼 줄 미렌더·메뉴 부재 쌍은 TC-CH-110·112·113(AC §11).
 - TC는 읽기 전용에서 `세바스찬`·`시엘` 버튼(이름 정규식 `/세바스찬|시엘/`)·textbox·switch·dialog·임시 말풍선이 `null`, 상단 바 버튼이 ‹ 하나, `role=note` 문구 일치를 단언하고(TC-CH-003·021·022·023·067), 토큰 있음에서 ⋯·캐릭터 버튼 2·textbox·switch·전송이 있고 note는 없음을 **쌍으로** 단언한다(TC-CH-031 → S3 TC-CH-066).
 - 토큰은 화면이 저장하지 않는다. 읽는 곳은 `main.tsx`의 `initToken` 한 번, 보관은 `ui/src/state/token.ts` 메모리(R-CHAT-009).
 
@@ -341,6 +334,9 @@ v1.7에서 40KB 한계로 표 본문을 분할 문서로 옮겼다. 절 번호�
 | (S3) `useAutoScroll` `tailKey` | 공용 훅 | 메시지 타입을 모르는 문자열 키라 비종속 유지 |
 | (S3d) 공용 `Button`에 `ariaDescribedBy?: string` prop 추가 | 공용(`ui/src/components/ui/Button`) | **후보(후작업 ui-postprocessor).** 지금은 `InlineEditor.tsx` 지역 훅 `useDescribedBy`가 `buttonRef`로 우회한다(AU §8 D-23 「우회(지역 훅)」). prop이 생기면 지역 훅을 지우고 prop으로 넘긴다. `component-usage-lessons` 코어 결함 후보 등록(2026-10-07) |
 | (S3d) `.srOnly` 규칙 | `PendingBubble.module.css` · `InlineEditor.module.css` 지역 | 같은 규칙이 두 모듈에 있다. 사용처 chat뿐이라 지금은 후보 표시만(전역 유틸 없음, components.md §2.12) |
+| (S3e) 공용 `Button` ghost 글자색 톤(`tone?: 'muted' \| 'danger'` 등) | 공용(`ui/src/components/ui/Button`) | **후보(후작업 ui-postprocessor).** 지금은 `BubbleActions.module.css`가 자손 선택자로 덧칠한다(AC §10 D-25 「우회」). prop이 생기면 덧칠·`danger` 래퍼를 지운다 |
+| (S3e) `useLongPress` | 공용 훅 | **정리 후보(보고만).** S3e로 사용처 0(chat 삭제, rooms 미사용). 공용 부품이라 이 작업에서 지우지 않는다. `component-catalog` 사용처 표기도 낡는다(AC D-29) |
+| (S3e) `BubbleActions` | chat 로컬 | 메시지·화자를 안다, 사용처 chat뿐. 후보 아님 |
 
 ---
 

@@ -38,8 +38,10 @@
 
 ## 2. 재작성 = regenerate (R-CHAT-007 🔒 · 011) — 옛 §6.9
 
+(S3e, CR-003) 진입은 말풍선 메뉴가 아니라 말풍선 아래 「재작성」 버튼이다. 시트 단계·"말풍선 포커스"는 없어지고, 성공·일반 실패 뒤 포커스는 같은 「재작성」 버튼(F-CH-51)이다. 아래 요청·결과 흐름은 그대로 — `design/actions.md` §6.
+
 ```
-말풍선 메뉴(isRegenerateTarget = 캐릭터 line + 화면 목록 마지막) → 「재작성」 → 시트 닫힘(confirm 없음) → 말풍선 포커스
+「재작성」 버튼(isRegenerateTarget = 캐릭터 line + 화면 목록 마지막, confirm 없음)
  → writeStarted{ regenerate, id }: 대상 본문 흐리게 + aria-busy + "다시 쓰는 중…" · 두 버튼·전송 disabled
  → regenerate(id)                    // 본문 없음, 최대 70초
  ├ 200 → messageReplaced(같은 id 본문 교체) → writeFinished
@@ -47,7 +49,7 @@
  ├ NOT_FOUND → messageRemoved → writeFinished → 토스트 → (남은 0건 + hasMore면 loadInitial) → 다음 ready 커밋 뒤 히스토리 포커스, log 없으면 ‹(F-CH-41)
  ├ 인증 3종 → writeFinished → 전환(주 문서 §6.6)
  └ 그 밖(SPEAK_IN_PROGRESS · LLM_FAILED · LLM_EMPTY · CONFIG_INVALID · NOT_CHARACTER_MESSAGE · RATE_LIMITED · NETWORK · INTERNAL)
-        → writeFinished → 원 대사 그대로 → 토스트(§3). 재시도 버튼 없음 — 메뉴에서 다시 누른다
+        → writeFinished → 원 대사 그대로 → 토스트(§3). 별도 재시도 버튼 없음 — 「재작성」을 다시 누른다(S3e)
 ```
 
 ## 3. 생성 실패 문구 (R-CHAT-011 · R-CHAT-005) — 옛 §8.4
@@ -57,10 +59,10 @@
 | code | speak — 실패 말풍선 문구 · 「재시도」 | regenerate — E 토스트 문구 | 화면 처리 |
 |---|---|---|---|
 | `SPEAK_IN_PROGRESS` | `ERROR_MESSAGES.SPEAK_IN_PROGRESS`(`이 방에서 이미 대사를 만들고 있습니다. 잠시 후 다시 시도해 주세요.`) · ○ | 같은 문구 | 잠시 후 다시 — 다른 탭·다른 사람의 생성 중 |
-| `LLM_FAILED` · `LLM_EMPTY` | `생성에 실패했습니다.`(구성안 §2 원문, 두 코드 같음) · ○ | `대사를 다시 만들지 못했습니다. 메뉴에서 다시 시도해 주세요.`(두 코드 같음) | 저장 없음. regenerate는 원 대사 유지 |
+| `LLM_FAILED` · `LLM_EMPTY` | `생성에 실패했습니다.`(구성안 §2 원문, 두 코드 같음) · ○ | (S3e 개정, AC D-30) `대사를 다시 만들지 못했습니다. 재작성을 다시 눌러 주세요.`(두 코드 같음. 옛 "메뉴에서 다시 시도해 주세요.") | 저장 없음. regenerate는 원 대사 유지 |
 | `CONFIG_INVALID` | `ERROR_MESSAGES.CONFIG_INVALID`(`서버 설정이 올바르지 않습니다. 관리자에게 알려 주세요.`) · ○(사용자 결정 2026-10-06: 요구 원문 유지) | 같은 문구 | 관리자 안내. 서버 설정이 고쳐지면 「재시도」가 성공한다. 읽기·유저 발화는 계속 된다 |
 | `NOT_LAST_MESSAGE` | (오지 않음) | `다른 메시지가 먼저 이어져 재작성할 수 없습니다. 대화를 새로 불러옵니다.` | 토스트 → 첫 페이지 재조회(F-CH-36) |
-| `NOT_CHARACTER_MESSAGE` | (오지 않음) | `ERROR_MESSAGES.NOT_CHARACTER_MESSAGE` | 화면 결함(메뉴가 캐릭터에만 보이므로). 토스트만 |
+| `NOT_CHARACTER_MESSAGE` | (오지 않음) | `ERROR_MESSAGES.NOT_CHARACTER_MESSAGE` | 화면 결함(「재작성」이 캐릭터에만 보이므로, S3e). 토스트만 |
 | `NOT_FOUND` | (말풍선 없음 — 방 사라짐: `onRoomGone` 목록 복귀, 토스트 없음) | `메시지를 찾을 수 없습니다. 이미 삭제되었을 수 있습니다.`(§8.3 `editMessage`와 같은 문구) | regenerate: 목록에서 제거 |
 | `RATE_LIMITED` | §8.3과 같은 문구(`retryAfterSec` 있으면 초) · ○ | §8.3과 같은 문구 | 전환 없음 |
 | `LLM_BUDGET_EXCEEDED` (429, S3b · R-LLM-007 🔒) | `ERROR_MESSAGES.LLM_BUDGET_EXCEEDED`(`이번 달 AI 사용 한도에 닿았습니다. 다음 달에 다시 시도해 주세요.`) · ○ | 같은 문구, 톤 **warning** | 저장 없음(regenerate는 원 대사 유지). 전환 없음(`isAuthFailure` false). **카운트다운·자동 재시도·해제 날짜 표시 없음** — 래퍼가 이 코드의 `retryAfterSec`를 버린다(api.md §3.4). `RATE_LIMITED`와 status가 같으므로 **`code`로만 구분**한다. 「재시도」를 눌러도 다음 달 1일 00:00 KST 전에는 같은 429이고, 연타하면 분당 한도에 걸려 `RATE_LIMITED`(초 문구)로 바뀐다 — 정상 동작, 문서화만(api.md §6.1 S3b) |
@@ -116,4 +118,5 @@
 | `speak`(캐릭터·`'auto'` 모두) | **`disabled`** + 숨은 안내 `응답을 만드는 중에는 저장할 수 없습니다` | **활성** | **`isEditSaveLocked`**(S3d, auto.md §2.3) |
 | `send` · `delete` · `regenerate` | 버튼은 활성으로 보이나 눌러도 `begin`이 거절(S2·S3 그대로, 변경 없음) | 활성 | — |
 
+- (S3e) 열 "말풍선 메뉴"는 **말풍선 버튼 줄(수정·재작성·삭제)**로 읽는다. "열림" = 활성, "안 열림" = `disabled`. 다만 버튼 줄은 인라인 수정이 열린 동안에도 `disabled`다(`!canSpeak \|\| roomBusy` — `design/actions.md` §4, D-27). 옛 메뉴는 편집 중에도 열렸다(표 2행).
 - (S3d) 잠금 판정 식은 바뀌지 않는다. `'auto'` 행 근거·끼어들기 0회 조건은 `design/auto.md` §4. 전송 뒤 자동 응답 중 인라인 수정 규칙은 auto.md §8 D-17.

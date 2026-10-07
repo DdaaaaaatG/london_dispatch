@@ -1,5 +1,5 @@
 /**
- * chat 화면 확정 문구·라벨 — 단일 소스 설계 chat/design.md §8.1 · §8.1.1 · §8.2 · §8.3
+ * chat 화면 확정 문구·라벨 — 단일 소스 설계 chat/design.md §8.1 · §8.1.1 · §8.2 · §8.3 · design/actions.md §8(S3e 버튼 줄 라벨)
  * JSX·유틸에 한글 문구 리터럴을 직접 쓰지 않는다(aria-label · 오류 문구 포함).
  * 캐릭터 이름은 여기가 아니라 CHARACTERS[id].shortName(shared)이 단일 소스다(R-LLM-002).
  */
@@ -35,10 +35,6 @@ export const labels = {
   oocAriaLabel: 'OOC 지시 모드',
   oocOn: 'OOC 켬',
   oocOff: 'OOC 끔',
-  messageMenuAriaLabel: '메시지 메뉴',
-  /** 말풍선 메뉴 머리. 이름 · 시각 뒤에 공백 두 칸과 따옴표 발췌(구성안 §2-1) */
-  messageMenuHeader: (name: string, time: string, excerpt: string): string =>
-    `${name} · ${time}  "${excerpt}"`,
   edit: '수정',
   delete: '삭제',
   cancel: '취소',
@@ -70,9 +66,18 @@ export const labels = {
   autoRetryAriaLabel: '응답 재시도',
   /** 생성 중 잠긴 인라인 수정 저장 버튼의 숨은 안내(aria-describedby) */
   editSaveLockedNote: '응답을 만드는 중에는 저장할 수 없습니다',
+  // ── S3e (design/actions.md §8) ──
+  /** 말풍선 버튼 줄 group. 이름 = 캐릭터 짧은 이름 · 유저 표기(userAuthorLabel) · [지시] */
+  bubbleActionsAriaLabel: (name: string): string => `${name} 말풍선 작업`,
+  /** 「수정」 접근 이름(보이는 글자 `수정` 포함) */
+  editActionAriaLabel: (name: string): string => `${name} 대사 수정`,
+  /** 「재작성」 접근 이름(보이는 글자 `재작성` 포함) */
+  regenerateActionAriaLabel: (name: string): string => `${name} 대사 재작성`,
+  /** 「삭제」 접근 이름(보이는 글자 `삭제` 포함) */
+  deleteActionAriaLabel: (name: string): string => `${name} 대사 삭제`,
 } as const
 
-/** 유저 말풍선·메뉴 머리의 작성자 표기(F-CH-43). 받은 값을 그대로 쓰고, 비었을 때만 고정 명칭(R-CHAT-002 · R-AUTH-004) */
+/** 유저 말풍선·버튼 줄 이름의 작성자 표기(F-CH-43). 받은 값을 그대로 쓰고, 비었을 때만 고정 명칭(R-CHAT-002 · R-AUTH-004) */
 export const userAuthorLabel = (authorName: string | null): string =>
   authorName === null || authorName === '' ? USER_DISPLAY_NAME : authorName
 
@@ -106,7 +111,8 @@ const rateLimitedText = (retryAfterSec: number | undefined): string =>
     : `요청이 너무 많습니다. ${retryAfterSec}초 후 다시 시도해 주세요.`
 
 const LLM_FAILED_SPEAK_TEXT = '생성에 실패했습니다.'
-const LLM_FAILED_REGENERATE_TEXT = '대사를 다시 만들지 못했습니다. 메뉴에서 다시 시도해 주세요.'
+/** S3e 개정(D-30): 메뉴가 없어져 "메뉴에서 다시 시도" 안내를 "재작성을 다시 눌러"로 바꿨다(design/actions.md §8) */
+const LLM_FAILED_REGENERATE_TEXT = '대사를 다시 만들지 못했습니다. 재작성을 다시 눌러 주세요.'
 const NOT_LAST_MESSAGE_TEXT =
   '다른 메시지가 먼저 이어져 재작성할 수 없습니다. 대화를 새로 불러옵니다.'
 

@@ -10,18 +10,28 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import userEvent from '@testing-library/user-event'
 import type { Message, MessagesPage, RoomSummary } from '@shared/types'
 import type { ApiErrorCode, Result } from '@/api'
-import { appendUser, deleteMessage, editMessage, listMessages } from '@/api/messages'
+import {
+  appendUser,
+  deleteMessage,
+  editMessage,
+  listMessages,
+  regenerate,
+  speak,
+} from '@/api/messages'
 import { createRoom, deleteRoom, listRooms, renameRoom } from '@/api/rooms'
 import { App } from '@/App'
 import { ChatScreen } from '@/chat'
 import { clearToken, getToken, initToken } from '@/state/token'
 import { READ_ONLY_VIEWER, WRITER_VIEWER } from '@/state/viewer'
 
+// S3e(TC-CH-120): 재작성 전환 확인을 위해 speak·regenerate 를 목록에 더한다. 이 스펙에는 저장 성공 TC 가 없어 speak 는 불리지 않는다
 vi.mock('@/api/messages', () => ({
   listMessages: vi.fn(),
   appendUser: vi.fn(),
   editMessage: vi.fn(),
   deleteMessage: vi.fn(),
+  speak: vi.fn(),
+  regenerate: vi.fn(),
 }))
 vi.mock('@/api/rooms', () => ({
   listRooms: vi.fn(),
@@ -35,11 +45,14 @@ const mocks = [
   appendUser,
   editMessage,
   deleteMessage,
+  speak,
+  regenerate,
   listRooms,
   createRoom,
   renameRoom,
   deleteRoom,
 ].map(f => vi.mocked(f))
+const mockedRegenerate = vi.mocked(regenerate)
 const mockedAppend = vi.mocked(appendUser)
 const mockedEdit = vi.mocked(editMessage)
 const mockedDelete = vi.mocked(deleteMessage)
@@ -92,6 +105,24 @@ const flushPending = async () => {
 }
 const bubbleOf = (index: number) =>
   within(screen.getByRole('log')).getAllByRole('listitem')[index]?.firstElementChild as HTMLElement
+/** S3e: index 번째 li 의 버튼 줄에서 「수정」·「재작성」·「삭제」(actions.md AC §1) */
+const actionAt = (index: number, action: '수정' | '재작성' | '삭제') =>
+  within(
+    within(
+      within(screen.getByRole('log')).getAllByRole('listitem')[index] as HTMLElement,
+    ).getByRole('group', { name: /말풍선 작업$/ }),
+  ).getByRole('button', { name: new RegExp(`대사 ${action}$`) })
+const actionGroups = () => screen.queryAllByRole('group', { name: /말풍선 작업$/ })
+/** 마지막 = 세바스찬 line(재작성 대상, TC-CH-120) */
+const M104_SEB: Message = {
+  id: 104,
+  roomId: 'r1',
+  speaker: 'sebastian',
+  kind: 'line',
+  text: '분부대로 하겠습니다.',
+  authorName: null,
+  createdAt: at(16, 44),
+}
 const expectReadOnly = () => {
   expect(screen.queryByRole('button', { name: '방 메뉴 열기' })).toBeNull()
   expect(screen.queryByRole('group', { name: '메시지 작성' })).toBeNull()
@@ -172,6 +203,9 @@ describe('인증 실패 전환 — App 통합 (R-CHAT-011 · R-CHAT-008 · R-CHA
       )
       expect(getToken()).toBeNull()
 
+      // S3e 개정: 옛 "이후 말풍선 contextmenu → dialog 없음" → 버튼 줄 group 0개(+ 메뉴 없음 유지)
+      expect(actionGroups()).toHaveLength(0)
+      expect(screen.queryByRole('button', { name: /대사 (수정|재작성|삭제)$/ })).toBeNull()
       const bubble = bubbleOf(0)
       expect(bubble.getAttribute('aria-haspopup')).toBeNull()
       expect(fireEvent.contextMenu(bubble)).toBe(true)
@@ -222,8 +256,7 @@ describe('전환 시 열린 상태 정리 (R-CHAT-011 · R-CHAT-007)', () => {
     render(<Harness onAuthFailure={onAuthFailure} />)
     await screen.findByRole('log')
     const user = userEvent.setup()
-    fireEvent.contextMenu(bubbleOf(1))
-    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: '수정' }))
+    await user.click(actionAt(1, '수정')) // S3e: 진입 = 버튼 줄 「수정」
     fireEvent.change(screen.getByRole('textbox', { name: '수정할 내용' }), {
       target: { value: '새 본문' },
     })
@@ -246,8 +279,7 @@ describe('전환 시 열린 상태 정리 (R-CHAT-011 · R-CHAT-007)', () => {
     render(<Harness onAuthFailure={onAuthFailure} />)
     await screen.findByRole('log')
     const user = userEvent.setup()
-    fireEvent.contextMenu(bubbleOf(1))
-    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: '삭제' }))
+    await user.click(actionAt(1, '삭제')) // S3e: 진입 = 버튼 줄 「삭제」
     await user.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: '삭제' }))
 
     await screen.findByRole('note')
@@ -260,6 +292,60 @@ describe('전환 시 열린 상태 정리 (R-CHAT-011 · R-CHAT-007)', () => {
     ) // TK-07
     expect(onAuthFailure).toHaveBeenCalledTimes(1)
     expect(mockedDelete).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('S3e 인증 실패 전환 — 버튼 줄 미렌더, App 통합 (R-CHAT-008 · R-CHAT-011)', () => {
+  const enterRoom = async () => {
+    initToken('?t=test-token')
+    render(<App />)
+    const user = userEvent.setup()
+    await user.click(await screen.findByRole('button', { name: /^티타임, 마지막 갱신/ }))
+    await screen.findByRole('log')
+    return user
+  }
+
+  it('TC-CH-120: (App) 재작성이 TOKEN_INVALID → 같은 커밋에서 버튼 줄 전부 없음, 열람 안내, 전환 토스트 1개, ‹ 포커스, 토큰 비움', async () => {
+    vi.mocked(listMessages).mockResolvedValue(
+      ok({ messages: [M101, M103, M104_SEB], hasMore: false }),
+    )
+    const d = deferred<Result<Message>>()
+    mockedRegenerate.mockReturnValueOnce(d.promise)
+    await enterRoom()
+    expect(actionGroups()).toHaveLength(3)
+    fireEvent.click(actionAt(2, '재작성'))
+    expect(mockedRegenerate.mock.calls).toEqual([[104]])
+
+    await act(async () => {
+      d.resolve(fail('TOKEN_INVALID'))
+    })
+    // 같은 커밋 — waitFor 없이 바로 본다(전환 effect 가 아니라 renderHistory 의 actions=undefined 로 사라진다, AC §9)
+    expect(actionGroups()).toHaveLength(0)
+    expect(screen.queryByRole('button', { name: /대사 (수정|재작성|삭제)$/ })).toBeNull()
+    expectReadOnly()
+    expect(screen.getAllByRole('alert').map(a => a.textContent)).toEqual([
+      '인증이 만료되어 열람 전용으로 바뀌었습니다. 새로 고쳐 주세요.',
+    ])
+    await waitFor(() =>
+      expect(document.activeElement).toBe(screen.getByRole('button', { name: BACK })),
+    )
+    expect(getToken()).toBeNull()
+    expect(mockedRegenerate).toHaveBeenCalledTimes(1)
+  })
+
+  it('TC-CH-120: (App) 메시지 삭제 확인에서 LEVEL_TOO_LOW → 확인 시트·버튼 줄 없음, 말풍선 유지, 토큰 비움', async () => {
+    mockedDelete.mockResolvedValueOnce(fail('LEVEL_TOO_LOW'))
+    const user = await enterRoom()
+    await user.click(actionAt(1, '삭제'))
+    await user.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: '삭제' }))
+
+    await screen.findByRole('note')
+    expect(screen.queryByRole('alertdialog')).toBeNull()
+    expect(actionGroups()).toHaveLength(0)
+    expect(within(screen.getByRole('log')).getAllByRole('listitem')).toHaveLength(2)
+    expectReadOnly()
+    expect(getToken()).toBeNull()
+    expect(mockedDelete.mock.calls).toEqual([[103]])
   })
 })
 
@@ -302,8 +388,7 @@ describe('늦은 쓰기 응답 무시 (R-CHAT-006 · R-CHAT-007 · R-CHAT-001)',
     const pending = deferred<Result<Message>>()
     mockedEdit.mockReturnValueOnce(pending.promise)
     const { unmount, user, onAuthFailure, errorSpy } = await setup()
-    fireEvent.contextMenu(bubbleOf(1))
-    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: '수정' }))
+    await user.click(actionAt(1, '수정')) // S3e: 진입 = 버튼 줄 「수정」
     fireEvent.change(screen.getByRole('textbox', { name: '수정할 내용' }), {
       target: { value: '새 본문' },
     })
@@ -322,8 +407,7 @@ describe('늦은 쓰기 응답 무시 (R-CHAT-006 · R-CHAT-007 · R-CHAT-001)',
     const pending = deferred<Result<void>>()
     mockedDelete.mockReturnValueOnce(pending.promise)
     const { unmount, user, onAuthFailure, errorSpy } = await setup()
-    fireEvent.contextMenu(bubbleOf(1))
-    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: '삭제' }))
+    await user.click(actionAt(1, '삭제')) // S3e: 진입 = 버튼 줄 「삭제」
     await user.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: '삭제' }))
     unmount()
     await act(async () => {

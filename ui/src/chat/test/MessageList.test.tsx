@@ -52,6 +52,11 @@ const renderList = (over: Partial<MessageListProps> = {}) => {
     regeneratingId: null,
     // S3d 필수 prop(auto.md §2.3 · components.md §2.1) — 생성 중 아님 기본값. 단언 변경 없음(Q-08)
     isEditSaveLocked: false,
+    // S3e 필수 prop(actions.md AC §2 MessageListProps) — 잠금 없음·재작성 대상 없음·포커스 요청 없음. actions 는 선택(없으면 버튼 줄 DOM 없음). 단언 변경 없음(Q-09)
+    isActionLocked: false,
+    regenerateTargetId: null,
+    editFocusId: null,
+    onEditFocusDone: vi.fn(),
     ...over,
   }
   return { ...render(<MessageList {...props} />), props }

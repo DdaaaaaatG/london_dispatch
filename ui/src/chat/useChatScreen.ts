@@ -1,16 +1,16 @@
 /**
- * useChatScreen — 설계 chat/design/functions.md §3 · §4 F-CH-02 · F-CH-10 · F-CH-16 ~ F-CH-30 · F-CH-33 · F-CH-40 · F-CH-41 (ChatScreen 50줄 한계 때문에 조립을 분리)
+ * useChatScreen — 설계 chat/design/functions.md §3 · §4 F-CH-02 · F-CH-10 · F-CH-16 ~ F-CH-30 · F-CH-33 · F-CH-40 · F-CH-41 · design/actions.md F-CH-50 (ChatScreen 50줄 한계 때문에 조립을 분리)
  * 요구: R-CHAT-001 · 003 · 004 · 005 · 006 · 007 · 008 · 010 · 011 · 013
  * 화면 상태는 이 훅 하나가 한 곳(화면 최상위)에 모은다: 대화 상태(useChatLoader) · 스크롤(useAutoScroll · useScrollMemory) ·
  * 쓰기(useWriteFailure · useMessageWrites) · 시트(useChatSheets) · 읽기 전용 전환(useAccessRevoked). 단방향 흐름이다.
  * 전이 규칙은 ui/src/state/chat.ts 리듀서가 소유한다 — 여기에 다시 쓰지 않는다.
  */
 import { useCallback, useLayoutEffect, useRef, useState } from 'react'
-import type { RefObject } from 'react'
+import type { Dispatch, RefObject } from 'react'
 import type { RoomSummary, SpeakTarget } from '@shared/types'
 import { useAutoScroll } from '@/components/hooks/useAutoScroll'
 import { clearLastRoomId, loadScrollOffset, saveLastRoomId } from '@/components/utils/storage'
-import { type ChatState, canAutoLoadOlder } from '@/state/chat'
+import { type ChatAction, type ChatState, canAutoLoadOlder } from '@/state/chat'
 import type { Viewer } from '@/state/viewer'
 import { useAccessRevoked } from './useAccessRevoked'
 import { type UseChatLoaderResult, useChatLoader } from './useChatLoader'
@@ -78,19 +78,37 @@ const useLogFocusAfterCommit = (phase: ChatState['phase'], focusLog: () => void)
   return useCallback((): void => setRequested(count => count + 1), [])
 }
 
-/** F-CH-20: 수정이 반영되면(true) 히스토리로 포커스한다 */
+/** F-CH-20: 수정이 반영되면(true) 그 말풍선의 「수정」으로 포커스를 요청한다(F-CH-50) */
 const useSaveEditAndFocus = (
   saveEdit: (messageId: number, text: string) => Promise<boolean>,
-  focusLog: () => void,
+  requestEditFocus: (messageId: number) => void,
 ) =>
   useCallback(
     (messageId: number, text: string): void => {
       void saveEdit(messageId, text).then(isSaved => {
-        if (isSaved) focusLog()
+        if (isSaved) requestEditFocus(messageId)
       })
     },
-    [saveEdit, focusLog],
+    [saveEdit, requestEditFocus],
   )
+
+/**
+ * F-CH-50(S3e): 편집기가 닫힌 뒤 그 말풍선의 「수정」으로 포커스를 돌려 달라는 요청(editFocusId)을 들고 있다가,
+ * 그 버튼 줄이 소비하면(onEditFocusDone) 비운다. 「수정」이 disabled 라 포커스를 못 받았으면(예: 자동 응답 생성 중 편집 취소 — S3d D-17)
+ * 히스토리 log 로 대신한다(focusLog, 빈 방이면 ‹)
+ */
+const useEditFocusReturn = (focusLog: () => void) => {
+  const [editFocusId, setEditFocusId] = useState<number | null>(null)
+  const requestEditFocus = useCallback((messageId: number): void => setEditFocusId(messageId), [])
+  const onEditFocusDone = useCallback(
+    (isFocused: boolean): void => {
+      if (!isFocused) focusLog()
+      setEditFocusId(null)
+    },
+    [focusLog],
+  )
+  return { editFocusId, requestEditFocus, onEditFocusDone }
+}
 
 /**
  * F-CH-32(S3d): 실패 말풍선의 「재시도」. 중립('auto')은 돌아갈 캐릭터 버튼이 없으므로,
@@ -112,6 +130,19 @@ const useRoomGone = (onBack: () => void) =>
     onBack()
   }, [onBack])
 
+/** F-CH-29: 쓰기 → 읽기 전용 전환이면 숨은 상태(시트·쓰기 팻말·편집)를 정리하고 포커스를 ‹ 로 */
+const useRevokeCleanup = (
+  canWrite: boolean,
+  closeSheet: () => void,
+  dispatch: Dispatch<ChatAction>,
+  backButtonRef: RefObject<HTMLButtonElement | null>,
+): void =>
+  useAccessRevoked(canWrite, () => {
+    closeSheet()
+    dispatch({ type: 'writeAccessRevoked' })
+    backButtonRef.current?.focus()
+  })
+
 /** 쓰기 6종과 시트, 인증 실패 전환(F-CH-16 · F-CH-29 · F-CH-30) */
 const useChatWrites = (
   options: UseChatScreenOptions,
@@ -126,6 +157,7 @@ const useChatWrites = (
 
   const focusLog = useFocusLog(containerRef, backButtonRef)
   const requestLogFocus = useLogFocusAfterCommit(loader.state.phase, focusLog)
+  const { editFocusId, requestEditFocus, onEditFocusDone } = useEditFocusReturn(focusLog)
   const onRoomGone = useRoomGone(onBack)
   const writes = useMessageWrites({
     roomId: room.id,
@@ -145,21 +177,25 @@ const useChatWrites = (
     removeMessage: writes.removeMessage,
     regenerateMessage: writes.regenerateMessage,
     requestLogFocus,
+    requestEditFocus,
     handleWriteFailure,
     focusLog,
     onBack,
     onRoomRenamed,
   })
-  const { closeSheet } = sheets
-  // F-CH-29: 쓰기 → 읽기 전용 전환이면 숨은 상태를 정리하고 포커스를 ‹ 로
-  useAccessRevoked(viewer.canWrite, () => {
-    closeSheet()
-    dispatch({ type: 'writeAccessRevoked' })
-    backButtonRef.current?.focus()
-  })
-  const saveEdit = useSaveEditAndFocus(writes.saveEdit, focusLog)
+  useRevokeCleanup(viewer.canWrite, sheets.closeSheet, dispatch, backButtonRef)
+  const saveEdit = useSaveEditAndFocus(writes.saveEdit, requestEditFocus)
   const retrySpeak = useRetrySpeak(writes.speakAs, focusLog)
-  return { toast, send: writes.send, speakAs: writes.speakAs, retrySpeak, saveEdit, sheets }
+  const editFocus = { editFocusId, onEditFocusDone }
+  return {
+    toast,
+    send: writes.send,
+    speakAs: writes.speakAs,
+    retrySpeak,
+    saveEdit,
+    sheets,
+    editFocus,
+  }
 }
 
 export const useChatScreen = (options: UseChatScreenOptions) => {

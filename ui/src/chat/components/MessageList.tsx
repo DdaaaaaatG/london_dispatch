@@ -5,7 +5,8 @@
  * S2: editingId 인 메시지는 말풍선 자리에 InlineEditor 를 둔다(읽기 전용이면 호출 쪽이 항상 null 을 넘긴다).
  * S3d: isEditSaveLocked(생성 중)면 열린 편집기의 저장 버튼만 잠근다. onRetrySpeak 은 캐릭터·중립('auto') 대상을 받는다.
  * S3: 메시지 <li> 뒤에 pending(임시·실패 말풍선) <li> 하나를 더 둔다. regeneratingId 인 말풍선은 재작성 중 표시를 붙인다.
- * onOpenMenu 는 쓰기 가능일 때만 받는다 — 없으면 말풍선에 메뉴 핸들러가 붙지 않는다.
+ * S3e: actions 는 쓰기 가능일 때만 받는다 — 있으면 같은 <li> 안 Bubble 의 형제로 버튼 줄(BubbleActions)을 둔다(D-28).
+ *   없으면(읽기 전용) 버튼 줄 DOM 이 없다. 수정 중인 말풍선과 임시·실패 말풍선 <li> 에는 버튼 줄이 없다.
  */
 import type { RefObject } from 'react'
 import type { Message, SpeakTarget } from '@shared/types'
@@ -13,6 +14,7 @@ import type { ApiError } from '@/api'
 import type { PendingSpeak } from '@/state/chat'
 import { labels } from '@/chat/labels'
 import { Bubble } from './Bubble'
+import { BubbleActions, type BubbleActionHandlers } from './BubbleActions'
 import { InlineEditor } from './InlineEditor'
 import { InlineStatus } from './InlineStatus'
 import { NewMessageBadge } from './NewMessageBadge'
@@ -32,8 +34,6 @@ export type MessageListProps = {
   unseenCount: number
   onShowNewest: () => void
   // ── S2 ──
-  /** 쓰기 가능일 때만. 없으면 말풍선 메뉴 핸들러가 없다 */
-  onOpenMenu?: ((message: Message) => void) | undefined
   /** 인라인 수정 중인 메시지. 읽기 전용이면 호출 쪽이 항상 null 을 넘긴다 */
   editingId: number | null
   /** state.writing?.kind === 'edit' */
@@ -50,6 +50,16 @@ export type MessageListProps = {
   onRetrySpeak: (target: SpeakTarget) => void
   /** 재작성 중인 대상 id(없으면 null) */
   regeneratingId: number | null
+  // ── S3e ──
+  /** 쓰기 가능일 때만. 없으면 버튼 줄 DOM 이 없다 */
+  actions?: BubbleActionHandlers | undefined
+  /** isActionLocked = !canSpeak(state) || roomBusy !== null — 모든 버튼 줄의 버튼을 잠근다 */
+  isActionLocked: boolean
+  /** 「재작성」을 둘 말풍선 id(regenerateTargetIdOf). 읽기 전용이면 null */
+  regenerateTargetId: number | null
+  /** 편집기가 닫혀 「수정」으로 포커스를 돌려받을 메시지 id. 읽기 전용이면 null */
+  editFocusId: number | null
+  onEditFocusDone: (isFocused: boolean) => void
 }
 
 type OlderStatusProps = Pick<MessageListProps, 'isLoadingOlder' | 'olderError'> & {
@@ -70,36 +80,62 @@ const OlderStatus = ({ isLoadingOlder, olderError, onRetry }: OlderStatusProps) 
   )
 }
 
+type ActionsLineProps = Pick<
+  MessageListProps,
+  'actions' | 'isActionLocked' | 'regenerateTargetId' | 'editFocusId' | 'onEditFocusDone'
+> & { message: Message }
+
+/** 말풍선 아래 버튼 줄(쓰기 가능일 때만). 「재작성」은 마지막 캐릭터 대사에만, 포커스 요청은 그 말풍선에만 간다 */
+const ActionsLine = (props: ActionsLineProps) => {
+  const { message, actions, isActionLocked, regenerateTargetId, editFocusId } = props
+  if (actions === undefined) return null
+  return (
+    <BubbleActions
+      {...actions}
+      message={message}
+      canRegenerate={message.id === regenerateTargetId}
+      isDisabled={isActionLocked}
+      shouldFocusEdit={message.id === editFocusId}
+      onEditFocusDone={props.onEditFocusDone}
+    />
+  )
+}
+
 type MessageItemProps = Pick<
   MessageListProps,
-  'onOpenMenu' | 'isEditSaving' | 'isEditSaveLocked' | 'onSaveEdit' | 'onCancelEdit'
+  | 'actions'
+  | 'isActionLocked'
+  | 'regenerateTargetId'
+  | 'editFocusId'
+  | 'onEditFocusDone'
+  | 'isEditSaving'
+  | 'isEditSaveLocked'
+  | 'onSaveEdit'
+  | 'onCancelEdit'
 > & { message: Message; isEditing: boolean; isRegenerating: boolean }
 
-/** 목록 한 칸: 수정 중이면 말풍선 자리에 편집기, 아니면 말풍선 */
-const MessageItem = ({
-  message,
-  isEditing,
-  isRegenerating,
-  onOpenMenu,
-  isEditSaving,
-  isEditSaveLocked,
-  onSaveEdit,
-  onCancelEdit,
-}: MessageItemProps) => (
-  <li>
-    {isEditing ? (
-      <InlineEditor
-        message={message}
-        isSaving={isEditSaving}
-        isSaveLocked={isEditSaveLocked}
-        onSave={text => onSaveEdit(message.id, text)}
-        onCancel={onCancelEdit}
-      />
-    ) : (
-      <Bubble message={message} onOpenMenu={onOpenMenu} isRegenerating={isRegenerating} />
-    )}
-  </li>
-)
+/** 목록 한 칸: 수정 중이면 말풍선 자리에 편집기, 아니면 말풍선 + 그 아래 버튼 줄(형제) */
+const MessageItem = (props: MessageItemProps) => {
+  const { message, isEditing, isRegenerating, isEditSaving, isEditSaveLocked } = props
+  return (
+    <li>
+      {isEditing ? (
+        <InlineEditor
+          message={message}
+          isSaving={isEditSaving}
+          isSaveLocked={isEditSaveLocked}
+          onSave={text => props.onSaveEdit(message.id, text)}
+          onCancel={props.onCancelEdit}
+        />
+      ) : (
+        <>
+          <Bubble message={message} isRegenerating={isRegenerating} />
+          <ActionsLine {...props} />
+        </>
+      )}
+    </li>
+  )
+}
 
 type MessageRowsProps = Omit<
   MessageListProps,

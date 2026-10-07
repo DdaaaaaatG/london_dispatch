@@ -43,7 +43,7 @@ MESSAGE_TEXT_MAX_CHARS = 2000 · ROOM_TITLE_MAX_CHARS = 60 · countChars(v) · i
 toastToneOf(error): 'warning' | 'danger'                                                       // rooms F-RM-22
 ```
 
-chat 사용: TopBar `variant='room'`, IconButton `back`·(S2)`more`, StateView(첫 로드 3상태), Button(B0 「다시 시도」 sm secondary · 배지 sm primary · (S2) 전송 md primary · 인라인 수정 취소/저장 sm), (S2) TextArea(입력창·인라인 수정), Toggle(OOC), BottomSheet+SheetItem(말풍선 메뉴·방 메뉴), ConfirmDialog(메시지·방 삭제), PromptSheet(이름 변경), Toast(E 줄), useLongPress(Bubble), useToast. (S3) Button(캐릭터 버튼 2 md secondary · 실패 말풍선 「재시도」 sm secondary), SheetItem(재작성). **공용 부품 변경 없음**(Button의 `ariaLabel`·`isDisabled`·`buttonRef`로 충분).
+chat 사용: TopBar `variant='room'`, IconButton `back`·(S2)`more`, StateView(첫 로드 3상태), Button(B0 「다시 시도」 sm secondary · 배지 sm primary · (S2) 전송 md primary · 인라인 수정 취소/저장 sm), (S2) TextArea(입력창·인라인 수정), Toggle(OOC), BottomSheet+SheetItem(방 메뉴), ConfirmDialog(메시지·방 삭제), PromptSheet(이름 변경), Toast(E 줄), useToast. (S3) Button(캐릭터 버튼 2 md secondary · 실패 말풍선 「재시도」 sm secondary). (S3e) Button(말풍선 버튼 줄 sm ghost, AC §1) · 말풍선 메뉴·SheetItem 재작성·useLongPress 사용 중단. **공용 부품 변경 없음**(Button의 `ariaLabel`·`isDisabled`·`buttonRef`로 충분).
 
 ---
 
@@ -77,7 +77,7 @@ export type MessageListProps = {
   unseenCount: number
   onShowNewest: () => void
   // ── S2 ──
-  onOpenMenu?: (message: Message) => void    // 쓰기 가능일 때만. 없으면 말풍선 메뉴 핸들러 없음
+  // (S3e) onOpenMenu 삭제 → actions? · isActionLocked · regenerateTargetId · editFocusId · onEditFocusDone(AC §2)
   editingId: number | null                   // 인라인 수정 중인 메시지. 읽기 전용이면 호출 쪽이 항상 null 을 넘긴다(v1.5, F-CH-11)
   isEditSaving: boolean                      // state.writing?.kind === 'edit'
   isEditSaveLocked: boolean                  // S3d: state.writing?.kind === 'speak' → InlineEditor isSaveLocked(auto.md §2.3)
@@ -95,16 +95,16 @@ export type MessageListProps = {
 - 렌더: 래퍼 `<div class=wrap>`(`position: relative; flex: 1; min-height: 0`) 안에
   1. 스크롤 박스 `<div ref={containerRef} role="log" aria-live="polite" aria-busy={isLoadingOlder} aria-label={labels.historyAriaLabel} tabIndex={0} onScroll={onScroll}>`(`overflow-y: auto; height: 100%`)
      - 맨 위: 지역 컴포넌트 `OlderStatus`(소급) — `isLoadingOlder` → `InlineStatus kind='loading' message={labels.olderLoading}`. 아니고 `olderError` → `InlineStatus kind='error' message={labels.olderError} actionLabel={labels.retry} onAction={onRetryOlder}`. 둘 다 아니면 없음.
-     - `<ol>` → `messages.map(m => <li key={m.id}>{m.id === editingId ? <InlineEditor message={m} isSaving={isEditSaving} isSaveLocked={isEditSaveLocked} onSave={text => onSaveEdit(m.id, text)} onCancel={onCancelEdit} /> : <Bubble message={m} onOpenMenu={onOpenMenu} />}</li>)`.
+     - `<ol>` → `messages.map(m => <li key={m.id}>{m.id === editingId ? <InlineEditor message={m} isSaving={isEditSaving} isSaveLocked={isEditSaveLocked} onSave={text => onSaveEdit(m.id, text)} onCancel={onCancelEdit} /> : <Bubble message={m} /> + (S3e) BubbleActions(AC §2 MessageItem)}</li>)`.
   2. `unseenCount > 0`이면 `NewMessageBadge label={labels.newMessages} ariaLabel={labels.newMessagesAriaLabel} onClick={onShowNewest}`(스크롤 박스 밖, `position: absolute; right: var(--space-4); bottom: var(--space-2)`).
-- `Bubble`은 `React.memo`. key는 서버 id. `onOpenMenu`는 ChatScreen의 `useCallback` 참조라 말풍선이 다시 그려지지 않는다.
+- `Bubble`은 `React.memo`. key는 서버 id. (S3e) 버튼 줄 핸들러는 `useMemo`로 묶은 `messageActions` 참조라 다시 그려지지 않는다(AC §2).
 
 ### 2.2 Bubble
 
 ```ts
 export type BubbleProps = {
   message: Message
-  onOpenMenu?: (message: Message) => void    // S2. 없으면(읽기 전용) 아래 메뉴 핸들러·tabIndex 를 붙이지 않는다
+  // (S3e) onOpenMenu 삭제 — AC §3
   isRegenerating?: boolean                   // S3. 기본 false. 재작성 요청 중인 대상(캐릭터 변형에서만 의미가 있다)
 }
 export type BubbleVariant = 'sebastian' | 'ciel' | 'user' | 'ooc'          // v1.6 (CR-001)
@@ -130,13 +130,13 @@ export const bubbleVariantOf = (m: Message): BubbleVariant =>
 | `ciel` | 변형 `ciel` | **오른쪽 정렬**(row-reverse) + 색(`--bubble-ciel-*`) |
 | `user` | 변형 `user` | **가운데 말풍선**(배경 있음, 최대 폭 86%) |
 | `ooc` | 변형 `ooc` | **가운데 한 줄**(배경 없음) |
-| `menuEnabled` (S2) | `onOpenMenu`가 있을 때 | `-webkit-touch-callout: none`, 포커스 링 |
+| ~~`menuEnabled` (S2)~~ | **삭제(S3e)** | — |
 
-  - 조합: 세바스찬 `character sebastian` · 시엘 `character ciel` · 유저 `user` · OOC `ooc`(speaker가 캐릭터여도 캐릭터 키 없음). 쓰기 가능이면 넷 모두에 `menuEnabled`가 더 붙는다. 캐릭터는 `cx(styles.root, styles.character, styles[variant], onOpenMenu && styles.menuEnabled)`.
+  - 조합: 세바스찬 `character sebastian` · 시엘 `character ciel` · 유저 `user` · OOC `ooc`(speaker가 캐릭터여도 캐릭터 키 없음). 캐릭터는 `cx(styles.root, styles.character, styles[variant], isRegenerating && styles.regenerating)`.
   - 정렬은 캐릭터별 키(`sebastian`·`ciel`)가 결정한다. 테스트는 `toHaveClass('sebastian')`(왼쪽)·`toHaveClass('ciel')`(오른쪽)·`toHaveClass('user')`·`toHaveClass('ooc')`로 배치를 단언한다(non-scoped).
 - 본문은 **일반 텍스트**(React 이스케이프). `dangerouslySetInnerHTML`·마크다운 해석 금지. `white-space: pre-wrap; overflow-wrap: anywhere`.
 - **재작성 중 표시(S3).** `isRegenerating`이면 `CharacterBubble`이 ① 루트에 클래스 `regenerating`을 더하고 ② 본문 `<p class=body>`에 `aria-busy="true"`를 붙이고(기존 텍스트는 **그대로 둔다**) ③ 머리 줄 시각 뒤에 `<span class=regeneratingNote role="status">{labels.regeneratingNote}</span>`(`다시 쓰는 중…`)을 둔다. `regenerating` 스타일: 본문 `opacity: var(--bubble-busy-opacity)`(0.55). 성공하면 `messageReplaced`로 새 본문이 들어오고 표시가 사라진다. 실패하면 표시만 사라지고 원 대사가 남는다. `UserBubble`·`OocBubble`은 이 prop을 무시한다(재작성 대상이 될 수 없다 — `isRegenerateTarget`이 `line`+캐릭터만). `aria-busy`를 루트가 아니라 본문에만 거는 이유: 같은 말풍선 안의 `role=status` 알림이 busy 때문에 미뤄지지 않게 한다.
-- **메뉴 핸들러(S2).** `BubbleView`는 `useLongPress({ onLongPress: () => onOpenMenu?.(message) })`를 **항상** 호출한다(Hook 규칙). `onOpenMenu`가 있을 때만 루트에 `{...longPressHandlers}` · `tabIndex={0}` · `aria-haspopup="dialog"` · `aria-keyshortcuts="Shift+F10"` · `onKeyDown`(Shift+F10 또는 `key === 'ContextMenu'` → `preventDefault()` 후 `onOpenMenu(message)`)를 붙인다. 없으면 아무것도 붙이지 않는다(우클릭은 브라우저 기본 동작, 주 문서 §10).
+- ~~메뉴 핸들러(S2)~~ **삭제(S3e)**: `onOpenMenu`·`useLongPress`·`tabIndex`·`aria-haspopup`·`aria-keyshortcuts`·Shift+F10 처리 없음. 말풍선은 읽기·쓰기 모두 포커스·포인터 핸들러가 없다. 버튼 줄은 `MessageItem`의 형제 `BubbleActions`(AC §1·§2).
 
 ### 2.3 InlineStatus
 
@@ -198,27 +198,9 @@ export type InlineEditorProps = {
 - Enter는 줄바꿈이다(`onEnter` 없음). 저장은 버튼으로만.
 - 마운트 `useLayoutEffect([])`: 입력에 포커스, 커서를 끝으로(`setSelectionRange(len, len)`).
 
-### 2.8 MessageMenuSheet (말풍선 메뉴) — S2, 구성안 §2-1
+### 2.8 ~~MessageMenuSheet (말풍선 메뉴)~~ — **삭제(S3e, CR-003)**
 
-```ts
-export type MessageMenuSheetProps = {
-  message: Message
-  isWriteBusy: boolean          // state.writing !== null
-  canRegenerate: boolean        // S3: sheet.canRegenerate(= isRegenerateTarget, 열 때 계산 F-CH-35)
-  onEdit: () => void
-  onRegenerate: () => void      // S3: F-CH-36
-  onDelete: () => void
-  onClose: () => void
-}
-```
-- 렌더: `BottomSheet ariaLabel={labels.messageMenuAriaLabel} header={<p class=menuHeader>{labels.messageMenuHeader(nameOf(message), formatTime(message.createdAt), excerptOf(message.text))}</p>} onClose={onClose}` 안에
-  1. `SheetItem label={labels.edit} onSelect={onEdit} isDisabled={isWriteBusy}`
-  2. (S3) `canRegenerate`일 때만 `SheetItem label={labels.regenerate} onSelect={onRegenerate} isDisabled={isWriteBusy}`(`재작성`, tone 기본 — 파괴 조작이 아니고 confirm 없음, 요구 🔒). 아니면 **DOM에 없음**
-  3. `SheetItem label={labels.delete} tone='danger' onSelect={onDelete} isDisabled={isWriteBusy}`
-  4. `SheetItem label={labels.cancel} onSelect={onClose}`
-- `nameOf(m)`: 변형 `sebastian`·`ciel` → `CHARACTERS[variant].shortName` · `user` → (S3d) `userAuthorLabel(message.authorName)`(`design/auto.md` §2.2) · `ooc` → `labels.oocPrefix`. `excerptOf(text)`: 코드 포인트 20자 넘으면 앞 20자 + `…`. 둘 다 이 파일 지역 함수.
-- 약 188px(머리 40 + 항목 44×3 + 여백 16). 재작성 항목이 있으면 **실측 약 247px**(v1.7.1, 390×565 스크린샷. 구성안 §2-1 "약 232px"와의 차이 약 15px는 허용한다. 높이 표기는 ±16px 허용 오차의 근삿값이며, 기준은 실측값이다).
-- 항목 순서(확정): `수정` → (`재작성`) → `삭제` → `취소`.
+파일·props·`excerptOf` 삭제. `nameOf`는 `BubbleActions`로 이동. 대체 컴포넌트 **`BubbleActions`**(말풍선 아래 「수정」·(「재작성」)·「삭제」 버튼 줄)는 `design/actions.md` §1, 삭제 목록은 AC §3.
 
 ### 2.9 RoomMenuSheet (⋯ 방 메뉴) — S2, 구성안 §2-2
 
@@ -230,8 +212,7 @@ export type RoomMenuSheetProps = { roomTitle: string; onRename: () => void; onDe
 ### 2.10 ChatSheets (시트 스위치) — S2
 
 ```ts
-export type ChatSheet =
-  | { kind: 'messageMenu'; message: Message; canRegenerate: boolean }   // S3: canRegenerate 추가(F-CH-35)
+export type ChatSheet =                     // (S3e) 'messageMenu' 삭제 — AC §3
   | { kind: 'confirmDeleteMessage'; message: Message }
   | { kind: 'roomMenu' }
   | { kind: 'rename'; errorText: string | null }
@@ -242,9 +223,7 @@ export type ChatSheetsProps = {
   writing: MessageWrite | null             // functions.md §1
   roomBusy: 'rename' | 'delete' | null     // useRoomActions
   onClose: () => void
-  onStartEdit: (message: Message) => void
-  onRegenerate: (message: Message) => void   // S3: F-CH-36 regenerateFromMenu
-  onAskDeleteMessage: (message: Message) => void
+  // (S3e) onStartEdit · onRegenerate · onAskDeleteMessage 삭제(버튼 줄이 직접 부른다)
   onConfirmDeleteMessage: (message: Message) => void
   onAskRename: () => void
   onSaveRename: (title: string) => void
@@ -256,7 +235,6 @@ export type ChatSheetsProps = {
 
 | kind | 렌더 |
 |---|---|
-| `messageMenu` | `MessageMenuSheet message isWriteBusy={writing !== null} canRegenerate={sheet.canRegenerate} onEdit={() => onStartEdit(m)} onRegenerate={() => onRegenerate(m)} onDelete={() => onAskDeleteMessage(m)} onClose` |
 | `confirmDeleteMessage` | `ConfirmDialog title={labels.deleteMessageTitle} message={labels.deleteMessageBody} confirmLabel={labels.delete} cancelLabel={labels.cancel} onConfirm={() => onConfirmDeleteMessage(m)} onCancel={onClose} isBusy={writing?.kind === 'delete'}` |
 | `roomMenu` | `RoomMenuSheet roomTitle={room.title} onRename={onAskRename} onDelete={onAskDeleteRoom} onClose` |
 | `rename` | `PromptSheet title={labels.renameTitle} inputAriaLabel={labels.renameInputAriaLabel} initialValue={room.title} maxChars={ROOM_TITLE_MAX_CHARS} canSave={v => isRoomTitleValid(v) && v.trim() !== room.title} saveLabel={labels.save} cancelLabel={labels.cancel} onSave={onSaveRename} onCancel={onClose} isBusy={roomBusy === 'rename'} errorText={sheet.errorText}` |
@@ -373,6 +351,7 @@ export type UseAutoScrollResult = {
 | (S3) 재작성 중 | 본문 `opacity: var(--bubble-busy-opacity)` · 머리 줄 `다시 쓰는 중…` xs `--color-fg-muted`. **신규 전역 변수** `--bubble-busy-opacity: 0.55`를 `global.css` `:root`의 `--bubble-*` 묶음에 더한다(색이 아닌 값이지만 하드코딩하지 않는다) |
 | (S3) 파일 | `SpeakButtons.module.css` · `PendingBubble.module.css`(상태·보조 클래스 `pending`·`failed`·`bodyBox`·`dots`·`errorText`·`errorMark`·`retryRow`·`srOnly`만. 모양 클래스는 `Bubble.module.css` import. 본문은 `div.body.bodyBox`, v1.7.1). `Composer.module.css`의 `toggleRow` → `topRow`. `Bubble.module.css`에 `regenerating`·`regeneratingNote` |
 | 컴포넌트 변수 값 | `--bubble-user-bg: var(--color-bg-elevated)` · `--bubble-max-width: 78%`(폭 ≤ 360px에서 85%, 캐릭터) · `--bubble-user-max-width: 86%`(v1.6, 유저·OOC·모든 폭) — `global.css`. S2 추가분은 rooms components.md §1.20 |
+| (S3e) 버튼 줄 | `BubbleActions.module.css` — AC §1 스타일 표(정렬·`--space-1`·보조색 `--color-fg-muted`·삭제 `--color-danger`). `Bubble.module.css` `.menuEnabled` 삭제 |
 | 파일 | `ui/src/chat/styles/ChatScreen.module.css`, 컴포넌트별 `{Name}.module.css`. 하드코딩 색 금지 |
 
 - 아바타 파일 `ui/public/img/ciel.png`·`sebastian.png`. 경로는 `CHARACTERS.*.avatar`(`/embed/img/{id}.png`).

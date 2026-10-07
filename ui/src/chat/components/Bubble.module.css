@@ -1,6 +1,6 @@
 /*
  * 설계 chat/design/components.md §2.2 · §4 (v1.6, CR-001) — 색·간격은 토큰만.
- * 클래스명은 확정: character · sebastian(왼쪽) · ciel(오른쪽) · user(가운데 말풍선) · ooc(가운데 한 줄) · menuEnabled
+ * 클래스명은 확정: character · sebastian(왼쪽) · ciel(오른쪽) · user(가운데 말풍선) · ooc(가운데 한 줄). S3e: menuEnabled 는 삭제(말풍선은 포커스를 받지 않는다)
  * 시엘 배치는 CSS 로만 거울(row-reverse)이다. DOM 순서(아바타 → 이름 → 시각 → 본문)는 세바스찬과 같아 읽는 순서가 유지된다.
  */
 .root {
@@ -136,17 +136,6 @@
   text-align: center;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
-}
-
-/* S2: 쓰기 가능이면 롱프레스 메뉴 대상이다. 길게 눌러도 브라우저 콜아웃이 뜨지 않게 하고 포커스 링을 둔다 */
-.menuEnabled {
-  -webkit-touch-callout: none;
-}
-
-.menuEnabled:focus-visible {
-  outline: 2px solid var(--color-focus);
-  outline-offset: 2px;
-  border-radius: var(--radius-lg);
 }
 
 /* S3: 재작성 중 — 본문을 흐리게(기존 텍스트 유지). 머리 줄에 "다시 쓰는 중…" */

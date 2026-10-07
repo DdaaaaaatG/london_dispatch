@@ -180,10 +180,11 @@ const input = () => screen.getByRole('textbox', { name: '메시지 입력' }) as
 const items = () => within(screen.getByRole('log')).getAllByRole('listitem')
 const lastItem = () => items()[items().length - 1] as HTMLElement
 const pendings = () => document.querySelectorAll('.pending')
-const bubbleOf = (id: number) =>
-  items()[PAGE.messages.findIndex(m => m.id === id)]?.querySelector(
-    '[aria-haspopup="dialog"]',
-  ) as HTMLElement
+/** S3e(actions.md AC §1): 그 메시지 li 의 버튼 줄(옛 메뉴 대상 [aria-haspopup] 은 없다) */
+const actionsOf = (id: number) =>
+  within(items()[PAGE.messages.findIndex(m => m.id === id)] as HTMLElement).getByRole('group', {
+    name: /말풍선 작업$/,
+  })
 /** 생성 대기를 하나 걸고 버튼을 누른다(같은 커밋에서 임시 말풍선) */
 const startSpeak = (name: string = SEB) => {
   const d = deferred<Result<Message>>()
@@ -342,21 +343,24 @@ describe('생성 중 임시 말풍선·잠금 (R-CHAT-005 · R-CHAT-002 · R-CHA
       for (const k of ['avatar', 'content', 'head', 'name', 'body'])
         expect(root.querySelector(`.${k}`)).not.toBeNull()
       expect(root.getAttribute('tabindex')).toBeNull()
-      expect(fireEvent.contextMenu(root)).toBe(true)
-      expect(screen.queryByRole('dialog')).toBeNull()
+      // S3e 개정(옛 contextmenu·롱프레스 → dialog 없음): 임시 li 에는 버튼 줄이 없다(TC-CH-119)
+      expect(within(lastItem()).queryAllByRole('group')).toHaveLength(0)
+      expect(within(lastItem()).queryAllByRole('button')).toHaveLength(0)
     },
   )
 
-  it('TC-CH-069: 임시 말풍선 500ms 누름 → dialog 없음', async () => {
+  it('TC-CH-069: (S3e 개정) 생성 중 — 메시지 말풍선 4개는 버튼 줄이 있고 disabled, 임시 li 만 버튼 줄 없음', async () => {
     renderChat()
     await screen.findByRole('log')
     startSpeak(SEB)
-    const root = lastItem().firstElementChild as HTMLElement
-    vi.useFakeTimers()
-    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
-    await user.pointer({ keys: '[MouseLeft>]', target: root })
-    act(() => vi.advanceTimersByTime(500))
+    expect(items()).toHaveLength(5)
+    for (const id of [101, 102, 103, 104])
+      for (const b of within(actionsOf(id)).getAllByRole('button'))
+        expect((b as HTMLButtonElement).disabled).toBe(true)
+    expect(within(lastItem()).queryAllByRole('group')).toHaveLength(0)
     expect(screen.queryByRole('dialog')).toBeNull()
+    await flushPending()
+    expect(mockedSpeak.mock.calls).toEqual([['r1', { character: 'sebastian' }]])
   })
 
   it('TC-CH-070: 대기 중 두 버튼·전송·⋯ disabled, 입력은 타이핑 가능(readOnly 아님), 메뉴 안 열림, 연타 1회, 80초 뒤에도 그대로', async () => {
@@ -376,8 +380,13 @@ describe('생성 중 임시 말풍선·잠금 (R-CHAT-005 · R-CHAT-002 · R-CHA
     expect(input().readOnly).toBe(false)
     expect(btn('전송').disabled).toBe(true)
     expect(btn('방 메뉴 열기').disabled).toBe(true)
-    fireEvent.contextMenu(bubbleOf(103))
-    expect(screen.queryByRole('dialog')).toBeNull()
+    // S3e 개정(옛 "말풍선 contextmenu → dialog 없음"): 버튼 줄 disabled, 눌러도 편집기·확인 시트 없음
+    for (const b of within(actionsOf(103)).getAllByRole('button')) {
+      expect((b as HTMLButtonElement).disabled).toBe(true)
+      fireEvent.click(b)
+    }
+    expect(screen.queryByRole('group', { name: '메시지 수정' })).toBeNull()
+    expect(screen.queryByRole('alertdialog')).toBeNull()
 
     vi.useFakeTimers()
     act(() => vi.advanceTimersByTime(80_000))
@@ -815,12 +824,8 @@ describe('「재시도」·생성 잠금 (R-CHAT-005 · R-CHAT-007)', () => {
     await screen.findByRole('log')
     await failOnce(SEB)
     const user = userEvent.setup()
-    fireEvent.contextMenu(bubbleOf(103))
-    await user.click(
-      within(screen.getByRole('dialog', { name: '메시지 메뉴' })).getByRole('button', {
-        name: '수정',
-      }),
-    )
+    // S3e 개정: 진입 = 103 버튼 줄 「수정」(메뉴 단계 없음)
+    await user.click(within(actionsOf(103)).getByRole('button', { name: /대사 수정$/ }))
     const editor = screen.getByRole('group', { name: '메시지 수정' })
     expect(btn(SEB).disabled).toBe(true)
     expect(btn(CIEL).disabled).toBe(true)

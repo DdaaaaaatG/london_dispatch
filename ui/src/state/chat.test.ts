@@ -17,6 +17,7 @@ import {
   canSend,
   canSpeak,
   isRegenerateTarget,
+  regenerateTargetIdOf,
   speakingCharacterOf,
   type MessageWrite,
   type PendingSpeak,
@@ -359,6 +360,40 @@ describe('S3 canSpeak · isRegenerateTarget (R-CHAT-005 · R-CHAT-007 · R-MSG-0
     expect(isRegenerateTarget(oocLast, 32)).toBe(false)
     expect(isRegenerateTarget(empty, 33)).toBe(false)
     expect(isRegenerateTarget(ready({ pending: FAILED_SEB }), 33)).toBe(true)
+  })
+})
+
+// ── S3e (TC-CH-111 순수) — design/actions.md AC §5 F-CH-52 regenerateTargetIdOf ──────
+describe('S3e regenerateTargetIdOf (R-CHAT-007 · R-MSG-006, F-CH-52)', () => {
+  it('TC-CH-111: 마지막이 캐릭터 line 이면 그 id, 아니면 null — 5경계 · pending 무시 · 잠금과 무관 · 입력 불변', () => {
+    const sebLast = ready({
+      messages: [msg(31), { ...msg(32), speaker: 'sebastian' }],
+    })
+    const userLast = ready({
+      messages: [msg(31), { ...msg(32), speaker: 'user', authorName: '미샤' }],
+    })
+    const oocLast = ready({
+      messages: [msg(31), { ...msg(32), speaker: 'sebastian', kind: 'ooc' }],
+    })
+    const empty = ready({ messages: [], hasMore: false })
+    expect(regenerateTargetIdOf(ready())).toBe(33) // 시엘 line 마지막
+    expect(regenerateTargetIdOf(sebLast)).toBe(32)
+    expect(regenerateTargetIdOf(userLast)).toBeNull()
+    expect(regenerateTargetIdOf(oocLast)).toBeNull()
+    expect(regenerateTargetIdOf(empty)).toBeNull()
+    // pending(실패·생성 중)은 보지 않는다 — TC-CH-079 규칙 유지. 잠금은 isActionLocked 몫이라 결과에 영향 없음
+    expect(regenerateTargetIdOf(ready({ pending: FAILED_SEB }))).toBe(33)
+    expect(regenerateTargetIdOf(speaking())).toBe(33)
+    expect(regenerateTargetIdOf(ready({ editingId: 33 }))).toBe(33)
+    // isRegenerateTarget 과 일치
+    for (const s of [ready(), sebLast, userLast, oocLast]) {
+      const last = s.messages[s.messages.length - 1] as Message
+      expect(regenerateTargetIdOf(s) === last.id).toBe(isRegenerateTarget(s, last.id))
+    }
+    // 입력 불변(얼린 상태에서 throw 없음, 참조 그대로)
+    const frozen = ready()
+    regenerateTargetIdOf(frozen)
+    expect(ids(frozen.messages)).toEqual([31, 32, 33])
   })
 })
 

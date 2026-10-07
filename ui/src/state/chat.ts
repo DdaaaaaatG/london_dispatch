@@ -1,6 +1,7 @@
 /**
  * 대화 상태 리듀서(순수) — 설계 chat/design/functions.md §1 · 전이표 T1~T34 · F-CH-12
  * 요구: R-CHAT-003 · R-CHAT-005 · R-CHAT-006 · R-CHAT-007 · R-CHAT-011 · R-CHAT-014 · R-MSG-001
+ * S3e: regenerateTargetIdOf(F-CH-52)만 더했다 — 리듀서·전이표·ChatState 는 그대로다.
  * S3d: 전송 저장 201 은 sendSucceeded(T35) 한 번으로 메시지 붙이기 + 자동 응답 시작(중립 'auto')을 원자 전이한다. 사이에 잠금이 풀린 상태가 없다.
  * S3: speak 는 speakStarted 로만 시작해 pending(임시 말풍선)과 writing 을 함께 건다. 끝은 T29~T33 으로만 맺는다.
  * 비유: writing 은 방 문 앞의 "사용 중" 팻말이다. 걸려 있는 동안은 다른 메시지 쓰기(전송·수정 저장·삭제)를 시작하지 않는다.
@@ -119,6 +120,15 @@ export const isRegenerateTarget = (s: ChatState, messageId: number): boolean => 
   return (
     last !== undefined && last.id === messageId && last.kind === 'line' && last.speaker !== 'user'
   )
+}
+
+/**
+ * F-CH-52(S3e): 「재작성」 버튼을 둘 말풍선 id. 화면 목록 마지막이 캐릭터 대사(line)면 그 id, 아니면 null(빈 목록 포함).
+ * pending 과 잠금(writing·editingId)은 보지 않는다 — 잠금은 화면의 isActionLocked 가 버튼을 disabled 로 만든다
+ */
+export const regenerateTargetIdOf = (s: ChatState): number | null => {
+  const last = s.messages[s.messages.length - 1]
+  return last !== undefined && isRegenerateTarget(s, last.id) ? last.id : null
 }
 
 const onInitialLoadSucceeded = (page: MessagesPage): ChatState => ({
