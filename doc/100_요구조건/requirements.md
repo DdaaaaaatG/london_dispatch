@@ -30,7 +30,7 @@
 | ID | 🔒 | 요구 | 수용 기준 |
 |---|---|---|---|
 | R-ENV-001 | 🔒 | 설정·비밀값은 `server/src/env.ts`의 `parseEnv(raw)`에서만 읽는다. Workers `env` 바인딩을 요청 진입점(`index.ts`)이 받아 파싱하고 서비스에는 값으로 전달한다. | 다른 파일에 `process.env`·`import.meta.env`·바인딩 키 직접 참조 없음(grep 0건). 훅이 차단. |
-| R-ENV-002 | 🔒 | 키 목록과 기본값. Secrets: `TOKEN_SECRET`, `LLM_API_KEY`, (S3c 추가 2026-10-06) `OWNER_MB_IDS`(갠홈 주인 회원 ID 목록, 쉼표·공백 구분 — **지인 ID만**, 기본 빈 값 = 설정 엔드포인트 전원 403. 비밀값은 아니나 회원 ID를 저장소에 남기지 않도록 Secrets 권고, `[vars]`도 허용). `[vars]`: `TOKEN_MIN_LEVEL=5`, `LLM_PROVIDER=google`, `LLM_MODEL=gemini-2.5-flash`, `LLM_TIMEOUT_MS=60000`, `ALLOWED_FRAME_ANCESTORS="http://london-gossip.my https://london-gossip.my"`, `RATE_LIMIT_PER_MIN=20`, `CONTEXT_MESSAGES=40`, `MEMORY_SUMMARY_THRESHOLD=60`, (S3b 추가 2026-10-06) `LLM_MONTHLY_BUDGET_KRW=100000`, `LLM_PRICE_INPUT_USD_PER_M=0.30`, `LLM_PRICE_OUTPUT_USD_PER_M=2.50`, `KRW_PER_USD=1400`. 바인딩: `DB`(D1), `ASSETS`(정적). | `server/.dev.vars.example`·`wrangler.toml [vars]`·`parseEnv` 스키마의 키가 일치. 숫자 키는 숫자로 변환·범위 검사. |
+| R-ENV-002 | 🔒 | 키 목록과 기본값. Secrets: `TOKEN_SECRET`(**32자 이상**, 미만이면 `CONFIG_INVALID` — 2026-10-07 verify SEC-001 후속), `LLM_API_KEY`, (S3c 추가 2026-10-06) `OWNER_MB_IDS`(갠홈 주인 회원 ID 목록, 쉼표·공백 구분 — **지인 ID만**, 기본 빈 값 = 설정 엔드포인트 전원 403. 비밀값은 아니나 회원 ID를 저장소에 남기지 않도록 Secrets 권고, `[vars]`도 허용). `[vars]`: `TOKEN_MIN_LEVEL=5`, `LLM_PROVIDER=google`, `LLM_MODEL=gemini-2.5-flash`, `LLM_TIMEOUT_MS=60000`, `ALLOWED_FRAME_ANCESTORS="http://london-gossip.my https://london-gossip.my"`, `RATE_LIMIT_PER_MIN=20`, `CONTEXT_MESSAGES=40`, `MEMORY_SUMMARY_THRESHOLD=60`, (S3b 추가 2026-10-06) `LLM_MONTHLY_BUDGET_KRW=100000`, `LLM_PRICE_INPUT_USD_PER_M=0.30`, `LLM_PRICE_OUTPUT_USD_PER_M=2.50`, `KRW_PER_USD=1400`. 바인딩: `DB`(D1), `ASSETS`(정적). | `server/.dev.vars.example`·`wrangler.toml [vars]`·`parseEnv` 스키마의 키가 일치. 숫자 키는 숫자로 변환·범위 검사. |
 | R-ENV-003 | | 필수 키 누락·형식 오류 시 해당 요청을 `500 CONFIG_INVALID`로 응답하고 로그에 **키 이름만** 남긴다(실값 금지). `LLM_API_KEY` 누락은 speak 호출 시점에만 실패하고 읽기 경로는 동작한다. | 테스트: 키 하나씩 비운 바인딩으로 호출 → 코드·로그 확인. |
 
 ## 2. server — DB (Cloudflare D1)
@@ -108,7 +108,7 @@
 | R-API-003 | 🔒 | 토큰은 `Authorization: Bearer` 헤더. 화면은 `?t=`를 읽어 메모리에만 둔다(localStorage·쿠키 금지). | ui/api 래퍼가 헤더 부착, 저장 코드 없음(grep). |
 | R-API-004 | | 필드 camelCase, 시각 epoch ms, id는 문자열(room)·정수(message). 요청 본문은 zod 스키마로 검증, 실패 `400 VALIDATION_ERROR`. | 스키마 테스트. |
 | R-API-005 | | `GET /api/health` → `{ ok: true, version }`. DB 접근 없이 응답. | curl. |
-| R-API-006 | 🔒 | `/embed`는 Workers Static Assets로 `ui/dist`를 서빙(SPA, 하위 경로 없음). 모든 응답에 `Content-Security-Policy: frame-ancestors <ALLOWED_FRAME_ANCESTORS>`. `X-Frame-Options`는 보내지 않는다(CSP 우선). | 헤더 테스트. |
+| R-API-006 | 🔒 | `/embed`는 Workers Static Assets로 `ui/dist`를 서빙(SPA, 하위 경로 없음). 모든 응답에 `Content-Security-Policy: frame-ancestors <ALLOWED_FRAME_ANCESTORS>`. **개정 2026-10-07(verify SEC-003 후속, 사용자 승인)**: 예외로 `/api/*` 응답은 `frame-ancestors 'none'` + hono secureHeaders 기본값(nosniff·Referrer-Policy no-referrer 등, X-Frame-Options는 제거). 허용 출처 frame-ancestors는 `/embed`와 그 밖 경로에만. `X-Frame-Options`는 보내지 않는다(CSP 우선). | 헤더 테스트. |
 | R-API-007 | | 라우트 핸들러는 얇게(검증 → 서비스 → 응답), 30줄 이내. 비즈니스 로직은 server 서비스로. | 리뷰. |
 | R-API-008 | 🔒 | `shared/src/{types,errors,endpoints}.ts`를 server·ui가 함께 import. 경로 문자열 중복 0건. | grep. |
 

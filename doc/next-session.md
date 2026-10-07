@@ -14,7 +14,7 @@
 ## 0. 시작 확인
 - 세션은 **프로젝트 루트**(`london_dispatch/`)에서 연다. `.claude` 폴더나 상위 폴더에서 열면 가드 경로가 어긋나 에이전트 Bash·Write가 막힌다.
 - 진행 방식: 메인 세션은 소스·산출 문서를 직접 고치지 않고 리프 에이전트에 위임한다(CLAUDE.md §5-0). S1~S3은 메인 세션이 task-manager 역할을 대행했다(사용자 지시 2026-10-05). task-manager 에이전트에는 Bash·ui-fixer·ui-test-conflict-checker가 없어 메인 대행이 실제로 더 낫다.
-- `server/.dev.vars`는 Read로 열지 않는다. 없으면 `npx wrangler dev --port 3000 --var TOKEN_SECRET:<로컬 임의값> --var LLM_PROVIDER:fake --var OWNER_MB_IDS:<테스트 주인 ID>`로 띄운다(키 없이 speak까지 동작). 로컬 테스트 토큰(.ld-token.local, git 제외)은 같은 TOKEN_SECRET 값으로 서명해야 하며, 비밀값 실값은 문서에 적지 않는다(SEC-002).
+- `server/.dev.vars`는 Read로 열지 않는다. 없으면 `npx wrangler dev --port 3000 --var TOKEN_SECRET:<로컬 임의값 32자 이상> --var LLM_PROVIDER:fake --var OWNER_MB_IDS:<테스트 주인 ID>`(2026-10-07부터 TOKEN_SECRET 32자 미만은 CONFIG_INVALID)로 띄운다(키 없이 speak까지 동작). 로컬 테스트 토큰(.ld-token.local, git 제외)은 같은 TOKEN_SECRET 값으로 서명해야 하며, 비밀값 실값은 문서에 적지 않는다(SEC-002).
 - **새 클론이면** `npm install`(잠금 복원) → `cd server && npx wrangler d1 migrations apply DB --local` → `npx wrangler d1 execute DB --local --file=test/fixtures/seed-s1.sql` → `npm run build -w ui`(wrangler dev가 `ui/dist`를 요구) 순서. 2026-10-06 세션이 이 상태에서 시작해 전부 재구성했다.
 - contract-implementer 위임문에는 **"미리보기 생략 — 사용자 승인된 확정 계약, 순수 추가"** 를 명시한다. 없으면 미리보기에서 멈춘다.
 - **server-implementer도 같다**(2026-10-06 S3c에서 미리보기 정지 1회): 기존 시그니처·스키마 변경이 섞인 작업은 위임문에 "사용자 승인 ② {날짜} 완료 — 미리보기 생략, 바로 적용"을 적는다.
@@ -44,7 +44,9 @@
 4. **S4(장기기억) 설계부터**: server-designer(memory.md 신규 — `summarizeIfNeeded`·`afterSpeak` 훅 연결·`source_until_id` 전진·중복 방지 R-MEM-003·`memory.get/put`) → contract-designer(E13·E14 GET/PUT memory, api.md v0.5) → ui-designer(chat ⋯ 메뉴 "장기기억" 항목 + M1 MemorySheet, R-CHAT-012) → ui-design-checker → 승인 ②(S4) → 구현(shared → server → routes/api ∥ 시나리오 → 화면 → 테스트 → 매뉴얼).
 5. **S5(전달·배포)**: `doc/handoff/`(contract-designer: 임베드 안내·토큰 PHP 조각·SECRET 전달 절차) · `server/scripts/token-test.ts`(`npm run token:test`, server-manager) · Cloudflare 지인 계정 셋팅(D1 생성·Secrets `TOKEN_SECRET`·`LLM_API_KEY`·플랜) · `/deploy`.
 
-### 2-1a. S3c verify 후속(PASS 2026-10-06, `doc/300_검증/verify-S3c-20261006-2059.md`) — 사용자 허락 후 계층 매니저로
+### 2-1a. (완료 2026-10-07) S3c·S3d verify 후속 — server 9건(TOKEN_SECRET≥32·/api/* 보안 헤더·함수 분해·NFC 정규화 등, server 349) · ui 후작업 4건(Button ariaDescribedBy·useLongPress 삭제·errorText 공용화·주석) · 계약 v0.6.1 · 스킬 6파일 · 설계 문서 동기화. 전체 1165/1165. 보류: Button tone prop(시나리오 선행) · /embed Referrer-Policy(S5) · SEC-004 줄 머리 `[` 무력화(요구 미승격). 아래는 당시 기록.
+
+#### (기록) S3c verify 후속(PASS 2026-10-06, `doc/300_검증/verify-S3c-20261006-2059.md`) — 사용자 허락 후 계층 매니저로
 - **server-manager(보강)**: SEC-001(MEDIUM) `env.ts` TOKEN_SECRET 길이 하한(min 32, 최소 LLM_PROVIDER=google일 때) — **운영 배포 전 처리 권고** · SEC-003 `/api/*` 보안 헤더(frame-ancestors 'none' + secure-headers) · SEC-004 설정 텍스트 줄 머리 `[` 무력화(선택) · SRV-001 잠금 안 설정 읽기 D1 실패 speak 테스트 · SRV-002 schema.ts 이중 단언 → satisfies · SRV-003 auth/index.ts 문서주석 ownerMbIds.
 - **contract-manager(S5 handoff)**: 운영 SECRET은 개발 값과 달라야 함 문구 · iframe sandbox 시 allow-downloads · OWNER_MB_IDS 운영 Secrets 절차.
 - **ui 후속**: CR-001 settingsCandidate.ts:50 주석↔export 불일치(ui-postprocessor) · CR-002 settings/labels.ts 인증 문구 rooms와 중복(공용화 후보) · chat 스펙 3개 getCharacterSettings 격리 mock(rooms Q-02).

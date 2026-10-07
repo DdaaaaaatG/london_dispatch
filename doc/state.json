@@ -139,7 +139,16 @@
       "design-sync": "진행 중 (v2.0.1)",
       "verify_loop": "typecheck 0 · lint 0 · build 0 (2026-10-07)"
     },
-    "S3e_done": "done 2026-10-07 (커밋 대기)"
+    "S3e_done": "done 2026-10-07 (커밋 대기)",
+    "verify_followup_20261007": {
+      "server": "done (SEC-001 TOKEN_SECRET≥32 · SEC-003 /api/* none+secureHeaders · SRV-001~003 S3c · S3d SRV-001 complete 46줄 · NFC+꺾쇠(NFKC는 지목 비교만) · pick 구조 · 주석; server 349/349, SRV-T-290~295)",
+      "contract": "done api.md v0.6.1 (§4.13 최대 3회 · §6.1 · §11.8 · §7 보안 헤더 · §8 S5 메모 · §14.1)",
+      "skills": "done 6파일 (server-design-strategy·server-rules·ui-design-strategy·tsx-rules·layout-templates·component-catalog)",
+      "ui_post": "done (Button ariaDescribedBy · useLongPress 삭제 · settingsCandidate 주석 · errorText.ts 공용화; ui 676/676) · 보류: Button tone prop(BubbleActions .danger 래퍼 단언 → ui-test-designer 선행 필요)",
+      "docs": "done (server env/index/llm/messages/settings/auth.md · chat v2.0.3·rooms v1.5.2·settings v1.2.2 · 시나리오 v0.9.2)",
+      "requirements": "R-API-006·R-ENV-002 개정 주석 2026-10-07",
+      "verify_loop": "vitest 1165/1165 · typecheck·lint·build 0 (2026-10-07)"
+    }
   },
   "dependencies_approved": [
     "hono",
@@ -166,10 +175,11 @@
     "prettier",
     "concurrently"
   ],
-  "next": "S3e 커밋(사용자 확인) → S3c·S3d verify 후속(next-session §2-1a) → S4 장기기억 설계 → S5",
+  "next": "verify 후속 커밋 완료 → S4 장기기억 설계(memory.md·E13/E14·MemorySheet) → S5 전달·배포(지인 결정: 운영 모델명·단가·OWNER_MB_IDS·등급). 보류: Button tone prop · 편집 저장 버튼 잠금 범위(CR-003 S3d, 사용자 결정) · /embed Referrer-Policy(S5 검토)",
   "blockers": [],
   "cr_candidates": [
-    "2026-10-06 chat S2 F-CH-23(메시지 삭제): 삭제로 방이 비면 focusLog()가 언마운트 직후 동기 호출되어 포커스가 ‹ 뒤로로 빠질 수 있음 — S3 F-CH-41(ready 커밋 뒤 포커스) 방식으로 통일 검토. S3 완료 후 ui-debug(보강)로"
+    "2026-10-06 chat S2 F-CH-23(메시지 삭제): 삭제로 방이 비면 focusLog()가 언마운트 직후 동기 호출되어 포커스가 ‹ 뒤로로 빠질 수 있음 — S3 F-CH-41(ready 커밋 뒤 포커스) 방식으로 통일 검토. S3 완료 후 ui-debug(보강)로",
+    "2026-10-07 /embed 문서 응답에 Referrer-Policy 없음(/api/*만 no-referrer). ?t= 토큰이 URL에 있으나 화면에 외부 링크 없음·브라우저 기본 strict-origin-when-cross-origin이 쿼리 제거 — S5 보안 점검 때 /embed에도 no-referrer 부여 검토(server-manager)"
   ],
   "estimate_min": null,
   "actual_min": null,
@@ -266,7 +276,8 @@
     "S3-R2 messages.md §9·llm.md 'Number(id)' → 10진 숫자 문자열만 변환 규칙 — server-designer",
     "스킬 갱신(메인 세션 배치): server-design-strategy §3 에러코드명·§6 어댑터 인터페이스·429 재시도·§7.2 요약 위치·§7.5 MAX_PROMPT_CHARS·§8 Character 타입 / server-rules AppError 예시 / ui-design-strategy §6.3·§7(D-16: SPEAK_IN_PROGRESS 3초 해제·aria-busy·재작성 임시 말풍선) — contract-designer·server-designer·ui-designer 보고 근거",
     "api.md §4.12 공통 절·§15.10 결정 4건을 '사용자 승인 2026-10-06'으로 마킹 — contract-designer",
-    "S3e 스킬 문구: tsx-rules.md·component-catalog·layout-templates(S1 시트)·ui-design-strategy §6.5(롱프레스 메뉴 규칙 — chat은 R-CHAT-007 개정으로 버튼 대체) 갱신 · 공용 useLongPress 사용처 0 정리 후보(ui-postprocessor)"
+    "Button tone prop(ghost 글자색 secondary/danger): ui-test-designer가 BubbleActions TC-CH-111 .danger 래퍼 단언을 tone 기반으로 바꾼 뒤 ui-postprocessor가 Button에 tone 추가·지역 CSS 제거(보류 2026-10-07)",
+    "useLongPress 삭제(S3e) 언급 잔여: chat/rooms test/scenarios.md·change-requests.md·doc/200_설계/architecture/ui-layout-01-rooms-chat.md — 다음 /doc-sync"
   ],
   "screenshots_s1": "doc/300_검증/screenshots/20261005-2207/",
   "evidence_s1": {
