@@ -32,9 +32,9 @@
 | R-MSG-006 | S3 | 🔒 재작성(마지막 캐릭터 메시지만) | chat: 롱프레스 메뉴 재작성 | POST /api/messages/:id/regenerate · NOT_LAST_MESSAGE · NOT_CHARACTER_MESSAGE | messages.regenerate | LLM_* | SRV-T-200~209 · API-T-078~084 · TC-CH-079~085 | 완료(S3) |
 | R-MSG-007 | S3 | 🔒 방당 동시 1건 잠금 | chat: SPEAK_IN_PROGRESS 안내 | SPEAK_IN_PROGRESS | messages.acquireSpeakLock · db.rooms.speaking_until | - | SRV-T-187~190·199 · API-T-074·077 · TC-CH-073·080·095 | 완료(S3) |
 | R-MSG-008 | S2 | 수정·삭제 권한 = 등급 통과자 | - | - | messages.edit/delete | - | | 완료(S2) |
-| R-MEM-001 | S4 | 🔒 장기기억 조회·편집 | chat: MemorySheet | GET/PUT /api/rooms/:id/memory | memory.get · memory.put | - | | 초안 |
-| R-MEM-002 | S4 | 🔒 자동 요약(waitUntil) | - | - | memory.summarizeIfNeeded · llm.* | MEMORY_SUMMARY_THRESHOLD, CONTEXT_MESSAGES | | 초안 |
-| R-MEM-003 | S4 | 요약 중복 방지·Cron 대체 결정 | - | - | memory.* (설계 결정) | - | | 초안 |
+| R-MEM-001 | S4 | 🔒 장기기억 조회·편집 | chat: MemorySheet | GET/PUT /api/rooms/:id/memory | memory.get · memory.put | - | SRV-T-296~303 · API-T-113~122 · UI-030~032 · TC-CH-124·125·128~130·136 | 완료(S4) |
+| R-MEM-002 | S4 | 🔒 자동 요약(waitUntil) | - | - | memory.summarizeIfNeeded · llm.* | MEMORY_SUMMARY_THRESHOLD, CONTEXT_MESSAGES | SRV-T-304~315·326·327 · API-T-123 · 종단(실키) 70개 방 speak → 31개 요약·sourceUntilId 31 | 완료(S4) |
+| R-MEM-003 | S4 | 요약 중복 방지·Cron 대체 결정 | - | - | memory.* (설계 결정) | - | SRV-T-304~306(조건부 UPSERT 동시 2회 중 1회) · D-MEM-2 Cron 미도입 결정 | 완료(S4) |
 | R-LLM-001 | S3 | 🔒 어댑터 인터페이스·Gemini·Fake | - | - | llm.provider · llm.gemini · llm.fake | LLM_PROVIDER, LLM_API_KEY, LLM_MODEL | SRV-T-174~186 (llm-gemini·llm-client) | 완료(S3) |
 | R-LLM-002 | S3(S3c 개정) | 🔒 캐릭터 설정 D1 저장, JSON은 시드 | chat: 아바타·이름(응답 speaker→표시) · settings 화면 | 응답 speaker 값 · E15/E16 | llm.characters(시드) · settings.service · db.characterSettings | - | SRV-T-163~173 (characters zod·name 일치) | 완료(S3) · S3c 완료 |
 | R-LLM-003 | S3(S3c 개정)(S3d 개정) | 🔒 프롬프트 조립(S3c: 11필드·빈 섹션 생략) | - | - | llm.buildPrompt · settings.loadForPrompt | CONTEXT_MESSAGES | SRV-T-163~173 (프롬프트 스냅샷) | 완료(S3) · S3c 완료 |
@@ -70,7 +70,7 @@
 | R-CHAT-009 | S2 | 🔒 토큰 메모리 보관 | ui/src/state/token | api.md §토큰 | - | - | | 완료(S2) |
 | R-CHAT-010 | S1 | localStorage try/catch | ui/src/components/utils/storage | - | - | - | | 완료(S1) |
 | R-CHAT-011 | S2 | 오류 코드별 안내·읽기 전용 전환 | chat: errorMessage 맵 | shared/errors.ts | - | - | | 완료(S2) |
-| R-CHAT-012 | S4 | 🔒 장기기억 시트 | chat: MemorySheet | GET/PUT memory | memory.* | - | | 초안 |
+| R-CHAT-012 | S4 | 🔒 장기기억 시트 | chat: MemorySheet | GET/PUT memory | memory.* | - | TC-CH-122~139 · 047·061 개정 | 완료(S4) |
 | R-CHAT-013 | S1 | 🔒 390×565·접근성 | chat: 스타일 | - | - | - | | 완료(S1) |
 | R-NFR-001 | S3(S3d 개정) | 🔒 speak ≤ 70초 종결 | - | - | llm.provider 타임아웃·재시도 | LLM_TIMEOUT_MS | SRV-T-180~184 (가짜 시계 66초 상한) · TC-CH-070 · MC-CH-18(미실행) | 완료(S3) |
 | R-NFR-002 | S1 | 히스토리 ≤ 1초 | - | GET messages | messages.listMessages · 인덱스 | - | | 완료(S1) |
@@ -104,5 +104,5 @@
 | S3c | 12 (SET-001~012) + 개정 LLM-002·003·API-001·002·AUTH-003·ENV-002 | 12 | vitest(`npx vitest run` 2026-10-06): shared 138 · server 318 · ui 592 · typecheck 3 워크스페이스 0 · lint 0 · 빌드 0(ui vite + server dry-run) · 0003 로컬 적용 · `ui/src/settings/test/result.md`(자동 TC 38 PASS, 수동 3 대기) · `ui/src/rooms/test/result.md` S3c 절(OwnerGate 7) · `doc/300_검증/screenshots/20261006-2033/`(10장) · 종단 curl(fake): 주인 GET 200 · 비주인 403 OWNER_ONLY · 무토큰 401 · api.md §12.4 S3c 4자 대조표 실물 · verify PASS `doc/300_검증/verify-S3c-20261006-2059.md`(C0·H0·M1·L8, vitest 1048/1048) |
 | S3d | 3 (MSG-009·LLM-008·CHAT-014) + 개정 CHAT-002·006·AUTH-004·LLM-003·MSG-003·NFR-001 | 3 | vitest(2026-10-07): shared 140 · server 343 · ui 660(×2) · typecheck 3곳·lint·build 0 · `ui/src/chat/test/result.md` S3d 절(113/113, 캡처 `doc/300_검증/screenshots/20261007-0004/` 6장) · 종단 실키: /user authorName 「어떠한 의지」·speak auto 201(지목 mention ms 0 / 모델 선택) · api.md §12.5 실물 · verify PASS `doc/300_검증/verify-S3d-20261007-0029.md` |
 | S3e | 1 (CHAT-007 개정 🔒 — 메뉴→말풍선 액션 버튼) | 1 | vitest 1169/1169(`npx vitest run` 2026-10-07, ui 686) · typecheck·lint·build 0 · `ui/src/chat/test/result.md` S3e 절 · CR-003 검증됨 · `doc/300_검증/screenshots/20261007-1453/`(5장) · 서버·계약 변경 없음 |
-| S4 | | | |
+| S4 | 4 (MEM 3 · CHAT-012) | 4 | vitest 1274/1274(`npx vitest run` 2026-10-07, shared 141·server 392·ui 741) · SRV-T-296~327 · `doc/300_검증/screenshots/20261007-1817/`(7장) · typecheck·lint·build 0 · 종단: memory GET/PUT/401/400 · 실키 자동 요약 11.6초 · `ui/src/chat/test/result.md` S4 절 · api.md §12.6 |
 | S5 | | | |

@@ -27,7 +27,7 @@
 - 이 세션의 dev 서버는 백그라운드 한도(1~2시간)로 자동 종료된다. 종료 후 **고아 workerd/Vite 프로세스가 포트 3000·5173을 잡고 옛 설정으로 응답**할 수 있다 — 이상하면 `netstat -ano | findstr :3000`으로 PID 확인 후 taskkill(/T /F).
 - 브라우저 MCP(Chrome 확장) 미연결 시 캡처는 Chrome 헤드리스 + CDP 스크립트(세션 스크래치패드 `shoot.mjs`·`shoot-s3.mjs`, Node 22 내장 WebSocket, 추가 설치 없음)로 했다. 스크립트는 저장소 밖이라 다음 세션엔 없다 — 필요하면 같은 방식으로 다시 만든다(약 100줄).
 - prettier `--check`가 23개 미변경 파일을 지적한다: 새 클론이 `core.autocrlf=true`라 CRLF로 체크아웃된 산물(`.prettierrc` `endOfLine: lf`). 코드 문제 아님. §3-9 결정 대기.
-- git: `main` 단일 브랜치, 원격 `origin`. S3 커밋 3건 푸시 완료(bc5776d). S3b 커밋·푸시 완료(290f5c4). S3c는 승인 ①까지(아키텍처 문서 커밋).
+- git: `main` 단일 브랜치, 원격 `origin`. S3 커밋 3건 푸시 완료(bc5776d). S3~S4 전부 커밋·푸시 완료(S4는 2026-10-07 커밋).
 
 ## 2. 남은 일
 
@@ -41,7 +41,8 @@
    2. (설계 완료 2026-10-06 — server-designer·contract-designer·ui-layout-designer·ui-designer·ui-design-checker 3차 PASS) 03 인계패킷 §1부터 위임: server-designer ∥ contract-designer → ui-layout-designer → ui-designer → ui-design-checker → 승인 ②(S3c) → contract-impl(shared) → server-impl ∥ ui-test-designer → contract-impl(routes·ui/api, client에 PUT 추가) → ui-impl → ui-tester → manual → verify. 예상 약 3시간.
    3. 사용자 결정 확정분: 주인 식별 = 토큰 mbId ↔ `OWNER_MB_IDS`(Secrets, 로컬은 `.dev.vars`; 비우면 전원 403; **지인 ID만 — 사용자 본인 ID 제외, 2026-10-06 결정으로 02 §11 Q2 권고 「지인+사용자」 대체**) · 출력 규칙 편집 안 함 · 주인 판정은 화면 시작 시 GET 1회 탐침 · 가져오기 상한 초과 거부 · 내보내기는 저장값 · 필드 상한 02 §8 · 복원 버튼 없음. **주인 회원 ID는 사용자가 알려 줘야 함**(갠홈 그누보드 mb_id).
    4. 확인 필요: 갠홈 iframe `sandbox` 속성 유무(있으면 `allow-downloads` 필요 — S5 embed-guide에 포함). 내보내기는 Blob 다운로드 + 복사용 텍스트 영역 병행 설계.
-4. **S4(장기기억) 설계부터**: server-designer(memory.md 신규 — `summarizeIfNeeded`·`afterSpeak` 훅 연결·`source_until_id` 전진·중복 방지 R-MEM-003·`memory.get/put`) → contract-designer(E13·E14 GET/PUT memory, api.md v0.5) → ui-designer(chat ⋯ 메뉴 "장기기억" 항목 + M1 MemorySheet, R-CHAT-012) → ui-design-checker → 승인 ②(S4) → 구현(shared → server → routes/api ∥ 시나리오 → 화면 → 테스트 → 매뉴얼).
+4. (완료 2026-10-07) **S4 장기기억** — server memory 모듈(speak 뒤 waitUntil 자동 요약: 미요약 > 60이면 오래된 구간(최근 40 제외, 1회 100개·2만 자·LLM 25초) 요약·합본·source_until_id 전진, 조건부 UPSERT 중복 방지, Cron 미도입) · 계약 v0.7 E13/E14 · chat ⋯ 메뉴 「장기기억」 시트(보기·편집 4000자·저장·버림 확인, 저장 실패는 시트 안 문구). 증거: vitest 1274/1274 · typecheck·lint·build 0 · 캡처 `doc/300_검증/screenshots/20261007-1817/` · 실키 종단(70개 방 speak → 11.6초 뒤 31개 요약) · 매뉴얼 4.15. 설계 결정(승인 ② 생략, 사용자 포괄 지시): 요약 기준 = 미요약 수 · 편집 경합은 마지막 저장 우선(409 없음) · 요약 목표 2000/상한 4000(문장 경계 절단) · rooms.updated_at 불변. **보류/후속**: 요약 프롬프트에 「어떠한 의지」=서술 화자 설명 추가 검토(요약문이 이를 행위자처럼 씀) · 요약을 비우면 이미 요약된 구간은 재요약 안 됨(R-MEM-001 결과, 사용자 확인) · 공용화 후보 TextArea ariaDescribedBy·BottomSheet ariaLabelledBy · 끝 공백만 바뀐 편집은 저장 비활성(정규화 비교).
+4a. (기록) 이전 S4 계획: **S4(장기기억) 설계부터**: server-designer(memory.md 신규 — `summarizeIfNeeded`·`afterSpeak` 훅 연결·`source_until_id` 전진·중복 방지 R-MEM-003·`memory.get/put`) → contract-designer(E13·E14 GET/PUT memory, api.md v0.5) → ui-designer(chat ⋯ 메뉴 "장기기억" 항목 + M1 MemorySheet, R-CHAT-012) → ui-design-checker → 승인 ②(S4) → 구현(shared → server → routes/api ∥ 시나리오 → 화면 → 테스트 → 매뉴얼).
 5. **S5(전달·배포)**: `doc/handoff/`(contract-designer: 임베드 안내·토큰 PHP 조각·SECRET 전달 절차) · `server/scripts/token-test.ts`(`npm run token:test`, server-manager) · Cloudflare 지인 계정 셋팅(D1 생성·Secrets `TOKEN_SECRET`·`LLM_API_KEY`·플랜) · `/deploy`.
 
 ### 2-1a. (완료 2026-10-07) S3c·S3d verify 후속 — server 9건(TOKEN_SECRET≥32·/api/* 보안 헤더·함수 분해·NFC 정규화 등, server 349) · ui 후작업 4건(Button ariaDescribedBy·useLongPress 삭제·errorText 공용화·주석) · 계약 v0.6.1 · 스킬 6파일 · 설계 문서 동기화. 전체 1165/1165. 보류: Button tone prop(시나리오 선행) · /embed Referrer-Policy(S5) · SEC-004 줄 머리 `[` 무력화(요구 미승격). 아래는 당시 기록.
