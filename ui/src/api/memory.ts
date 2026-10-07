@@ -6,7 +6,7 @@ import { request, type Result } from './client'
 export const getMemory = (roomId: string): Promise<Result<MemoryResponse>> =>
   request<MemoryResponse>(endpoints.roomMemory(roomId), { auth: true })
 
-/** [계약] api.md §4.18 · [요구] R-MEM-001 · R-CHAT-012 — 장기기억 교체 저장(200). 응답 summary 가 trim 된 저장값, sourceUntilId 는 유지 */
+/** [계약] api.md §4.18 · [요구] R-MEM-001 · R-CHAT-012 — 장기기억 교체 저장(200). 응답 summary 가 trim 된 저장값, sourceUntilId 는 유지(빈 요약이면 0, v0.7.1) */
 export const putMemory = (roomId: string, body: PutMemoryBody): Promise<Result<MemoryResponse>> =>
   request<MemoryResponse>(endpoints.roomMemory(roomId), {
     method: 'PUT',
