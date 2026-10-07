@@ -3,13 +3,15 @@
  * (TC-CH-051 · TC-CH-052 · TC-CH-063)
  * 대상: handleWriteFailure(F-CH-16, 멱등) · 전환 effect(F-CH-29) · App.revokeWrite(F-RM-12) · 비활성 응답 무시
  * - App 통합은 initToken('?t=test-token') → render(<App />) → clearToken(). 화면 단위 전환은 하네스.
+ * - S4(v1.0, TC-CH-134): 장기기억 조회·저장 중 인증 실패 → 시트 닫힘 + 같은 전환. @/api/memory 를 모킹하고 mock 목록에 더한다.
  */
 import { useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import type { Message, MessagesPage, RoomSummary } from '@shared/types'
+import type { MemoryResponse, Message, MessagesPage, RoomSummary } from '@shared/types'
 import type { ApiErrorCode, Result } from '@/api'
+import { getMemory, putMemory } from '@/api/memory'
 import {
   appendUser,
   deleteMessage,
@@ -39,6 +41,10 @@ vi.mock('@/api/rooms', () => ({
   renameRoom: vi.fn(),
   deleteRoom: vi.fn(),
 }))
+vi.mock('@/api/memory', () => ({
+  getMemory: vi.fn(),
+  putMemory: vi.fn(),
+}))
 
 const mocks = [
   listMessages,
@@ -51,7 +57,11 @@ const mocks = [
   createRoom,
   renameRoom,
   deleteRoom,
+  getMemory,
+  putMemory,
 ].map(f => vi.mocked(f))
+const mockedGetMemory = vi.mocked(getMemory)
+const mockedPutMemory = vi.mocked(putMemory)
 const mockedRegenerate = vi.mocked(regenerate)
 const mockedAppend = vi.mocked(appendUser)
 const mockedEdit = vi.mocked(editMessage)
@@ -347,6 +357,84 @@ describe('S3e 인증 실패 전환 — 버튼 줄 미렌더, App 통합 (R-CHAT-
     expect(getToken()).toBeNull()
     expect(mockedDelete.mock.calls).toEqual([[103]])
   })
+})
+
+describe('S4 인증 실패 전환 — 장기기억 시트 닫힘, App 통합 (R-CHAT-012 · R-CHAT-008 · R-CHAT-011)', () => {
+  const MEMORY: MemoryResponse = {
+    summary: '시엘은 체스에서 졌다.',
+    sourceUntilId: 987,
+    updatedAt: new Date(2026, 9, 7, 16, 30).getTime(),
+  }
+  const openMemoryInApp = async () => {
+    initToken('?t=test-token')
+    render(<App />)
+    const user = userEvent.setup()
+    await user.click(await screen.findByRole('button', { name: /^티타임, 마지막 갱신/ }))
+    await screen.findByRole('log')
+    await user.click(screen.getByRole('button', { name: '방 메뉴 열기' }))
+    await user.click(
+      within(screen.getByRole('dialog', { name: '방 메뉴' })).getByRole('button', {
+        name: '장기기억',
+      }),
+    )
+    return { user, sheet: screen.getByRole('dialog', { name: '장기기억' }) }
+  }
+
+  it('TC-CH-134: (App) 저장이 TOKEN_INVALID → 시트 닫힘(입력 버림) · 읽기 전용 · 전환 토스트 1개 · ‹ 포커스 · 토큰 비움', async () => {
+    mockedGetMemory.mockResolvedValueOnce(ok(MEMORY))
+    mockedPutMemory.mockResolvedValueOnce(fail('TOKEN_INVALID'))
+    const { user, sheet } = await openMemoryInApp()
+    const input = await within(sheet).findByRole('textbox', { name: '장기기억 요약' })
+    fireEvent.change(input, { target: { value: '고친 요약' } })
+    await user.click(within(sheet).getByRole('button', { name: '저장' }))
+
+    await screen.findByRole('note')
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(screen.queryByRole('alertdialog')).toBeNull()
+    expect(screen.queryByDisplayValue('고친 요약')).toBeNull()
+    expectReadOnly()
+    const alerts = screen.getAllByRole('alert')
+    expect(alerts.map(a => a.textContent)).toEqual([
+      '인증이 만료되어 열람 전용으로 바뀌었습니다. 새로 고쳐 주세요.',
+    ])
+    expect(alerts[0]?.classList.contains('warning')).toBe(true)
+    await waitFor(() =>
+      expect(document.activeElement).toBe(screen.getByRole('button', { name: BACK })),
+    )
+    expect(getToken()).toBeNull()
+    expect(mockedGetMemory.mock.calls).toEqual([['r1']])
+    expect(mockedPutMemory.mock.calls).toEqual([['r1', { summary: '고친 요약' }]])
+  })
+
+  it.each([
+    ['LEVEL_TOO_LOW', '대화 참여 등급이 아니어서 열람 전용으로 바뀌었습니다.'],
+    ['TOKEN_REQUIRED', '로그인 정보가 없어 열람 전용으로 바뀌었습니다.'],
+  ] as const)(
+    'TC-CH-134: (App) 조회가 %s → 시트 닫힘 · 읽기 전용 · 전환 토스트 1개 · ‹ 포커스 · 토큰 비움 · putMemory 0회',
+    async (code, text) => {
+      // v1.0.1: 이탈로 끝나는 조회는 대기 Promise 로 준다(이미 resolve 된 mock 이면 클릭 직후 시트가 닫혀 openMemoryInApp 의 질의가 실패)
+      const pending = deferred<Result<MemoryResponse>>()
+      mockedGetMemory.mockReturnValueOnce(pending.promise)
+      const { sheet } = await openMemoryInApp()
+      expect(within(sheet).getByRole('status').textContent).toBe('장기기억을 불러오는 중')
+      await act(async () => {
+        pending.resolve(fail(code))
+      })
+
+      await screen.findByRole('note')
+      expect(screen.queryByRole('dialog')).toBeNull()
+      expectReadOnly()
+      const alerts = screen.getAllByRole('alert')
+      expect(alerts.map(a => a.textContent)).toEqual([text])
+      expect(alerts[0]?.classList.contains('warning')).toBe(true)
+      await waitFor(() =>
+        expect(document.activeElement).toBe(screen.getByRole('button', { name: BACK })),
+      )
+      expect(getToken()).toBeNull()
+      expect(mockedGetMemory.mock.calls).toEqual([['r1']])
+      expect(mockedPutMemory).not.toHaveBeenCalled()
+    },
+  )
 })
 
 describe('늦은 쓰기 응답 무시 (R-CHAT-006 · R-CHAT-007 · R-CHAT-001)', () => {

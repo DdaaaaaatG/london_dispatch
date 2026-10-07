@@ -155,6 +155,7 @@ export const restoreScrollTop = (m: Pick<ScrollMetrics, 'scrollHeight' | 'client
 | `backButtonRef` | 마운트·전환 시 포커스 대상 | `RefObject<HTMLButtonElement>` | `null` | ChatScreen |
 | `autoScroll` | 스크롤 제어 | `UseAutoScrollResult` | `useAutoScroll({ firstId, lastId, initialDistanceFromBottom: initialDistance, canAutoLoadOlder: canAutoLoadOlder(state), onReachTop: loadOlder, onReachBottom: clearUnseen })` | 훅 |
 | `sheet` (S2) | 열린 시트 | `ChatSheet \| null`(components.md §2.10, S3e `messageMenu` 삭제) | `null` | ChatScreen `useState` |
+| (S4) 장기기억 시트 상태 `load`·`draft`·`isSaving`·`savingRef`·`saveError`·`isAskingDiscard`·`aliveRef` | 시트 지역(조회·초안·저장·버림 확인) | `design/memory.md` §2 | §2 | **`useMemorySheet`**(`MemorySheet` 컨테이너 소유). `ChatState` 불변. 기능 F-CH-53~62는 ME §3 |
 | `editFocusId` (S3e) | 편집기 닫힌 뒤 포커스 보낼 「수정」의 메시지 id | `number \| null` | `null` | `useChatScreen` 지역 `useEditFocusReturn`(AC §2) |
 | `toast` (S2) | E 알림 줄 | `ToastState` | `null` | `useToast()` |
 | `menuButtonRef` (S2) | ⋯ 포커스 복귀 | `RefObject<HTMLButtonElement>` | `null` | ChatScreen |

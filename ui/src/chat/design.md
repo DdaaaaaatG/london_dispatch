@@ -6,15 +6,16 @@
 |---|---|
 | 화면 | chat · 폴더 `ui/src/chat/` |
 | 목적 | 고른 방의 히스토리를 메신저 말풍선으로 보여 준다. 위로 올리면 더 오래된 대화를 이어 붙이고 읽던 자리를 지킨다. 등급 통과 회원은 대사·지시를 적어 저장하고, 말풍선을 고치거나 지우고, 방 이름을 바꾸거나 방을 지운다. 토큰이 없으면 쓰기 UI 없이 열람 안내 한 줄만 둔다 |
-| 요구 | `ui/src/chat/requirements.md` **v2.0**(확정, S3e 동결) |
+| 요구 | `ui/src/chat/requirements.md` **v2.1**(확정, S4 동결) |
 | 구성안 | `doc/200_설계/architecture/ui-layout-01-rooms-chat.md` §2(C1) · §2-1 · §2-2 · §2-4 · (S3d) `ui-layout-03-chat-auto.md` §1~§5 — **수용, 구조 변경 없음**(§7 구조 제안 2건 미채택) |
 | 계약 | `doc/200_설계/contract/api.md` **v0.6**(S3d: §4.9 `authorName` 고정 · §4.13 `'auto'` · §5.2 `SpeakTarget` · §5.5 `USER_DISPLAY_NAME` · §11.15 · 「ui 인계 메모」 S3d) + v0.4.1까지의 §2.4 · §3.2 · §3.4 · §4.3 · §4.5·§4.7~§4.14 · §11.6 · §11.9 · 「ui 인계 메모」 S3·S3b — 확정 |
 | S3d 델타 | **`design/auto.md`**(절 표기 `AU`, v1.9.1 구현 동기화): 상태 T35·T36 · `SpeakTarget` · PendingBubble 중립 변형 · 유저 작성자 표기 · F-CH-17·31·32 개정 · F-CH-42~44 · 잠금·끼어들기 0회 · 파이프라인 · 문구 · 접근성·읽기 전용 · 결정 D-17~23. TC 영향·TC-CH-098~109는 **`design/auto-tests.md`**(v1.9.1 분리). **다른 분할 문서의 S3 서술과 겹치면 AU가 우선**한다 |
 | S3e 델타 | **`design/actions.md`**(절 표기 `AC`, v2.0): R-CHAT-007 🔒 개정 — 말풍선 아래 「수정」「삭제」 + 마지막 캐릭터 「재작성」 버튼 줄 `BubbleActions`, 롱프레스/우클릭 바텀시트 메뉴 제거 · 배선 · 삭제 목록 · 비활성 규칙 · F-CH-45~52 · 포커스 · 문구 · D-24~32. TC-CH-110~121·기존 TC 영향표는 **`design/actions-tests.md`**(v2.0.1, 옛 AC §11). CR-003. **다른 분할 문서의 말풍선 메뉴 서술과 겹치면 AC가 우선**한다 |
-| 구현 상태 | S3d 구현 완료(2026-10-07): ui 660/660 · tsc 0 · lint 0 · build 0. **S3e 설계 완료 · 구현 대기**(CR-003) |
+| S4 델타 | **`design/memory.md`**(절 표기 `ME`, v2.1): R-CHAT-012 🔒 장기기억 시트 — ⋯ 메뉴 항목 · `MemorySheet`·`useMemorySheet`·`state/memory.ts` · F-CH-53~62 · 계약 api.md **v0.7** E13·E14 · 문구 · D-33~42. TC-CH-122~139·영향표·인계는 **`design/memory-tests.md`**(v2.1.1). 리듀서 불변 |
+| 구현 상태 | S3d·S3e 구현 완료(2026-10-07). **S4 구현 완료**(ui 738/741, ME v2.1.2 동기화) |
 | 묶음 | S1 · S2 구현 완료 + **S3 상세**: R-CHAT-004(캐릭터 버튼 2) · 005(speak · 임시/실패 말풍선 · 재시도) · 007(재작성) · 011(S3 코드) · 003(speak 트리거) · 002(임시 말풍선 배치) · 013(S3 요소). S4는 §14 |
-| 레이아웃 확정 상태 | **확정**(읽기 전용 판 · 토큰 있음 판 · S3 생성 중/실패/재작성 중 조각). 장기기억 항목(S4)만 **미렌더 자리** |
-| 문서 분할 | 40KB 한계로 분할: **`design/layout.md`**(§0 토큰 있음 판·시트 ASCII = 옛 §2.2, v1.7.1 이전) · `design/components.md`(로컬 컴포넌트·useAutoScroll·스타일) · `design/functions.md`(리듀서·스크롤 계산·상태·기능) · `design/a11y.md`(접근성) · `design/tc.md`(예정 TC 목록, v1.4 분리) · **`design/labels.md`**(§8.1~§8.3 문구·라벨, v1.7 이전) · **`design/generate.md`**(S3 speak·재작성 흐름 = 옛 §6.8·§6.9, 생성 실패 문구 = 옛 §8.4, 결정 D-11~15·A-6, 한계 L-1~3 = 옛 §13.1, v1.7 신규) · **`design/decisions.md`**(§11.2 결정·가정·S1 소급 델타 · §13 contract 변경 요청, v1.7 이전 · **§12 공용화 후보, v2.0.3 이전**). RTM 본문은 **`design/rtm.md`**(v1.9.1, 실측 42,204바이트로 한계 초과 — 메인 세션 지시로 이전. 이 문서 §15는 참조 한 줄). 절 표기 `L` = labels.md, `G` = generate.md, `D` = decisions.md, `AU` = auto.md, **`AC` = actions.md(v2.0 S3e)** |
+| 레이아웃 확정 상태 | **확정**(읽기 전용 판 · 토큰 있음 판 · S3 생성 중/실패/재작성 중 조각). (S4) 방 메뉴 장기기억 항목·장기기억 시트는 **확정**(ME §0) |
+| 문서 분할 | 40KB 한계로 분할: **`design/layout.md`**(§0 토큰 있음 판·시트 ASCII = 옛 §2.2, v1.7.1 이전) · `design/components.md`(로컬 컴포넌트·useAutoScroll·스타일) · `design/functions.md`(리듀서·스크롤 계산·상태·기능) · `design/a11y.md`(접근성) · `design/tc.md`(예정 TC 목록, v1.4 분리) · **`design/labels.md`**(§8.1~§8.3 문구·라벨, v1.7 이전) · **`design/generate.md`**(S3 speak·재작성 흐름 = 옛 §6.8·§6.9, 생성 실패 문구 = 옛 §8.4, 결정 D-11~15·A-6, 한계 L-1~3 = 옛 §13.1, v1.7 신규) · **`design/decisions.md`**(§11.2 결정·가정·S1 소급 델타 · §13 contract 변경 요청, v1.7 이전 · **§12 공용화 후보, v2.0.3 이전**). RTM 본문은 **`design/rtm.md`**(v1.9.1, 실측 42,204바이트로 한계 초과 — 메인 세션 지시로 이전. 이 문서 §15는 참조 한 줄). 절 표기 `L` = labels.md, `G` = generate.md, `D` = decisions.md, `AU` = auto.md, **`AC` = actions.md(v2.0 S3e)** · **`ME` = memory.md(v2.1 S4, TC는 memory-tests.md)** |
 | 공용 요소 | `App`·`viewer`·`token`·`limits`·`TopBar`·`Button`·`IconButton`·`StateView`·`TextInput`·`TextArea`·`Toggle`·`BottomSheet`·`ConfirmDialog`·`PromptSheet`·`Toast`·`useToast`·`cx`·`formatDate`·`storage`·`errorText`(후작업 2026-10-07)의 단일 정의는 `ui/src/rooms/design/components.md` §1. chat은 인용만 한다 |
 
 비유: 히스토리는 아래로 길게 이어지는 두루마리다. 처음에는 가장 최근 30줄만 펼친다. 위 끝에 닿으면 더 오래된 30줄을 위에 이어 붙이는데, 읽던 줄이 밀려나지 않도록 붙인 길이만큼 두루마리를 내려 준다. 출입증이 있는 회원은 두루마리 끝에 직접 한 줄을 적을 수 있고, 적은 줄은 접수 창구(서버)가 받아 준 뒤에야 두루마리에 붙는다.
@@ -39,6 +40,7 @@
 | v2.0.1 | 2026-10-07 | **S3e 구현 동기화**: 머리 표 S3e 행(D-32 · `actions-tests.md`). actions.md v2.0.1(§1 `ActionButton` · §2 `ActionsLine`·`useIsActionLocked`·`useConfirmDeleteMessage`·`useRevokeCleanup` — 50줄 한계 분리, DOM 같음 · D-32 `useLongPress` 정리 후보 · D-25 보충 Button 톤 결함 후보) · 신규 `design/actions-tests.md`(옛 AC §11 + TC-CH-086 개정 + 스펙 전제 `within(li)`·태그 `BUTTON` 판별) · rtm.md·tc.md 포인터 | S3e 구현 보고 · 테스트 설계자 지적 · CR-003 |
 | v2.0.2 | 2026-10-07 | **후작업 동기화(동작·문구 변경 없음)**: ① 공용 Button `ariaDescribedBy?` → §12 행 "해소", AU §8 D-23 해소(지역 훅 `useDescribedBy` 삭제) ② `NETWORK`·인증 3종 문구 공용 `errorText.ts` → 머리 표 공용 요소 · §8 비고 · §12 행 "공용화 완료" · labels.md §8.2·§8.3 ③ 공용 `useLongPress` 삭제 → 머리 표 · §3.2 · §12 · components.md §1·§2.2 · actions.md §3·D-24·D-32 · actions-tests.md · tc.md TC-CH-060 | ui-postprocessor 후작업 · 사용자 승인 |
 | v2.0.3 | 2026-10-07 | **40KB 분할**: §12 공용화 후보 표 → `design/decisions.md` §12(내용 그대로), 이 문서에는 포인터 한 줄. §1 분할 표 갱신 | 메인 세션 실측 41,569바이트 |
+| v2.1 | 2026-10-07 | **S4(구축)**: 신규 `design/memory.md`(전체 델타). 주 문서는 머리 표 · §10 장기기억 행 · §14 비움. 포인터: components.md §2.9·§2.10 · functions.md §3 · labels.md · rtm.md · tc.md · layout.md | R-CHAT-012 🔒 · 메인 세션 사전 확정 1~7 |
 
 ---
 
@@ -299,7 +301,7 @@ v1.7에서 40KB 한계로 표 본문을 분할 문서로 옮겼다. 절 번호�
 | 시트(방 메뉴·확인·이름 변경) | 미렌더 | `sheet`가 있을 때 | `canWrite && sheet && <ChatSheets/>` + 전환 effect `sheet=null` | R-CHAT-001 · 007 |
 | 「재작성」 버튼 | 미렌더(버튼 줄 자체가 없다) | 캐릭터 `line`이고 화면 목록 마지막인 말풍선에만, 아니면 DOM에 없음 | `canRegenerate={message.id === regenerateTargetIdOf(state)}`(F-CH-52) | R-CHAT-007 |
 | 재작성 중 표시 | 미렌더 | `writing.kind==='regenerate'`일 때 대상 하나 | `regeneratingId={canWrite && … ? id : null}`(F-CH-39) | R-CHAT-007 · 005 |
-| 장기기억 항목 | 미렌더 | **미렌더(S4)** | RoomMenuSheet에 항목 없음 | R-CHAT-001 · 012 |
+| (S4) 장기기억 항목 · 시트 · 버림 확인 | **미렌더**(⋯ 자체가 없다) · `getMemory`·`putMemory` 0회 | 렌더(이름 변경과 방 삭제 사이 · `sheet.kind === 'memory'`) | 기존 ⋯·`SheetLayer` 분기 재사용(ME §8) | R-CHAT-001 · 008 · 012 |
 | 인라인 수정 | 미렌더 | `editingId`일 때 | `renderHistory`가 `editingId={viewer.canWrite ? state.editingId : null}`로 넘긴다(전환 커밋에서 바로 사라짐) + 전환 effect T25 | R-CHAT-007 |
 | "…" 임시·실패 말풍선 | 미렌더(전환 커밋에서 바로 사라짐 + T25가 `pending` 정리) | **렌더(S3)** — `state.pending`이 있을 때 목록 끝 | `pending={canWrite ? state.pending : null}`(F-CH-39) | R-CHAT-005 · 008 |
 | E 알림 줄 | 토스트 있을 때만(읽기 전용 시작이면 발생 경로 없음, 전환 직후 안내 1회) | 토스트 있을 때만 | `toast && <Toast/>` | R-CHAT-011 |
@@ -336,11 +338,9 @@ v1.7에서 40KB 한계로 표 본문을 분할 문서로 옮겼다. 절 번호�
 
 ---
 
-## 14. 후속 묶음 예정 (S3에서 설계하지 않음 — 자리만)
+## 14. 후속 묶음 예정
 
-| 요구ID | 묶음 | 자리 | 이어지는 접점 |
-|---|---|---|---|
-| R-CHAT-012 장기기억 | S4 | RoomMenuSheet 이름 변경과 방 삭제 사이 → 구성안 §2-3 M1 | ⋯ 메뉴 |
+없음. (v2.1) R-CHAT-012 장기기억(S4)은 `design/memory.md`로 설계했다.
 
 ---
 

@@ -1,20 +1,22 @@
 /**
- * useChatSheets — 설계 chat/design/functions.md §4.2 F-CH-21 · 23 · 24 · 25 · 26 · 27 · 28 · design/actions.md §5 F-CH-46 ~ F-CH-49 (50줄 한계 때문에 ChatScreen 에서 분리)
- * 요구: R-CHAT-001 · R-CHAT-007 · R-CHAT-011
+ * useChatSheets — 설계 chat/design/functions.md §4.2 F-CH-21 · 23 · 24 · 25 · 26 · 27 · 28 · design/actions.md §5 F-CH-46 ~ F-CH-49 · design/memory.md ME §3 F-CH-53 · F-CH-60 (50줄 한계 때문에 ChatScreen 에서 분리)
+ * 요구: R-CHAT-001 · R-CHAT-007 · R-CHAT-011 · R-CHAT-012 🔒
  * 열린 시트(sheet) 상태와 말풍선 버튼 줄 동작(수정 · 삭제 확인 · 재작성) · ⋯ 방 메뉴 · 이름 변경 · 방 삭제를 조립한다.
  * S3e: 말풍선 메뉴 시트는 없다. 버튼 줄이 startEdit · regenerateFromActions · askDeleteMessage 를 messageActions 로 직접 부른다(참조 안정 — memo 격리).
  * 쓰기 대기 중 · 다른 편집 중 · 방 이름 변경/삭제 중에는 시작하지 않는다(D-10 · D-27, 버튼 줄 잠금과 같은 판정) — 그래서 쓰기는 화면 전체에서 한 번에 하나다.
  * 시트를 연 채 토스트를 띄우지 않는다(D-7): 이름 변경의 비인증 실패만 시트 안 문구로, 그 밖 실패는 시트를 닫은 뒤 토스트로 알린다.
+ * S4: 장기기억 시트(kind 'memory')의 상태는 시트 지역(useMemorySheet)이라 여기에는 열기·닫기 콜백만 있다. 저장 성공 토스트도 시트를 닫은 뒤 띄운다.
  */
 import { useCallback, useMemo, useState } from 'react'
 import type { Dispatch, SetStateAction } from 'react'
 import type { Message, RoomSummary } from '@shared/types'
 import { type ApiError, isAuthFailure } from '@/api'
+import type { ToastTone } from '@/components/ui/Toast'
 import { clearLastRoomId } from '@/components/utils/storage'
 import { type ChatAction, type ChatState, canSpeak, chatReducer } from '@/state/chat'
 import type { BubbleActionHandlers } from './components/BubbleActions'
 import type { ChatSheet } from './components/ChatSheets'
-import { type WriteAction, writeErrorText } from './labels'
+import { labels, type WriteAction, writeErrorText } from './labels'
 import type { RegenerateResult, RemoveResult } from './useMessageWrites'
 import { useRoomActions } from './useRoomActions'
 
@@ -34,13 +36,17 @@ export type UseChatSheetsOptions = {
   /** S3e: 편집기가 닫힌 뒤 그 말풍선의 「수정」으로 포커스(F-CH-50) */
   requestEditFocus: (messageId: number) => void
   handleWriteFailure: (error: ApiError, action: WriteAction) => void
+  /** S4: 실패가 아닌 안내(장기기억 저장 성공) 토스트(F-CH-16 확장) */
+  showNotice: (message: string, tone: ToastTone) => void
+  /** S4: 장기기억 조회·저장 중 방이 사라졌다 — 목록 복귀(F-CH-33) */
+  onRoomGone: () => void
   /** 히스토리 스크롤 박스로 포커스(없으면 ‹) */
   focusLog: () => void
   onBack: () => void
   onRoomRenamed: (room: RoomSummary) => void
 }
 
-/** 요청 없이 시트만 바꾸는 방 쪽 동작: ⋯ 방 메뉴 열기 · 이름 변경 · 방 삭제 확인으로 넘어가기 (F-CH-24 · F-CH-25) */
+/** 요청 없이 시트만 바꾸는 방 쪽 동작: ⋯ 방 메뉴 열기 · 이름 변경 · 장기기억 · 방 삭제 확인으로 넘어가기 (F-CH-24 · F-CH-25 · F-CH-53) */
 const useRoomMenuHandlers = (
   getState: () => ChatState,
   isRoomBusy: () => boolean,
@@ -55,8 +61,13 @@ const useRoomMenuHandlers = (
     (): void => setSheet({ kind: 'rename', errorText: null }),
     [setSheet],
   )
+  /** F-CH-53: 방 메뉴 「장기기억」. F-CH-24 와 같은 가드. 방 메뉴는 같은 커밋에서 언마운트된다 */
+  const openMemory = useCallback((): void => {
+    if (getState().writing !== null || isRoomBusy()) return
+    setSheet({ kind: 'memory' })
+  }, [getState, isRoomBusy, setSheet])
   const askDeleteRoom = useCallback((): void => setSheet({ kind: 'confirmDeleteRoom' }), [setSheet])
-  return { openRoomMenu, askRename, askDeleteRoom }
+  return { openRoomMenu, askRename, openMemory, askDeleteRoom }
 }
 
 type RoomSheetsOptions = Pick<
@@ -218,10 +229,37 @@ const useMessageSheets = (options: MessageSheetsOptions) => {
   }
 }
 
+type MemoryResultsOptions = Pick<
+  UseChatSheetsOptions,
+  'handleWriteFailure' | 'onRoomGone' | 'showNotice'
+> & { setSheet: SetSheet }
+
+/**
+ * F-CH-60: 장기기억 시트가 알려 오는 두 결과. 시트를 먼저 닫으므로 토스트가 덮개 아래에 숨지 않는다(D-37).
+ * 저장 성공 = 성공 토스트. 인증 3종 = 읽기 전용 전환 + 전환 문구 토스트(F-CH-16), NOT_FOUND = 목록 복귀(토스트 없음, F-CH-33)
+ */
+const useMemoryResults = (options: MemoryResultsOptions) => {
+  const { setSheet, handleWriteFailure, onRoomGone, showNotice } = options
+  const memorySaved = useCallback((): void => {
+    setSheet(null)
+    showNotice(labels.memorySaved, 'success')
+  }, [setSheet, showNotice])
+  const memoryLeft = useCallback(
+    (error: ApiError): void => {
+      setSheet(null)
+      if (error.code === 'NOT_FOUND') onRoomGone()
+      else handleWriteFailure(error, 'memory')
+    },
+    [setSheet, handleWriteFailure, onRoomGone],
+  )
+  return { memorySaved, memoryLeft }
+}
+
 export const useChatSheets = (options: UseChatSheetsOptions) => {
   const [sheet, setSheet] = useState<ChatSheet | null>(null)
   const closeSheet = useCallback((): void => setSheet(null), [])
   const rooms = useRoomSheets({ ...options, setSheet })
   const messages = useMessageSheets({ ...options, setSheet, isRoomBusy: rooms.isRoomBusy })
-  return { sheet, closeSheet, ...rooms, ...messages }
+  const memory = useMemoryResults({ ...options, setSheet })
+  return { sheet, closeSheet, ...rooms, ...messages, ...memory }
 }

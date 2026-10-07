@@ -246,3 +246,38 @@ R-CHAT-002·003·004·005·006·007·008·011·013(S3분)·참조 R-MSG-003·006
 ## 환경·부작용
 - wrangler :3000·Vite :5173 기존 서버 재사용(종료하지 않음). 가짜 제공사로 방 000…003에 메시지 몇 건 증가(재작성 1회 포함)
 - 콘솔 오류 확인 못 함(캡처 스크립트는 콘솔 수집 안 함). vitest 출력에는 오류 없음
+
+---
+
+# S4 결과 — chat(장기기억 시트) / 2026-10-07 18:16~18:25
+실행: `npx tsc --noEmit -p ui` exit 0 · `npx vitest run --project ui` 45파일 741 통과 · `-t "TC-CH-1[23][0-9]"` 3파일 64 통과(42파일 skip) · 루트 `npx vitest run` 72파일 1274 통과 · 스크린샷 7장(Chrome 헤드리스 CDP 390×565) · 토큰 테스트 토큰 사용(값 미기록)
+환경: wrangler :3000(실제 Gemini, speak·재작성·전송 미클릭) · Vite :5173 `/embed/` · 로컬 D1 변경은 방 …0003 장기기억 저장 1건(원문 복원 PUT 1건 추가, updatedAt만 바뀜)
+콘솔 오류: vitest FAIL 0 · 루트 실행 시 Node MaxListenersExceededWarning 경고만(테스트 영향 없음)
+판정: 통과 (자동 TC-CH-122~138 = 17건 PASS / FAIL 0, 수동 TC-CH-139 = 캡처 항목 PASS · 스크린리더 SKIP)
+
+## 자동 TC
+TC-CH-122~138 전부 스펙에 등록되어 있고(`MemorySheet.test.tsx`·`state/memory.test.ts`·`AuthTransition.test.tsx`·`RoomMenu.test.tsx`) -t 실행에서 통과. 시나리오 17건 = 스펙 ID 등록 17건, 누락 0.
+
+## 캡처 (`doc/300_검증/screenshots/20261007-1817/`, 각 PNG Read 확인)
+| 파일 | 실측 | 판정 |
+|---|---|---|
+| s4-room-menu.png | dialog `방 메뉴`, 버튼 이름 변경·장기기억·방 삭제·취소 4개, scrollWidth 390 = clientWidth 390 | PASS |
+| s4-memory-sheet.png | 안내문·`마지막 갱신 10.07 18:15`·`128/4000`·취소·저장[disabled], 시트 높이 318, 가로 스크롤 없음 | PASS |
+| s4-memory-empty.png | 방 …0002 요약 없음: placeholder `아직 요약이 없습니다`·`0/4000`·갱신 시각 줄 없음·저장 disabled, 높이 193 | PASS |
+| s4-memory-over.png | 4001자: 카운터 `4001/4000`·`4000자 이하로 줄여 주세요.`·저장 disabled·입력 테두리 오류색, 높이 362 | PASS |
+| s4-memory-discard.png | 고친 뒤 닫기: `고친 내용을 버릴까요?`·`저장하지 않은 내용은 사라집니다.`·계속 고치기·버리기(alertdialog라 dialog 질의에는 안 잡힘) | PASS |
+| s4-memory-saved.png | 저장 직후 시트 닫힘 + 토스트 `장기기억을 저장했습니다`(success), 서버 PUT 200 후 장면 | PASS |
+| s4-readonly.png | 토큰 없음: `방 메뉴 열기` 없음·화면 글자에 `장기기억` 없음·scrollWidth 390 | PASS |
+
+모든 장면 390px 한 줄 배치, 가로 스크롤 없음(scrollWidth = clientWidth = 390).
+
+## 수동 TC-CH-139 · MC-CH-21 · MC-CH-22
+- MC-CH-21(캡처 판정 가능분): 시트 높이 318~362px로 565의 70%(약 395) 이하 · 가로 스크롤 없음 · 오류 안내 가시 → PASS. 높이 388±16 근삿값은 본문 길이에 따라 달라지며 요약 있음 장면 318, 초과 장면 362로 상한 이내(시나리오 근삿값 대비 작음, 설계 상한 위반 아님). TextArea 7줄 상한은 초과 장면에서 내부 스크롤로 확인. 대비 4.5:1 수치 측정은 미실시 → SKIP(육안으로 안내·오류 문구 식별 가능).
+- MC-CH-22(스크린 리더 낭독·포커스 복귀): 스크린 리더 미설치·미실행 → SKIP. aria 구조는 TC-CH-138(vitest)이 대체 확인.
+
+## 관찰 (결함 아님)
+- 공백만 덧붙인 편집(끝 공백 추가)은 `저장`이 활성화되지 않는다. 변경 판정이 정규화 후 비교(`isMemoryDirty`)이기 때문. 설계 의도로 보이나 TC-CH-131의 "trim 안 함(원문 전송)"과 구분되는 점이라 시나리오 명시 여부는 ui-test-designer 확인 권고.
+- 요약 있음 방 …0001의 갱신 시각은 자동 요약 시각(18:15) 그대로 표시됨.
+
+## 요구ID 커버
+R-CHAT-012(122~135·137·138) · R-CHAT-001(122) · R-CHAT-008(134·136) · R-CHAT-011(126·132~134·137) · R-CHAT-013(139 캡처) · R-MEM-001(124~125·128~130·136) · R-NFR-004(124·131·134·136).

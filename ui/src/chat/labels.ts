@@ -1,11 +1,11 @@
 /**
- * chat 화면 확정 문구·라벨 — 단일 소스 설계 chat/design.md §8.1 · §8.1.1 · §8.2 · §8.3 · design/actions.md §8(S3e 버튼 줄 라벨)
+ * chat 화면 확정 문구·라벨 — 단일 소스 설계 chat/design.md §8.1 · §8.1.1 · §8.2 · §8.3 · design/actions.md §8(S3e 버튼 줄 라벨) · design/memory.md §6(S4 장기기억)
  * JSX·유틸에 한글 문구 리터럴을 직접 쓰지 않는다(aria-label · 오류 문구 포함).
  * 캐릭터 이름은 여기가 아니라 CHARACTERS[id].shortName(shared)이 단일 소스다(R-LLM-002).
  */
 import { USER_DISPLAY_NAME } from '@shared/characters'
 import { ERROR_MESSAGES } from '@shared/errors'
-import { MESSAGE_TEXT_MAX, ROOM_TITLE_MAX } from '@shared/limits'
+import { MEMORY_SUMMARY_MAX, MESSAGE_TEXT_MAX, ROOM_TITLE_MAX } from '@shared/limits'
 import type { ApiError, ApiErrorCode } from '@/api'
 import { AUTH_FAILURE_TEXT, NETWORK_TEXT } from '@/components/utils/errorText'
 
@@ -76,6 +76,26 @@ export const labels = {
   regenerateActionAriaLabel: (name: string): string => `${name} 대사 재작성`,
   /** 「삭제」 접근 이름(보이는 글자 `삭제` 포함) */
   deleteActionAriaLabel: (name: string): string => `${name} 대사 삭제`,
+  // ── S4 (design/memory.md §6) ──
+  /** 방 메뉴 항목 · 시트 제목 h2 · 시트 aria-label */
+  memory: '장기기억',
+  memoryClose: '닫기',
+  memoryGuide: 'AI가 긴 대화를 요약해 기억합니다. 직접 고칠 수 있어요.',
+  /** 갱신 줄 앞말. 뒤에 `<time>` `MM.DD HH:mm` */
+  memoryUpdatedAtPrefix: '마지막 갱신',
+  memoryInputAriaLabel: '장기기억 요약',
+  memoryPlaceholder: '아직 요약이 없습니다',
+  memoryLoading: '장기기억을 불러오는 중',
+  memoryLoadError: '장기기억을 불러오지 못했습니다',
+  /** 초과 안내 줄 · 저장 버튼 aria-describedby */
+  memoryOverNote: `${MEMORY_SUMMARY_MAX}자 이하로 줄여 주세요.`,
+  /** 저장 성공 토스트(success) */
+  memorySaved: '장기기억을 저장했습니다',
+  memoryDiscardTitle: '고친 내용을 버릴까요?',
+  memoryDiscardBody: '저장하지 않은 내용은 사라집니다.',
+  memoryDiscardConfirm: '버리기',
+  /** 버림 확인의 취소 쪽(첫 포커스) */
+  memoryKeepEditing: '계속 고치기',
 } as const
 
 /** 유저 말풍선·버튼 줄 이름의 작성자 표기(F-CH-43). 받은 값을 그대로 쓰고, 비었을 때만 고정 명칭(R-CHAT-002 · R-AUTH-004) */
@@ -94,9 +114,19 @@ export const errorDetail = (code: ApiErrorCode): string => {
   return ERROR_MESSAGES[code]
 }
 
-/** 쓰기 6종 중 화면이 실패를 안내하는 동작(deleteMessage·deleteRoom 의 NOT_FOUND 는 실패로 보지 않는다) */
+/**
+ * 쓰기 6종 중 화면이 실패를 안내하는 동작(deleteMessage·deleteRoom 의 NOT_FOUND 는 실패로 보지 않는다).
+ * S4: 'memory' = 장기기억 조회·저장(시트 안 문구와 전환 문구가 같은 표를 쓴다)
+ */
 export type WriteAction =
-  'send' | 'editMessage' | 'deleteMessage' | 'renameRoom' | 'deleteRoom' | 'speak' | 'regenerate'
+  | 'send'
+  | 'editMessage'
+  | 'deleteMessage'
+  | 'renameRoom'
+  | 'deleteRoom'
+  | 'speak'
+  | 'regenerate'
+  | 'memory'
 
 const rateLimitedText = (retryAfterSec: number | undefined): string =>
   retryAfterSec === undefined
@@ -117,6 +147,7 @@ const notFoundText = (action: WriteAction): string =>
 
 const validationText = (action: WriteAction): string => {
   if (action === 'renameRoom') return `방 제목은 1~${ROOM_TITLE_MAX}자로 입력해 주세요.`
+  if (action === 'memory') return `장기기억은 0~${MEMORY_SUMMARY_MAX}자로 입력해 주세요.`
   if (action === 'speak' || action === 'regenerate') return ERROR_MESSAGES.VALIDATION_ERROR
   return `메시지는 1~${MESSAGE_TEXT_MAX}자로 입력해 주세요.`
 }

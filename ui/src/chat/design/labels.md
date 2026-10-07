@@ -70,6 +70,10 @@
 
 새 키 4개(함수): `bubbleActionsAriaLabel(name)` = `{이름} 말풍선 작업` · `editActionAriaLabel(name)` = `{이름} 대사 수정` · `regenerateActionAriaLabel(name)` = `{이름} 대사 재작성` · `deleteActionAriaLabel(name)` = `{이름} 대사 삭제`. 개정 1개: 재작성 실패 토스트 `LLM_FAILED`·`LLM_EMPTY` = `대사를 다시 만들지 못했습니다. 재작성을 다시 눌러 주세요.`(generate.md §3). 삭제 2개: `messageMenuAriaLabel` · `messageMenuHeader`.
 
+## 8.1.5 문구 (S4, 장기기억) → `design/memory.md` §6
+
+새 키 14개: `memory` · `memoryClose` · `memoryGuide` · `memoryUpdatedAtPrefix` · `memoryInputAriaLabel` · `memoryPlaceholder` · `memoryLoading` · `memoryLoadError` · `memoryOverNote` · `memorySaved` · `memoryDiscardTitle` · `memoryDiscardBody` · `memoryDiscardConfirm` · `memoryKeepEditing`(+ 재사용 `retry`·`cancel`·`save`). `WriteAction`에 `'memory'` 추가 — §8.3 표에 행 하나: `VALIDATION_ERROR` + `memory` = `장기기억은 0~4000자로 입력해 주세요.`(danger, 전환 ✕). 그 밖 행은 §8.3 그대로 걸린다.
+
 ## 8.2 오류 상세 `errorDetail(code)` (읽기, S1)
 
 > (후작업 2026-10-07) §8.2·§8.3의 `NETWORK` 행과 인증 3종 행은 공용 `ui/src/components/utils/errorText.ts`(`NETWORK_TEXT`·`AUTH_FAILURE_TEXT`)를 `labels.ts`가 import해 쓴다. rooms·settings와 같은 단일 정의이고 문장은 바뀌지 않았다.

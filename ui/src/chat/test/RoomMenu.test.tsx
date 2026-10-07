@@ -4,6 +4,8 @@
  * 대상: ChatTopBar ⋯ · RoomMenuSheet · PromptSheet · ConfirmDialog · useRoomActions · App(replaceRoomInView · backToRooms)
  * - 화면 단위는 viewer props, App 통합은 initToken('?t=test-token') → render(<App />) → clearToken().
  * - api 래퍼는 vi.mock. isAuthFailure 실물. fetch 모킹 금지. matchMedia 스텁.
+ * - S4(v1.0): 방 메뉴 항목에 「장기기억」이 들어와 TC-CH-047 을 개정했다(순서 정본 TC-CH-122, MemorySheet.test.tsx).
+ *   진입 없는 TC 의 "쓰기 래퍼 0회"에 getMemory·putMemory 를 포함하려고 @/api/memory 도 모킹한다.
  */
 import { useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -12,6 +14,7 @@ import userEvent from '@testing-library/user-event'
 import { ERROR_MESSAGES } from '@shared/errors'
 import type { MessagesPage, RoomSummary } from '@shared/types'
 import type { ApiErrorCode, Result } from '@/api'
+import { getMemory, putMemory } from '@/api/memory'
 import { appendUser, deleteMessage, editMessage, listMessages } from '@/api/messages'
 import { createRoom, deleteRoom, listRooms, renameRoom } from '@/api/rooms'
 import { App } from '@/App'
@@ -31,6 +34,10 @@ vi.mock('@/api/rooms', () => ({
   renameRoom: vi.fn(),
   deleteRoom: vi.fn(),
 }))
+vi.mock('@/api/memory', () => ({
+  getMemory: vi.fn(),
+  putMemory: vi.fn(),
+}))
 
 const mocks = [
   listMessages,
@@ -41,6 +48,8 @@ const mocks = [
   createRoom,
   renameRoom,
   deleteRoom,
+  getMemory,
+  putMemory,
 ].map(f => vi.mocked(f))
 const mockedList = vi.mocked(listMessages)
 const mockedRename = vi.mocked(renameRoom)
@@ -172,16 +181,16 @@ afterEach(() => {
 })
 
 describe('⋯ 방 메뉴 (R-CHAT-001)', () => {
-  it('TC-CH-047: ⋯ → 방 메뉴(머리·항목 순서, 장기기억 없음) → 취소·Esc 뒤 ⋯ 포커스', async () => {
+  it('TC-CH-047: ⋯ → 방 메뉴(머리·항목 4개 순서, S4 장기기억 포함) → 취소·Esc 뒤 ⋯ 포커스, 장기기억 조회 0회', async () => {
     renderChat()
     const { user, menu } = await openRoomMenu()
     expect(menu.querySelector('p')?.textContent).toBe('방 메뉴 · 티타임')
+    // S4 개정(v1.0): 옛 ['이름 변경', '방 삭제', '취소'] + "장기기억 없음" 단언 → 4항목(순서 정본 TC-CH-122)
     expect(
       within(menu)
         .getAllByRole('button')
         .map(b => b.textContent),
-    ).toEqual(['이름 변경', '방 삭제', '취소'])
-    expect(within(menu).queryByText(/장기기억/)).toBeNull()
+    ).toEqual(['이름 변경', '장기기억', '방 삭제', '취소'])
     await user.click(within(menu).getByRole('button', { name: '취소' }))
     expect(screen.queryByRole('dialog')).toBeNull()
     expect(document.activeElement).toBe(screen.getByRole('button', { name: MORE }))

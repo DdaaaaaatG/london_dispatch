@@ -1,6 +1,6 @@
 /**
  * useChatScreen — 설계 chat/design/functions.md §3 · §4 F-CH-02 · F-CH-10 · F-CH-16 ~ F-CH-30 · F-CH-33 · F-CH-40 · F-CH-41 · design/actions.md F-CH-50 (ChatScreen 50줄 한계 때문에 조립을 분리)
- * 요구: R-CHAT-001 · 003 · 004 · 005 · 006 · 007 · 008 · 010 · 011 · 013
+ * 요구: R-CHAT-001 · 003 · 004 · 005 · 006 · 007 · 008 · 010 · 011 · 012 · 013
  * 화면 상태는 이 훅 하나가 한 곳(화면 최상위)에 모은다: 대화 상태(useChatLoader) · 스크롤(useAutoScroll · useScrollMemory) ·
  * 쓰기(useWriteFailure · useMessageWrites) · 시트(useChatSheets) · 읽기 전용 전환(useAccessRevoked). 단방향 흐름이다.
  * 전이 규칙은 ui/src/state/chat.ts 리듀서가 소유한다 — 여기에 다시 쓰지 않는다.
@@ -152,7 +152,7 @@ const useChatWrites = (
 ) => {
   const { room, viewer, onBack, onAuthFailure, onRoomRenamed } = options
   const { dispatch, getState, isActive, loadInitial } = loader
-  const { toast, handleWriteFailure } = useWriteFailure(onAuthFailure)
+  const { toast, handleWriteFailure, showNotice } = useWriteFailure(onAuthFailure)
   const { containerRef, isNearBottom } = autoScroll
 
   const focusLog = useFocusLog(containerRef, backButtonRef)
@@ -179,6 +179,8 @@ const useChatWrites = (
     requestLogFocus,
     requestEditFocus,
     handleWriteFailure,
+    showNotice,
+    onRoomGone,
     focusLog,
     onBack,
     onRoomRenamed,

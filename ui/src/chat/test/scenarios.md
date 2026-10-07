@@ -2,9 +2,21 @@
 
 - 기준: `ui/src/chat/design.md` v1.6(CR-001 Bubble 배치, ui-designer 반영 중 — components.md §2.2 v1.6 확인)(+ `design/components.md` · `design/functions.md` · `design/a11y.md` · `design/tc.md` v1.5) / `ui/src/chat/requirements.md` v1.4 / `doc/200_설계/contract/api.md` v0.3.1 / 공용 요소 단일 정의 `ui/src/rooms/design/components.md` §1
 - **v0.6 기준(S3 증분)**: `ui/src/chat/design.md` **v1.7**(§15 RTM) + `design/tc.md` v1.7 §3 · `design/generate.md` · `design/functions.md` §1·§4.3 · `design/components.md` §0·§2.6·§2.8·§2.11·§2.12·§3 · `design/labels.md` §8.1.2 · `design/a11y.md` / `ui/src/chat/requirements.md` **v1.7** / `doc/200_설계/contract/api.md` **v0.4**(§4.12~§4.14 · §11.9 · 「ui 인계 메모」)
-- 작성일: 2026-10-05(v0.6: 2026-10-06) · 작성: ui-test-designer · 모드: **증분**(S1 TC-CH-001~030 · S2 TC-CH-031~065 보존, **S3 TC-CH-066~095 추가**, **S3b TC-CH-096·097 추가**) · 상태: **초안 v0.9(S3e 말풍선 액션 버튼 보강, 검증 전)** · 이전 v0.8(S3d 전송 뒤 자동 응답 증분) · **S3d 기준**: `ui/src/chat/design/auto.md`(정본, 설계 v1.9) · `design/rtm.md` · `design/generate.md` §6 · `design/a11y.md` · `design/components.md` §2.1·§2.2·§2.7·§2.8·§2.12 · `design/tc.md` · `ui/src/chat/requirements.md` **v1.9**(§2 U-CH-13 · §5 확정 문구) · `doc/200_설계/contract/api.md` **v0.6** §4.3·§4.9·§4.13·§5.2·§5.5·「ui 인계 메모」(S3d) · CR-002 · (v0.7) S3b 기준: `design/generate.md` §3 `LLM_BUDGET_EXCEEDED` 행 · `design/tc.md` TC-CH-096·097 · `design/labels.md` §8.1.2 비고 · `doc/200_설계/contract/api.md` **v0.4.1** §3.2·§3.4 · rooms F-RM-22 v1.5.1(`toastToneOf`) · 공용 부품 danger 톤 클래스 키 = `danger` **확정**(메인 세션 결정 TK-09)
-- 묶음: **S1(읽기 전용 판)** + **S2(토큰 + 쓰기)** + **S3(AI 발화 speak · 재작성 regenerate)**. S1 TC의 토큰 분기는 "없음" 그대로다. S2 TC는 쓰기 UI마다 토큰 있음(TC-CH-031) ↔ 없음(TC-CH-003·021·022·023) 쌍과 전환(051·052)을 더한다. S3 TC는 캐릭터 버튼 있음(066) ↔ 없음(067·021) 쌍과 전환(076·084)을 더한다. S4(장기기억)는 「후속 이월」. **S3d** TC(098~109)는 새 쓰기 UI(중립 말풍선 · 「응답 재시도」 · 편집 저장 잠금 안내)마다 토큰 있음(099·102·107) ↔ 없음(106(c) · 108 읽기 전용) 쌍과 전환(106(a))을 더한다.
+- 작성일: 2026-10-05(v0.6: 2026-10-06) · 작성: ui-test-designer · 모드: **증분**(S1 TC-CH-001~030 · S2 TC-CH-031~065 보존, **S3 TC-CH-066~095 추가**, **S3b TC-CH-096·097 추가**) · 상태: **초안 v1.0(S4 장기기억 시트 구축, 검증 전)** · 이전 v0.9.2(S3e 말풍선 액션 버튼 보강·후작업) · v0.8(S3d 전송 뒤 자동 응답 증분) · **S3d 기준**: `ui/src/chat/design/auto.md`(정본, 설계 v1.9) · `design/rtm.md` · `design/generate.md` §6 · `design/a11y.md` · `design/components.md` §2.1·§2.2·§2.7·§2.8·§2.12 · `design/tc.md` · `ui/src/chat/requirements.md` **v1.9**(§2 U-CH-13 · §5 확정 문구) · `doc/200_설계/contract/api.md` **v0.6** §4.3·§4.9·§4.13·§5.2·§5.5·「ui 인계 메모」(S3d) · CR-002 · (v0.7) S3b 기준: `design/generate.md` §3 `LLM_BUDGET_EXCEEDED` 행 · `design/tc.md` TC-CH-096·097 · `design/labels.md` §8.1.2 비고 · `doc/200_설계/contract/api.md` **v0.4.1** §3.2·§3.4 · rooms F-RM-22 v1.5.1(`toastToneOf`) · 공용 부품 danger 톤 클래스 키 = `danger` **확정**(메인 세션 결정 TK-09)
+- 묶음: **S1(읽기 전용 판)** + **S2(토큰 + 쓰기)** + **S3(AI 발화 speak · 재작성 regenerate)**. S1 TC의 토큰 분기는 "없음" 그대로다. S2 TC는 쓰기 UI마다 토큰 있음(TC-CH-031) ↔ 없음(TC-CH-003·021·022·023) 쌍과 전환(051·052)을 더한다. S3 TC는 캐릭터 버튼 있음(066) ↔ 없음(067·021) 쌍과 전환(076·084)을 더한다. S4(장기기억)는 v1.0에서 TC-CH-122~139로 해소했다 — 새 쓰기 UI(방 메뉴 「장기기억」 · 장기기억 시트 · 버림 확인)마다 토큰 있음(122~135) ↔ 없음(136) 쌍과 전환(134)을 더한다. **S3d** TC(098~109)는 새 쓰기 UI(중립 말풍선 · 「응답 재시도」 · 편집 저장 잠금 안내)마다 토큰 있음(099·102·107) ↔ 없음(106(c) · 108 읽기 전용) 쌍과 전환(106(a))을 더한다.
 - **v0.9 기준(S3e 보강, CR-003)**: `ui/src/chat/design.md` **v2.0** §10 · `ui/src/chat/design/actions.md` **v2.0**(정본, 절 표기 `AC`) · `design/rtm.md` · `design/generate.md` §2·§3(재작성 실패 문구 개정)·§6 · `design/auto.md`(잠금 `isSaveLocked`·`roomBusy`) · `design/a11y.md` · `design/labels.md` §8.1.4 / `ui/src/chat/requirements.md` **v2.0**(R-CHAT-007 🔒 2026-10-07 개정 · U-CH-14 · U-CH-10 폐기) / `doc/200_설계/contract/api.md` **v0.6**(계약 변경 없음 — `editMessage`·`deleteMessage`·`regenerate` 재사용)
+- **v1.0 기준(S4 구축, 장기기억 시트)**: `ui/src/chat/design.md` **v2.1** §10 · `ui/src/chat/design/memory.md` **v2.1**(정본, 절 표기 `ME`) · `design/rtm.md`(R-CHAT-001 · R-CHAT-012 · R-MEM-001 행) / `ui/src/chat/requirements.md` **v2.1**(U-CH-15 · R-CHAT-012 🔒 · R-MEM-001 🔒 · §5.2 확정 문구 S4) / `doc/200_설계/contract/api.md` **v0.7** §4.17(E13 GET) · §4.18(E14 PUT) · §5.9 `MemoryResponse { summary, sourceUntilId, updatedAt }`·`PutMemoryBody { summary }` · §11.16 래퍼 `getMemory(roomId)` · `putMemory(roomId, { summary })` → `Result<MemoryResponse>`(`ui/src/api/memory.ts`, `ui/src/api/index.ts` 재노출 확인 2026-10-07) / `shared/src/limits.ts` `MEMORY_SUMMARY_MAX` = 4000 · `countCodePoints` · `normalizeText`
+- **S4 공통 전제(추가 — S1·S2·S3·S3d·S3e 전제는 그대로 유지)**
+  - **정본·우선순위**: `design/memory.md`. 기존 TC 영향은 「추적표 — S4 추가분」 「대체·영향 TC (S4)」 표가 정본이다(개정 047·061 · 유지 명시 003·015·021·023·053·048~050). 047·061은 본문도 갱신했다.
+  - **토큰**: 화면 단위는 `viewer` props(`WRITER_VIEWER`·`READ_ONLY_VIEWER`), App 통합(TC-CH-134)만 `initToken('?t=test-token')` → `clearToken()`. 시트 상태·저장소에 토큰이 없다(래퍼가 `getToken()`으로 헤더를 붙인다, ME §2).
+  - **래퍼 모킹**: `vi.mock('@/api/memory', () => ({ getMemory: vi.fn(), putMemory: vi.fn() }))`. 화면은 `@/api` 재노출을 import하므로 같은 mock이 걸린다. `fetch` 모킹 금지. 인자는 `mock.calls` 전체로 단언한다. `MemorySheet` 스펙은 두 래퍼의 기본값을 **영원히 대기**로 두고 TC별 `mock*Once`가 먼저 쓰인다. `RoomMenu`·`AuthTransition` 스펙도 mock 목록에 둘을 더한다(진입 없는 TC는 0회 단언에 포함).
+  - **질의**: dialog `방 메뉴`·`장기기억` · alertdialog `고친 내용을 버릴까요?` · button `장기기억`(방 메뉴 안) · `닫기` · `취소` · `저장` · `다시 시도` · `계속 고치기` · `버리기` · textbox `장기기억 요약`. 시트 안 질의는 `within(sheet)`. 버림 확인과 편집 시트는 **바꿔 그려지므로**(D-34) 왕복 뒤에는 dialog·textbox를 다시 질의한다.
+  - **픽스처**: ① 요약 있음 `{ summary: '시엘은 체스에서 졌다.\n런던 출장 약속.'(trim 후 코드 포인트 22자), sourceUntilId: 987, updatedAt: 2026-10-07 16:30 }` ② 빈 `{ summary: '', sourceUntilId: 0, updatedAt: null }` ③ 입력 문자열 `'가'×4001`(서버는 4000자를 넘겨 주지 않으므로 응답이 아니라 입력) + 경계 `'가'×4000`. `sourceUntilId` 987은 화면 어디에도 없는 숫자라 미표시 단언에 쓴다.
+  - **카운터·초과**: 공용 TextArea 내장 카운터 글자 `n/4000`(`aria-hidden="true"`), 초과 클래스 키 `over`(non-scoped), textbox `aria-invalid="true"`. 초과 안내 줄 `id` = `저장`의 `aria-describedby`(D-35).
+  - **입력**: 긴 문자열은 `fireEvent.change`(4001자 userEvent 타이핑 금지). Enter·Tab은 userEvent.
+  - **대기**: 조회·저장 응답은 deferred를 act 안에서 직접 resolve한다. 화면 타이머를 기다리는 TC가 없어 가짜 시계를 쓰지 않는다(토스트 2초 소멸은 단언하지 않는다). 두 응답의 경합 순서에 기대를 걸지 않고, TC-CH-137(b)만 1번째 → 2번째를 순서대로 직접 resolve한다. **이탈로 끝나는 조회**(인증 3종·`NOT_FOUND` — 시트가 닫힌다)는 화면·App 통합에서 반드시 대기 Promise로 주고, 시트가 열려 status가 보인 뒤 act 안에서 resolve한다. 이미 resolve된 mock이면 클릭 직후 시트가 닫혀 열기 헬퍼(`openMemory`·`openMemoryInApp`)의 시트 질의가 실패한다(v1.0.1). 시트 안에 남는 조회 실패(`NETWORK`·`INTERNAL`)와 부품 단독 렌더는 resolve된 mock을 써도 된다.
+  - **저장소 단언**: 키 목록(`localStorage.key(i)`) = `['ld:lastRoomId']`(요약·토큰 미저장).
+  - **스펙 배치**: 신규 `MemorySheet.test.tsx`(화면 단위 + 부품 `MemorySheet` 콜백 계약) · 신규 `ui/src/state/memory.test.ts`(순수 판정) · `AuthTransition.test.tsx`(TC-CH-134 App 통합) · `RoomMenu.test.tsx`(047 개정).
 - **S3e 공통 전제(추가 — S1·S2·S3·S3d 전제는 그대로 유지, 단 아래 「폐기 전제」 제외)**
   - **정본·우선순위**: `design/actions.md`. 기존 TC 중 S3e로 단언이 바뀐 것은 「추적표 — S3e 추가분」 「대체·영향 TC (S3e)」 표가 바뀐 단언의 정본이다(본문과 표가 다르면 표가 우선). 폐기·대체(022 · 039 · 040 · 041 · 079 · 108 일부)는 TC 머리에 표시했다. 개정 27건은 S3d 방식대로 본문을 두고 표에 적는다.
   - **폐기 전제**: S2 공통 전제의 「말풍선 메뉴 대상 요소 = `li` 안 `[aria-haspopup="dialog"]`」와 「롱프레스」 가짜 시계 절차는 S3e에서 **폐기**한다. 말풍선 루트에는 읽기·쓰기 모두 `tabIndex`·`aria-haspopup`·`aria-keyshortcuts`·포인터·contextmenu 핸들러가 붙지 않는다(AC §3).
@@ -332,10 +344,10 @@
 - Then ⓐ (a) 103 유지, dialog 없음, 토스트 `ERROR_MESSAGES.INTERNAL` (b) 103 없음, `alert` 없음 (c) 첫 배치 `scrollTop=2207` → 재로드 뒤 90 말풍선, `scrollTop=2507`(맨 아래, 저장 거리 무시) (d) `role=status` `아직 대화가 없습니다` ⓑ (a) `onAuthFailure` 0회 ⓒ (a)(b) `deleteMessage` 1회 `[103]` (c) `listMessages` 2회, 2회째 정확히 `['r1']` (d) `listMessages` 1회
 - 스펙: `BubbleMenu.test.tsx`
 
-### TC-CH-047 · (S2) ⋯ 방 메뉴 · 종류: 자동 · 요구: R-CHAT-001 · 설계: §6.5 · C §2.0·§2.9 · F-CH-24 · §8.1.1 `moreAriaLabel`·`roomMenuHeader`·`rename`·`deleteRoom` · 토큰: 있음
+### TC-CH-047 · (S2) ⋯ 방 메뉴 · **S4 개정(v1.0): 항목 4개 `이름 변경`·`장기기억`·`방 삭제`·`취소`, 옛 "`장기기억` 없음" 단언 삭제 — 순서 정본은 TC-CH-122** · 종류: 자동 · 요구: R-CHAT-001 · R-CHAT-012 🔒(S4) · 설계: §6.5 · C §2.0·§2.9 · F-CH-24 · §8.1.1 `moreAriaLabel`·`roomMenuHeader`·`rename`·`deleteRoom` · ME §1.4 · 토큰: 있음
 - Given ready
 - When `방 메뉴 열기` → (a) `취소` (b) Esc
-- Then ⓐ `dialog "방 메뉴"`, 머리 `방 메뉴 · 티타임`, 버튼 순서 `이름 변경`·`방 삭제`·`취소`, `장기기억` 없음 → 닫힌 뒤 포커스 = ⋯ ⓑ — ⓒ 쓰기 래퍼 0회
+- Then ⓐ `dialog "방 메뉴"`, 머리 `방 메뉴 · 티타임`, 버튼 순서 `이름 변경`·`장기기억`·`방 삭제`·`취소`(S4) → 닫힌 뒤 포커스 = ⋯ ⓑ 시트 없음(닫힘) ⓒ 쓰기 래퍼·`getMemory`·`putMemory` 0회
 - 스펙: `ui/src/chat/test/RoomMenu.test.tsx`
 
 ### TC-CH-048 · (S2) 이름 변경 성공 · 종류: 자동 · 요구: R-CHAT-001 · R-ROOM-003 · 설계: §6.5 이름 변경 · F-CH-25·26 · C §1.17 · C §2.10 `rename` · rooms F-RM-13 · 토큰: 있음
@@ -416,9 +428,9 @@
 - Then ⓐ 해당 없음 ⓑ `LONG_PRESS_MS=500`·`LONG_PRESS_MOVE_TOLERANCE_PX=10`. 언마운트 뒤 타이머 0개 ⓒ `onLongPress`: 500ms 1회·499ms 0회 · 10px 1회·11px 0회 · up·leave·cancel 0회 · 오른쪽 버튼 0회 · contextmenu 1회 + `defaultPrevented` · 롱프레스 직후 contextmenu 추가 0회(합계 1) · 핸들러 객체는 리렌더해도 같은 참조, 리렌더로 바뀐 최신 `onLongPress`가 불림
 - 스펙: ~~`ui/src/components/hooks/useLongPress.test.tsx`~~ (삭제됨 — S3e 후작업 2026-10-07)
 
-### TC-CH-061 · (S2) 390×565 쓰기 판 스크린샷 · 종류: 수동 · 요구: R-CHAT-013 · R-CHAT-004 · 설계: §2.2 · §2.3 · C §4 S2 행 · rooms C §1.20 · 토큰: 있음
+### TC-CH-061 · (S2) 390×565 쓰기 판 스크린샷 · **S4 개정(v1.0): 방 메뉴 장면은 항목 4개(장기기억 포함), 장기기억 시트 장면은 TC-CH-139(MC-CH-21)** · 종류: 수동 · 요구: R-CHAT-013 · R-CHAT-004 · 설계: §2.2 · §2.3 · C §4 S2 행 · rooms C §1.20 · ME §0 · 토큰: 있음
 - Given 개발 서버, 390×565, 유효 토큰 주소
-- When 하단 바 1줄·3줄, 말풍선 메뉴·방 메뉴·이름 변경·확인 시트, 인라인 수정, E 토스트를 스크린샷으로 남긴다
+- When 하단 바 1줄·3줄, 방 메뉴(4항목)·이름 변경·확인 시트, 인라인 수정, E 토스트를 스크린샷으로 남긴다(말풍선 메뉴는 S3e 삭제, 장기기억 시트는 TC-CH-139)
 - Then ⓐ 가로 스크롤 없음, A 44, C 96(1줄)·136(3줄), 시트 최대 70%·덮개, E 28 이상 ⓑ 해당 없음 ⓒ 해당 없음 — 수동 확인표 `MC-CH-10~13`
 - 스펙: `ui/src/chat/test/manual-checklist.md`
 
@@ -791,6 +803,114 @@
 - Then ⓐ MC-CH-20 기대(세바스찬 왼쪽 본문 시작선 · 시엘 오른쪽 본문 끝선 · 유저·OOC 가운데, 28px + 위 여백 `--space-1`, 「수정 재작성 삭제」 한 줄, 가로 스크롤 없음, muted·danger 글자 대비 4.5:1, 비활성 흐림, 터치 영역) ⓑ —(화면 측정 전용, 상태는 TC-CH-114) ⓒ —(api는 TC-CH-115~117)
 - 스펙: 없음(수동 — MC-CH-20)
 
+### TC-CH-122 · (S4) 방 메뉴 항목 순서 · 종류: 자동 · 요구: R-CHAT-001 🔒 · R-CHAT-012 🔒 · R-CHAT-013 🔒 · 설계: ME §0 방 메뉴 그림 · §1.4 `RoomMenuSheet` 델타 · §6 `memory` · §7 레이블 · §8 1행(토큰 있음) · 토큰: 있음
+- Given `WRITER_VIEWER`, 방 `티타임`(r1) 첫 로드 완료
+- When `방 메뉴 열기`
+- Then ⓐ dialog `방 메뉴` 안 button 글자가 정확히 `이름 변경` → `장기기억` → `방 삭제` → `취소`(4개) 순서 · dialog `장기기억` 없음 ⓑ 열린 시트 = 방 메뉴 ⓒ `getMemory`·`putMemory` 0회(항목을 누르기 전에는 조회하지 않는다)
+- 스펙: `ui/src/chat/test/MemorySheet.test.tsx` (쌍: 토큰 없음 TC-CH-136)
+
+### TC-CH-123 · (S4) 열기 · 조회 중 · 종류: 자동 · 요구: R-CHAT-012 🔒 · R-CHAT-013 🔒 · 설계: ME §0 변형 「조회 중」 · §1.2 · §1.3 `'loading'` 행 · §1.5 `ChatSheet memory` · F-CH-53 · F-CH-55 · F-CH-56 · §4 대기 행 · §6 `memory`·`memoryClose`·`memoryGuide`·`memoryLoading` · §7 시트·포커스(열 때)·상태 알림 · 토큰: 있음
+- Given 122 상태, `getMemory` deferred(대기)
+- When 방 메뉴 `장기기억`
+- Then ⓐ dialog `방 메뉴` 없음 · dialog `장기기억`(`aria-modal="true"`) 안 h2 `장기기억` · 안내 `AI가 긴 대화를 요약해 기억합니다. 직접 고칠 수 있어요.` · status 글자 `장기기억을 불러오는 중` · textbox 없음 · `저장` disabled · `취소` 활성 · 포커스 = `닫기` ⓑ 시트 지역 `load.phase = 'loading'`(표시로 관찰) ⓒ `getMemory` `[['r1']]` · `putMemory` 0회
+- 스펙: `MemorySheet.test.tsx`
+
+### TC-CH-124 · (S4) 조회 성공 표시 · 종류: 자동 · 요구: R-CHAT-012 🔒 · R-MEM-001 🔒 · R-CHAT-013 🔒 · R-NFR-004 · 설계: ME §0 준비됨 · §1.3 `MemoryReadyBody` ①② · F-CH-56 성공 · F-CH-62 · §5 E13(`sourceUntilId` 미표시) · §6 `memoryUpdatedAtPrefix`·`memoryInputAriaLabel` · D-40 · D-41 · D-42 · 토큰: 있음
+- Given `getMemory` → 픽스처 ①(요약 22자, `sourceUntilId` 987, `updatedAt` 2026-10-07 16:30)
+- When 시트를 연다
+- Then ⓐ textbox `장기기억 요약` 값 = 요약 원문(줄바꿈 포함) · 카운터 `22/4000` · 갱신 줄 글자 `마지막 갱신 10.07 16:30`, 그 안 `<time datetime="2026-10-07T16:30">10.07 16:30</time>` · 안내 줄 · 시트 글자에 `987`·`출처` 없음 · `저장` disabled(변경 없음)·`aria-describedby` 없음 · textbox `aria-invalid` 없음 · 포커스 = textbox, `selectionStart = selectionEnd = 0` ⓑ 저장소 키 `['ld:lastRoomId']`뿐(요약·토큰 저장 없음) ⓒ `getMemory` `[['r1']]` · `putMemory` 0회
+- 스펙: `MemorySheet.test.tsx`
+
+### TC-CH-125 · (S4) 빈 요약 · 종류: 자동 · 요구: R-CHAT-012 🔒 · R-MEM-001 🔒 · 설계: ME §0 변형 「빈 요약」 · §1.3 ① `updatedAt === null` · §5 행 없음 `{ '', 0, null }` · §6 `memoryPlaceholder` · D-41 · 토큰: 있음
+- Given `getMemory` → 픽스처 ② `{ summary: '', sourceUntilId: 0, updatedAt: null }`
+- When 시트를 연다
+- Then ⓐ textbox 값 `''` · placeholder `아직 요약이 없습니다` · `마지막 갱신` 글자·`time` 없음 · 카운터 `0/4000` · `저장` disabled ⓑ `load.phase = 'ready'`, 초안 `''`(표시로 관찰) ⓒ `getMemory` `[['r1']]` · `putMemory` 0회
+- 스펙: `MemorySheet.test.tsx`
+
+### TC-CH-126 · (S4) 조회 실패 · 재시도 · 종류: 자동 · 요구: R-CHAT-012 🔒 · R-CHAT-011 · R-CHAT-013 🔒 · 설계: ME §0 변형 「조회 실패」 · §1.3 `'error'` 행 · F-CH-56 그 밖 · `retryLoad` · F-CH-62(재시도 뒤 ready 포커스) · §4 그 밖 행 · §6 `memoryLoadError`·`retry`·오류 문구 표 · §7 상태 알림·포커스(조회 실패) · 토큰: 있음
+- Given `getMemory` 1번째 (a) `NETWORK` (b) `INTERNAL`, 2번째 deferred
+- When 시트를 연다 → `다시 시도` → 2번째를 픽스처 ①로 resolve
+- Then ⓐ 시트 안 alert 하나(화면 전체 alert 1개 — E 토스트 없음), 글자에 `장기기억을 불러오지 못했습니다` + 상세 (a) `서버에 연결할 수 없습니다.` (b) `ERROR_MESSAGES.INTERNAL`, 서버 `message` 원문 없음 · textbox 없음 · `저장` disabled · `취소` 활성 · 포커스 = `닫기` → `다시 시도` → status `장기기억을 불러오는 중` → resolve → alert 없음 · textbox 값 = 요약 · 포커스 = textbox ⓑ `load` error → loading → ready · `onAuthFailure`·`onBack` 0회 ⓒ `getMemory` `[['r1'], ['r1']]` · `putMemory` 0회
+- 스펙: `MemorySheet.test.tsx`
+
+### TC-CH-127 · (S4) 열 때마다 재조회 · 종류: 자동 · 요구: R-CHAT-012 🔒 · 설계: ME §1.2(마운트 = 조회) · F-CH-55 · F-CH-56(캐시 없음) · D-33 · D-36 · D-38 · 토큰: 있음
+- Given `getMemory` 1번째 픽스처 ①, 2번째 `{ summary: '두 번째 요약', sourceUntilId: 990, updatedAt: 2026-10-07 18:05 }`
+- When 시트를 연다 → `닫기` → ⋯ → `장기기억`
+- Then ⓐ 두 번째 시트 textbox 값 `두 번째 요약` · 갱신 줄 `마지막 갱신 10.07 18:05` ⓑ 첫 시트 상태는 남지 않는다(새 마운트) ⓒ `getMemory` `[['r1'], ['r1']]` · `putMemory` 0회
+- 스펙: `MemorySheet.test.tsx`
+
+### TC-CH-128 · (S4) 편집 · 카운터 · 변경 판정 · 종류: 자동(화면·순수) · 요구: R-CHAT-012 🔒 · R-MEM-001 🔒 · 설계: ME §2 `isMemoryDirty`·`canSaveMemory` · F-CH-61 · §4 편집 행 · D-35 · D-41 · 토큰: 있음 / 무관(순수)
+- Given 픽스처 ① 시트(22자) / (순수) 얼린 `MemoryLoad` loading·error·ready
+- When textbox를 차례로 바꾼다: `'  x  '` → `'😀'` → `'  ' + 요약 + '\n'` → `요약 + '!'` → 요약 원문 / (순수) `isMemoryDirty`·`canSaveMemory` 표
+- Then ⓐ 카운터·`저장`: `1/4000` enabled → `1/4000` enabled(이모지 1자) → `22/4000` disabled(앞뒤 공백만 덧붙임은 변경 아님) → `23/4000` enabled → `22/4000` disabled(원문 복귀) ⓑ (순수) dirty: loading·error → false · ready `'abc'`에 `'abc'`·`'  abc\n'` → false, `'abd'`·`''` → true · ready `''`에 `''`·`'   '` → false, `'x'` → true. canSave: ready ∧ dirty ∧ 미초과 ∧ 저장 중 아님일 때만 true(저장 중 · 앞뒤 공백만 · 4001자 · loading · error 각각 false, 4000자 변경 true) · 얼린 입력에 throw 없음·값 불변 ⓒ `putMemory` 0회 · `getMemory` 1회
+- 스펙: `MemorySheet.test.tsx` · `ui/src/state/memory.test.ts`
+
+### TC-CH-129 · (S4) 4000 / 4001자 · 종류: 자동(화면·순수) · 요구: R-CHAT-012 🔒 · R-MEM-001 🔒 · R-CHAT-013 🔒 · 설계: ME §0 초과 줄 · §1.3 ③ · `ariaDescribedBy` · §2 `isMemoryOver`·`MEMORY_SUMMARY_MAX_CHARS` · §6 `memoryOverNote` · §7 카운터 · D-35 · 토큰: 있음 / 무관(순수)
+- Given 픽스처 ① 시트 / (순수) 문자열 표
+- When textbox = `'가'×4000` → `'  ' + '가'×4000 + '  '` → `'가'×4001` → disabled `저장` 클릭 → `'가'×4000` / (순수) `isMemoryOver`
+- Then ⓐ 4000: 카운터 `4000/4000`(`over` 클래스 없음) · 안내 없음 · `aria-invalid` 없음 · `저장` enabled · `aria-describedby` 없음 · 앞뒤 공백 4000도 `4000/4000` enabled / 4001: 카운터 `4001/4000` + `over` 클래스 · textbox `aria-invalid="true"` · `4000자 이하로 줄여 주세요.` 줄(`id` 비어 있지 않음) · `저장` disabled · `저장`의 `aria-describedby` = 그 `id` → 4000으로 돌리면 안내·`aria-describedby` 사라지고 enabled ⓑ (순수) `MEMORY_SUMMARY_MAX_CHARS` = `MEMORY_SUMMARY_MAX` = 4000 · over: `''`·4000·앞뒤 공백 4000·이모지 4000 → false, 4001·이모지 4001 → true ⓒ disabled `저장` 클릭에도 `putMemory` 0회
+- 스펙: `MemorySheet.test.tsx` · `ui/src/state/memory.test.ts`
+
+### TC-CH-130 · (S4) 비우기 저장 · 종류: 자동(화면·순수) · 요구: R-CHAT-012 🔒 · R-MEM-001 🔒 · 설계: ME §4 끝 문단 · D-39 · F-CH-57 · §2 `canSaveMemory`(빈 초안) · 토큰: 있음 / 무관(순수)
+- Given 픽스처 ①, `putMemory` → 200 `{ summary: '', sourceUntilId: 987, updatedAt: 2026-10-07 17:00 }`
+- When textbox를 `''`로 → `저장`
+- Then ⓐ 카운터 `0/4000` · placeholder 표시 · `저장` enabled → 누른 직후 alertdialog 없음(confirm 없음) → dialog 없음 · alert `장기기억을 저장했습니다` ⓑ (순수) ready `'abc'` + `''` → canSave true ⓒ `putMemory` `[['r1', { summary: '' }]]`
+- 스펙: `MemorySheet.test.tsx` · `ui/src/state/memory.test.ts`
+
+### TC-CH-131 · (S4) 저장 성공 · 종류: 자동(화면·부품) · 요구: R-CHAT-012 🔒 · R-CHAT-013 🔒 · R-NFR-004 · 설계: ME §0 변형 「저장 중」 · F-CH-57 · F-CH-60 `memorySaved` · F-CH-16 확장 `showNotice` · §4 저장 200 행 · §5 E14(원문, trim 안 함) · §6 `cancel`·`save`·`memorySaved` · §7 포커스(닫을 때) · D-33 · D-36 · 토큰: 있음
+- Given 픽스처 ①, `putMemory` deferred / (부품) `MemorySheet` 단독 렌더, `onClose`·`onSaved`·`onLeave` spy, `putMemory` → 200
+- When textbox = `'  시엘은 체스에서 이겼다.  '` → `저장` → (대기 중) textbox Esc · 덮개 클릭 · `저장` 다시 클릭 → 200 resolve / (부품) textbox = `' 새 요약 '` → `저장`
+- Then ⓐ 대기 중 textbox `readOnly` · `닫기`·`취소`·`저장` disabled · Esc·덮개 뒤에도 같은 dialog, alertdialog 없음 → resolve 뒤 dialog 없음 · alert 1개 `장기기억을 저장했습니다` + `success` 클래스 · 포커스 = ⋯ · log `li` 1개 그대로 ⓑ 저장소 키 `['ld:lastRoomId']`뿐 · `onAuthFailure`·`onBack` 0회(채팅 상태 불변) · (부품) `onSaved` 1회 · `onClose`·`onLeave` 0회 ⓒ `putMemory` `[['r1', { summary: '  시엘은 체스에서 이겼다.  ' }]]`(연타에도 1회, 원문 그대로) · `getMemory` 1회 · `listMessages` 1회 · 그 밖 쓰기 래퍼(`appendUser`·`editMessage`·`deleteMessage`·`speak`·`regenerate`·rooms 4종) 0회 · (부품) `putMemory` `[['r1', { summary: ' 새 요약 ' }]]`
+- 스펙: `MemorySheet.test.tsx`
+
+### TC-CH-132 · (S4) 저장 실패(시트 안) · 종류: 자동(화면·부품) · 요구: R-CHAT-012 🔒 · R-CHAT-011 · 설계: ME §0 변형 「저장 실패」 · §1.3 ④ · F-CH-57 그 밖 · labels `WriteAction 'memory'`·`validationText('memory')` · §4 그 밖 행 · §6 오류 문구 표 · D-37 · 토큰: 있음
+- Given 픽스처 ①, `putMemory` 1번째 (a) `INTERNAL` (b) `RATE_LIMITED` + `retryAfterSec: 12` (c) `RATE_LIMITED` 값 없음 (d) `VALIDATION_ERROR` (e) `NETWORK`, 2번째 deferred / (부품) `INTERNAL`
+- When textbox = `새 요약` → `저장` → 실패 → `저장` 다시
+- Then ⓐ 같은 dialog 유지 · 시트 안 alert 글자 (a) `ERROR_MESSAGES.INTERNAL` (b) `요청이 너무 많습니다. 12초 후 다시 시도해 주세요.` (c) `ERROR_MESSAGES.RATE_LIMITED` (d) `장기기억은 0~4000자로 입력해 주세요.` (e) `서버에 연결할 수 없습니다.` · 화면 alert 1개(E 토스트 없음) · textbox 값 `새 요약` 유지·`readOnly` 아님 · `닫기`·`취소`·`저장` 활성 → 다시 `저장` 누른 직후 alert 없음(요청 시작 때 비움) ⓑ `ld:lastRoomId='r1'` 유지 · `onAuthFailure`·`onBack` 0회 · (부품) `onLeave`·`onSaved`·`onClose` 0회 ⓒ `putMemory` `[['r1', { summary: '새 요약' }], ['r1', { summary: '새 요약' }]]`
+- 스펙: `MemorySheet.test.tsx`
+
+### TC-CH-133 · (S4) 방 사라짐(404) · 종류: 자동(화면·부품) · 요구: R-CHAT-012 🔒 · R-CHAT-011 · 설계: F-CH-56·57 `NOT_FOUND` → `onLeave` · F-CH-60 `memoryLeft` → `onRoomGone`(F-CH-33) · 배선 `useChatSheets onRoomGone` · §4 404 행 · §6 `NOT_FOUND` 행 · 토큰: 있음
+- Given (a) `getMemory` deferred(대기 Promise) — 시트가 열려 status `장기기억을 불러오는 중`을 확인한 뒤 act 안에서 `NOT_FOUND`로 resolve(v1.0.1) (b) 픽스처 ① + `putMemory` → `NOT_FOUND` / (부품) (a) `getMemory` → `NOT_FOUND`(부품은 열기 질의가 없어 resolve된 mock 그대로)
+- When (a) 시트를 연다 (b) textbox = `새 요약` → `저장`
+- Then ⓐ dialog 없음 · alert 0개(토스트 없음) · (부품) 시트 안 alert 없음 ⓑ `onBack` 1회, 호출 시점 `ld:lastRoomId` = null · `onAuthFailure` 0회 · (부품) `onLeave` 1회, 인자 `code: 'NOT_FOUND'` · `onClose`·`onSaved` 0회 ⓒ (a) `getMemory` `[['r1']]`·`putMemory` 0회 (b) `putMemory` `[['r1', { summary: '새 요약' }]]`
+- 스펙: `MemorySheet.test.tsx`
+
+### TC-CH-134 · (S4) 인증 실패 전환 · 종류: 자동(App 통합·부품) · 요구: R-CHAT-012 🔒 · R-CHAT-008 · R-CHAT-011 · R-NFR-004 · 설계: F-CH-56·57 인증 3종 → `onLeave` · F-CH-60 `memoryLeft` → `handleWriteFailure(…, 'memory')`(F-CH-16) · F-CH-29 · §4 인증 3종 행 · §6 인증 행 · §8 2행(전환 커밋 언마운트) · D-37 · 토큰: 있음 → 없음
+- Given `initToken('?t=test-token')` → `<App />` → `티타임` 진입 → ⋯ → `장기기억`. (a) 픽스처 ① + `putMemory` → `TOKEN_INVALID` (b)(c) `getMemory` deferred(대기 Promise) — 시트가 열려 status `장기기억을 불러오는 중`을 확인한 뒤 act 안에서 (b) `LEVEL_TOO_LOW` (c) `TOKEN_REQUIRED`로 resolve(v1.0.1) / (부품) 픽스처 ① + `putMemory` → `TOKEN_INVALID`
+- When (a) textbox = `고친 요약` → `저장` (b)(c) 시트를 연다
+- Then ⓐ dialog·alertdialog 없음 · 값이 `고친 요약`인 입력 없음(입력 버림) · ⋯·`메시지 작성` 그룹·textbox·switch 없음 · note `열람 전용 - 대화 참여는 등급 회원만` · alert 1개(`warning`) 글자 (a) `인증이 만료되어 열람 전용으로 바뀌었습니다. 새로 고쳐 주세요.` (b) `대화 참여 등급이 아니어서 열람 전용으로 바뀌었습니다.` (c) `로그인 정보가 없어 열람 전용으로 바뀌었습니다.` · 포커스 = ‹ ⓑ `getToken()` null · (부품) `onLeave` 1회, 인자 `code: 'TOKEN_INVALID'`, 시트 안 alert 없음 · `onClose`·`onSaved` 0회 ⓒ (a) `getMemory` `[['r1']]` · `putMemory` `[['r1', { summary: '고친 요약' }]]` (b)(c) `getMemory` `[['r1']]` · `putMemory` 0회
+- 스펙: `AuthTransition.test.tsx`(App 통합) · `MemorySheet.test.tsx`(부품)
+
+### TC-CH-135 · (S4) 버림 확인 · 종류: 자동(화면·부품) · 요구: R-CHAT-012 🔒 · R-CHAT-013 🔒 · 설계: ME §0 변형 「버림 확인」 · §1.2(바꿔 그림) · F-CH-54 · F-CH-58 · F-CH-59 · §4 닫기 행 · §6 `memoryDiscardTitle`·`memoryDiscardBody`·`memoryDiscardConfirm`·`memoryKeepEditing` · §7 버림 확인·포커스 · D-34 · 토큰: 있음
+- Given 픽스처 ① / (c) 추가로 조회 중(deferred) · 조회 실패(`INTERNAL`) / (부품) 픽스처 ①
+- When (a) textbox = `고친 요약` → `취소` → `계속 고치기` (b) 같은 변경 → `닫기` → 확인에서 Esc → 편집 시트 textbox에서 Esc → 확인 덮개 클릭 → 편집 시트 덮개 클릭 → `버리기` → ⋯ → `장기기억`(다시 열기) (c) 앞뒤 공백만 덧붙이고 `취소` · 조회 중 `취소` · 조회 실패 `닫기` / (부품) 변경 → `취소` → `버리기` · 변경 없이 `취소`
+- Then ⓐ (a) alertdialog `고친 내용을 버릴까요?`(설명 `저장하지 않은 내용은 사라집니다.`, 버튼 `계속 고치기` → `버리기` 순서) · 그동안 dialog `장기기억` 없음(겹치지 않음) · 첫 포커스 `계속 고치기` → 편집 시트 복귀, 값 `고친 요약`·카운터 `5/4000`·`저장` enabled · 포커스 textbox (b) 닫기·Esc·덮개 모두 같은 확인이 뜨고, 확인의 Esc·덮개는 편집 복귀(값 유지) → `버리기` → dialog·alertdialog 없음 · 포커스 = ⋯ → 다시 열면 값 = 서버 요약 (c) 셋 다 확인 없이 바로 닫힘 · 포커스 = ⋯ · 조회 중에 닫은 시트의 늦은 응답에도 dialog 없음 ⓑ 초안은 확인 동안 컨테이너에 남고 버리기 뒤 폐기 · (부품) 버리기 → `onClose` 1회(확인 전 0회) · 변경 없이 `취소` → `onClose` 1회·alertdialog 없음 ⓒ (a) `getMemory` 1회 그대로 (b) 다시 열기 전 1회 → 뒤 2회 (c) 3회 · 전 구간 `putMemory` 0회
+- 스펙: `MemorySheet.test.tsx`
+
+### TC-CH-136 · (S4) 토큰 없음 미렌더 · 종류: 자동 · 요구: R-CHAT-008 · R-CHAT-012 🔒 · R-MEM-001 🔒 · R-NFR-004 · 설계: ME §8 1~3행 · §1.6 `canWrite && <SheetLayer/>` · 토큰: 없음
+- Given `READ_ONLY_VIEWER`, 같은 방
+- When 첫 로드 뒤 화면을 본다
+- Then ⓐ `방 메뉴 열기`·button `장기기억`·dialog 없음 · 화면 글자에 `장기기억` 없음 ⓑ 저장소 키 `['ld:lastRoomId']`뿐(토큰·요약 없음) ⓒ `getMemory`·`putMemory` 0회 · `listMessages` 1회 (쌍: 토큰 있음 TC-CH-122)
+- 스펙: `MemorySheet.test.tsx`
+
+### TC-CH-137 · (S4) 늦은 응답 무시 · 종류: 자동(화면·부품) · 요구: R-CHAT-012 🔒 · R-CHAT-011 · 설계: ME §2 `aliveRef` · F-CH-55 cleanup · F-CH-56 `!aliveRef.current` · §8 4행 · 토큰: 있음
+- Given (a) `getMemory` deferred (b) 1번째·2번째 deferred / (부품) 단독 렌더, `getMemory` deferred
+- When (a) 시트를 열고 `닫기` → 늦은 응답 ① 픽스처 ① ② `NOT_FOUND` ③ `TOKEN_INVALID` (b) 열기 → `닫기` → 다시 열기 → 1번째 resolve(`첫 응답`) → 2번째 resolve(픽스처 ①) / (부품) 대기 중 언마운트 → `TOKEN_INVALID`
+- Then ⓐ (a) dialog 없음 그대로 · alert 0개 · ⋯ 그대로 (b) 1번째 resolve 뒤에도 두 번째 시트는 status `장기기억을 불러오는 중`, textbox 없음 → 2번째 resolve 뒤 값 = 요약 ⓑ `onBack`·`onAuthFailure` 0회 · `ld:lastRoomId='r1'` 유지 · `console.error` 0회 · (부품) `onClose`·`onSaved`·`onLeave` 0회 ⓒ (a) `getMemory` 1회 (b) 2회 · `putMemory` 0회
+- 스펙: `MemorySheet.test.tsx`
+
+### TC-CH-138 · (S4) 접근성 · 종류: 자동 · 요구: R-CHAT-013 🔒 · R-CHAT-012 🔒 · 설계: ME §7 시트·Tab 순서·키보드·카운터·레이블 · §1.3 TextArea `onEnter` 없음 · 토큰: 있음
+- Given 픽스처 ① 시트(포커스 textbox)
+- When textbox 끝에 `z` + Enter → `닫기`에 포커스 → Tab 4회 → Shift+Tab → textbox를 요약 원문으로 되돌림 → `닫기`에 포커스 → Tab 3회
+- Then ⓐ dialog `aria-modal="true"`·`aria-label="장기기억"` · 카운터 `aria-hidden="true"` · Enter = 줄바꿈(값 `요약 + 'z\n'`, 같은 dialog 유지) · 변경 있음: textbox → `취소` → `저장` → `닫기`(순환), Shift+Tab → `저장` · 변경 없음: textbox → `취소` → `닫기`(비활성 `저장` 건너뜀) · 조회 중 status는 TC-CH-123, 저장 실패 alert는 TC-CH-132 ⓑ 바뀌는 상태는 초안뿐(시트 유지) ⓒ `putMemory` 0회(Enter가 저장하지 않음)
+- 스펙: `MemorySheet.test.tsx`
+
+### TC-CH-139 · (S4) 390×565 장기기억 시트 스크린샷 · 스크린 리더(수동) · 종류: 수동 · 요구: R-CHAT-013 🔒 · R-CHAT-012 🔒 · 설계: ME §0 높이 근삿값·변형 표·갱신 시각 형식 · §1.3 `MEMORY_MAX_ROWS`·스타일 표 · §7 대비·낭독 · 토큰: 있음
+- Given 유효 토큰 주소, 시드 방 2개(장기기억 요약 있음 · 빈 요약)
+- When `manual-checklist.md` MC-CH-21 절차 ①~⑦ · MC-CH-22 절차
+- Then ⓐ MC-CH-21 기대(높이 약 388px ±16 ≤ 70% · 가로 스크롤 없음 · TextArea 7줄 상한 · 안내·오류 대비 4.5:1 · 높이 ≤ 480이면 입력 1줄) · MC-CH-22 기대(시트·입력 이름 낭독, 카운터 미낭독, 초과 설명·실패 문구 낭독, 포커스 복귀) ⓑ —(화면 측정 전용, 상태는 TC-CH-128~135) ⓒ —(api는 TC-CH-123~134)
+- 스펙: 없음(수동 — MC-CH-21 · MC-CH-22)
+
 ## TC-FLOW
 
 S1·S2 행. **ⓒ 호출 횟수는 단계 증분으로 읽는다**: 체인 안에서 각 Step의 ⓒ 횟수는 그 Step에서 새로 생긴 호출 수이고 앞 Step 호출에 더해진다(CF-02). 표기: `A → B`는 **순차 인계**(A의 결과 상태가 B의 Given). `분기:`는 같은 지점에서 갈라지는 **대안·독립 확인**(서로 상태를 넘기지 않는다).
@@ -851,6 +971,92 @@ S1·S2 행. **ⓒ 호출 횟수는 단계 증분으로 읽는다**: 체인 안�
 
 ### TC-FLOW-CH-19 · U-CH-14 말풍선 아래 버튼으로 수정·삭제·재작성(S3e) · Steps: TC-CH-110 → TC-CH-115 → TC-CH-116 · 분기(재작성 — 재작성 픽스처 Given): TC-CH-111 → TC-CH-117 | 실패 TC-CH-081 | TC-CH-082 | TC-CH-083 · 분기(대기 중 확인): TC-CH-114 | TC-CH-119 · 분기(전환): TC-CH-120 | TC-CH-084 · 메뉴 없음 확인: TC-CH-113 · 시각: TC-CH-121
 - 상태 전달: 110(쓰기 판, 말풍선마다 「수정」「삭제」) → 115 「수정」 → 인라인 편집 → 저장 200(→ 본문 교체, 포커스 = 그 「수정」) → 116 같은 화면의 「삭제」 → 확인 시트 → 취소(→ 포커스 = 「삭제」) → 다시 「삭제」 → 삭제(→ 말풍선·그룹 제거, 포커스 log). 재작성은 마지막 캐릭터 대사가 있는 Given이라 `분기:`로 둔다: 111 「재작성」 표시 → 117 confirm 없이 `regenerate(72)` → 200(→ 같은 자리 교체, 포커스 = 「재작성」). **U-CH-10 폐기(CR-003)**: TC-FLOW-CH-09·15는 이력으로 남기고 S3e 이후 같은 사용자 흐름은 이 체인이 대신한다(FLOW-CH-09의 039·040·041 단계는 폐기·대체). TC-FLOW-CH-05·11의 022 단계는 112로, TC-FLOW-CH-13의 "말풍선 메뉴"는 버튼 줄(110)로 읽는다.
+
+### TC-FLOW-CH-20 · U-CH-15 장기기억 확인·고치기(S4) · Steps: TC-CH-122 → TC-CH-123 → TC-CH-124 → TC-CH-128 → TC-CH-131 · 분기(조회 결과 — 각자 Given): TC-CH-125 | TC-CH-126 | TC-CH-133(a) | TC-CH-134(b)(c) · 분기(편집 중 — 각자 Given): TC-CH-129 | TC-CH-130 | TC-CH-135 | TC-CH-138 · 분기(저장 결과 — 각자 Given): TC-CH-132 | TC-CH-133(b) | TC-CH-134(a) · 그 밖 분기: TC-CH-127 | TC-CH-137 · 토큰 없음: TC-CH-136 · 시각: TC-CH-139
+- 상태 전달: 122(쓰기 판 ⋯ → 방 메뉴 4항목) → 123 「장기기억」(→ 방 메뉴 닫힘, 시트 마운트, `getMemory('r1')` 대기, 포커스 `닫기`) → 124 그 대기가 요약 있음으로 끝남(→ 값·카운터 `22/4000`·`마지막 갱신`, 포커스 textbox, 저장 비활성) → 128 같은 시트에서 글자를 바꿈(→ 변경 있음, 저장 활성) → 131 저장 200(→ 시트 닫힘, 토스트 `장기기억을 저장했습니다`, ⋯ 포커스). 나머지는 Given이 달라 `분기:`로 둔다: 빈 요약 | 조회 실패·재시도 | 방 사라짐 | 조회 중 인증 실패 / 4000·4001자 | 비우기 저장 | 버림 확인 | 키보드·Tab / 저장 실패(시트 안 문구·입력 보존) | 저장 중 방 사라짐 | 저장 중 인증 실패(전환) / 열 때마다 재조회 | 닫은 뒤 늦은 응답. U-CH-15 "인증 실패면 읽기 전용 전환"의 끝 상태는 134(a)(b)(c) — 같은 화면 읽기 전용, 토큰 비움.
+
+## 추적표 — S4 추가분 (v1.0)
+
+화면 TC는 시트가 계약 래퍼를 계약 인자로 부르는지(`getMemory(roomId)` · `putMemory(roomId, { summary: 원문 })`)·부르지 않는지(토큰 없음 · 변경 없음 · 초과 · 저장 중 연타 · 버리기 · Enter)를 단언한다. Bearer 부착은 래퍼 몫. 자동 TC 17개(122~138) · 수동 1개(139).
+
+### 대체·영향 TC (S4) — 바뀐 단언의 정본
+
+| 기존 TC | S4 처리 | 바뀐 단언 | 스펙 변경 |
+|---|---|---|---|
+| TC-CH-047 | **개정** | 방 메뉴 버튼 `이름 변경`·`장기기억`·`방 삭제`·`취소`(4개), 옛 "`장기기억` 없음(S4)" 삭제 · ⓒ에 `getMemory`·`putMemory` 0회 추가. 순서 정본은 TC-CH-122 | `RoomMenu.test.tsx`(it 이름·순서 배열 · mock `@/api/memory` 추가) |
+| TC-CH-061 | 개정 | 방 메뉴 장면 4항목, 장기기억 시트 장면은 TC-CH-139(MC-CH-21) | `manual-checklist.md` MC-CH-11 |
+| TC-CH-003 · 021 · 023 | **유지 명시** | 읽기 전용 판 DOM 불변(⋯ 없음 → 항목 없음). 쌍 단언은 TC-CH-136 | 없음 |
+| TC-CH-015 · 053 | **유지 명시** | `initialChatState`·전이표 불변(D-33 — 장기기억 상태는 시트 지역) | 없음 |
+| TC-CH-048 · 049 · 050 | **유지 명시** | 이름 변경·방 삭제 흐름 불변. 항목 위치가 한 칸 밀리지만 이름으로 질의해 단언 불변 | 없음(`RoomMenu.test.tsx` mock 목록만 늘어남) |
+| TC-CH-051 · 052 · 063 · 120 | 유지 | 단언 불변. 같은 파일에 TC-CH-134가 들어와 mock 목록에 `getMemory`·`putMemory` 추가 | `AuthTransition.test.tsx`(mock 목록) |
+| useWriteFailure 단위 스펙 | 유지(chat 스펙에 단위 파일 없음) | 반환에 `showNotice`가 늘 뿐 `handleWriteFailure` 불변. `showNotice` 관찰은 TC-CH-130·131 화면 단위 | 없음 |
+| 「후속 이월」 S4 행 | **해소** | TC-CH-122~139 | — |
+| MC-CH-11 | 개정 | 방 메뉴 4항목 · 장기기억 시트는 MC-CH-21·22 | `manual-checklist.md` v0.6 |
+
+집계: **개정 2**(047 · 061) · **유지 명시 7**(003 · 021 · 023 · 015 · 053 · 048~050) · 유지 4(051 · 052 · 063 · 120, mock 목록만) · 폐기·대체 0.
+
+### 요구 ↔ TC (S4)
+
+| 요구ID | TC | 비고 |
+|---|---|---|
+| R-CHAT-012 🔒 | TC-CH-122 · 123 · 124 · 125 · 126 · 127 · 128 · 129 · 130 · 131 · 132 · 133 · 134 · 135 · 136 · 137 · 138 · 139(수동) · 개정 047 · 061 | 보기 · 편집 0~4000 · 저장 · ⋯ 진입 · 열 때마다 재조회 · 입력 보존 · 버림 확인 |
+| R-CHAT-001 🔒 | TC-CH-122 · 123 · 개정 047 | 항목 순서 이름 변경 · 장기기억 · 방 삭제 |
+| R-CHAT-008 | TC-CH-136 · 134 | 토큰 없음 미렌더 · 전환 뒤 시트 언마운트 |
+| R-CHAT-011 | TC-CH-126 · 132 · 133 · 134 · 137 | 조회·저장 오류 문구 · 목록 복귀 · 전환 · 늦은 응답 |
+| R-CHAT-013 🔒 | TC-CH-122 · 123 · 124 · 126 · 129 · 131 · 135 · 138 · 139(수동) | 레이블 · 포커스(열 때·닫을 때) · Tab 순환 · `aria-invalid`·`aria-describedby` · 390px |
+| R-MEM-001 🔒 | TC-CH-124 · 125 · 128 · 129 · 130 · 136 | trim 후 코드 포인트 0~4000 · 빈 요약 · `sourceUntilId` 미표시 · 토큰 필요(읽기 전용 진입 없음) |
+| R-NFR-004 | TC-CH-124 · 131 · 134 · 136 | 요약·토큰 저장소 미저장 · 전환 뒤 토큰 비움 |
+
+### 설계 항목 ↔ TC (S4, `design/memory.md`)
+
+| 설계 항목 | TC |
+|---|---|
+| ME §0 방 메뉴 항목 순서(4개) | 122 · 047 |
+| ME §0 시트 구성·순서(머리·안내·갱신·입력·카운터·문구·버튼) | 123 · 124 · 129 · 132 · 139 |
+| ME §0 변형 6(조회 중 · 조회 실패 · 빈 요약 · 저장 중 · 저장 실패 · 버림 확인) | 123 · 126 · 125 · 131 · 132 · 135 |
+| ME §0 시트 높이 · 높이 ≤ 480 한 줄 | 139(수동) |
+| ME §0 갱신 시각 형식 `MM.DD HH:mm` | 124 · 127 |
+| ME §1.1 배치 분류(공용 재사용 · chat 로컬 신규) | 비행동(구조 — 리뷰 몫). 공용 부품 동작은 기존 TC-CH-055 · 056 · 058 |
+| ME §1.2 `MemorySheet` props · 바꿔 그림 · 마운트 1회 조회 | 131 · 132 · 133 · 134 · 135(부품 콜백) · 135(alertdialog 동안 dialog 없음) · 127 |
+| ME §1.3 `MemoryEditor` DOM(머리 h2·닫기 · 안내 · body 3행 · 하단 버튼 · `ariaDescribedBy`) | 123 · 126 · 124 · 129 · 131 |
+| ME §1.3 갱신 줄 조립(앞말 + `<time dateTime>`) · TextArea props(`maxChars`·`counterMode`·`isReadOnly`·`onEnter` 없음) · `MEMORY_MAX_ROWS` 7 | 124 · 128·131·138 · 139(높이, 수동) |
+| ME §1.3 스타일 표 | 139(수동) · 129(`over` 클래스 키) |
+| ME §1.4 `RoomMenuSheet` `onMemory` · 항목 순서 | 122 · 123 |
+| ME §1.5 `ChatSheets` 델타(`memory` 시트 · 콜백 3) | 123 · 131 · 133 · 134 |
+| ME §1.6 `SheetLayer` 배선 · `canWrite` 조건 | 136 · 134 |
+| ME §2 상태 표(`sheet` · `load` · `draft` · `isSaving` · `savingRef` · `saveError` · `isAskingDiscard` · `aliveRef` · `latestRef`) | 123 · 124·126 · 128 · 131 · 131(연타) · 132 · 135 · 137 · 131·133·134(최신 콜백) |
+| ME §2 순수 `MemoryLoad` · `MEMORY_SUMMARY_MAX_CHARS` · `isMemoryOver` · `isMemoryDirty` · `canSaveMemory` | 128 · 129 · 130(`ui/src/state/memory.test.ts`) |
+| ME §2 토큰 없음(상태 어디에도) | 124 · 131 · 136(저장소 키) |
+| F-CH-53 `openMemory` | 122 · 123 |
+| F-CH-54 `MemorySheet` | 123 · 135 |
+| F-CH-55 `useMemorySheet` 마운트·cleanup | 123 · 127 · 137 |
+| F-CH-56 `loadMemory`·`retryLoad` | 124 · 125 · 126 · 133(a) · 134(b)(c) · 137 |
+| F-CH-57 `save` | 130 · 131 · 132 · 133(b) · 134(a) |
+| F-CH-58 `requestClose` | 135 · 131(저장 중 무시) |
+| F-CH-59 `keepEditing`·`confirmDiscard` | 135 |
+| F-CH-60 `memorySaved`·`memoryLeft` | 130 · 131 · 133 · 134 |
+| F-CH-61 순수 판정 | 128 · 129 · 130 |
+| F-CH-62 `useFocusWhenReady` | 124 · 126 |
+| F-CH-16 확장 `showNotice` · 배선(`onRoomGone`·`showNotice`) | 131 · 130 · 133 |
+| labels `WriteAction 'memory'` · `validationText('memory')` | 126 · 132(d) · 134 |
+| ME §4 파이프라인(대기 · 200 · 인증 3종 · 404 · 그 밖 / 편집 · 초과 · 변경 없음 / 저장 200 · 인증 · 404 · 그 밖 / 닫기 변경 없음 · 변경 있음 → 계속 고치기 · 버리기) | 123 · 124 · 134 · 133 · 126 / 128 · 129 · 128 / 131 · 134 · 133 · 132 / 135 |
+| ME §4 낙관적 갱신 없음 · 경합 문구 없음(D-38) · 비우기 confirm 없음(D-39) | 131(응답 뒤에만 닫힘) · 비행동(문구 부재는 매뉴얼 몫) · 130 |
+| ME §5 계약 사용표 E13 · E14 | 123 · 124 · 125 · 126 · 130 · 131 · 132 |
+| ME §6 문구 키(`memory` · `memoryClose` · `memoryGuide` · `memoryUpdatedAtPrefix` · `memoryInputAriaLabel` · `memoryPlaceholder` · `memoryLoading` · `memoryLoadError` · `retry` · `memoryOverNote` · `cancel`·`save` · `memorySaved` · Discard 4종) | 122 · 123 · 123 · 124 · 124 · 125 · 123 · 126 · 126 · 129 · 131 · 131 · 135 |
+| ME §6 오류 문구 표(인증 3 · NOT_FOUND · RATE_LIMITED 2 · VALIDATION_ERROR · NETWORK · 그 밖) | 134 · 133 · 132 · 132 · 126·132 · 126·132 |
+| ME §7 접근성(시트 이름 · 버림 확인 · 포커스 열 때 3 · 닫을 때 3 · Tab · 키보드 · 카운터 · 상태 알림 · 레이블 · 대비) | 123·138 · 135 · 123·124·126 · 131·135·134 · 138 · 138·131 · 129·138 · 123·126·132 · 122·124 · 139 |
+| ME §8 읽기 전용 4행 | 136 · 136·134 · 136 · 137 |
+| ME §9 D-33 · 34 · 35 · 36 · 37 · 38 · 39 · 40 · 41 · 42 | 131(채팅 상태 불변)·015·053 · 135 · 129·124 · 131·127 · 132·133·134 · 127 · 130 · 124 · 124·125·128 · 124 |
+| ME §10 공용화 후보 | 비행동(보고만) |
+
+### 사용자행 ↔ TC-FLOW (S4)
+
+| 사용자행 | TC-FLOW | 비고 |
+|---|---|---|
+| U-CH-15(S4 신규) | TC-FLOW-CH-20 | 장기기억 보기·고치기·저장 · 버림 확인 · 전환 |
+| U-CH-11(정리 — 장기기억은 U-CH-15) | TC-FLOW-CH-10(불변, 047 개정만) | 이름 변경·방 삭제 |
+| U-CH-12 | TC-FLOW-CH-11 · 17 + **분기 TC-CH-134**(이 표가 정본) | 장기기억 조회·저장 중 인증 거절 |
+| U-CH-05 | TC-FLOW-CH-05 + **분기 TC-CH-136**(이 표가 정본) | 읽기 전용 ⋯·장기기억 부재 |
 
 ## 추적표 — S3e 추가분 (v0.9)
 
@@ -1299,7 +1505,7 @@ S1·S2 행. **ⓒ 호출 횟수는 단계 증분으로 읽는다**: 체인 안�
 
 ## 후속 이월 (S2에서 만들지 않는 TC)
 
-S3 행 4개는 v0.6에서 **해소**(TC-CH-066~094). S4 행만 남는다.
+S3 행 4개는 v0.6에서 **해소**(TC-CH-066~094). S4 행은 v1.0에서 **해소**(TC-CH-122~139). 남은 이월 없음.
 
 | 대상 | 묶음 | 이유 | 그때 만들 것 |
 |---|---|---|---|
@@ -1307,7 +1513,7 @@ S3 행 4개는 v0.6에서 **해소**(TC-CH-066~094). S4 행만 남는다.
 | 생성 중 "…" 임시 말풍선·버튼 잠금·실패 말풍선·재시도 | S3 | R-CHAT-005 후속 | 가짜 시계·잠금 해제·오류 말풍선 |
 | 재작성 메뉴 항목 | S3 | R-CHAT-007 후속(TC-CH-040이 부재 단언) | 캐릭터·마지막 메시지 조건, `messageReplaced` |
 | `SPEAK_IN_PROGRESS`·`LLM_FAILED`·`LLM_EMPTY` 문구 | S3 | §8.3 행 추가 예정 | `writeErrorText` 확장 TC |
-| 장기기억 메뉴 항목 | S4 | R-CHAT-012 | 방 메뉴 항목·요약 화면 |
+| ~~장기기억 메뉴 항목~~ | S4 | R-CHAT-012 | **해소(v1.0)**: TC-CH-122(항목) · 123~138(시트) · 139(수동) |
 
 ## 변경 대기열(미검증)
 
@@ -1322,6 +1528,10 @@ S3 행 4개는 v0.6에서 **해소**(TC-CH-066~094). S4 행만 남는다.
 | Q-07 | 2026-10-06 | —(tc.md v1.7 대체 지정) | S3 캐릭터 버튼·재작성 항목 등장으로 S2 단언 대체·조정: 031 버튼 부재 두 줄 삭제(→ 066) · 040 이름 조정(→ 079) · 021 정규식 질의 · `MessageMenuSheet` 필수 props(040 부품·054(d)) · S2 mock 목록에 `speak`·`regenerate`(Composer·BubbleMenu) | `Composer.test.tsx` · `BubbleMenu.test.tsx` · `ChatScreen.test.tsx` | TC-CH-021 · 031 · 033 · 040 · 054 | TC-CH-066 · 079 · 088 | 전환됨(TC-CH-066 · 079 · 088) |
 | Q-08 | 2026-10-06 | CR-002 | S3d(설계 v1.9 `design/auto.md`): 전송 저장 성공 → 곧바로 `speak('auto')`(T35 원자 전이) · 중립 "…"·중립 실패 + 재시도 · 유저 작성자 표기 = 받은 값, 비었으면 `어떠한 의지`(`unknownAuthor` 삭제). 기존 단언 변경 목록은 `design/auto.md` §9.1 표 그대로. 검증 반영: `Composer.test` TC-CH-033·034·038·088의 `items()` 길이 5 → 6(중립 `li`) · `SpeakFlow` TC-CH-090은 저장 응답 뒤 세바스찬 버튼 `disabled` 유지·`speak` 총 2회 · 생성 중 편집 저장만 비활성(InlineEditor `isSaveLocked`, TC-CH-107) | `Bubble.test.tsx` · `Composer.test.tsx`(283·309행 필터) · `SpeakFlow.test.tsx` · `AuthTransition.test.tsx` · `BubbleMenu.test.tsx` · `Regenerate.test.tsx` · `ChatScreen.test.tsx` · `ui/src/state/chat.test.ts` · `PendingBubble.test.tsx` | TC-CH-008 · 033 · 034 · 036 · 038 · 063 · 075 · 088(폐기 → 098) · 090 · 053 · 085 · 040·079(null fixture만) | TC-CH-098 ~ 109(`design/auto.md` §9.2 예약) | **반영됨(v0.8)** · 전환됨(TC-CH-098 ~ 109 · 개정 008·033·034·036·038·053·063·075·085·090 · 폐기 088 → 098) |
 | Q-09 | 2026-10-07 | CR-003 | S3e(`design/actions.md` v2.0): 말풍선 롱프레스·우클릭·Shift+F10 바텀시트 메뉴 → 말풍선 아래 항상 보이는 「수정」「삭제」 + 마지막 캐릭터 「재작성」(`BubbleActions`). 비활성 = `!canSpeak ∨ roomBusy`. 포커스: 편집 닫힘 → 그 「수정」(disabled면 log) · 재작성 잠금 해제 → 같은 「재작성」 · 삭제 취소·실패 → 「삭제」. 재작성 실패 문구 개정(D-30). 기존 단언 변경은 actions.md §11.2 표 + TC-CH-086 문구 | 신규 `BubbleActions.test.tsx` · `MessageActions.test.tsx` / 갱신 `Regenerate.test.tsx`(재작성) · `AutoReply.test.tsx` · `AuthTransition.test.tsx` · `SpeakFlow.test.tsx` · `Composer.test.tsx` · `ChatScreen.test.tsx` · `MessageList.test.tsx`(렌더 도우미) · `ui/src/state/chat.test.ts` · `manual-checklist.md` / **삭제 대상** `BubbleMenu.test.tsx`(ui-implementer) | 폐기 039·041 · 대체 022·040·079·108(일부) · 개정 031·042~046·051·052·054·061·063·069·070·080~084·086·087·092·094·095·097·099·100·107 · 유지 053·055·056·060 · 렌더 도우미 011·014·019 | TC-CH-110 ~ 121(actions.md §11.1 예약) | **반영됨(v0.9)** · 전환됨(TC-CH-110 ~ 121 · 개정 27 · 폐기 039·041 · 대체 022 → 112 · 040 → 110·111 · 079 → 111 · 108 → 118) |
+
+### 변경이력 보충 — v1.0 (2026-10-07)
+
+**S4 구축(장기기억 시트, R-CHAT-012 🔒)**: 머리말 v1.0 기준·상태 · 「S4 공통 전제」(정본 우선순위 · 토큰 · `@/api/memory` 모킹·영원히 대기 기본값 · 질의 이름·바꿔 그림 뒤 재질의 · 픽스처 3종 · 카운터·초과 클래스 키 · `fireEvent.change` 긴 입력 · deferred 직접 resolve·가짜 시계 없음 · 저장소 키 단언 · 스펙 배치). **신규** TC-CH-122 ~ 138(자동 17) · TC-CH-139(수동 1, `manual-checklist.md` MC-CH-21 · 22) · TC-FLOW-CH-20(U-CH-15). **개정** 047(본문·머리) · 061(머리·When). 「추적표 — S4 추가분」(대체·영향 · 요구 · 설계 · 사용자행). 「후속 이월」 S4 행 해소. 스펙: 신규 `MemorySheet.test.tsx`(화면 단위 + 부품 콜백) · 신규 `ui/src/state/memory.test.ts`(순수) · 갱신 `AuthTransition.test.tsx`(TC-CH-134 App 통합 3개 · mock 목록) · `RoomMenu.test.tsx`(047 · mock 목록). 변경 대기열 행 없음 — 구축 모드(CR 아님)라 Q 행을 만들지 않았다. 근거: `design/memory.md` v2.1 §11 · requirements.md v2.1 · api.md v0.7 · 메인 세션 위임(S4)
 
 ### 변경이력 보충 — v0.9 (2026-10-07)
 
@@ -1353,3 +1563,5 @@ ui-test-checker S2 판정 FAIL 지적 반영: TC-CH-038 내용 높이 mock을 "�
 | v0.9 | 2026-10-07 | **S3e 보강**(말풍선 액션 버튼, 메뉴 대체): TC-CH-110~121(자동 11 · 수동 1) · TC-FLOW-CH-19(U-CH-14) · 「S3e 공통 전제」 · 「추적표 — S3e 추가분」. 폐기 2(039·041) · 대체 4(022·040·079·108 일부) · 개정 27(actions.md §11.2의 26 + 086 문구) · 유지 명시 4(053·055·056·060). 스펙 신규 `BubbleActions`·`MessageActions`, `BubbleMenu.test.tsx` 삭제 대상. 확인표 v0.5(MC-CH-20). 상세는 「변경이력 보충 — v0.9」 | S3e, design/actions.md v2.0 · requirements.md v2.0 · CR-003 · Q-09 |
 | v0.9.1 | 2026-10-07 | 스펙 결함 2건 수정(Given/When/기대 의미 불변, 조회 방식만): TC-CH-115 D-17 it — 전송된 105와 103의 그룹 이름이 같아 화면 전체 `getByRole('group')`이 중복 오류 → 103 `li` 안으로 범위를 좁힘 · TC-CH-118 — 공용 Button도 non-scoped `root` 키라 `classList.contains('root')` 판별이 항상 참 → 포커스 요소 태그 `BUTTON` 단언. 「S3e 공통 전제」 질의·클래스 키 줄에 같은 규칙 추가 | 구현 후 ui 실행 결과(686건 중 684 통과, 메인 세션) |
 | v0.9.2 | 2026-10-07 | S3e 후작업 반영: 공용 `useLongPress`(훅·테스트) 삭제로 TC-CH-060 **폐기** 표시(본문은 이력 보존, 스펙 줄 취소선) · S3e 영향표 060 행 유지 → 폐기, 집계 폐기 3 · 유지 명시 3 · TC-CH-086 Then 재작성 실패 문구 개정(D-30, 스펙은 v0.9부터 새 문구). v0.9 행·Q-09·보충 v0.9의 "유지 4"는 당시 기록으로 둔다 | 메인 세션 위임(S3e 후작업) |
+| v1.0 | 2026-10-07 | **S4 구축**(장기기억 시트): TC-CH-122~139(자동 17 · 수동 1) · TC-FLOW-CH-20(U-CH-15) · 「S4 공통 전제」 · 「추적표 — S4 추가분」. 개정 2(047 · 061) · 유지 명시 7(003 · 021 · 023 · 015 · 053 · 048~050). 스펙 신규 `MemorySheet`·`state/memory`, 갱신 `AuthTransition`·`RoomMenu`. 확인표 v0.6(MC-CH-21 · 22, MC-CH-11 개정). 상세는 「변경이력 보충 — v1.0」 | S4, design/memory.md v2.1 · requirements.md v2.1 · api.md v0.7 |
+| v1.0.1 | 2026-10-07 | 스펙 타이밍 결함 3건 수정. 기대 결과의 의미는 그대로이고 Given의 응답 시점만 바꿨다. 대상은 TC-CH-133(a)와 TC-CH-134(b)(c)다. 이탈로 끝나는 조회를 이미 resolve된 mock으로 주면 클릭 직후 시트가 닫혀 열기 헬퍼의 시트 질의가 실패했다. 조회를 대기 Promise로 바꾸고, 조회 중 status를 확인한 뒤 act 안에서 resolve한다. 「S4 공통 전제」 대기 줄에 같은 규칙을 추가했다 | 구현 후 ui 실행 결과(741건 중 738 통과, 메인 세션) |

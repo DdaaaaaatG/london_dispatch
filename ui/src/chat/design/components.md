@@ -206,7 +206,9 @@ export type InlineEditorProps = {
 ```ts
 export type RoomMenuSheetProps = { roomTitle: string; onRename: () => void; onDelete: () => void; onClose: () => void }
 ```
-- 렌더: `BottomSheet ariaLabel={labels.roomMenuAriaLabel} header={<p class=menuHeader>{labels.roomMenuHeader(roomTitle)}</p>} onClose={onClose}` 안에 `SheetItem` 이름 변경 → (장기기억 — **S4, 미렌더**. 자리는 이름 변경과 방 삭제 사이) → 방 삭제(`danger`) → 취소.
+- 렌더: `BottomSheet ariaLabel={labels.roomMenuAriaLabel} header={<p class=menuHeader>{labels.roomMenuHeader(roomTitle)}</p>} onClose={onClose}` 안에 `SheetItem` 이름 변경 → **(S4) 장기기억**(`onMemory`, props 추가 — `design/memory.md` §1.4) → 방 삭제(`danger`) → 취소.
+
+> (S4) `ChatSheet`에 `{ kind: 'memory' }`, `ChatSheetsProps`에 `onAskMemory`·`onMemorySaved`·`onMemoryLeave`가 더해지고 `memory` kind는 `MemorySheet`를 렌더한다 — §2.10 표의 추가 행은 `design/memory.md` §1.5(ME가 우선).
 
 ### 2.10 ChatSheets (시트 스위치) — S2
 

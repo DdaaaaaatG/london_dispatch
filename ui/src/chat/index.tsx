@@ -3,6 +3,7 @@
  * S3: 캐릭터 버튼 2개 · 목록 끝 임시/실패 말풍선. 요구 R-CHAT-004 · 005 · 007
  * S3d: 전송이 저장되면 곧바로 자동 응답(중립 "…" 말풍선). 생성 중에는 열린 편집기의 저장 버튼만 잠근다. 요구 R-CHAT-006 · 014
  * S3e: 말풍선 아래 버튼 줄 「수정」·「재작성」·「삭제」(쓰기 가능일 때만, 롱프레스·우클릭 메뉴 대체). 요구 R-CHAT-007 🔒 · design/actions.md
+ * S4: ⋯ 방 메뉴 「장기기억」 → 장기기억 시트(조회·편집·저장, 쓰기 가능일 때만). 요구 R-CHAT-012 🔒 · design/memory.md
  * 상태 전이는 ui/src/state/chat.ts 리듀서, 요청·스크롤·시트는 useChatScreen 이 조립한 훅들이 한다. 여기서는 렌더만 한다.
  * 토큰이 없으면(viewer.canWrite === false) 쓰기 UI(⋯ 메뉴 · 하단 바 · 말풍선 버튼 줄 · 시트 · 인라인 수정)는 렌더하지 않는다(숨김 금지).
  * 화면은 토큰을 읽지도 저장하지도 않는다. 인증 실패는 onAuthFailure 로 App 에 알려 읽기 전용으로 전환된다.
@@ -127,6 +128,9 @@ const SheetLayer = ({ room, state, sheets }: SheetLayerProps) =>
       onConfirmDeleteMessage={sheets.confirmDeleteMessage}
       onAskRename={sheets.askRename}
       onSaveRename={sheets.saveRename}
+      onAskMemory={sheets.openMemory}
+      onMemorySaved={sheets.memorySaved}
+      onMemoryLeave={sheets.memoryLeft}
       onAskDeleteRoom={sheets.askDeleteRoom}
       onConfirmDeleteRoom={sheets.confirmDeleteRoom}
     />
