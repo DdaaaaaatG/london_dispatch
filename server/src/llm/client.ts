@@ -145,6 +145,19 @@ export const createLlm = (deps: LlmDeps): Llm => {
     }
   }
 
+  /** 시도 실패 1건 로그. 상태·분류·시간만(원문·키 없음) */
+  const logAttemptFailed = (err: LlmError, attemptNo: 1 | 2, ms: number): void => {
+    logger.warn('llm_attempt_failed', {
+      provider: provider.name,
+      attempt: attemptNo,
+      reason: err.reason,
+      httpStatus: err.httpStatus,
+      providerStatus: err.providerStatus,
+      finishReason: err.finishReason,
+      ms,
+    })
+  }
+
   const complete = async (prompt: Prompt, options?: CompleteOptions): Promise<string> => {
     const start = now()
     const budgetMs = LLM_BUDGET_MS - (options?.spentMs ?? 0)
@@ -163,16 +176,7 @@ export const createLlm = (deps: LlmDeps): Llm => {
         timeoutMs,
         clock,
         {
-          onAttemptFailed: (err, attemptNo, ms) =>
-            logger.warn('llm_attempt_failed', {
-              provider: provider.name,
-              attempt: attemptNo,
-              reason: err.reason,
-              httpStatus: err.httpStatus,
-              providerStatus: err.providerStatus,
-              finishReason: err.finishReason,
-              ms,
-            }),
+          onAttemptFailed: logAttemptFailed,
           onBudgetSkip: () => {
             budget = true
           },

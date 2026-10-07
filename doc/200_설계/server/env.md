@@ -1,6 +1,6 @@
 # env 모듈 설계
 
-- 상태: 확정(S1 구현 동기화) · S3b 초안(키 4개 — §2 S3b 델타·§3.1·§6) · S3c 구현 완료(`OWNER_MB_IDS` 1키 — §2 S3c 델타) · 최종 갱신: 2026-10-06
+- 상태: 확정(S1 구현 동기화) · S3b 초안(키 4개 — §2 S3b 델타·§3.1·§6) · S3c 구현 완료(`OWNER_MB_IDS` 1키 — §2 S3c 델타) · verify 후속 동기화(`TOKEN_SECRET` 32자 하한, SEC-001 — §3.1·§5·§6.2·§8·D-ENV-13) · 최종 갱신: 2026-10-07
 - 묶음: S1(저장 + 읽기 전용). 이 문서의 공개 API는 전부 S1에서 구현되었다(`requireLlmApiKey`는 S1에서 만들고 S3 speak가 호출). **S2 변경 없음**: S2가 쓰는 `TOKEN_SECRET`·`TOKEN_MIN_LEVEL`·`RATE_LIMIT_PER_MIN`은 이미 `Config`(`tokenSecret`·`tokenMinLevel`·`rateLimitPerMin`)에 있고, [auth.md](auth.md) §6이 값으로 받는다. **S3 변경 없음**: S3가 쓰는 `llmProvider`·`llmModel`·`llmTimeoutMs`·`contextMessages`와 `requireLlmApiKey`는 이미 구현되어 있다. 컨테이너가 speak·regenerate 시점에만 `requireLlmApiKey`를 부르는 지연 생성 함수로 감싼다([llm.md](llm.md) §3.3, R-ENV-003). `requireLlmApiKey`는 `LLM_PROVIDER=fake`이면 키를 요구하지 않고 `''`을 돌려주며, `FakeProvider`는 그 값을 쓰지 않는다(키 없는 로컬 개발·테스트용). **S3b 변경**: 월 비용 상한(R-LLM-007 🔒) 키 4개 `LLM_MONTHLY_BUDGET_KRW`·`LLM_PRICE_INPUT_USD_PER_M`·`LLM_PRICE_OUTPUT_USD_PER_M`·`KRW_PER_USD`(전부 `[vars]`, 비밀 아님)와 소수 변환기 `decimalVar`를 더한다.
 - 관련 문서: [index.md](index.md)(호출 지점·부트스트랩), [db.md](db.md)(`DB` 바인딩 소비), [auth.md](auth.md)(토큰·레이트리밋 설정 소비), [rooms.md](rooms.md), [messages.md](messages.md).
 
@@ -228,7 +228,7 @@ OWNER_MB_IDS=
 
 | 키 | 출처 | 비밀 | 원시 타입 | 필수 / 기본값 | 검증 | `Config` 필드 | 쓰는 묶음 |
 |---|---|---|---|---|---|---|---|
-| `TOKEN_SECRET` | Secrets / `.dev.vars` | ○ | string | **필수** | 빈 문자열 = 누락. trim 하지 않음(HMAC 키가 PHP와 달라지지 않도록) | `tokenSecret` | S2 auth |
+| `TOKEN_SECRET` | Secrets / `.dev.vars` | ○ | string | **필수** | 빈 문자열 = 누락. trim 하지 않음(HMAC 키가 PHP와 달라지지 않도록). **32자 이상**(`TOKEN_SECRET_MIN_LENGTH = 32`, zod `.min` = UTF-16 코드 단위, SEC-001 2026-10-07). 짧으면 `ConfigError(['TOKEN_SECRET'])`. 운영·로컬·제공사 구분 없음(D-ENV-13) | `tokenSecret` | S2 auth |
 | `LLM_API_KEY` | Secrets / `.dev.vars` | ○ | string | 선택(없으면 `undefined`) | 빈 문자열 = 누락. trim 하지 않음 | `llmApiKey` | S3 llm |
 | `TOKEN_MIN_LEVEL` | `[vars]` | ✕ | string\|number | 5 | 정수 1~10(그누보드 `mb_level` 범위) | `tokenMinLevel` | S2 auth |
 | `LLM_PROVIDER` | `[vars]` | ✕ | string | `google` | `google` \| `fake` | `llmProvider` | S3 llm |
@@ -309,10 +309,11 @@ fetch(request, env, ctx)                      ← Workers 런타임
 
 | 에러 클래스 | shared 에러 코드 | HTTP | 한국어 메시지(응답) | 원인 | 로그 |
 |---|---|---|---|---|---|
-| `ConfigError` | `CONFIG_INVALID` | 500 | `서버 설정이 올바르지 않습니다. 관리자에게 알려 주세요.` | 필수 키 누락, 형식·범위 위반, 교차 규칙 위반, `DB`·`ASSETS` 바인딩 없음 | `error` 레벨, `{ event: 'config_invalid', keys: 'TOKEN_SECRET,LLM_MODEL' }` — 키 이름만 |
+| `ConfigError` | `CONFIG_INVALID` | 500 | `서버 설정이 올바르지 않습니다. 관리자에게 알려 주세요.` | 필수 키 누락, 형식·범위 위반(`TOKEN_SECRET` 32자 미만 포함 — 2026-10-07), 교차 규칙 위반, `DB`·`ASSETS` 바인딩 없음 | `error` 레벨, `{ event: 'config_invalid', keys: 'TOKEN_SECRET,LLM_MODEL' }` — 키 이름만 |
 | `ConfigError`(requireLlmApiKey) | `CONFIG_INVALID` | 500 | 위와 같음 | `llmProvider=google`인데 `LLM_API_KEY` 없음(speak 시점만) | 같음, `keys: 'LLM_API_KEY'` |
 
 - `CONFIG_INVALID` 코드 문자열은 `shared/src/errors.ts`(contract 소유)의 상수를 쓴다.
+- **`TOKEN_SECRET` 길이 경계(SEC-001, 2026-10-07).** 31자는 거절, 32자는 통과한다(SRV-T-290). 짧은 값도 누락과 같은 `CONFIG_INVALID` 경로라 `/embed`·`/api/health`를 포함한 모든 요청이 500이다. `keys`에는 키 이름만 싣고 값·길이는 싣지 않는다. 로컬 `.dev.vars`도 32자 이상이어야 하고, 갠홈 PHP 조각에는 같은 값을 넣는다(HMAC 키 일치).
 
 ## 6. 설정(env)
 
@@ -355,7 +356,7 @@ fetch(request, env, ctx)                      ← Workers 런타임
 # 모든 키는 parseEnv(바인딩) 에서만 읽는다. 다른 파일이 바인딩 값을 직접 읽으면 훅이 차단한다.
 
 # --- 토큰 (갠홈 등급 연동) ---
-# 갠홈 rosebell-chatbot.php 의 토큰 조각과 같은 값. 운영은 32자 이상 랜덤. 로컬은 아무 문자열(비우면 모든 요청이 500 CONFIG_INVALID)
+# 갠홈 rosebell-chatbot.php 의 토큰 조각과 같은 값. 운영·로컬 모두 32자 이상(짧으면 모든 요청이 500 CONFIG_INVALID). 비워도 같다
 TOKEN_SECRET=
 
 # --- AI 제공사 (Google Gemini) ---
@@ -402,6 +403,7 @@ LLM_API_KEY=
 | SRV-T-011 | `env_keys_match_wrangler_vars_and_dev_vars_example` | `?raw` import로 `wrangler.toml`·`.dev.vars.example` 텍스트를 읽어 키 집합 추출 | `[vars]` 키 = 설정 키 − 비밀 2개, `.dev.vars.example` 활성 키 = 비밀 2개, 주석 키 = `[vars]` 키 | R-ENV-002 |
 | SRV-T-231 | `parseEnv_reads_budget_and_price_keys_with_decimals` (S3b) | 4키 없음 / `'50000'`·`'0.075'`·`'0'`·`'1385.5'` / 숫자 `0.3` / `' 2.5 '` | 기본값 100000·0.3·2.5·1400 / 50000·0.075·0·1385.5 / 0.3 / 2.5 | R-LLM-007 · R-ENV-002 |
 | SRV-T-232 | `parseEnv_rejects_invalid_budget_and_price_keys` (S3b) | 표 기반: 예산 `0`·`10000001`·`'1e5'`·`'5.5'`·`'-1'`, 단가 `'-0.1'`·`'.3'`·`'1e-1'`·`'100.1'`·`'0.1234567'`, 환율 `'99'`·`'10000.5'`·`'abc'`·`NaN` | 각 `keys`에 해당 키 1개, 값은 에러에 없음 | R-ENV-002·003 |
+| SRV-T-290 | `parseEnv_rejects_TOKEN_SECRET_shorter_than_32_chars_without_echoing_it` (verify 후속 SEC-001) | `TOKEN_SECRET` = `'x'` 31개 / 32개 | `ConfigError`, `keys = ['TOKEN_SECRET']`, 에러의 자기 속성 전부를 직렬화해도 31자 값 없음 / 통과·`tokenSecret`이 입력 그대로 | R-ENV-003 · R-NFR-004 · R-HANDOFF-003(관련) |
 
 - 에러 경로(SRV-T-003~007·009·010 일부) 수가 정상 경로(001·002·008·011)보다 많다.
 - SRV-T-011은 workerd 안에서 `?raw` import가 안 되면 vitest 별도 node 프로젝트로 돌리거나 verify 단계 grep 대조로 대체한다(구현 시 확인).
@@ -410,7 +412,7 @@ LLM_API_KEY=
 
 - [ ] `grep -rnE "process\.env|import\.meta\.env" server/src` 결과가 0건(R-ENV-001).
 - [ ] `grep -rnE "TOKEN_SECRET|LLM_API_KEY|TOKEN_MIN_LEVEL|LLM_PROVIDER|LLM_MODEL|LLM_TIMEOUT_MS|ALLOWED_FRAME_ANCESTORS|RATE_LIMIT_PER_MIN|CONTEXT_MESSAGES|MEMORY_SUMMARY_THRESHOLD|LLM_MONTHLY_BUDGET_KRW|LLM_PRICE_INPUT_USD_PER_M|LLM_PRICE_OUTPUT_USD_PER_M|KRW_PER_USD" server/src` 결과가 `server/src/env.ts`뿐(R-ENV-001).
-- [ ] `server/.dev.vars`에서 `TOKEN_SECRET`을 비우고 `wrangler dev` → `curl /api/rooms`가 500 `CONFIG_INVALID`, 터미널 로그에 키 이름만 보임(R-ENV-003).
+- [ ] `server/.dev.vars`에서 `TOKEN_SECRET`을 비우거나 31자로 줄이고 `wrangler dev` → `curl /api/rooms`가 500 `CONFIG_INVALID`, 터미널 로그에 키 이름만 보임(R-ENV-003).
 - [ ] `wrangler dev` 로그에서 요청당 CPU 시간이 수 ms 이하인지 확인(R-NFR-005).
 
 ## 9. contract 요구 명세
@@ -430,7 +432,8 @@ env 모듈은 엔드포인트를 노출하지 않는다. contract가 알아야 �
 |---|---|---|---|
 | R-ENV-001 🔒 | §2(`Env` 타입 제한)·§4·§8 수동 grep | SRV-T-011, 리뷰 grep | ✅ |
 | R-ENV-002 🔒 | §3.1·§6.1·§6.2 | SRV-T-001·002·004·006·007·011 | ✅ |
-| R-ENV-003 | §2·§3.2·§5 | SRV-T-003·004·005·008·009·010 | ✅ |
+| R-ENV-003 | §2·§3.2·§5 | SRV-T-003·004·005·008·009·010·290 | ✅ |
+| R-HANDOFF-003 (관련 — 문서 요구 "32자 이상 랜덤"을 server가 길이로 강제) | §3.1·§5·§6.2·D-ENV-13 | SRV-T-290 | ✅(2026-10-07) |
 | R-LLM-007 🔒 (S3b 키) | §2 S3b 델타·§3.1·§6.1·§6.2 | SRV-T-231·232·011 | ✅(설계) |
 | R-ENV-002 🔒 (S3b 키 4개) | §3.1·§6.1 | SRV-T-011·231 | 부분(요구 R-ENV-002 키 목록 개정 대기 — [llm.md](llm.md) 보고 사항 5) |
 | R-NFR-004 🔒 | §3.2(값 미적재) | SRV-T-009 | 부분(로그 전반은 [index.md](index.md)) |
@@ -449,6 +452,7 @@ env 모듈은 엔드포인트를 노출하지 않는다. contract가 알아야 �
 | D-ENV-7 | `LLM_TIMEOUT_MS` 상한 60000 | 상한 없음 | R-NFR-001(70초 종결). 재시도 포함 총 예산 배분은 S3 llm 설계 |
 | D-ENV-8 (S3b) | 소수 변환기 `decimalVar`(정규식 문자열·유한 number만, `z.coerce` 금지) | 단가를 마이크로달러 정수 키로 | 요구 R-LLM-007이 키 이름(`…_USD_PER_M`)과 공개 단가(소수)를 정했다. 형식을 좁게 받는 `intVar` 원칙(§3.1 변환 규칙)을 그대로 따른다 |
 | D-ENV-9 (S3b) | 범위: 예산 1~10000000원, 단가 0~100, 환율 100~10000 | 범위 없음 | 자릿수 실수(예 환율 `14000`, 단가 `250`)를 배포 시점에 잡는다. 단가 0은 허용한다(무료 등급 키면 실제 청구 0 — [llm.md](llm.md) §12.13). 예산 0은 막는다(0이면 버튼이 항상 막혀 설정 실수로 보인다) |
+| D-ENV-13 (verify 후속 SEC-001) | `TOKEN_SECRET` 32자 하한을 제공사·환경 구분 없이 항상 건다 | `LLM_PROVIDER=google`일 때만(verify 보고의 최소안) · 하한 없음 | parseEnv에는 운영·로컬을 가르는 키가 없다(`LLM_PROVIDER`는 제공사 선택). 조건을 걸면 `fake`로 시험한 짧은 값이 운영 Secrets로 옮겨질 수 있고 검증 경로가 둘이 된다. 대가: 로컬도 32자 이상(`.dev.vars.example` 주석으로 안내) |
 
 확인 필요:
 
@@ -456,7 +460,7 @@ env 모듈은 엔드포인트를 노출하지 않는다. contract가 알아야 �
 
 제안(설계 미반영, 사용자 판단):
 
-- `TOKEN_SECRET` 최소 길이 32자 검사. R-HANDOFF-003이 "32자 이상 랜덤"을 요구하므로 운영 실수를 막는다. 다만 로컬 "아무 문자열" 사용과 충돌하므로 도입 시 로컬도 32자 이상을 써야 한다.
+- (반영 2026-10-07 — D-ENV-13·SRV-T-290) `TOKEN_SECRET` 최소 길이 32자 검사. R-HANDOFF-003이 "32자 이상 랜덤"을 요구하므로 운영 실수를 막는다. 다만 로컬 "아무 문자열" 사용과 충돌하므로 도입 시 로컬도 32자 이상을 써야 한다.
 - `LOG_LEVEL` 키. server-design-strategy §2 최소 키 목록에 있으나 R-ENV-002에 없어 넣지 않았다. 현재 로거는 레벨 필터 없이 info 이상을 모두 쓴다([index.md](index.md) §3.3).
 
 ## 변경 이력
@@ -469,5 +473,6 @@ env 모듈은 엔드포인트를 노출하지 않는다. contract가 알아야 �
 | 2026-10-06 | S3b 설계: 키 4개(`LLM_MONTHLY_BUDGET_KRW`·`LLM_PRICE_INPUT_USD_PER_M`·`LLM_PRICE_OUTPUT_USD_PER_M`·`KRW_PER_USD`) — §2 S3b 델타(`Config`·`ENV_KEYS` 16개·스키마 행), §3.1 행·`decimalVar` 규칙·스케치, §6.1 대조표, §6.2 주석 4줄, SRV-T-231·232, SRV-T-001 기본값 수, §8 grep 목록, D-ENV-8·9 |
 | 2026-10-06 | S3c 설계: `OWNER_MB_IDS` 1키 — S3c 델타(`Config.ownerMbIds`·`ENV_KEYS` 17개·스키마·파싱 규칙·키 표/대조표/`.dev.vars.example` 추가 블록·`wrangler.toml` 머리 주석), SRV-T-234·235, SRV-T-011 Secrets 계열 3개, D-ENV-10~12. 결정 출처 state.json(Q2 — 지인 ID만) |
 | 2026-10-06 | S3c 델타에 구현 완료 표기(server 318/318, SRV-T-234~260). 설계와 다른 점 없음 |
+| 2026-10-07 | verify 후속 동기화(소스 기준, SEC-001): `TOKEN_SECRET` 32자 하한 — §3.1 검증 칸, §5 원인·경계 문단, §6.2 `.dev.vars.example` 주석 줄(실물 전사), §8 SRV-T-290·수동 체크, §10 R-ENV-003·R-HANDOFF-003, D-ENV-13, 제안 항목 반영 표기. 공개 API·키 목록 불변 |
 
 파급(S3b): `Config`에 필드 4개, `ENV_KEYS`에 4개 추가. `parseEnv` 결과를 구조 비교하는 테스트(SRV-T-001)와 `ENV_KEYS` 길이를 단언하는 테스트가 있으면 갱신한다. `server/wrangler.toml [vars]`에 4줄([index.md](index.md) §6.1 S3b), `server/.dev.vars.example`에 주석 4줄(§6.2)을 더해야 SRV-T-011이 통과한다. `Config`를 직접 만드는 테스트 픽스처(`parseEnv` 대신 객체 리터럴)가 있으면 4필드를 넣는다.

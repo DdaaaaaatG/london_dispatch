@@ -5,7 +5,7 @@
 # 모든 키는 parseEnv(바인딩) 에서만 읽는다. 다른 파일이 바인딩 값을 직접 읽으면 훅이 차단한다.
 
 # --- 토큰 (갠홈 등급 연동) ---
-# 갠홈 rosebell-chatbot.php 의 토큰 조각과 같은 값. 운영은 32자 이상 랜덤. 로컬은 아무 문자열(비우면 모든 요청이 500 CONFIG_INVALID)
+# 갠홈 rosebell-chatbot.php 의 토큰 조각과 같은 값. 운영·로컬 모두 32자 이상(짧으면 모든 요청이 500 CONFIG_INVALID). 비워도 같다
 TOKEN_SECRET=
 
 # --- AI 제공사 (Google Gemini) ---

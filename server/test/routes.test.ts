@@ -8,7 +8,6 @@ import type { Env } from '../src/env'
 import { apiRoutes } from '../src/routes'
 import { insertLine, insertLines, insertRoom, resetDb } from './helpers'
 
-const ANCESTORS = 'http://london-gossip.my https://london-gossip.my'
 const NOW = 1_700_000_000_000
 const ROOM = 'room-1'
 
@@ -28,7 +27,7 @@ const baseEnv = (overrides: Record<string, unknown> = {}): Env =>
   ({
     DB: env.DB,
     ASSETS: fakeAssets().fetcher,
-    TOKEN_SECRET: 'test-secret',
+    TOKEN_SECRET: 'test-secret-0123456789-abcdefghijklmnop',
     ...overrides,
   }) as unknown as Env
 
@@ -84,9 +83,9 @@ describe('health · 공통', () => {
     expect(text).not.toContain('TOKEN_SECRET')
   })
 
-  it('API-T-004 api_responses_carry_csp_without_x_frame_options', async () => {
+  it('API-T-004 api_responses_deny_framing_without_x_frame_options', async () => {
     const res = await get('/api/rooms')
-    expect(res.headers.get('Content-Security-Policy')).toBe(`frame-ancestors ${ANCESTORS}`)
+    expect(res.headers.get('Content-Security-Policy')).toBe("frame-ancestors 'none'") // SEC-003: /api/* 는 어떤 출처도 iframe 불가
     expect(res.headers.get('X-Frame-Options')).toBeNull()
   })
 

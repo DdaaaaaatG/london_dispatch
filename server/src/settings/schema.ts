@@ -54,6 +54,10 @@ const charactersShape = Object.fromEntries(
 /**
  * 설정 본체 스키마 — 정의 1곳(routes 의 putCharacterSettingsBody 가 재사용). strict 3단, 두 캐릭터·11필드 키 전부 필수.
  * 출력 타입은 shared CharacterSettings 로 고정한다(키 집합 일치는 SRV-T-240 이 단언)
+ *
+ * 이중 단언(as unknown as)을 남기는 이유(SRV-002 검토 결과): 필드 키·캐릭터 id 를 CHARACTER_FIELD_KEYS·SETTINGS_CHARACTER_IDS 에서
+ * 반복으로 만들어 Object.fromEntries 가 키 정보를 index signature 로 지운다. 단일 단언·satisfies 는 TS2352/TS2322 로 컴파일되지 않는다.
+ * 키 리터럴 11×2 를 손으로 나열하면 shared 단일 소스와 중복되므로 이 한 곳의 단언 + SRV-T-240 키 집합 단언으로 대체한다.
  */
 export const characterSettingsSchema = z.strictObject({
   world: textField(WORLD_FIELD_SPEC),

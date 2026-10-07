@@ -52,7 +52,7 @@ const baseEnv = (overrides: Record<string, unknown> = {}): Env =>
   ({
     DB: env.DB,
     ASSETS: fakeAssets().fetcher,
-    TOKEN_SECRET: 'test-secret',
+    TOKEN_SECRET: 'test-secret-0123456789-abcdefghijklmnop',
     ...overrides,
   }) as unknown as Env
 
@@ -89,6 +89,34 @@ describe('보안 헤더', () => {
     const broken = await call(app, '/t/ok', baseEnv({ TOKEN_SECRET: undefined }))
     expect(broken.status).toBe(500)
     expect(broken.headers.get('Content-Security-Policy')).toBe("frame-ancestors 'none'")
+  })
+
+  it('SRV-T-291 api_responses_deny_framing_and_set_secure_headers_but_embed_keeps_ancestors', async () => {
+    const routes = new Hono<AppEnv>()
+    routes.get('/api/t/ok', c => c.json({ ok: true }))
+    routes.get('/api/t/conflict', () => {
+      throw new AppError('SPEAK_IN_PROGRESS')
+    })
+    const app = createApp({ routes, logSink: () => {}, now: () => NOW })
+    for (const [path, status] of [
+      ['/api/t/ok', 200],
+      ['/api/t/conflict', 409],
+      ['/api/nope', 404],
+    ] as const) {
+      const res = await call(app, path)
+      expect(res.status, path).toBe(status)
+      expect(res.headers.get('Content-Security-Policy'), path).toBe("frame-ancestors 'none'")
+      expect(res.headers.get('X-Content-Type-Options'), path).toBe('nosniff')
+      expect(res.headers.get('Referrer-Policy'), path).toBe('no-referrer')
+      expect(res.headers.get('X-Frame-Options'), path).toBeNull()
+    }
+    const embed = await call(
+      app,
+      '/embed',
+      baseEnv({ ASSETS: fakeAssets(() => new Response('x')).fetcher }),
+    )
+    expect(embed.headers.get('Content-Security-Policy')).toBe(`frame-ancestors ${ANCESTORS}`)
+    expect(embed.headers.get('Referrer-Policy')).toBeNull()
   })
 
   it('buildCsp 는 설정이 없으면 none', () => {
@@ -277,7 +305,7 @@ describe('S2 앱 계층', () => {
         },
       },
     ) as unknown as Db
-    const config = parseEnv(baseEnv({ TOKEN_SECRET: 'SENTINEL_SECRET_VALUE' }))
+    const config = parseEnv(baseEnv({ TOKEN_SECRET: 'SENTINEL_SECRET_VALUE_0123456789abcdef' }))
     const services = createServices({
       db: trap,
       logger: createLogger(() => {}),

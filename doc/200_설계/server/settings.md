@@ -1,6 +1,6 @@
 # settings 모듈 설계
 
-- 상태: 구현 완료(2026-10-06, server 318/318) · api.md v0.5 대조 정정(§12 N1~N7 · §12.1 M1~M6 대조표) · 최종 갱신: 2026-10-06
+- 상태: 구현 완료(2026-10-06, server 318/318) · api.md v0.5 대조 정정(§12 N1~N7 · §12.1 M1~M6 대조표) · verify 후속 동기화(2026-10-07 — §2.2 출력 타입 이중 단언 유지 근거·D-SET-10) · 최종 갱신: 2026-10-07
 - 묶음: **S3c**(캐릭터 설정 화면 — 갠홈 주인 전용). 이 문서의 공개 API는 전부 S3c에서 구현한다. 작업 모드는 보강(rooms·chat·server·contract 구현 완료 위에 추가).
 - 결정 출처: `doc/200_설계/architecture/s3c-02-전반설계.md`(결정 1~6) · `s3c-03-인계패킷.md` §1 · requirements §11-1(R-SET-001~012) · `doc/state.json` decisions(2026-10-06 승인 ①, 같은 날 Q2 수정 — **`OWNER_MB_IDS`에는 지인(갠홈 주인) 회원 ID만** 둔다. 02 §11 Q2 권고 「지인+사용자」를 대체) · 메인 세션 결정 2026-10-06(400 문구 단일 소스 = shared `checkCharacterSettings`, api.md v0.5 N1~N7 전부 수용).
 - 계약 정본: `doc/200_설계/contract/api.md` v0.5 §2.7(주인 판정) · §4.15(E15) · §4.16(E16·400 문구 표·검사 순서) · §5.8(`shared/src/settings.ts`) · §15.12(N1~N7). 이 문서는 그 규약을 server 쪽에서 지키는 방법만 적고 문구·상한을 다시 옮겨 적지 않는다.
@@ -120,6 +120,7 @@ export const createSettingsService = (deps: SettingsDeps): SettingsService
 - strict 3단: 본체(`world`·`characters`만), `characters`(`SETTINGS_CHARACTER_IDS`만), 캐릭터(`CHARACTER_FIELD_KEYS`만). 모르는 키·세 번째 id는 실패다. `outputRules` 키도 모르는 키로 실패한다(R-SET-006 편집 불가).
 - **두 캐릭터·11필드 키는 전부 필수**다. 선택 필드도 키를 빼면 실패이고, 값은 `''`·`[]`로 보낸다.
 - 키 집합 일치는 타입 대입(N2 — 출력이 `CharacterSettings`에 대입 가능)과 SRV-T-240의 키 집합 단언으로 확인한다.
+- **출력 타입 단언은 유지한다(verify SRV-002 검토, 2026-10-07).** 스키마 끝의 `as unknown as z.ZodType<CharacterSettings, unknown>` 한 곳이다. 필드 키·캐릭터 id를 `CHARACTER_FIELD_KEYS`·`SETTINGS_CHARACTER_IDS` 반복으로 만들어 `Object.fromEntries`가 키 정보를 index signature로 지운다. 단일 단언·`satisfies`는 TS2352·TS2322로 컴파일되지 않는다. 키 리터럴 11×2를 손으로 적으면 shared 단일 소스와 중복되므로, 단언 한 곳과 SRV-T-240 키 집합 단언으로 대신한다. 같은 근거가 `server/src/settings/schema.ts` 문서주석에 있다.
 - 봉투(`{ settings }` 바깥)는 **`z.object`**(strict 아님)라 모르는 키를 버린다. `z.strictObject`로 감싸지 않는다(api.md §4.16, 계약 결정 4 · M3). 봉투 스키마 `putCharacterSettingsBody`는 contract의 `routes/schemas.ts`가 만들고, `characterSettingsSchema`는 `settings` 안만 다룬다(strict 3단).
 - `world`의 화면 이름은 `WORLD_FIELD_SPEC.label` = **`세계관`**이다. 탭 이름(「공통」)은 화면 labels 몫이다(api.md §5.8.4 · M5). server 코드는 라벨을 쓰지 않는다(문구는 shared가 만든다).
 
@@ -325,6 +326,7 @@ server가 하지 않는 것(contract 소관, api.md §4.16·§11): 본문 상한
 | D-SET-7 | 시드 상수를 응답에 그대로 싣는다(복제 없음) | 매 요청 깊은 복제 | 상수는 읽기 전용으로만 쓰이고 `c.json` 직렬화만 거친다. 코드에서 수정하지 않는다(ts-rules 불변성) |
 | D-SET-8 | 재검증 실패 로그를 읽을 때마다 남긴다 | 격리체당 1회 | 격리체 상태 금지. 훼손은 드물고 고치면 멈춘다 |
 | D-SET-9 | `parseCharacterSettings` = zod와 shared 검사 둘 다 통과해야 ok, 값은 shared 정규화 값 | zod만 · shared만 | 라우트(zod 판정)와 화면(shared 판정) 어느 쪽 기준으로도 통과한 값만 저장된다. 값을 shared에서 가져오므로 N4가 구조적으로 성립한다 |
+| D-SET-10 (verify 후속) | `characterSettingsSchema` 출력 타입을 이중 단언 1곳으로 고정 | `satisfies` · 단일 `as` · 키 리터럴 11×2 수기 나열 | 앞의 둘은 컴파일 오류(`Object.fromEntries`가 키를 지운다). 수기 나열은 shared `CHARACTER_FIELD_KEYS`와 이중 관리가 된다. 키 집합 어긋남은 SRV-T-240이 실행 시 잡는다 |
 
 03 §1.3 시그니처 대비:
 
@@ -369,3 +371,4 @@ contract-designer가 이 문서 초안과 대조한 6건이다. 전부 반영했
 | 2026-10-06 | contract 대조 M1~M6 반영: 봉투 `z.object` 명시(M3), `world` 화면 이름 `세계관`(M5), SRV-T-243·244 기대 문구를 api.md §4.16 표 13행 그대로(M1), §12.1 M1~M6 대조표(불일치 0). M6은 server 타입 제거로 해소 |
 | 2026-10-06 | 테스트 입력 정정(server-implementer 보고): 훼손 행 입력 `json='{'`(1자)는 0003 CHECK `length(json) BETWEEN 2 AND 200000`에 걸려 INSERT·UPDATE 자체가 실패한다. SRV-T-248·수동 체크의 입력을 `'{{'`(2자, JSON 파싱 실패)로 바꿨다. 마이그레이션 전문은 그대로 |
 | 2026-10-06 | 구현 완료 동기화(server 318/318 · tsc 0 · eslint 0). 설계와 다른 점 3건: ① SRV-T-260은 가짜 `Db` 경우만(설계 허용 선택) ② `characterSettingsSchema` 출력 타입을 `z.ZodType<CharacterSettings, unknown>`로 고정(`as unknown as` 단언 — §2 시그니처 줄 갱신) ③ `server/test/settings.test.ts`에 lint용 `Draft` 타입 추가 |
+| 2026-10-07 | verify 후속 동기화(소스 기준, SRV-002): §2.2 이중 단언 유지 근거, D-SET-10. 코드는 문서주석만 추가, 공개 API 변경 없음 |

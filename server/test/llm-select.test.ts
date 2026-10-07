@@ -129,4 +129,10 @@ describe('mentionedSpeaker (R-LLM-008 개정)', () => {
     expect(mentionedSpeaker([u('시엘'), msg(2, 'sebastian', '세바스찬 본인')])).toBe('ciel')
     expect(mentionedSpeaker([u('시엘'), u('세바스찬')])).toBe('sebastian')
   })
+
+  it('SRV-T-295 mentionedSpeaker_matches_decomposed_hangul_names', () => {
+    expect(mentionedSpeaker([u('세바스찬, 차를'.normalize('NFD'))])).toBe('sebastian')
+    expect(mentionedSpeaker([u('시엘은?'.normalize('NFD'))])).toBe('ciel')
+    expect(mentionedSpeaker([u('세바스찬과 시엘'.normalize('NFD'))])).toBeNull()
+  })
 })

@@ -43,13 +43,28 @@ export const GUARD_RULES: readonly string[] = [
 
 const bullets = (items: readonly string[]): string => items.map(item => `- ${item}`).join('\n')
 
-/** G3: 구분자 기호를 닮은 연속 꺾쇠를 다른 문자로 바꾼다 */
-export const defang = (s: string): string => s.replaceAll('<<', '‹‹').replaceAll('>>', '››')
+/**
+ * SEC-001(S3d): 꺾쇠 모양 문자를 ASCII 꺾쇠로 접는다. 전각·작은 꺾쇠는 한 글자, 겹꺾쇠 《》는 두 글자로 본다.
+ * NFKC 전체 적용은 하지 않는다 — 한글 호환 자모(ㅋㅋ·ㅠㅠ)가 조합형 자모로 바뀌어 채팅 문체가 깨진다
+ */
+const foldAngleLookalikes = (s: string): string =>
+  s
+    .replace(/[＜﹤]/g, '<')
+    .replace(/[＞﹥]/g, '>')
+    .replaceAll('《', '<<')
+    .replaceAll('》', '>>')
+
+/** G3: NFC 정규화(분해형 한글 합침) → 꺾쇠 닮은 문자 접기 → 연속 꺾쇠를 다른 문자로 바꾼다 */
+export const defang = (s: string): string =>
+  foldAngleLookalikes(s.normalize('NFC')).replaceAll('<<', '‹‹').replaceAll('>>', '››')
+
+/** SEC-001(S3d): CR·LF 외에 NEL(U+0085)·LS(U+2028)·PS(U+2029)도 줄바꿈으로 취급한다 */
+const LINE_BREAKS = new RegExp(String.raw`\r\n|[\r\u0085\u2028\u2029]`, 'g')
 
 /** G3·G4: 구분자 무력화 + 줄바꿈 정규화 + 둘째 줄부터 공백 2칸 */
 const safeText = (s: string): string =>
   defang(s)
-    .replace(/\r\n?/g, '\n')
+    .replace(LINE_BREAKS, '\n')
     .split('\n')
     .map((line, i) => (i === 0 ? line : `${CONTINUATION_INDENT}${line}`))
     .join('\n')

@@ -79,7 +79,7 @@ export const messagesRoutes = new Hono<AppEnv>()
       return c.body(null, 204)
     },
   )
-  /// [계약] api.md §4.13 · [요구] R-MSG-003 · R-MSG-007 · R-NFR-001 · [에러] §4.5·§4.12 공통 + VALIDATION_ERROR · NOT_FOUND · [부수효과] messages 1행 + 방 updatedAt · 잠금 · AI 1~2회 · 레이트리밋 1회
+  /// [계약] api.md §4.13 · [요구] R-MSG-003 · R-MSG-007 · R-NFR-001 · [에러] §4.5·§4.12 공통 + VALIDATION_ERROR · NOT_FOUND · [부수효과] messages 1행 + 방 updatedAt · 잠금 · 제공사 호출 최대 3회(선택 1 + 생성 1~2) · 레이트리밋 1회
   .post(
     PATHS.roomSpeak,
     requireToken,

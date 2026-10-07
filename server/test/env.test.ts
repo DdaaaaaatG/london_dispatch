@@ -4,10 +4,11 @@ import devVarsExample from '../.dev.vars.example?raw'
 import wranglerToml from '../wrangler.toml?raw'
 import { ConfigError, ENV_KEYS, parseEnv, requireLlmApiKey, type Config } from '../src/env'
 
-const SENTINEL = 'SENTINEL_SECRET_9f2c'
+const SENTINEL = 'SENTINEL_SECRET_9f2c_0123456789abcdefgh'
 const fakeDb = { prepare: () => ({}) }
 const fakeAssets = { fetch: async () => new Response() }
-const base = { TOKEN_SECRET: 'secret', DB: fakeDb, ASSETS: fakeAssets }
+const TEST_SECRET = 'test-secret-0123456789-abcdefghijklmnop'
+const base = { TOKEN_SECRET: TEST_SECRET, DB: fakeDb, ASSETS: fakeAssets }
 
 const keysOf = (raw: Record<string, unknown>): readonly string[] => {
   try {
@@ -23,7 +24,7 @@ describe('parseEnv', () => {
   it('SRV-T-001 parseEnv_applies_defaults_when_only_required_present', () => {
     const c = parseEnv(base)
     expect(c).toEqual({
-      tokenSecret: 'secret',
+      tokenSecret: TEST_SECRET,
       tokenMinLevel: 5,
       llmProvider: 'google',
       llmModel: 'gemini-2.5-flash',
@@ -64,6 +65,20 @@ describe('parseEnv', () => {
     expect(err.code).toBe('CONFIG_INVALID')
     expect(err.status).toBe(500)
     expect(err.keys).toEqual([key])
+  })
+
+  it('SRV-T-290 parseEnv_rejects_TOKEN_SECRET_shorter_than_32_chars_without_echoing_it', () => {
+    const short = 'x'.repeat(31)
+    expect(keysOf({ ...base, TOKEN_SECRET: short })).toEqual(['TOKEN_SECRET'])
+    expect(() => parseEnv({ ...base, TOKEN_SECRET: short })).toThrow(ConfigError)
+    let dump = ''
+    try {
+      parseEnv({ ...base, TOKEN_SECRET: short })
+    } catch (e) {
+      dump = JSON.stringify(e, Object.getOwnPropertyNames(e))
+    }
+    expect(dump).not.toContain(short)
+    expect(parseEnv({ ...base, TOKEN_SECRET: 'x'.repeat(32) }).tokenSecret).toBe('x'.repeat(32))
   })
 
   it.each([

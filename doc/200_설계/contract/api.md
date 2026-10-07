@@ -758,8 +758,8 @@ AI가 대사를 만드는 두 쓰기다. 주방에 화구가 방마다 하나뿐
 | 직전 발화자 | 무관. 같은 캐릭터가 연속으로 말해도 된다(R-MSG-003). (v0.6) `'auto'`의 기본 화자 규칙만 직전 캐릭터 발화자를 본다 |
 | 컨텍스트 | 서버가 그 방의 최근 메시지(`CONTEXT_MESSAGES`개, 기본 40)와 장기기억 요약을 읽어 프롬프트를 만든다. 화면은 대화 내용을 보내지 않는다. 프롬프트의 유저 줄은 `[어떠한 의지] …`이고 저장 실명은 쓰지 않는다(R-LLM-003 S3d 개정, server 소관) |
 | 에러 | §4.5 공통 + §4.12 공통 + 아래. (v0.6) `'auto'`도 **같은 표**를 쓴다 — 새 코드·새 status 없음(R-API-002 불변) |
-| 부수 효과 | `messages` 1행 + 방 `updatedAt` = 저장 시각(같은 batch, R-ROOM-005). 잠금 선점·해제(`updatedAt`은 바꾸지 않는다). 제공사 호출 1~2회, (v0.6) `'auto'`는 2~3회(선택 1 + 발화 1~2) — 선택 호출 사용량도 월 비용 누적에 더한다(R-LLM-007). 실패면 아무것도 저장하지 않는다 |
-| 레이트리밋 | 1회(`'auto'`도 1회). (v0.6) 화면의 **전송 1회 = E8 1회 + E9 `'auto'` 1회 = 2회**를 같은 분당 한도에서 쓴다. 기본 20/분이면 전송은 최대 10/분이다(§6.1 규칙 그대로, S3d로 바뀌는 규칙 없음) |
+| 부수 효과 | `messages` 1행 + 방 `updatedAt` = 저장 시각(같은 batch, R-ROOM-005). 잠금 선점·해제(`updatedAt`은 바꾸지 않는다). 제공사 호출 **최대 3회**(v0.6.1 — `'auto'`: 선택 1 + 생성 1~2 · 지정 캐릭터: 1~2, 생성의 1회 재시도 포함) — 선택 호출 사용량도 월 비용 누적에 더한다(R-LLM-007). 호출 수와 무관하게 레이트리밋 소모는 요청당 1회이고, 월 비용 상한 게이트(판정 4b)도 선택 호출 **앞** 1회뿐이다(선택 뒤·재시도 전에 다시 보지 않는다). 실패면 아무것도 저장하지 않는다 |
+| 레이트리밋 | 1회(`'auto'`도 1회 — v0.6.1 제공사 호출 최대 3회와 무관). (v0.6) 화면의 **전송 1회 = E8 1회 + E9 `'auto'` 1회 = 2회**를 같은 분당 한도에서 쓴다. 기본 20/분이면 전송은 최대 10/분이다(§6.1 규칙 그대로, S3d로 바뀌는 규칙 없음) |
 | 소요 | 최대 70초(§4.12). (v0.6) `'auto'`의 선택 호출(최대 8초)은 LLM 단계 66초 안에 들어간다 — 상한 불변(R-NFR-001 🔒) |
 | server | `messages.speak(roomId: string, input: SpeakInput, background: Background): Promise<Message>` — `SpeakInput = SpeakBody`(v0.6 `character: SpeakTarget`). 반환 `speaker`는 늘 `CharacterId`다. 라우트가 `background = { waitUntil: task => c.executionCtx.waitUntil(task) }`를 넘긴다(messages.md §2.3). 서비스 이름·인자 개수는 S3d에서 바뀌지 않는다 |
 | 요구ID | R-MSG-003 · R-MSG-007 · R-ROOM-005 · R-NFR-001 · R-NFR-003 · R-LLM-002 · R-LLM-004 · R-LLM-005 · R-CHAT-005 · (v0.4.1) R-LLM-007 · (v0.6) R-MSG-009 · R-LLM-008 · R-CHAT-006 · R-CHAT-014 |
@@ -1756,7 +1756,7 @@ export const checkCharacterSettings = (value: unknown): SettingsCheckResult => {
 | 한도 | 창당 `RATE_LIMIT_PER_MIN`회(기본 **20**, `wrangler.toml [vars]`, 1~600). 1~20번째 통과, **21번째부터 `429`** |
 | 대상 | `rateLimitWrites`가 붙은 요청 전부. S2는 E4·E5·E6·E8·E10·E11. S3 speak·regenerate도 같은 한도를 나눠 쓴다 |
 | 세는 시점 | `requireToken` 통과 직후, 본문 검증 전. 그래서 `400`·`404`로 끝난 요청도 1회다. 인증 실패(`401`·`403`)는 세지 않는다 |
-| S3 카운트 (v0.4) | speak·regenerate도 요청 1건 = 1회. `409 SPEAK_IN_PROGRESS`·`409 NOT_LAST_MESSAGE`·`400 NOT_CHARACTER_MESSAGE`·`500 CONFIG_INVALID`·`502 LLM_FAILED`·`502 LLM_EMPTY`로 끝나도 센다. 근거: ① 세는 시점이 핸들러 전이라 결과를 보고 되돌리는 경로가 없다(S2 규칙 그대로) ② `502`는 이미 제공사 호출을 1~2회 썼다 ③ 실패 뒤 연타가 제공사 할당량을 태우는 것을 분당 한도가 막는다. `401`·`403`은 여전히 세지 않는다 |
+| S3 카운트 (v0.4) | speak·regenerate도 요청 1건 = 1회. `409 SPEAK_IN_PROGRESS`·`409 NOT_LAST_MESSAGE`·`400 NOT_CHARACTER_MESSAGE`·`500 CONFIG_INVALID`·`502 LLM_FAILED`·`502 LLM_EMPTY`로 끝나도 센다. 근거: ① 세는 시점이 핸들러 전이라 결과를 보고 되돌리는 경로가 없다(S2 규칙 그대로) ② `502`는 이미 제공사 호출을 1~3회 썼다 ③ 실패 뒤 연타가 제공사 할당량을 태우는 것을 분당 한도가 막는다. `401`·`403`은 여전히 세지 않는다 |
 | S3b 카운트 (v0.4.1) | `429 LLM_BUDGET_EXCEEDED`로 끝난 speak·regenerate도 1회다. 레이트리밋 미들웨어가 서비스(예산 게이트)보다 먼저 돌아 되돌릴 경로가 없다(S3 규칙 그대로). 분 한도를 넘긴 요청은 예산 상태와 무관하게 `429 RATE_LIMITED`다(미들웨어가 먼저). 예산 초과 중 버튼을 연타하면 `LLM_BUDGET_EXCEEDED`가 이어지다가 `RATE_LIMITED`로 바뀐다 — 두 429는 코드로 구분한다(§3.4) |
 | S3c 카운트 (v0.5) | E16(PUT 설정)은 요청 1건 = 1회이고 쓰기 공용 분당 한도를 나눠 쓴다. `rateLimitWrites`가 `requireOwner` **뒤**라 `403 OWNER_ONLY`는 세지 않는다(주인 아닌 회원의 저장 시도가 한도를 태우지 않고, 주인 판정은 설정값만 보는 싼 검사다). 본문 상한·검증 `400`은 센다(S2 규칙 그대로). E15(GET 설정)는 읽기라 세지 않는다 — 주인 판정 탐침이 첫 로드마다 오기 때문이다 |
 | 읽기 | 세지 않는다(E2·E3·E7). (v0.5) E15도 세지 않는다 |
@@ -1774,7 +1774,8 @@ export const checkCharacterSettings = (value: unknown): SettingsCheckResult => {
 |---|---|---|
 | 서빙 | Workers Static Assets(`ui/dist`, 바인딩 `ASSETS`, `run_worker_first = true`) | R-API-006, index.md D-IDX-1 |
 | 경로 매핑 | `/embed`·`/embed/`(+`?t=`) → `ASSETS` `/` · `/embed/<파일>` → `ASSETS` `/<파일>` · 쿼리 제거 | index.md §3.2 |
-| CSP | **모든 응답**(`/embed`, `/api/*`, 에러 포함)에 `Content-Security-Policy: frame-ancestors <ALLOWED_FRAME_ANCESTORS>`. 설정 실패 응답은 `frame-ancestors 'none'` | R-API-006, index.md §3.1 ② |
+| CSP | (v0.6.1 — verify-S3c SEC-003) 경로로 나눈다. **`/embed`·그 밖 비 API 경로**(에러 포함)는 `Content-Security-Policy: frame-ancestors <ALLOWED_FRAME_ANCESTORS>`(기존 그대로). **`/api/*`**(에러 포함)는 `frame-ancestors 'none'` — JSON 응답은 어느 출처의 iframe에도 넣지 않는다. 설정 실패 응답은 경로와 무관하게 `frame-ancestors 'none'`. 붙이는 곳은 server 진입점(`server/src/app.ts`) 한 곳 | R-API-006 🔒(원문 "모든 응답에 허용 출처" — `/api/*` 예외로 개정 필요, 메인 세션) · index.md §3.1 ② · verify-S3c SEC-003 |
+| 기본 보안 헤더 (v0.6.1) | `/api/*`에만 hono 4 `secureHeaders()` 기본값을 건다: `X-Content-Type-Options: nosniff` · `Referrer-Policy: no-referrer` · `Strict-Transport-Security` · `Cross-Origin-Opener-Policy: same-origin` · `Cross-Origin-Resource-Policy: same-origin` 등. 기본값에 든 `X-Frame-Options: SAMEORIGIN`은 진입점이 마지막에 지운다(아래 `X-Frame-Options` 행 그대로). `/embed` 정적 자산 응답에는 걸지 않는다. 화면은 같은 출처에서 `/api`를 부르므로 `same-origin` 계열 헤더의 영향이 없다. 라우트는 여전히 헤더를 다루지 않는다 | verify-S3c SEC-003 · `server/src/app.ts` |
 | `X-Frame-Options` | 보내지 않는다(받은 응답에 있으면 제거) | R-API-006 |
 | 허용 출처 | `ALLOWED_FRAME_ANCESTORS` 기본 `http://london-gossip.my https://london-gossip.my`(단일 소스 `server/src/env.ts`) | R-ENV-002, 확정사항 §9-7 |
 | CORS | 없음. 화면이 서버와 같은 출처에서 내려온다 | 확정사항 §6 |
@@ -1799,6 +1800,8 @@ export const checkCharacterSettings = (value: unknown): SettingsCheckResult => {
 - (v0.3) 토큰 형식·payload·`?t=` 이름이 §2.3·§2.5에서 확정됐다. `token-snippet.php.md`는 그 절을 그대로 따른다(§2.6). 아직 저쪽에 전달한 것이 없으므로 재적용 대상도 없다.
 - (v0.4.1, S3b — R-LLM-007) S5에서 handoff에 **AI 비용 상한 안내** 한 단락을 넣는다(위치는 `embed-guide.md` 운영 메모 절 예정, S5에서 확정). 원문은 llm.md 「contract 인계」 S3b 절의 handoff 메모다. 요지: ① 한도는 토큰 수 × 공개 단가 × 환율로 낸 **추정**이며 실제 청구와 다를 수 있다(단가 변경·환율·캐시 할인·무료 등급·부가세 미반영). ② 키를 발급한 Google 계정의 Cloud Billing에서 **월 10만원 예산 알림**을 따로 설정하기를 권고한다. 예산 알림은 메일만 보내고 사용을 막지 않는다. ③ 한도·단가·환율은 `wrangler.toml [vars]`의 `LLM_MONTHLY_BUDGET_KRW`·`LLM_PRICE_INPUT_USD_PER_M`·`LLM_PRICE_OUTPUT_USD_PER_M`·`KRW_PER_USD`를 고쳐 재배포하면 바뀐다(비밀값 아님). ④ 현황은 `wrangler tail`의 `llm_usage` 로그와 D1 `llm_usage` 테이블 조회로 본다. 토큰·`?t=`·임베드 주소가 그대로라 저쪽 재적용은 없다.
 - (v0.5, S3c) **handoff 변경 없음**(토큰 형식·PHP 조각 불변). S5 TODO 2건: ① `embed-guide.md`에 "갠홈 iframe에 `sandbox` 속성을 쓰면 `allow-downloads`를 넣어야 설정 화면 「파일로 저장」이 된다(없어도 복사로 내보낼 수 있다)" 한 줄. ② 갠홈 주인 회원 ID(`OWNER_MB_IDS`)를 지인에게 받는 절차는 server 셋팅 절차 몫이다. handoff·이 문서에는 실제 회원 ID를 쓰지 않는다.
+- (v0.6.1, S5 TODO 추가 — verify-S3c SEC-001) `secret-handover.md`에 "운영 `TOKEN_SECRET`은 32자 이상 랜덤이고 개발(`server/.dev.vars`) 값과 달라야 한다"를 적는다. 주인 설정 쓰기(E16) 권한이 이 비밀값 하나에 걸려 있기 때문이다(`mb_id`는 공개값).
+- (v0.6.1, S5 TODO 추가) 운영 Secrets 목록(`wrangler secret put`)에 `TOKEN_SECRET`·`LLM_API_KEY`와 함께 `OWNER_MB_IDS`를 넣는다. 값은 지인(갠홈 주인) 회원 ID만이며, 비우면 설정 화면(E15·E16)은 전원 `403 OWNER_ONLY`다. 실제 회원 ID는 handoff·이 문서에 쓰지 않는다.
 
 ---
 
@@ -1823,6 +1826,7 @@ export const checkCharacterSettings = (value: unknown): SettingsCheckResult => {
 | v0.6 구현 | 2026-10-06 | S3d 구현 완료(routes `speakBody` `SPEAK_TARGETS` 세 값 enum · ui/api `speak` 변경 없음 확인). 테스트 API-T-072(보강) · 108 ~ 111 · API-T-UI-028 · 029, §12.5 실물 파일:줄 | 구현 반영(계약 변경 없음) | 아니오 |
 | v0.6 복구 | 2026-10-06 | 0be2f4c에서 지워진 §13~§15·「ui 인계 메모」·「contract-implementer 인계 목록」(S3·S3b분)을 git `11125c2` 원문 그대로 되살렸다 | 변경 없음(문서 복구) | 아니오 |
 | v0.6 | 2026-10-06 | S3c 유실분 복원(0be2f4c 절단, 메인 세션 재조립). §13.4 · §14.14~§14.16 · §15.12 · §16(16.1~16.4) · 「ui 인계 메모」 S3c · 「contract-implementer 인계 목록」 S3c를 `.claude/reports/api-v05-recovered-tail.md` 원문 그대로 병합하고 자리표시 7곳을 지웠다. 복원본의 S3·S3b 앵커 줄은 이미 있는 한 벌만 남겼다. §12.4는 contract-implementer 실물 대조표 유지 | 변경 없음(문서 복원) | 아니오 |
+| v0.6.1 | 2026-10-07 | S3d verify SEC-002(LOW) 후속. §4.13 부수 효과를 "제공사 호출 최대 3회(`'auto'`: 선택 1 + 생성 1~2 · 지정 캐릭터: 1~2)"로 고치고, 레이트리밋 요청당 1회·월 비용 게이트 선택 앞 1회를 같은 행과 레이트리밋 행에 명시(실물 `server/src/messages/generate.ts` speak 대조). §8 S5 TODO 2건 추가(운영 `TOKEN_SECRET` 32자 이상·개발 값과 다름 — verify-S3c SEC-001 / 운영 Secrets에 `OWNER_MB_IDS`). 같은 기준으로 §6.1 S3 카운트 행 `502` 호출 수 1~3회, §11.8 speak 주석 초안 부수효과 정정. §7 CSP 행을 `/embed` 허용 출처 · `/api/*` `frame-ancestors 'none'`으로 나누고 「기본 보안 헤더」 행 추가(hono `secureHeaders` 기본값, `/api/*`만), §14.1 API-T-004 기대값 갱신 — verify-S3c SEC-003 server 반영분, R-API-006 🔒 원문 개정 필요 | 문구 정정 + `/api/*` 응답 헤더 변경(비파괴 — 소비자는 같은 출처 화면의 fetch뿐이고 JSON을 iframe에 넣지 않는다. `/embed` 헤더 불변) | 아니오 |
 
 ---
 
@@ -2521,7 +2525,7 @@ export const speakBody = z.object({ character: z.enum(CHARACTER_IDS) })
 // server/src/routes/messages.ts — S3 추가분 (S2 체인의 .delete 다음에 잇는다)
 // import: SpeakBody 는 '@shared/types' 목록에, speakBody 는 './schemas' 목록에 합친다
 
-  /// [계약] api.md §4.13 · [요구] R-MSG-003 · R-MSG-007 · R-NFR-001 · [에러] §4.5·§4.12 공통 + VALIDATION_ERROR · NOT_FOUND · [부수효과] messages 1행 + 방 updatedAt · 잠금 · AI 1~2회 · 레이트리밋 1회
+  /// [계약] api.md §4.13 · [요구] R-MSG-003 · R-MSG-007 · R-NFR-001 · [에러] §4.5·§4.12 공통 + VALIDATION_ERROR · NOT_FOUND · [부수효과] messages 1행 + 방 updatedAt · 잠금 · 제공사 호출 최대 3회(auto 선택 1 + 생성 1~2) · 레이트리밋 1회
   .post(
     PATHS.roomSpeak,
     requireToken,
@@ -3060,7 +3064,7 @@ S1은 처음 만드는 계약이라 **전부 「추가」**다. ui·갠홈 영�
 | API-T-001 | `health_returns_ok_and_version` | `GET /api/health` | 200, 본문 키가 정확히 `ok`·`version`, `ok === true`, `version`이 빈 문자열 아님 | R-API-005 |
 | API-T-002 | `health_ok_even_if_db_unusable` | `DB`를 모든 `prepare`가 throw하는 가짜로 교체 | 200(DB 미접근) | R-API-005 |
 | API-T-003 | `health_returns_CONFIG_INVALID_when_secret_missing` | `TOKEN_SECRET` 제거 | `expectContractError(res, 'CONFIG_INVALID')`, 본문에 키 이름 없음 | R-ENV-003 · R-API-002 |
-| API-T-004 | `api_responses_carry_csp_without_x_frame_options` | `GET /api/rooms` | `Content-Security-Policy: frame-ancestors http://london-gossip.my https://london-gossip.my`, `X-Frame-Options` 없음 | R-API-006 |
+| API-T-004 | `api_responses_carry_csp_without_x_frame_options` | `GET /api/rooms` | (v0.6.1 SEC-003) `Content-Security-Policy: frame-ancestors 'none'`, `X-Frame-Options` 없음 | R-API-006 |
 | API-T-005 | `embed_is_not_shadowed_by_api_routes` | `GET /embed?t=x`(실제 `apiRoutes` 장착) | 가짜 `ASSETS`가 `/`를 받고 200 | R-API-006 · R-API-001 |
 | API-T-010 | `rooms_returns_empty_array` | 빈 DB | 200 `[]` | R-ROOM-001 |
 | API-T-011 | `rooms_sorted_desc_with_contract_fields` | `updated_at` 100·300·200, 메시지 0·2·5 | 300·200·100 순, 각 항목 키가 정확히 `id,title,createdAt,updatedAt,messageCount`, 시각·개수가 number | R-ROOM-001 · R-API-004 |

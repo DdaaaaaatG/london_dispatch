@@ -336,7 +336,7 @@ describe('로그·장애 (R-SET-012 · N5)', () => {
     const config = parseEnv({
       DB: env.DB,
       ASSETS: { fetch: async () => new Response('x') },
-      TOKEN_SECRET: 'test-secret',
+      TOKEN_SECRET: 'test-secret-0123456789-abcdefghijklmnop',
       LLM_PROVIDER: 'fake',
       OWNER_MB_IDS: 'owner_test',
     })
@@ -389,12 +389,12 @@ describe('로그·장애 (R-SET-012 · N5)', () => {
     const e = {
       DB: env.DB,
       ASSETS: { fetch: async () => new Response('x') },
-      TOKEN_SECRET: 'test-secret',
+      TOKEN_SECRET: 'test-secret-0123456789-abcdefghijklmnop',
       OWNER_MB_IDS: 'owner_test',
     } as unknown as Env
     const t = await signTestToken(
       { mb_id: 'owner_test', nick: '주인', ch_name: '', level: 5, exp: NOW / 1000 + 43200 },
-      'test-secret',
+      'test-secret-0123456789-abcdefghijklmnop',
     )
     const res = await app.fetch(
       new Request('http://test/t/settings', { headers: { Authorization: `Bearer ${t}` } }),

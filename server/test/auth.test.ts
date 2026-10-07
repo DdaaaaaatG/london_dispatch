@@ -295,11 +295,19 @@ testRoutes.post('/t/limit-only', rateLimitWrites, c => {
   return c.json({ ok: true })
 })
 
+/** parseEnv 가 32자 미만을 거절하므로(SEC-001) HTTP 계층 시험은 긴 SECRET 으로 벡터 payload 를 다시 서명해 쓴다. 벡터(VECTOR_SECRET)는 교차 언어 기준이라 바꾸지 않는다 */
+const APP_SECRET = 'london-dispatch-app-test-secret-0123456789'
+const resign = async (vectorToken: string): Promise<string> => {
+  const payload = decodeBase64Url(vectorToken.split('.')[0] ?? '')
+  if (payload === null) throw new Error('bad vector')
+  return signTestToken(payload, APP_SECRET)
+}
+
 const appEnv = (overrides: Record<string, unknown> = {}): Env =>
   ({
     DB: env.DB,
     ASSETS: { fetch: async () => new Response('x') },
-    TOKEN_SECRET: VECTOR_SECRET,
+    TOKEN_SECRET: APP_SECRET,
     ...overrides,
   }) as unknown as Env
 
@@ -332,7 +340,7 @@ describe('requireToken · rateLimitWrites', () => {
 
   it('SRV-T-116 requireToken_rejects_missing_or_non_header_token', async () => {
     const { app } = makeApp()
-    const v1 = TOKEN_VECTORS.V1
+    const v1 = await resign(TOKEN_VECTORS.V1)
     const cases: [string, { headers?: Record<string, string> }][] = [
       ['/t/w', {}],
       [`/t/w?t=${v1}`, {}],
@@ -354,9 +362,9 @@ describe('requireToken · rateLimitWrites', () => {
       401,
       'TOKEN_INVALID',
     ])
-    const low = await post(app, '/t/w', bearer(TOKEN_VECTORS.V3))
+    const low = await post(app, '/t/w', bearer(await resign(TOKEN_VECTORS.V3)))
     expect([low.status, ((await low.json()) as ErrBody).error.code]).toEqual([403, 'LEVEL_TOO_LOW'])
-    const ok = await post(app, '/t/w', bearer(TOKEN_VECTORS.V1))
+    const ok = await post(app, '/t/w', bearer(await resign(TOKEN_VECTORS.V1)))
     expect(ok.status).toBe(200)
     expect(await ok.json()).toEqual({ mbId: 'tester01', displayName: '시엘 팬텀하이브' })
   })
@@ -364,10 +372,11 @@ describe('requireToken · rateLimitWrites', () => {
   it('SRV-T-118 rateLimitWrites_returns_429_with_retryAfterSec', async () => {
     const { app } = makeApp()
     const e = appEnv({ RATE_LIMIT_PER_MIN: '2' })
+    const v1 = await resign(TOKEN_VECTORS.V1)
     for (let i = 0; i < 2; i += 1) {
-      expect((await post(app, '/t/w', bearer(TOKEN_VECTORS.V1), e)).status).toBe(200)
+      expect((await post(app, '/t/w', bearer(v1), e)).status).toBe(200)
     }
-    const res = await post(app, '/t/w', bearer(TOKEN_VECTORS.V1), e)
+    const res = await post(app, '/t/w', bearer(v1), e)
     const body = (await res.json()) as ErrBody
     expect(res.status).toBe(429)
     expect(body.error.code).toBe('RATE_LIMITED')
@@ -378,7 +387,7 @@ describe('requireToken · rateLimitWrites', () => {
 
   it('SRV-T-119 getPrincipal_without_requireToken_fails_closed', async () => {
     const { app } = makeApp()
-    const res = await post(app, '/t/limit-only', bearer(TOKEN_VECTORS.V1))
+    const res = await post(app, '/t/limit-only', bearer(await resign(TOKEN_VECTORS.V1)))
     expect(res.status).toBe(401)
     expect(((await res.json()) as ErrBody).error.code).toBe('TOKEN_REQUIRED')
     expect(NOT_RUN.count).toBe(0)
@@ -388,7 +397,7 @@ describe('requireToken · rateLimitWrites', () => {
   it('SRV-T-120 auth_logs_and_bodies_never_contain_token_or_payload', async () => {
     const sentinelNick = await signTestToken(
       { ...BASE_PAYLOAD, mb_id: 'mb_sentinel', nick: 'SENTINEL_NICK', ch_name: '' },
-      VECTOR_SECRET,
+      APP_SECRET,
     )
     const sentinelSecretToken = await signTestToken(BASE_PAYLOAD, 'other-secret')
     const expiredAt = VECTOR_EXP_SEC * 1000 + 1000
@@ -399,15 +408,18 @@ describe('requireToken · rateLimitWrites', () => {
       seen.push(await res.text(), ...log.lines.map(l => l.line))
       return log
     }
-    const expiredLog = await run(expiredAt, TOKEN_VECTORS.V1)
+    const v1 = await resign(TOKEN_VECTORS.V1)
+    const expiredLog = await run(expiredAt, v1)
     await run(VECTOR_NOW_MS, TOKEN_V5)
     await run(VECTOR_NOW_MS, sentinelNick)
-    await run(VECTOR_NOW_MS, sentinelSecretToken, appEnv({ TOKEN_SECRET: 'SENTINEL_SECRET' }))
-    const all = seen.join('\n')
-    const seg1s = [TOKEN_VECTORS.V1, TOKEN_V5, sentinelNick, sentinelSecretToken].map(
-      t => t.split('.')[0] ?? '',
+    await run(
+      VECTOR_NOW_MS,
+      sentinelSecretToken,
+      appEnv({ TOKEN_SECRET: 'SENTINEL_SECRET_0123456789abcdefghijklmn' }),
     )
-    for (const t of [TOKEN_VECTORS.V1, TOKEN_V5, sentinelNick, sentinelSecretToken, ...seg1s]) {
+    const all = seen.join('\n')
+    const seg1s = [v1, TOKEN_V5, sentinelNick, sentinelSecretToken].map(t => t.split('.')[0] ?? '')
+    for (const t of [v1, TOKEN_V5, sentinelNick, sentinelSecretToken, ...seg1s]) {
       expect(all).not.toContain(t)
     }
     for (const s of ['SENTINEL_NICK', 'SENTINEL_SECRET']) expect(all).not.toContain(s)

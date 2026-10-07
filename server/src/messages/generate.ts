@@ -138,15 +138,14 @@ export const createGenerateOps = (deps: GenerateDeps): GenerateOps => {
     const llm = deps.llm()
     await llm.ensureBudget()
     const startMs = now()
-    let pick: ResolvedSpeaker = { character: 'sebastian', selected: 'request', spentMs: 0 }
-    const saved = await withSpeakLock(roomId, roomNotFound, async () => {
+    const { saved, pick } = await withSpeakLock(roomId, roomNotFound, async () => {
       const [rowsDesc, summary, settings] = await Promise.all([
         db.messages.pageDesc(roomId, contextMessages),
         db.memory.getSummary(roomId),
         loadPromptSettings(),
       ])
       const history = [...rowsDesc].reverse()
-      pick = await resolveSpeaker(llm, roomId, target, history, settings)
+      const pick = await resolveSpeaker(llm, roomId, target, history, settings)
       const prompt = buildSpeakPrompt(
         { character: pick.character, summary, history },
         settings.profiles,
@@ -158,7 +157,7 @@ export const createGenerateOps = (deps: GenerateDeps): GenerateOps => {
         now(),
       )
       if (row === null) throw roomNotFound()
-      return row
+      return { saved: row, pick }
     })
     const hook = deps.afterSpeak
     if (hook !== undefined) {

@@ -1,6 +1,6 @@
 # index(Workers 진입점·공통 기반) 설계
 
-- 상태: S1 확정(구현 동기화) · S2 초안 · S3 초안(§2.3 컨테이너 델타) · S3b 초안(§2.3 meter 배선·§2.4·§5·§6.1 델타) · S3c 구현 완료(§2.3.1 settings 배선·§3.1.2·§5.3·§6.2) · **S3d 구현 완료(2026-10-06, server 343/343, SRV-T-261~281 · §12 배선 변화 없음)** · 최종 갱신: 2026-10-07
+- 상태: S1 확정(구현 동기화) · S2 초안 · S3 초안(§2.3 컨테이너 델타) · S3b 초안(§2.3 meter 배선·§2.4·§5·§6.1 델타) · S3c 구현 완료(§2.3.1 settings 배선·§3.1.2·§5.3·§6.2) · **S3d 구현 완료(2026-10-06, server 343/343, SRV-T-261~281 · §12 배선 변화 없음)** · verify 후속 동기화(2026-10-07 — `/api/*` 보안 헤더 SEC-003: §3·§3.1 ②·②a·SRV-T-291·D-IDX-14, 의존 방향 보충 §3) · 최종 갱신: 2026-10-07
 - 묶음: S1 = `fetch` 진입·Hono 앱 조립·부트스트랩·보안 헤더·공통 에러 핸들러·로거·`/embed` 서빙·health 서비스·`wrangler.toml`. S2 = 서비스 컨테이너에 `auth`·`config` 주입, `AppEnv.Variables.principal`, 인증 미들웨어의 **라우트 단위** 적용 원칙, `RATE_LIMITED`의 `retryAfterSec` 응답 변환. `scheduled` 진입은 S2에서 **추가하지 않는다**(레이트리밋 정리는 요청 경로에서 — [auth.md](auth.md) D-AUTH-7). S4(요약)에서 필요하면 추가한다.
 - 라우트(`server/src/routes/`)는 contract 소유다. 이 문서는 **라우트를 정의하지 않고**, 라우트가 쓸 타입·서비스·규약만 정한다.
 - 관련 문서: [env.md](env.md), [db.md](db.md), [auth.md](auth.md), [rooms.md](rooms.md), [messages.md](messages.md).
@@ -16,7 +16,7 @@
 | R-API-001 🔒 | 엔드포인트 집합 고정. 이 문서는 `/embed`만 직접 처리하고 나머지는 contract 라우트 |
 | R-API-002 🔒 | 에러 응답 `{ error: { code, message } }`, 코드는 `shared/src/errors.ts` |
 | R-API-005 | `GET /api/health` → `{ ok: true, version }`, DB 접근 없음(서비스 제공) |
-| R-API-006 🔒 | `/embed` = Workers Static Assets(`ui/dist`, SPA). 모든 응답에 `Content-Security-Policy: frame-ancestors <ALLOWED_FRAME_ANCESTORS>`, `X-Frame-Options` 미전송 |
+| R-API-006 🔒 | `/embed` = Workers Static Assets(`ui/dist`, SPA). 모든 응답에 `Content-Security-Policy: frame-ancestors <ALLOWED_FRAME_ANCESTORS>`, `X-Frame-Options` 미전송. (2026-10-07 SEC-003) `/api/*` JSON 응답은 `frame-ancestors 'none'` — §3.1 ②·D-IDX-14 |
 | R-API-007 | 라우트가 얇게 유지되도록 서비스·에러 처리를 이쪽에서 제공 |
 | R-API-008 🔒 | 경로 문자열은 `shared/src/endpoints.ts` 상수 사용 |
 | R-AUTH-006 🔒 · R-NFR-004 🔒 | 로그·응답에 토큰 원문·비밀값 없음(쿼리 `?t=`·`Authorization` 헤더 미기록, 로거 금지 필드) |
@@ -294,16 +294,16 @@ export const createLogger = (sink?: LogSink): Logger
 | 파일 | 책임 | 예상 크기 |
 |---|---|---|
 | `server/src/index.ts` | Worker `export default` 조립만 | ~10줄 |
-| `server/src/app.ts` | `createApp`: 미들웨어 3종, `/embed` 처리, `notFound`, `onError`, `buildCsp` | ~200줄 |
+| `server/src/app.ts` | `createApp`: 미들웨어 4종(S1 3종 + `/api/*` `secureHeaders`, 2026-10-07), `/embed` 처리, `notFound`, `onError`, `buildCsp` | ~200줄 |
 | `server/src/services.ts` | `AppEnv`·`Services` 타입, `createServices`, `APP_VERSION`, `getHealth` | ~50줄 |
 | `server/src/app-error.ts` | `AppError`·`isAppError`·`toErrorBody` | ~40줄 |
 | `server/src/logger.ts` | `createLogger`, 금지 키 목록, 기본 console 출력(프로젝트에서 `console.*`가 허용되는 유일한 파일) | ~60줄 |
 | `server/test/app.test.ts` | SRV-T-080~089 | — |
 | `server/test/fixtures/` | 시험용 라우트·가짜 `ASSETS`·로그 수집 sink | — |
 
-- 의존 방향: `index.ts → app.ts → services.ts → {auth, rooms, messages} → db`, 모든 파일 → `app-error.ts`·`logger.ts`. `auth/middleware.ts`는 `services.ts`의 `AppEnv`를 `import type`으로만 쓴다(값 순환 없음). `messages`는 `auth`의 `Principal` 타입만 import한다. `app-error.ts`·`logger.ts`는 서버 내부 모듈을 import하지 않는다(맨 아래 층).
+- 의존 방향(실물 import 기준 — 2026-10-07 보충, SRV-006): `index.ts → app.ts → services.ts → {auth, rooms, messages, settings, llm, env}`. 서비스 사이는 `messages → {db, llm, auth(타입)}`, `settings → {db, llm, auth(타입)}`, `rooms → db`, `auth → {db(타입), env(타입 Config)}`다. `llm`은 `db`·`messages`·`settings`를 import하지 않는다(`env`는 타입 `LlmProviderName`만). `services.ts`가 `env`의 `requireLlmApiKey`를 값으로 쓰는 것은 llm 지연 생성 때문이다([llm.md](llm.md) §3.3). 모든 파일 → `app-error.ts`·`logger.ts`. `auth/middleware.ts`는 `services.ts`의 `AppEnv`를 `import type`으로만 쓴다(값 순환 없음). `app-error.ts`·`logger.ts`는 서버 내부 모듈을 import하지 않는다(맨 아래 층).
 - `app.ts`와 `services.ts`는 routes를 import하지 않는다. routes는 `index.ts`가 주입한다. 그래서 server 테스트는 contract 코드 없이 돈다.
-- 쓰지 않는 Hono 미들웨어: `hono/logger`(console 직접 출력, 형식 불일치), `hono/secure-headers`(기본값이 `X-Frame-Options: SAMEORIGIN`을 붙이고 CSP 값이 생성 시점에 고정됨), `hono/cors`(iframe 동일 출처라 불필요). contract도 이 셋을 추가하지 않는다.
+- 쓰지 않는 Hono 미들웨어: `hono/logger`(console 직접 출력, 형식 불일치), `hono/cors`(iframe 동일 출처라 불필요). `hono/secure-headers`는 **`/api/*`에만** 기본값으로 쓴다(2026-10-07 SEC-003, D-IDX-14). 기본값이 붙이는 `X-Frame-Options: SAMEORIGIN`은 바깥의 ② `securityHeaders`가 `next()` 뒤에 지운다. `secureHeaders` 기본값은 CSP를 만들지 않으므로 CSP는 ②가 단독으로 정한다. `/embed`에는 걸지 않는다(정적 자산 응답을 그대로 둔다). contract는 미들웨어를 추가하지 않는다.
 
 ### 3.1 미들웨어 순서와 책임
 
@@ -312,14 +312,15 @@ export const createLogger = (sink?: LogSink): Logger
           │                  │                     │                  │
           │                  │                     │                  └ 매칭 없음 → notFound → 404 NOT_FOUND
           │                  │                     └ throw → onError(③~⑤ 어디서든) → { error } 응답
-          │                  └ next() 뒤: CSP 설정 · X-Frame-Options 제거 (에러 응답 포함 전부)
+          │                  └ next() 뒤: CSP 설정(/api/* 는 'none') · X-Frame-Options 제거 (에러 응답 포함 전부)
           └ next() 뒤: { method, path(쿼리 제외), status, ms } 기록
 ```
 
 | 순서 | 이름 | 하는 일 | 실패 시 |
 |---|---|---|---|
 | ① | `requestLog` | 시작 시각 기록 → `await next()` → `logger.info('request', { method, path: url.pathname, status, ms })`. **쿼리 문자열·헤더는 기록하지 않는다**(`/embed?t=<토큰>`) | — |
-| ② | `securityHeaders` | `await next()` 뒤 `c.res.headers.set('Content-Security-Policy', 'frame-ancestors ' + (c.get('cspFrameAncestors') ?? "'none'"))`, `c.res.headers.delete('X-Frame-Options')` | — |
+| ② | `securityHeaders` | `await next()` 뒤 경로가 `/api/`(`API_PREFIX`)로 시작하면 `buildCsp(undefined)` = `frame-ancestors 'none'`, 아니면 `buildCsp(cspFrameAncestors)`(설정 없으면 `'none'`)를 `Content-Security-Policy`로 `set`하고 `X-Frame-Options`를 지운다(`/api/*` 분기는 2026-10-07 SEC-003) | — |
+| ②a | `secureHeaders()` (hono, `app.use('/api/*')` — 2026-10-07 SEC-003) | hono 4 기본 헤더를 붙인다: `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`, HSTS, `Cross-Origin-Resource-Policy`·`Cross-Origin-Opener-Policy`, `Origin-Agent-Cluster`, `X-DNS-Prefetch-Control`, `X-Download-Options`, `X-Permitted-Cross-Domain-Policies`, `X-XSS-Protection`, `X-Powered-By` 제거. 함께 붙는 `X-Frame-Options`는 ②가 지운다. 등록 순서가 ② 뒤·③ 앞이라 에러 응답(onError·notFound)에도 붙는다 | — |
 | ③ | `bootstrap` | `config = parseEnv(c.env)` → `c.set('cspFrameAncestors', config.allowedFrameAncestors.join(' '))` → `db = createDb(c.env.DB)` → `c.set('services', createServices({ db, logger, now, config }))`(S2: `config` 추가) → `next()` | `ConfigError` throw → onError → 500 `CONFIG_INVALID`. 이때 `cspFrameAncestors`가 없으므로 ②가 `frame-ancestors 'none'`을 붙인다 |
 | ④ | `serveEmbed` | §3.2 | 파일 없음 → `AppError('NOT_FOUND')` |
 | ⑤ | `routes` | contract의 `apiRoutes`를 `app.route('/', routes)`로 마운트. 쓰기 라우트는 안에서 `requireToken → rateLimitWrites → validate → 핸들러`(S2, §3.1.1) | 라우트·미들웨어·서비스의 `AppError` → onError |
@@ -535,6 +536,7 @@ run_worker_first = true                     # 정적 파일 요청도 Worker 를
 | SRV-T-161 | `createServices_wires_auth_with_config_without_exposing_secret` (S2) | `createServices({ db: trap, logger, now, config })` → `services.auth` 존재, `getHealth()`는 DB 호출 0회. `JSON.stringify(services)`·`Object.keys(services.auth)`에 `tokenSecret` 값 없음 | R-ENV-001 · R-AUTH-006 |
 | SRV-T-162 | `request_log_never_contains_authorization_header` (S2) | `Authorization: Bearer SENTINEL_BEARER`로 읽기·쓰기 시험 라우트 요청 → 수집 로그 전체에 `SENTINEL_BEARER` 없음 | R-AUTH-006 · R-NFR-004 |
 | SRV-T-233 | `onError_maps_LLM_BUDGET_EXCEEDED_to_429_with_retry_after` (S3b) | 시험 라우트가 `AppError('LLM_BUDGET_EXCEEDED', undefined, { retryAfterSec: 2678400 })` → 429, 본문 `{ error: { code: 'LLM_BUDGET_EXCEEDED', message: <요구 원문>, retryAfterSec: 2678400 } }`, 헤더 `Retry-After: 2678400`, CSP 있음. shared 14종 추가 뒤 실행 | R-LLM-007 · R-API-002 |
+| SRV-T-291 | `api_responses_deny_framing_and_set_secure_headers_but_embed_keeps_ancestors` (verify 후속 SEC-003) | 시험 라우트 `/api/t/ok` 200 · `/api/t/conflict` 409(`AppError`) · `/api/nope` 404(notFound) → 셋 다 CSP `frame-ancestors 'none'`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`, `X-Frame-Options` 없음. `/embed` → CSP `frame-ancestors <허용 출처>`, `Referrer-Policy` 없음 | R-API-006 |
 
 - 에러 경로(081·082·083·084·085·086 일부) 수가 정상 경로(080 일부·087·089)보다 많다.
 - 라우트별 통합 테스트(`GET /api/rooms` 등)는 contract 몫(`server/test/routes/`).
@@ -542,6 +544,7 @@ run_worker_first = true                     # 정적 파일 요청도 Worker 를
 수동 체크리스트:
 
 - [ ] `npm run build -w ui` 후 `npx wrangler dev --port 3000` → `curl -i http://localhost:3000/embed`가 200, `Content-Security-Policy: frame-ancestors http://london-gossip.my https://london-gossip.my`, `X-Frame-Options` 없음.
+- [ ] 같은 상태에서 `curl -i http://localhost:3000/api/health` → `Content-Security-Policy: frame-ancestors 'none'`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`, `X-Frame-Options` 없음(SEC-003).
 - [ ] `curl -i http://localhost:3000/api/health` → `{"ok":true,"version":"…"}` (contract 라우트 생성 후).
 - [ ] `curl -i "http://localhost:3000/embed?t=SENTINEL"` 뒤 `wrangler dev` 터미널 로그에 `SENTINEL`이 없음(R-AUTH-006).
 - [ ] R-NFR-004 번들 검사: `npx wrangler deploy --dry-run --outdir dist` 산출물과 `ui/dist`에서 `.dev.vars`의 실제 값 문자열 grep 0건(값을 화면·로그에 출력하지 말고 grep 종료 코드로만 판단).
@@ -559,7 +562,7 @@ run_worker_first = true                     # 정적 파일 요청도 Worker 를
 | 에러 | 라우트는 응답 JSON을 직접 만들지 않고 throw만 한다. 검증 실패는 `AppError('VALIDATION_ERROR')` throw(`@hono/zod-validator`의 기본 실패 응답은 이 형식이 아니므로 hook에서 throw — S1 `routes/validate.ts` 구현) | R-API-002 단일 핸들러 |
 | 인증(S2) | 쓰기 라우트마다 `requireToken, rateLimitWrites`를 `validate`보다 앞에 붙인다. principal은 `getPrincipal(c)`로만 읽는다. 전역·`apiRoutes.use()` 적용 금지(§3.1.1, [auth.md](auth.md) §9.1) | R-AUTH-003·005 |
 | 금지 | `/embed` 라우트 정의, `hono/logger`·`hono/secure-headers`·`hono/cors` 추가, `c.env`의 설정 키 읽기, `Authorization` 헤더 직접 파싱(S2) | §3.1·§3.2, R-ENV-001, R-AUTH-003 |
-| 헤더 | 라우트는 CSP·`X-Frame-Options`·`Retry-After`를 다루지 않는다(②·onError가 일괄 처리) | R-API-006 · R-AUTH-005 |
+| 헤더 | 라우트는 CSP·`X-Frame-Options`·`Retry-After`·보안 기본 헤더를 다루지 않는다(②·②a `secureHeaders`·onError가 일괄 처리). `/api/*` 응답은 어떤 출처의 iframe에도 넣을 수 없다(`frame-ancestors 'none'`, 2026-10-07). 화면은 `/embed` 문서 안에서 `fetch`로만 부른다 | R-API-006 · R-AUTH-005 |
 
 ### 9.2 노출 서비스 / 엔드포인트 후보
 
@@ -595,7 +598,7 @@ run_worker_first = true                     # 정적 파일 요청도 Worker 를
 | R-API-001 🔒 | §3.2(`/embed`만 직접), §9.1 금지 | SRV-T-085·086 | 부분(엔드포인트 4자 대조는 contract) |
 | R-API-002 🔒 | §2.4, §5 | SRV-T-081~086 | ✅ |
 | R-API-005 | §2.3 `getHealth`, §9.2 | SRV-T-087, 수동 curl | ✅(라우트는 contract) |
-| R-API-006 🔒 | §3.1 ②, §3.2, §6.1 `[assets]` | SRV-T-080·086, 수동 curl·iframe | ✅ |
+| R-API-006 🔒 | §3.1 ②·②a, §3.2, §6.1 `[assets]` | SRV-T-080·086·291, 수동 curl·iframe | ✅(`/api/*` 'none'은 D-IDX-14 — §11 확인 필요) |
 | R-API-007 | §9.1(라우트는 throw·서비스 호출만) | contract 리뷰 | 부분(contract) |
 | R-API-008 🔒 | §3.2, §9.3 | 리뷰 grep | 부분(shared 생성 후) |
 | R-AUTH-006 🔒 | §3.1 ①, §3.3 | SRV-T-088·161·162, [auth.md](auth.md) SRV-T-120 | ✅ |
@@ -623,7 +626,7 @@ run_worker_first = true                     # 정적 파일 요청도 Worker 를
 | D-IDX-2 | `app.ts`(조립)와 `index.ts`(export만) 분리 | `index.ts` 한 파일 | server 테스트가 contract의 routes 없이 돈다. routes는 `index.ts`에서만 import |
 | D-IDX-3 | 부트스트랩을 health·`/embed` 포함 전 요청에 적용 | health는 부트스트랩 제외 | 배포 직후 `/api/health`로 Secrets 누락을 바로 잡는다(R-ENV-003). DB는 건드리지 않으므로 R-API-005 충족 |
 | D-IDX-4 | 설정 실패 응답의 CSP = `frame-ancestors 'none'` | CSP 생략 | 설정을 못 읽어도 "모든 응답에 CSP"를 지키고, 안전한 쪽으로 닫는다 |
-| D-IDX-5 | 요청 로그·CSP를 자체 미들웨어로 | `hono/logger`·`hono/secure-headers` | secure-headers 기본값이 `X-Frame-Options`를 붙여 R-API-006과 충돌하고 CSP 값이 요청별 설정을 못 따른다. 로그는 주입 로거·쿼리 제외 규칙을 지키기 위해. server-design-strategy §9의 "요청 로그는 Hono `logger()`(routes 소유)" 문구와 다르다 — 스킬 문구 갱신 필요(메인 세션) |
+| D-IDX-5 | 요청 로그·CSP를 자체 미들웨어로 | `hono/logger`·`hono/secure-headers` | secure-headers 기본값이 `X-Frame-Options`를 붙여 R-API-006과 충돌하고 CSP 값이 요청별 설정을 못 따른다. 로그는 주입 로거·쿼리 제외 규칙을 지키기 위해. server-design-strategy §9의 "요청 로그는 Hono `logger()`(routes 소유)" 문구와 다르다 — 스킬 문구 갱신 필요(메인 세션). (2026-10-07) `/api/*`에 한해 `secureHeaders()`를 더했다. CSP는 여전히 ②가 정하고 `X-Frame-Options`는 ②가 지운다(D-IDX-14) |
 | D-IDX-6 | `onError`·`notFound` 등록은 진입점(server)에서 | `routes/index.ts`(contract)에서 | 부트스트랩 실패·`/embed`·notFound까지 한 핸들러로 덮으려면 최상위 앱에 있어야 한다. server-rules.md "변환은 routes/index.ts의 app.onError" 문구와 다르다 — 스킬 문구 갱신 필요(메인 세션) |
 | D-IDX-7 | `AppEnv.Variables`에 `Config`를 넣지 않고 `cspFrameAncestors` 문자열만 | `config` 통째 | 라우트가 `tokenSecret` 등에 닿지 못하게(최소 권한) |
 | D-IDX-8 | `APP_VERSION` = `server/package.json`의 `version`(JSON import) | 환경변수·상수 | 요구된 env 키가 없다. 번들에 들어가는 것은 package.json 필드 중 실제 참조한 값뿐(esbuild 트리 셰이킹) |
@@ -631,9 +634,11 @@ run_worker_first = true                     # 정적 파일 요청도 Worker 를
 | D-IDX-10 (S2) | `ServiceDeps.config`로 `Config`를 받고 팩토리마다 필요한 필드만 전달 | 각 값을 `ServiceDeps`에 펼침 | `bootstrap`이 한 줄로 유지된다. `Config`는 컨테이너 생성 함수 안에서만 보이고 `Services`·`Variables`에는 실리지 않는다(D-IDX-7 유지, SRV-T-161) |
 | D-IDX-11 (S2) | `retryAfterSec`을 `AppError` 선택 필드로, onError가 본문·`Retry-After` 헤더로 변환 | 레이트리밋 전용 에러 클래스 + 미들웨어가 직접 응답 | 응답 생성은 onError 한 곳(D-IDX-6)이라는 원칙을 지킨다. 필드 하나 추가라 기존 호출자 영향 없음 |
 | D-IDX-12 (S3b) | 사용량 meter를 llm 지연 생성 thunk 안에서 만들어 `createLlm`에 주입 | `Services`에 `usage` 서비스 노출 / `ServiceDeps`에 meter | 쓰는 곳이 llm뿐이다. 라우트가 사용량을 볼 요구가 없다(관리 화면·health 노출 없음). 읽기 경로 비용 0 |
+| D-IDX-14 (verify 후속 SEC-003) | `/api/*` 응답은 CSP `frame-ancestors 'none'` + hono `secureHeaders()` 기본값. `/embed`·그 밖은 기존(허용 출처 CSP, 추가 헤더 없음) | 모든 응답에 같은 허용 출처 CSP(S1) · 전 경로 `secureHeaders` | JSON API는 iframe에 넣을 이유가 없어 허용 출처까지 막아도 화면 동작이 같다(화면은 `/embed` 안에서 `fetch`). `/embed`는 정적 자산 응답을 그대로 둬 기존 헤더 계약(SRV-T-080·086)을 바꾸지 않는다. 판정은 경로 접두 상수 `API_PREFIX = '/api/'` 하나 |
 
 확인 필요:
 
+- **R-API-006 문구와 `/api/*` CSP(2026-10-07).** 요구 원문은 "모든 응답에 `frame-ancestors <ALLOWED_FRAME_ANCESTORS>`"다. SEC-003 이후 `/api/*`는 `'none'`이라 문자 그대로는 어긋난다(설정 실패 응답의 `'none'`도 이미 같은 예외 — D-IDX-4). 갠홈 밖 삽입을 막는 취지는 더 강하게 지켜진다. 요구 문구를 "`/embed`는 허용 출처, 그 밖은 `'none'`"으로 고칠지 메인 세션 판단.
 - **S2 구현 순서 의존**: contract의 쓰기 라우트가 `server/src/auth`(미들웨어)·서비스 S2 함수를 import한다. 권고 순서: ① server-implementer가 db·auth·rooms·messages·services·app-error·app(onError) S2 → ② contract-implementer가 `shared`(경로·`retryAfterSec`)·routes. ①의 vitest는 시험 라우트 기준이라 contract 없이 돈다. 단, `app-error.ts` `toErrorBody`의 반환 타입을 `shared` `ApiErrorBody`에 맞추는 대조는 ② 뒤에 한다.
 - **`ui/dist` 부재**: `[assets] directory`가 없으면 `wrangler dev`와 vitest pool 기동이 실패할 수 있다(S1에서 확인된 상태 유지).
 - (해결) `compatibility_date`는 S1 구현에서 `2026-08-15`(workerd 1.20260815.1 지원 범위)로 정해졌다. §6.1 초안의 `2026-10-01`보다 실물이 기준이다.
@@ -679,6 +684,7 @@ run_worker_first = true                     # 정적 파일 요청도 Worker 를
 
 | 날짜 | 내용 |
 |---|---|
+| 2026-10-07 | verify 후속 동기화(소스 기준, SEC-003·SRV-006): `/api/*` CSP `'none'` + `secureHeaders` 기본값(§1 R-API-006 행, §3 파일 표·미사용 미들웨어 줄, §3.1 그림·② 행·②a 행, §8 SRV-T-291·수동 curl, §9.1 헤더 행, §10, D-IDX-5 보충·D-IDX-14, 확인 필요 1건, Referrer-Policy 제안 부분 반영). §3 의존 방향을 실물 import로 보충(services→llm·settings·env, messages→llm, settings→db·llm). 공개 API 변경 없음 |
 | 2026-10-07 | §12 로그 키에 이름 지목 형태 1행 추가(`speaker_select` mention·`speak_done.selected 'mention'`·fallback warn 없음), 상태 줄 "구현 완료(server 343/343, SRV-T-261~281)" — 구현 실물 기준 |
 | 2026-10-06 | S3d(§12): 배선·env·라우트 등록·onError·마이그레이션 변화 없음 확인, 로그 키 `speaker_select`·`speaker_select_fallback`·`speak_done.auto·selected` 추가 기록, 70초 분배 참조 |
 | 2026-10-05 | S1 초안 작성 |
@@ -693,7 +699,7 @@ run_worker_first = true                     # 정적 파일 요청도 Worker 를
 
 제안(설계 미반영, 사용자 판단):
 
-- `Referrer-Policy: no-referrer` 헤더. `/embed?t=<토큰>` 화면이 외부 리소스(웹폰트 등)를 부를 때 브라우저 기본 정책(`strict-origin-when-cross-origin`)은 이미 쿼리를 보내지 않지만, 명시하면 토큰 유출 경로가 하나 더 닫힌다. R-NFR-004로 역추적 가능하나 요구 문구에 없어 보류.
+- (부분 반영 2026-10-07) `Referrer-Policy: no-referrer` 헤더. `/api/*`에는 hono `secureHeaders` 기본값으로 붙는다(SRV-T-291). 아래 제안의 대상인 `/embed` 문서 응답에는 여전히 없다(SRV-T-291이 없음을 단언). `/embed?t=<토큰>` 화면이 외부 리소스(웹폰트 등)를 부를 때 브라우저 기본 정책(`strict-origin-when-cross-origin`)은 이미 쿼리를 보내지 않지만, 명시하면 토큰 유출 경로가 하나 더 닫힌다. R-NFR-004로 역추적 가능하나 요구 문구에 없어 보류.
 - CSP에 `frame-ancestors` 외 지시어(`default-src 'self'` 등) 추가. 요구는 frame-ancestors만이다.
 - `[observability] enabled = true`(Workers Logs 보관). 지금은 `wrangler tail` 실시간 수집뿐이다.
 

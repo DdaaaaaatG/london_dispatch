@@ -270,7 +270,7 @@ describe('speak', () => {
         logger,
         now: () => T0,
         config: parseEnv({
-          TOKEN_SECRET: 'test-secret-value',
+          TOKEN_SECRET: 'test-secret-0123456789-abcdefghijklmnop',
           LLM_PROVIDER: provider,
           DB: env.DB,
           ASSETS: { fetch: () => undefined },
@@ -632,7 +632,7 @@ describe('월 비용 게이트 (S3b)', () => {
       logger: createLogger(() => undefined),
       now: () => T0,
       config: parseEnv({
-        TOKEN_SECRET: 'test-secret-value',
+        TOKEN_SECRET: 'test-secret-0123456789-abcdefghijklmnop',
         LLM_PROVIDER: 'google',
         DB: env.DB,
         ASSETS: { fetch: () => undefined },
@@ -789,7 +789,7 @@ describe('S3c 설정 읽기', () => {
       logger: createLogger(() => undefined),
       now: () => T0,
       config: parseEnv({
-        TOKEN_SECRET: 'test-secret-value',
+        TOKEN_SECRET: 'test-secret-0123456789-abcdefghijklmnop',
         LLM_PROVIDER: 'fake',
         DB: env.DB,
         ASSETS: { fetch: () => undefined },
@@ -855,6 +855,25 @@ describe('S3c 설정 읽기', () => {
     expect(reads).toBe(1)
     await ok.svc.regenerate(m.id)
     expect(reads).toBe(2)
+  })
+
+  it('SRV-T-292 settings_read_failure_inside_lock_releases_lock_and_skips_llm', async () => {
+    await insertRoom('a', 'A', 1, 100)
+    const lineId = await insertLine('a', 'orig', 5)
+    const loadPromptSettings = async (): Promise<PromptSettings> => {
+      throw new Error('settings boom')
+    }
+    const s = setup([{ text: 'never' }, { text: 'never' }], { loadPromptSettings })
+    for (const run of [
+      () => s.svc.speak('a', { character: 'ciel' }, s.bg),
+      () => s.svc.speak('a', { character: 'auto' }, s.bg),
+      () => s.svc.regenerate(lineId),
+    ]) {
+      await expect(run()).rejects.toThrow('settings boom')
+      expect(await lockOf('a')).toBeNull()
+    }
+    expect(s.fake.calls).toHaveLength(0)
+    expect(s.waits).toHaveLength(0)
   })
 })
 

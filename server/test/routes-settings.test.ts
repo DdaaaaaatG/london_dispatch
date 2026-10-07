@@ -12,7 +12,7 @@ import { resetDb } from './helpers'
 import { signTestToken } from './token'
 
 const NOW = 1_700_000_000_000
-const SECRET = 'test-secret'
+const SECRET = 'test-secret-0123456789-abcdefghijklmnop'
 const PATH = '/api/settings/characters'
 const MIN_LEVEL = 5
 

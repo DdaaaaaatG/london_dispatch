@@ -61,7 +61,7 @@ const bullets = (items: readonly string[]): string => items.map(item => `- ${ite
 /** role 을 defang 하고 줄바꿈·연속 공백을 공백 하나로 접는다 */
 const roleLine = (role: string | undefined): string =>
   defang(role ?? '')
-    .replace(/\s+/g, ' ')
+    .replace(/[\s\u0085]+/g, ' ')
     .trim()
 
 const candidateLine = (
@@ -115,8 +115,11 @@ export const mentionedSpeaker = (
 ): CharacterId | null => {
   const last = [...history].reverse().find(m => m.speaker === 'user')
   if (last === undefined) return null
-  const text = last.text.trim()
-  const hits = CANDIDATE_ORDER.filter(id => text.includes(CHARACTERS[id].shortName))
+  // SRV-002(S3d): 분해형(NFD) 한글 입력도 같은 이름으로 본다. 비교용 사본만 정규화하고 저장 텍스트는 건드리지 않는다
+  const text = last.text.trim().normalize('NFKC')
+  const hits = CANDIDATE_ORDER.filter(id =>
+    text.includes(CHARACTERS[id].shortName.normalize('NFKC')),
+  )
   return hits.length === 1 ? (hits[0] ?? null) : null
 }
 

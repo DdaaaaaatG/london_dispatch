@@ -1,6 +1,6 @@
 # messages 모듈 설계
 
-- 상태: S1 확정(구현 동기화) · S2 초안 · S3 초안(§2.3·§4.2·§4.3·§8.2) · S3b 초안(§4.2 예산 게이트·§8.3) · S3c 구현 완료(§4.4·§8.4) · **S3d 구현 완료(2026-10-06, server 343/343, SRV-T-261~281 · §12 speak `'auto'` — 앞 절과 다르면 §12가 우선 · R-LLM-008 개정(이름 지목·선택 15초) 설계 반영)** · 최종 갱신: 2026-10-06
+- 상태: S1 확정(구현 동기화) · S2 초안 · S3 초안(§2.3·§4.2·§4.3·§8.2) · S3b 초안(§4.2 예산 게이트·§8.3) · S3c 구현 완료(§4.4·§8.4) · **S3d 구현 완료(2026-10-06, server 343/343, SRV-T-261~281 · §12 speak `'auto'` — 앞 절과 다르면 §12가 우선 · R-LLM-008 개정(이름 지목·선택 15초) 설계 반영)** · verify 후속 동기화(2026-10-07 — §12.2·§12.3 `pick` 반환 구조, §4.4·§8.4 SRV-T-292, §5 S3-R1·§9 S3-R2 문구) · 최종 갱신: 2026-10-07
 - 묶음: S1 = R-MSG-001(히스토리 페이지). S2 = R-MSG-002(유저 발화·지시 저장) · R-MSG-004(수정) · R-MSG-005(삭제) · R-MSG-008(권한). S3 = R-MSG-003·006·007(speak·regenerate·방당 잠금) · R-ROOM-005(재작성 갱신) · R-NFR-001·003 · R-MEM-002(훅 자리만, S3 no-op). S3b = R-LLM-007 🔒 월 예산 게이트(speak·regenerate 잠금 전 `llm.ensureBudget()` — 사용량 누적은 llm 안, [llm.md](llm.md) §12).
 - 관련 문서: [db.md](db.md)(`messages` 저장소), [rooms.md](rooms.md)(`updated_at` 갱신 규칙), [auth.md](auth.md)(`Principal`·쓰기 미들웨어), [index.md](index.md)(서비스 컨테이너·에러 핸들러), [llm.md](llm.md)(S3 프롬프트·제공사·재시도).
 
@@ -341,7 +341,7 @@ regenerate ⑤ try {
 
 - **읽는 시점은 잠금 선점 뒤, LLM 호출 전**이다(02 §3). 그래서 `VALIDATION_ERROR`·`CONFIG_INVALID`·`LLM_BUDGET_EXCEEDED`·방 없음·`SPEAK_IN_PROGRESS`로 끝나는 speak는 설정을 읽지 않는다(SRV-T-258). regenerate의 `NOT_LAST_MESSAGE`·대상 삭제는 잠금 안에서 판정되므로 병렬 읽기 1회가 일어난다(허용).
 - **캐시 없음.** 서비스·모듈 어디에도 설정을 보관하지 않는다. 매 speak·regenerate가 D1을 읽는다(R-SET-003 "저장 즉시 반영").
-- **실패(api.md §15.12 N5):** `loadPromptSettings`의 D1 오류는 시드로 바뀌지 않고 `Promise.all`로 전파되어 500 `INTERNAL`이고, finally가 잠금을 푼다(기존 조회 실패와 같은 경로). 재검증 실패는 settings가 시드로 바꿔 돌려주므로 messages는 모른다.
+- **실패(api.md §15.12 N5):** `loadPromptSettings`의 D1 오류는 시드로 바뀌지 않고 `Promise.all`로 전파되어 500 `INTERNAL`이고, finally가 잠금을 푼다(기존 조회 실패와 같은 경로). 재검증 실패는 settings가 시드로 바꿔 돌려주므로 messages는 모른다. 잠금 해제 보증은 SRV-T-292가 버튼 speak·`'auto'` speak·regenerate 세 경로에서 단언한다(잠금 해제·제공사 호출 0·`waitUntil` 0, verify 후속 2026-10-07).
 - **의존:** messages는 settings 모듈을 import하지 않는다. 함수 값만 deps로 받는다. 컨테이너가 `settings.loadForPrompt`를 넘긴다([index.md](index.md) §2.3.1).
 - **기본값:** 없으면 `async () => DEFAULT_PROMPT_SETTINGS`([llm.md](llm.md) §3.4). `createMessagesService`를 직접 만드는 기존 테스트(`IDLE_GENERATE_DEPS` 사용처 등 10여 곳)가 수정 없이 통과한다. 운영 배선 누락은 SRV-T-256(`createServices` 경유)이 잡는다.
 - 판정 순서(D-MSG-20·21)와 로그(`speak_done`·`regenerate_done`)는 바뀌지 않는다. 로그에 설정 version·본문을 싣지 않는다(R-SET-012).
@@ -357,7 +357,7 @@ regenerate ⑤ try {
 | `AppError` | `VALIDATION_ERROR` | 400 | `메시지는 1~2000자로 입력해 주세요.` | 본문 trim 후 0자 또는 2001자 이상 | S2 |
 | `AppError` | `NOT_FOUND` | 404 | `메시지를 찾을 수 없습니다.` | id 형식 위반·없는 메시지(수정·삭제) | S2 |
 | (전파) D1 오류 | `INTERNAL` | 500 | `서버 내부 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.` | D1 장애 | S1 |
-| `AppError` | `VALIDATION_ERROR` | 400 | `캐릭터는 sebastian 또는 ciel 중 하나여야 합니다.` | speak `character` 위반(라우트 zod를 지나온 경우의 재검사) | S3 |
+| `AppError` | `VALIDATION_ERROR` | 400 | `캐릭터는 sebastian·ciel·auto 중 하나여야 합니다.`(S3d 문구 — `generate.ts` `CHARACTER_INVALID_MESSAGE`) | speak `character` 위반. **HTTP로는 닿지 않는다**: 라우트 zod `enum`이 먼저 걸러 응답은 기본 문구 `요청 형식이 올바르지 않습니다.`다(api.md §4.13·§15.9 S3-R1). 서비스 직접 호출(테스트·내부)용 안전망 | S3·S3d |
 | `AppError` | `NOT_FOUND` | 404 | `방을 찾을 수 없습니다.` | speak 방 없음·생성 중 삭제 | S3 |
 | `AppError` | `NOT_FOUND` | 404 | `메시지를 찾을 수 없습니다.` | regenerate id 형식 위반·없음·생성 중 삭제 | S3 |
 | `AppError` | `SPEAK_IN_PROGRESS` | 409 | 기본 문구(`이 방에서 이미 대사를 만들고 있습니다. 잠시 후 다시 시도해 주세요.`) | 잠금 선점 실패 | S3 |
@@ -369,6 +369,7 @@ regenerate ⑤ try {
 
 - 토큰·등급·레이트리밋 에러는 라우트 미들웨어가 서비스 호출 전에 낸다([auth.md](auth.md) §5).
 - 에러 메시지에 유저 입력·`mbId`를 넣지 않는다(로그 `errMessage`로 새지 않게).
+- (S3-R1, 2026-10-07) 위 `character` 위반 문구는 내부 id(`sebastian`·`ciel`·`auto`)를 문장에 담는다. 라우트 선검사 때문에 사용자 화면에는 나가지 않으므로 현재 소스 문구를 그대로 기록한다. 이 문구가 사용자에게 보일 경로가 생기면 내부 id 없는 문장으로 바꾼다(소스 변경 — server-implementer 몫, 현재 미적용).
 
 ## 6. 설정(env)
 
@@ -518,6 +519,7 @@ INSERT INTO messages (room_id, speaker, kind, text, author_mb_id, author_name, c
 | SRV-T-256 | `speak_and_regenerate_use_settings_saved_just_before` | `createServices`(fake 제공사, `OWNER_MB_IDS: 'owner_test'`)로 `settings.put`(persona·speech에 감시 문구 A) → speak → 다시 `put`(감시 문구 B) → 같은 대사 regenerate | 첫 FakeProvider 호출 system에 A 포함, 둘째 호출 system에 B 포함·A 없음(캐시 없음 증명) | R-SET-003 · R-SET-006 |
 | SRV-T-257 | `speak_uses_seed_when_settings_row_corrupted` | `character_settings`에 `json = '{{'` 행을 직접 INSERT → speak | 201, system = 시드 기반 문자열([llm.md](llm.md) SRV-T-252 기대와 같음), error 로그 `character_settings_invalid` 정확히 1건, 로그에 행 본문 없음 | R-SET-003 · R-SET-012 |
 | SRV-T-258 | `settings_read_only_after_lock_acquired` | `loadPromptSettings` 스파이. speak: 잘못된 character / google + 키 없음 / 예산 초과 / 방 없음 / 잠금 busy / 정상. regenerate: 유저 메시지 대상(`NOT_CHARACTER_MESSAGE`) / 정상 | 실패 경로 호출 0회, 정상 경로 각 1회 | R-SET-003 · R-LLM-007 |
+| SRV-T-292 | `settings_read_failure_inside_lock_releases_lock_and_skips_llm` (verify 후속 S3c SRV-001) | `loadPromptSettings`가 throw. 버튼 speak `ciel` / `'auto'` speak / regenerate(캐릭터 대사) | 셋 다 같은 에러로 reject(HTTP로는 500 `INTERNAL`), 매번 잠금 해제(`speaking_until` NULL), FakeProvider 호출 0(선택·발화 모두), `waitUntil` 0 | R-SET-003 · R-MSG-003 · api.md §15.12 N5 |
 
 - 기존 SRV-T-191~209·S3b 테스트는 수정하지 않는다(`loadPromptSettings` 선택 필드).
 
@@ -527,14 +529,14 @@ INSERT INTO messages (room_id, speaker, kind, text, author_mb_id, author_name, c
 |---|---|---|---|---|---|---|---|
 | `messages.listMessages(roomId, query)` | `GET /api/rooms/:id/messages?before=&limit=` | 경로 `id`(문자열 그대로), 쿼리는 `Number(문자열)` 변환만 | `MessagePage` | `VALIDATION_ERROR`(400), `NOT_FOUND`(404), `CONFIG_INVALID`, `INTERNAL` | ✕ | ✕ | R-MSG-001 |
 | `messages.addUserMessage(roomId, { text, ooc }, getPrincipal(c))` | `POST /api/rooms/:id/user` | 경로 `id`(문자열), 본문 `{ text: string; ooc: boolean }` | `Message` | `VALIDATION_ERROR`(400), `NOT_FOUND`(404) + 공통 | ○ | ○ | R-MSG-002 |
-| `messages.editMessage(Number(id), { text })` | `PATCH /api/messages/:id` | 경로 `id` → `Number()` 변환만, 본문 `{ text: string }` | `Message` | `VALIDATION_ERROR`(400), `NOT_FOUND`(404) + 공통 | ○ | ○ | R-MSG-004·008 |
-| `messages.deleteMessage(Number(id))` | `DELETE /api/messages/:id` | 경로 `id` → `Number()` 변환만 | 없음(`void`) | `NOT_FOUND`(404) + 공통 | ○ | ○ | R-MSG-005·008 |
+| `messages.editMessage(id, { text })` | `PATCH /api/messages/:id` | 경로 `id` → `messageIdParam`(10진 숫자 문자열만 `Number()`, 그 밖은 `NaN`), 본문 `{ text: string }` | `Message` | `VALIDATION_ERROR`(400), `NOT_FOUND`(404) + 공통 | ○ | ○ | R-MSG-004·008 |
+| `messages.deleteMessage(id)` | `DELETE /api/messages/:id` | 경로 `id` → `messageIdParam`(10진 숫자 문자열만 `Number()`, 그 밖은 `NaN`) | 없음(`void`) | `NOT_FOUND`(404) + 공통 | ○ | ○ | R-MSG-005·008 |
 | `messages.speak(id, body, { waitUntil: p => c.executionCtx.waitUntil(p) })` (S3) | `POST /api/rooms/:id/speak` | 경로 `id`(문자열), 본문 `SpeakBody = { character: 'sebastian' \| 'ciel' }` | **201** `Message` | `VALIDATION_ERROR`(400), `CONFIG_INVALID`(500), `NOT_FOUND`(404), `SPEAK_IN_PROGRESS`(409), `LLM_BUDGET_EXCEEDED`(429, S3b), `LLM_FAILED`·`LLM_EMPTY`(502) + 공통 | ○ | ○ | R-MSG-003·007 · R-LLM-007 |
-| `messages.regenerate(Number(id))` (S3) | `POST /api/messages/:id/regenerate` | 경로 `id` → `Number()`, 본문 없음(읽지 않음) | **200** `Message` | `NOT_FOUND`(404), `NOT_CHARACTER_MESSAGE`(400), `CONFIG_INVALID`(500), `SPEAK_IN_PROGRESS`·`NOT_LAST_MESSAGE`(409), `LLM_BUDGET_EXCEEDED`(429, S3b), `LLM_FAILED`·`LLM_EMPTY`(502) + 공통 | ○ | ○ | R-MSG-006·007 · R-LLM-007 |
+| `messages.regenerate(id)` (S3) | `POST /api/messages/:id/regenerate` | 경로 `id` → `messageIdParam`(10진 숫자 문자열만 `Number()`, 그 밖은 `NaN`), 본문 없음(읽지 않음) | **200** `Message` | `NOT_FOUND`(404), `NOT_CHARACTER_MESSAGE`(400), `CONFIG_INVALID`(500), `SPEAK_IN_PROGRESS`·`NOT_LAST_MESSAGE`(409), `LLM_BUDGET_EXCEEDED`(429, S3b), `LLM_FAILED`·`LLM_EMPTY`(502) + 공통 | ○ | ○ | R-MSG-006·007 · R-LLM-007 |
 
 - 공통 = `TOKEN_REQUIRED`·`TOKEN_INVALID`(401), `LEVEL_TOO_LOW`(403), `RATE_LIMITED`(429), `CONFIG_INVALID`·`INTERNAL`(500). 미들웨어 순서·`getPrincipal`은 [auth.md](auth.md) §9.1.
 - 라우트 zod는 **타입만**: `{ text: z.string(), ooc: z.boolean() }`, `{ text: z.string() }`. trim·길이(코드 포인트)는 서비스가 판정한다(zod `.min/.max`는 UTF-16 단위라 CHECK·서비스와 어긋난다 — D-MSG-4와 같은 원칙). `ooc`를 필수로 할지 기본값 `false`를 둘지는 contract가 정한다(서비스는 boolean을 받는다).
-- 메시지 경로 `:id`는 라우트가 `Number(문자열)`로만 바꿔 넘긴다. 정수·범위 판정과 `NOT_FOUND`는 서비스 단일 소스다.
+- 메시지 경로 `:id`는 라우트(`messageIdParam`, api.md §4.5)가 10진 숫자로만 된 문자열이면 `Number()`로, 아니면 `NaN`으로 바꿔 넘긴다(`0x10`·`1e1`이 다른 메시지를 가리키지 않게 — S2-R1·S3-R2). 정수·범위 판정과 `NOT_FOUND`는 서비스 단일 소스다(`NaN`도 `NOT_FOUND`).
 - `Message`에 `authorMbId`를 넣지 않는다(쓰기 응답 포함).
 - R-MSG-008 확인: contract 라우트 테스트에서 토큰 A로 쓴 메시지를 **토큰 B(다른 `mb_id`)**로 수정·삭제해 성공함을 확인한다.
 - 수정 응답에 "수정됨" 표시 필드는 요구가 없어 두지 않는다(api.md §호환성 표의 선택 필드 후보).
@@ -568,7 +570,7 @@ INSERT INTO messages (room_id, speaker, kind, text, author_mb_id, author_name, c
 
 | 요구ID | 반영 절 | 테스트ID | 상태 |
 |---|---|---|---|
-| R-SET-003 🔒 (speak 반영) | §4.4 | SRV-T-256~258 | ✅(설계) |
+| R-SET-003 🔒 (speak 반영) | §4.4 | SRV-T-256~258·292 | ✅(설계) |
 | R-SET-006 🔒 · R-LLM-003 🔒(개정) | §4.4(입력 전달 — 조립은 [llm.md](llm.md) §7.3) | SRV-T-256 | ✅(설계) |
 
 ## 11. 설계 결정 노트
@@ -674,6 +676,7 @@ const resolveSpeaker = async (
 - 검증 문구: `CHARACTER_INVALID_MESSAGE`를 `'캐릭터는 sebastian·ciel·auto 중 하나여야 합니다.'`로 바꾼다. SRV-T-194는 코드만 단언한다(`codeOf`) — 무수정. 라우트 zod가 먼저 400을 내므로 이 문구는 서비스 직접 호출에서만 보인다.
 - **새 에러 코드·서비스 메서드·deps·env 키·마이그레이션 0건.** `GenerateDeps`·`MessagesDeps`·`MessagesService` 불변.
 - `speak` 본문이 50줄을 넘지 않게 `resolveSpeaker`를 분리한다(golden-principles §1).
+- **`pick`은 잠금 안 작업의 반환값이다(verify 후속 SRV-003, 2026-10-07).** `withSpeakLock`의 작업 함수가 `{ saved, pick }`을 돌려주고 바깥은 구조 분해로 받는다. 바깥 `let pick`과 가짜 초기값(`sebastian`·`request`·0)은 없앴다. 잠금 안에서 throw하면 ⑧ 훅·⑨ `speak_done` 로그까지 가지 않으므로, 로그의 `character`·`selected`는 언제나 실제로 고른 값이다. 공개 API 변경 없음.
 
 | 항목 | 버튼(`'sebastian'`·`'ciel'`) | `'auto'` |
 |---|---|---|
@@ -698,7 +701,7 @@ POST /api/rooms/:id/speak { character: 'auto' }   [requireToken · rateLimitWrit
           try {
             [rowsDesc, summary, settings] = Promise.all(pageDesc ∥ getSummary ∥ loadPromptSettings)   (기존과 같음)
             history = rowsDesc 뒤집기(오래된→새)
-            ⑤ pick = await resolveSpeaker(llm, roomId, 'auto', history, settings)
+            ⑤ const pick = await resolveSpeaker(llm, roomId, 'auto', history, settings)   (잠금 안 지역 값)
                  └ llm.selectSpeaker({ history, profiles, common })   마지막 유저 글에 「세바스찬」·「시엘」 한쪽만 → 지목(호출 0 · usage 0) / 아니면 ≤ 15초 · 재시도 없음 · usage 누적 · throw 없음
                    choice.source === 'fallback' → logger.warn('speaker_select_fallback', { roomId, reason })
                  → { character: choice.speaker, selected: choice.source, spentMs: choice.ms }
@@ -706,6 +709,7 @@ POST /api/rooms/:id/speak { character: 'auto' }   [requireToken · rateLimitWrit
                raw = await llm.complete(prompt, { spentMs: pick.spentMs })   ── 남은 예산(보통 ≥ 51초) · 재시도 1 · usage 누적 · 502
                text = postprocessLine(raw)
             ⑦ saved = db.messages.insert({ speaker: pick.character, kind: 'line', authorMbId: null, authorName: null }, now())
+            return { saved, pick }     ── 잠금 밖으로는 반환값으로만 나간다(바깥 let·가짜 초기값 없음)
           } finally { releaseQuietly(roomId, untilMs) }
        ⑧ afterSpeak 있으면 waitUntil(기존과 같음)
        ⑨ logger.info('speak_done', { roomId, messageId, character: pick.character, auto: true, selected: pick.selected, ms })
@@ -799,6 +803,7 @@ FakeProvider 각본의 0번째는 선택 호출, 1번째부터 발화 호출이�
 
 | 날짜 | 내용 |
 |---|---|
+| 2026-10-07 | verify 후속 동기화(소스 기준, SRV-001·SRV-003·S3-R1·S3-R2): §12.2 `pick` 반환 구조 문단, §12.3 흐름 ⑤·⑦ 뒤 `return { saved, pick }`, §4.4 실패 문단·§8.4 SRV-T-292(설정 읽기 실패 시 잠금 해제), §5 `character` 위반 행(실물 문구·HTTP 미도달)·S3-R1 메모, §9 메시지 id 10진 규칙(S3-R2), §10.1. 공개 API 변경 없음 |
 | 2026-10-06 | 마감 동기화(server 343/343): 상태 줄 문구 확정. 번호·파일은 실물 기준(SRV-T-281 `messages-generate` 서비스 경로). SRV-T-270·273·276의 15000·51000·49000 값은 실물과 같다 |
 | 2026-10-06 | 구현 동기화(343/343, SRV-T-261~281): 지목 `ms: 0`·로그 `speaker_select{provider, result:'mention', character, ms:0}`(reason·outChars 없음), "마지막 유저 글" = 기록 전체의 마지막 유저 메시지(맨 끝이 캐릭터여도 — 승인), 벡터 M7 추가, 테스트 번호를 실물에 맞춤(279 지목 벡터 · 280 호출·사용량 0 · 281 서비스 경로) |
 | 2026-10-06 | R-LLM-008 개정(사용자 승인) 반영: §12.3 흐름 ⑤에 이름 지목 경로(호출 0) · 선택 15초, `ResolvedSpeaker.selected`에 `'mention'`, AI 호출 1~3회, 시간표 15 + 51초, SRV-T-270·273·276 값 갱신, SRV-T-279 추가, §12.8 api.md 요청 문구 |

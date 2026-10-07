@@ -3,7 +3,7 @@
  * [공개 API] parseEnv(raw) -> Config, requireLlmApiKey(config), ENV_KEYS, ConfigError, LLM_PROVIDERS, 타입 Env·Config
  * [비동기] 없음(동기 순수 함수). 요청마다 1회 호출, 요청 간 캐시 없음
  * [에러] ConfigError{ code: CONFIG_INVALID, keys } — 키 이름만 담고 값·zod 메시지·cause 는 싣지 않는다
- * [설정] TOKEN_SECRET, LLM_API_KEY, TOKEN_MIN_LEVEL, LLM_PROVIDER, LLM_MODEL, LLM_TIMEOUT_MS,
+ * [설정] TOKEN_SECRET(32자 이상, SEC-001), LLM_API_KEY, TOKEN_MIN_LEVEL, LLM_PROVIDER, LLM_MODEL, LLM_TIMEOUT_MS,
  *        ALLOWED_FRAME_ANCESTORS, RATE_LIMIT_PER_MIN, CONTEXT_MESSAGES, MEMORY_SUMMARY_THRESHOLD,
  *        LLM_MONTHLY_BUDGET_KRW, LLM_PRICE_INPUT_USD_PER_M, LLM_PRICE_OUTPUT_USD_PER_M, KRW_PER_USD, OWNER_MB_IDS(S3c), DB, ASSETS
  * [테스트] server/test/env.test.ts (SRV-T-001~011, 231·232, 234·235)
@@ -113,7 +113,12 @@ const decimalVar = (min: number, max: number, dflt: number) =>
       .default(dflt),
   )
 
-const secret = z.preprocess(v => (v === '' ? undefined : v), z.string())
+/** SEC-001: HMAC SECRET 최소 길이. 짧은 값은 무차별 대입에 약하다 */
+const TOKEN_SECRET_MIN_LENGTH = 32
+const secret = z.preprocess(
+  v => (v === '' ? undefined : v),
+  z.string().min(TOKEN_SECRET_MIN_LENGTH),
+)
 const optionalSecret = z.preprocess(v => (v === '' ? undefined : v), z.string().optional())
 const resource = (method: string) =>
   z.custom<object>(

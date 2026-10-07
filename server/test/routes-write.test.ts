@@ -11,7 +11,7 @@ import { insertLine, insertLines, insertRoom, resetDb } from './helpers'
 import { signTestToken } from './token'
 
 const NOW = 1_700_000_000_000
-const SECRET = 'test-secret'
+const SECRET = 'test-secret-0123456789-abcdefghijklmnop'
 const ROOM = 'room-1'
 const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
 
@@ -428,7 +428,11 @@ describe('PATCH · DELETE /api/messages/:id', () => {
     }
     expect(page.messages.filter(m => m.speaker === 'user')).toHaveLength(2)
     expect(page.messages.some(m => m.speaker !== 'user')).toBe(true)
-    const patch = await ok({ method: 'PATCH', path: `/api/messages/${oocId}`, body: { text: '수정' } })
+    const patch = await ok({
+      method: 'PATCH',
+      path: `/api/messages/${oocId}`,
+      body: { text: '수정' },
+    })
     expect(patch.status).toBe(200)
     expect(await patch.clone().text()).not.toContain('시드 유저')
     expect((await patch.json<Message>()).authorName).toBe(USER_DISPLAY_NAME)

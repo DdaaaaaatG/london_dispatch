@@ -1,6 +1,6 @@
 # auth 모듈 설계
 
-- 상태: 초안 · S3c 구현 완료(§12 주인 판정) · **S3d 구현 완료(2026-10-06, SRV-T-261~278 · §13 displayName 저장 전용)** · 최종 갱신: 2026-10-06
+- 상태: 초안 · S3c 구현 완료(§12 주인 판정) · **S3d 구현 완료(2026-10-06, SRV-T-261~278 · §13 displayName 저장 전용)** · verify 후속 동기화(2026-10-07 — §6 `tokenSecret` 32자·시험 SECRET, §12.4 `ownerMbIds` [설정]) · 최종 갱신: 2026-10-07
 - 묶음: S2(토큰 + 쓰기). 이 문서의 공개 API는 전부 S2에서 구현한다.
 - 관련 문서: [env.md](env.md)(`tokenSecret`·`tokenMinLevel`·`rateLimitPerMin`), [db.md](db.md)(`rateLimits` 저장소), [index.md](index.md)(서비스 컨테이너·`AppEnv.Variables.principal`·onError의 `retryAfterSec`), [rooms.md](rooms.md)·[messages.md](messages.md)(쓰기 서비스 — 이 모듈의 미들웨어 뒤에서 호출된다).
 
@@ -293,15 +293,16 @@ POST /api/rooms  (Authorization: Bearer <t>)
 
 ## 6. 설정(env)
 
-`parseEnv` 결과(`Config`)에서 세 값을 골라 `createAuthService`에 값으로 받는다. 바인딩을 직접 읽지 않는다. 새 키 없음.
+`parseEnv` 결과(`Config`)에서 세 값(S3c부터 `ownerMbIds`를 더해 네 값 — §12.4)을 골라 `createAuthService`에 값으로 받는다. 바인딩을 직접 읽지 않는다. 새 키 없음.
 
 | `Config` 필드 | 바인딩 키 | 타입·기본값 | 비밀값 | 쓰는 곳 |
 |---|---|---|---|---|
-| `tokenSecret` | `TOKEN_SECRET` | string, 필수 | ○ Secrets / `server/.dev.vars` | HMAC 키 |
+| `tokenSecret` | `TOKEN_SECRET` | string, 필수, **32자 이상**(parseEnv가 보장 — [env.md](env.md) §3.1·D-ENV-13, 2026-10-07. auth는 길이를 다시 보지 않는다) | ○ Secrets / `server/.dev.vars` | HMAC 키 |
 | `tokenMinLevel` | `TOKEN_MIN_LEVEL` | int 1~10, 기본 5 | ✕ `wrangler.toml [vars]` | 등급 비교 |
 | `rateLimitPerMin` | `RATE_LIMIT_PER_MIN` | int 1~600, 기본 20 | ✕ `wrangler.toml [vars]` | 창당 한도 |
 
 - `tokenSecret`은 `AuthService` 클로저 안에만 있고 속성으로 노출하지 않는다. 라우트가 `services.auth`를 통해 SECRET에 닿을 길이 없다.
+- **시험 SECRET(2026-10-07).** §2.6 교차 벡터의 SECRET은 교차 언어 기준이라 바꾸지 않는다. `verifyToken`은 길이를 보지 않으므로 벡터 단위 시험은 그대로 돈다. `parseEnv`를 거치는 HTTP 계층 시험(`server/test/auth.test.ts` 등)은 32자 이상 SECRET으로 같은 payload를 다시 서명해 쓴다.
 
 ## 7. DB 스키마·마이그레이션
 
@@ -531,6 +532,8 @@ GET /api/settings/characters · PUT /api/settings/characters        (routes = co
 |---|---|---|---|---|
 | `ownerMbIds` (S3c) | `OWNER_MB_IDS` | `readonly string[]`, 기본 `[]` | 비밀 아님. Secrets 권고, `[vars]` 허용([env.md](env.md) S3c 델타) | `isOwner` |
 
+- 기본 `[]`이면 설정 엔드포인트는 전원 `OWNER_ONLY` 403이고 캐릭터 대화는 기본 설정으로 계속된다. 모듈 머리 주석(`auth/index.ts` [설정])도 `tokenSecret`(32자 이상은 parseEnv 보장)·`tokenMinLevel`·`rateLimitPerMin`·`ownerMbIds` 네 값을 적는다(verify 후속, 2026-10-07).
+
 ### 12.5 테스트 (`server/test/auth-middleware.test.ts`·`auth-rate-limit.test.ts` 옆 신규 `auth-owner.test.ts`)
 
 | 테스트ID | 이름 | 입력 | 기대 | 요구 |
@@ -615,3 +618,4 @@ export type Principal = {
 | 2026-10-06 | S3c 설계: §12 주인 판정 — `isOwner`(순수)·`assertOwner`(로그 `owner_denied`·`OWNER_ONLY` 403)·`requireOwner` 미들웨어, `AuthDeps.config.ownerMbIds`(선택, 기본 `[]`), SRV-T-236~238, D-AUTH-15~18 |
 | 2026-10-06 | api.md v0.5 대조: §12.2 D1 미접근(N6)·본문 상한 단계, §12.3 `OWNER_ONLY` 문구 확정(§5.8.2), §12.5 SRV-T-237 변형 ⑥(레이트리밋 미소모), §12.6 E16 미들웨어 줄 |
 | 2026-10-06 | §12에 구현 완료 표기(server 318/318, SRV-T-234~260). 설계와 다른 점 없음 |
+| 2026-10-07 | verify 후속 동기화(소스 기준): §6 `tokenSecret` 32자 이상은 parseEnv 보장([env.md](env.md) D-ENV-13), 시험 SECRET 메모(교차 벡터 불변·HTTP 계층은 긴 SECRET으로 재서명), §12.4 `ownerMbIds` 기본값 의미·머리 주석 [설정]. auth 코드·공개 API 변경 없음 |
