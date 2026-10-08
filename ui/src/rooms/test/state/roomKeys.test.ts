@@ -64,11 +64,20 @@ describe('roomKeys 순수 함수 (F-RM-30~33 · R-LOCK-004 · R-LOCK-007)', () =
     ])
   })
 
-  it('TC-RM-059(a): parseRoomKeys — 같은 방 id 가 여러 번이면 마지막 증명만(순서는 단언하지 않는다)', () => {
+  it('TC-RM-059(a): parseRoomKeys — 같은 방 id 가 여러 번이면 마지막 증명이 이기고 맨 뒤(설계 결정 2026-10-08)', () => {
     const parsed = parseRoomKeys(JSON.stringify([['a', 'k1'], ['b', 'k2'], ['a', 'k3']]))
     expect(parsed).toHaveLength(2)
     expect(findRoomKey(parsed, 'a')).toBe('k3')
     expect(findRoomKey(parsed, 'b')).toBe('k2')
+    expect(parsed).toEqual([
+      ['b', 'k2'],
+      ['a', 'k3'],
+    ])
+  })
+
+  it('TC-RM-059(a): parseRoomKeys — 길이 2 가 아닌 배열(3원소·1원소)은 버린다(설계 결정 2026-10-08)', () => {
+    const raw = JSON.stringify([['r1', 'k1', 'extra'], ['r2'], ['r3', 'k3']])
+    expect(parseRoomKeys(raw)).toEqual([['r3', 'k3']])
   })
 
   it('TC-RM-059(a): parseRoomKeys — 50 초과면 뒤쪽 50개', () => {

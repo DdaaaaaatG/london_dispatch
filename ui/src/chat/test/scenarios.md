@@ -230,6 +230,7 @@
 - When (a) `ld:scroll:r1='300'`으로 마운트 (b) `scrollTop=1000` 후 언마운트 (c) `scrollTop=1200` 후 `pagehide` (d) 첫 로드 대기 중 언마운트(`'300'` 저장돼 있음) (e) 마운트 → 언마운트 후 키 목록 (f) `scrollTop=1000` 후 언마운트 → 저장소 비움 → `pagehide`
 - Then ⓐ (a) 첫 배치 `scrollTop=2207` ⓑ (b) `'1507'` (c) `'1307'`, `ld:lastRoomId='r1'` 유지 (d) `'300'` 유지 (e) 키는 `ld:lastRoomId`·`ld:scroll:r1`뿐 (f) 언마운트 시 `'1507'` 저장 → 비운 뒤 `pagehide`가 와도 `ld:scroll:r1` 없음(cleanup이 `pagehide` 리스너를 해제). 훅 단위: 복원 null 2507·300 2207·99999 0, `firstId=null`이면 배치 안 함·거리 null, 언마운트 뒤 마지막 거리 1507. storage 단위: 반올림·음수 0, 파싱(`abc`·`-5`·`Infinity` → null), 방별 키 분리 ⓒ `listMessages` 1회(각 경우)
 - 스펙: `ChatScroll.test.tsx` · `useAutoScroll.test.tsx` · `ui/src/state/storage.test.ts`
+- **(S6 개정 2026-10-08, rooms scenarios v0.7.1 TC-RM-010 ⓑ와 공유 스펙)**: storage 단위의 키 상수 단언이 `STORAGE_KEYS` 3종(`lastRoomId`·`scrollOffset`·`roomKeys` = `ld:roomKeys`, 입장 증명 — 토큰 키 아님)으로 바뀐다. 이 TC의 (e) "마운트 → 언마운트 후 키는 `ld:lastRoomId`·`ld:scroll:r1`뿐"은 잠기지 않은 방이라 불변
 
 ### TC-CH-026 · 저장소 throw · 종류: 자동 · 요구: R-CHAT-010 · 설계: §6.4 저장소 행 · rooms C §1.7 · 토큰: 없음
 - Given `getItem`·`setItem`·`removeItem` 모두 throw, 스크롤 박스 3000/493

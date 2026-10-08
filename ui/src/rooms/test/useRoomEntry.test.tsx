@@ -70,7 +70,7 @@ afterEach(() => {
 })
 
 describe("requestEntry(room, 'locked') (F-RM-41 · R-LOCK-004 · chat 입장 재요구 경로)", () => {
-  it('TC-RM-065(a): 토큰 있음 — 증명 삭제 → ①② 건너뜀 → enterRoom(id) 인자 1개 → ROOM_LOCKED 면 시트', async () => {
+  it('TC-RM-065(a1): 토큰 있음(별도 렌더) — 증명 삭제 → ①② 건너뜀 → enterRoom(id) 인자 1개 → ROOM_LOCKED 면 시트', async () => {
     localStorage.setItem(KEYS, '[["r3","e1.x"]]')
     const pending = deferred<Result<EnterRoomResponse>>()
     mockedEnterRoom.mockReturnValueOnce(pending.promise)
@@ -92,7 +92,7 @@ describe("requestEntry(room, 'locked') (F-RM-41 · R-LOCK-004 · chat 입장 재
     expect(onEntered).not.toHaveBeenCalled()
   })
 
-  it('TC-RM-065(a): 토큰 있음 — locked:false 인 옛 요약이라도 ① 을 건너뛰고 조용한 시도', async () => {
+  it('TC-RM-065(a2): 토큰 있음(별도 렌더) — locked:false 인 옛 요약이라도 ① 을 건너뛰고 조용한 시도', async () => {
     mockedEnterRoom.mockResolvedValueOnce({ ok: true, value: { entryKey: 'e2.y' } })
     const { result, onEntered } = setup(true)
 
@@ -100,6 +100,7 @@ describe("requestEntry(room, 'locked') (F-RM-41 · R-LOCK-004 · chat 입장 재
       result.current.requestEntry(STALE, 'locked')
     })
     expect(mockedEnterRoom.mock.calls[0]).toEqual(['r1'])
+    expect(mockedEnterRoom.mock.calls[0]).toHaveLength(1)
     expect(onEntered).toHaveBeenCalledTimes(1)
     expect(onEntered.mock.calls[0]?.[0]).toEqual(STALE)
     expect(getRoomKey('r1')).toBe('e2.y')
@@ -117,7 +118,7 @@ describe("requestEntry(room, 'locked') (F-RM-41 · R-LOCK-004 · chat 입장 재
     expect(onEntered).not.toHaveBeenCalled()
   })
 
-  it('TC-RM-065(c): 조용한 시도 대기 중 다른 방 locked 호출 → 그 방 증명은 지워지고 enterRoom·시트 추가 없음', async () => {
+  it('TC-RM-065(c1): 조용한 시도 대기 중 다른 방 locked 호출 → 그 방 증명은 지워지고 enterRoom·시트 추가 없음', async () => {
     localStorage.setItem(KEYS, '[["r4","e4.z"]]')
     const pending = deferred<Result<EnterRoomResponse>>()
     mockedEnterRoom.mockReturnValueOnce(pending.promise)
@@ -136,7 +137,7 @@ describe("requestEntry(room, 'locked') (F-RM-41 · R-LOCK-004 · chat 입장 재
     expect(result.current.sheet?.room).toEqual(SECRET)
   })
 
-  it('TC-RM-065(c): 시트가 열린 상태에서 다른 방 locked 호출 → 증명 삭제, 시트는 그대로', () => {
+  it('TC-RM-065(c2): 시트가 열린 상태에서 다른 방 locked 호출 → 증명 삭제, 시트는 그대로', () => {
     localStorage.setItem(KEYS, '[["r4","e4.z"]]')
     const { result } = setup(false)
 
@@ -186,7 +187,10 @@ describe('submitPassword · cancelEntry 가드 (F-RM-43 · F-RM-44)', () => {
     const { result } = setup(false)
 
     act(() => result.current.requestEntry(SECRET))
-    act(() => result.current.submitPassword('pw1234'))
+    // submitPassword 는 void 반환(설계 결정) — 동기 act 를 보장하려고 중괄호 본문으로 부른다
+    act(() => {
+      result.current.submitPassword('pw1234')
+    })
     expect(result.current.sheet).toEqual({ room: SECRET, isBusy: true, error: null })
     act(() => result.current.cancelEntry())
     expect(result.current.sheet).toEqual({ room: SECRET, isBusy: true, error: null })
@@ -201,12 +205,18 @@ describe('submitPassword · cancelEntry 가드 (F-RM-43 · F-RM-44)', () => {
 
   it('TC-RM-052(d): 시트가 없거나 입력이 무효(빈칸·65자)면 submitPassword 가 enterRoom 을 부르지 않는다', () => {
     const { result } = setup(false)
-    act(() => result.current.submitPassword('pw1234'))
+    act(() => {
+      result.current.submitPassword('pw1234')
+    })
     expect(mockedEnterRoom).not.toHaveBeenCalled()
 
     act(() => result.current.requestEntry(SECRET))
-    act(() => result.current.submitPassword(''))
-    act(() => result.current.submitPassword('a'.repeat(65)))
+    act(() => {
+      result.current.submitPassword('')
+    })
+    act(() => {
+      result.current.submitPassword('a'.repeat(65))
+    })
     expect(mockedEnterRoom).not.toHaveBeenCalled()
     expect(result.current.sheet).toEqual({ room: SECRET, isBusy: false, error: null })
   })

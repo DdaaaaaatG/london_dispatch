@@ -1,5 +1,5 @@
 /**
- * rooms S6 화면 스펙 초안 — 단일 소스 ui/src/rooms/test/scenarios.md (TC-RM-041 ~ 053 · 058)
+ * rooms S6 화면 스펙 초안 — 단일 소스 ui/src/rooms/test/scenarios.md (TC-RM-041 ~ 053 · 058 · 067)
  * 대상: RoomsScreen(S6) · RoomList/ListRow 잠긴 변형 · useRoomEntry · RoomEntrySheet · PromptSheet(password)
  * - 설계: ui/src/rooms/design/lock.md (F-RM-40~54 · §6.7 · §6.8 · §6.10 · §8 · §10) · design/components.md §1.21~§1.23 · §2.1 · §2.2
  * - 토큰은 viewer props 로만 준다(WRITER_VIEWER / READ_ONLY_VIEWER). App 통합은 LockFlow.test.tsx.
@@ -109,7 +109,8 @@ const renderRooms = (viewer: Viewer, autoOpenRoomId: string | null = null) => {
   const onAuthFailure = vi.fn()
   const props = { autoOpenRoomId, onOpenRoom, onAutoOpenSettled, onAuthFailure }
   const view = render(<RoomsScreen viewer={viewer} {...props} />)
-  return { ...view, onOpenRoom, onAutoOpenSettled, onAuthFailure }
+  const rerenderWith = (next: Viewer) => view.rerender(<RoomsScreen viewer={next} {...props} />)
+  return { ...view, onOpenRoom, onAutoOpenSettled, onAuthFailure, rerenderWith }
 }
 
 /** 목록이 그려진 뒤 잠긴 행을 탭한다 */
@@ -153,8 +154,8 @@ describe('잠긴 행 표시 (R-LOCK-003 · R-ROOMS-001 S6 · F-RM-54)', () => {
     const locked = await screen.findByRole('button', { name: ROW_SECRET })
 
     // ⓐ 잠긴 행
+    expect(locked.querySelectorAll('svg')).toHaveLength(1)
     const svg = locked.querySelector('svg')
-    expect(svg).not.toBeNull()
     expect(svg?.getAttribute('aria-hidden')).toBe('true')
     expect(svg?.getAttribute('focusable')).toBe('false')
     expect(locked.querySelectorAll('time')).toHaveLength(0)
@@ -257,6 +258,7 @@ describe('판정 ③ 조용한 시도 · ④ 읽기 전용 (F-RM-41·42 · R-LOC
     const { input, submit, cancel } = sheetParts()
     // ⓐ
     expect(within(dialog).getByRole('heading', { level: 2, name: SHEET })).not.toBeNull()
+    expect(dialog.getAttribute('aria-modal')).toBe('true')
     await waitFor(() => expect(document.activeElement).toBe(input))
     expect(input.value).toBe('')
     expect(within(dialog).queryByRole('alert')).toBeNull()
@@ -395,7 +397,8 @@ describe('입장 시트 제출 (F-RM-43 · §6.8 · R-LOCK-004 · R-LOCK-007 · 
   })
 
   it('TC-RM-050(a): 시트 제출 NOT_FOUND → 시트 닫힘·목록 다시 받기·토스트 없음', async () => {
-    mockedListRooms.mockResolvedValueOnce(ok(ROOMS)).mockResolvedValue(ok([ROOM_CHESS, ROOM_TEA]))
+    const reload = deferred<Result<RoomSummary[]>>()
+    mockedListRooms.mockResolvedValueOnce(ok(ROOMS)).mockReturnValueOnce(reload.promise)
     mockedEnterRoom.mockResolvedValueOnce(fail('NOT_FOUND'))
     const { onOpenRoom } = renderRooms(READ_ONLY_VIEWER)
     const { user } = await tapSecret()
@@ -404,6 +407,12 @@ describe('입장 시트 제출 (F-RM-43 · §6.8 · R-LOCK-004 · R-LOCK-007 · 
     await user.click(submit)
 
     await waitFor(() => expect(mockedListRooms).toHaveBeenCalledTimes(2))
+    // 다시 받는 동안 loading role=status(F-RM-48 retry · A S6 목록 다시 받기), 시트는 이미 없음
+    expect(screen.getByRole('status').textContent).toContain('불러오는 중')
+    expect(screen.queryByRole('dialog')).toBeNull()
+    await act(async () => {
+      reload.resolve(ok([ROOM_CHESS, ROOM_TEA]))
+    })
     expect(await screen.findByRole('button', { name: ROW_TEA })).not.toBeNull()
     expect(screen.queryByRole('dialog')).toBeNull()
     expect(screen.queryByRole('button', { name: ROW_SECRET })).toBeNull()
@@ -413,12 +422,19 @@ describe('입장 시트 제출 (F-RM-43 · §6.8 · R-LOCK-004 · R-LOCK-007 · 
   })
 
   it('TC-RM-050(b): 조용한 시도 NOT_FOUND → 시트 없이 목록 다시 받기·토스트 없음', async () => {
-    mockedListRooms.mockResolvedValueOnce(ok(ROOMS)).mockResolvedValue(ok([ROOM_CHESS, ROOM_TEA]))
+    const reload = deferred<Result<RoomSummary[]>>()
+    mockedListRooms.mockResolvedValueOnce(ok(ROOMS)).mockReturnValueOnce(reload.promise)
     mockedEnterRoom.mockResolvedValueOnce(fail('NOT_FOUND'))
     const { onOpenRoom } = renderRooms(WRITER_VIEWER)
     await tapSecret()
 
     await waitFor(() => expect(mockedListRooms).toHaveBeenCalledTimes(2))
+    // 다시 받는 동안 loading role=status(F-RM-48 retry · A S6 목록 다시 받기), 시트는 이미 없음
+    expect(screen.getByRole('status').textContent).toContain('불러오는 중')
+    expect(screen.queryByRole('dialog')).toBeNull()
+    await act(async () => {
+      reload.resolve(ok([ROOM_CHESS, ROOM_TEA]))
+    })
     expect(await screen.findByRole('button', { name: ROW_TEA })).not.toBeNull()
     expect(screen.queryByRole('dialog')).toBeNull()
     expect(screen.queryByRole('alert')).toBeNull()
@@ -500,6 +516,8 @@ describe('시트 닫기·입력·연타 (F-RM-44 · F-RM-46 · F-RM-39 · D-L2 �
     fireEvent.keyDown(input, { key: 'Enter', code: 'Enter' })
     await waitFor(() => expect(mockedEnterRoom).toHaveBeenCalledTimes(1))
     expect(mockedEnterRoom.mock.calls[0]).toEqual(['r3', ' a '])
+    // 응답(ROOM_PASSWORD_WRONG)이 반영된 뒤 끝낸다 — cleanup 과 상태 갱신 경합 방지
+    expect((await within(dialog).findByRole('alert')).textContent).toBe('비밀번호가 맞지 않습니다.')
   })
 
   it('TC-RM-053(a): 조용한 시도 대기 중 같은 행·다른 행 탭 → 무시, enterRoom 1회', async () => {
@@ -543,6 +561,46 @@ describe('시트 닫기·입력·연타 (F-RM-44 · F-RM-46 · F-RM-39 · D-L2 �
       pending.resolve(fail('ROOM_PASSWORD_WRONG'))
     })
     expect(mockedEnterRoom).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('시트가 열린 채 읽기 전용 전환 (L §10 끝 줄 · R-LOCK-006 · 메인 결정: 포커스는 시트에 남음)', () => {
+  it('TC-RM-067: 입장 시트 열림 → viewer READ_ONLY 전환 → 시트·입력값·입력 포커스 유지(h1 이동 없음), B·비밀번호 칸 소멸 → 제출 정상', async () => {
+    mockedEnterRoom.mockResolvedValueOnce(fail('ROOM_LOCKED')).mockResolvedValueOnce(ok({ entryKey: 'e1.x' }))
+    const user = userEvent.setup()
+    const { onOpenRoom, rerenderWith } = renderRooms(WRITER_VIEWER)
+    await screen.findByRole('button', { name: ROW_SECRET })
+    await user.click(screen.getByRole('button', { name: NEW_ROOM }))
+    expect(screen.getByLabelText('새 방 비밀번호')).not.toBeNull()
+
+    await user.click(screen.getByRole('button', { name: ROW_SECRET }))
+    const dialog = await screen.findByRole('dialog', { name: SHEET })
+    const { input, submit } = sheetParts()
+    await waitFor(() => expect(document.activeElement).toBe(input))
+    await user.type(input, 'pw1234')
+
+    // App 의 revokeWrite 흉내(057(c)와 같은 방식)
+    rerenderWith(READ_ONLY_VIEWER)
+    await flushPending()
+
+    // ⓐ 시트는 쓰기 UI 가 아니다 → 그대로. 포커스는 시트 입력에 남는다(h1 로 옮기지 않음)
+    expect(screen.getByRole('dialog', { name: SHEET })).toBe(dialog)
+    expect(input.value).toBe('pw1234')
+    expect(document.activeElement).toBe(input)
+    expect(document.activeElement).not.toBe(screen.getByRole('heading', { level: 1, name: 'ROOMS' }))
+    expect(screen.queryByRole('button', { name: NEW_ROOM })).toBeNull()
+    expect(screen.queryByRole('group', { name: NEW_ROOM })).toBeNull()
+    expect(screen.queryByLabelText('새 방 비밀번호')).toBeNull()
+
+    // 제출은 정상
+    await user.click(submit)
+    await waitFor(() => expect(onOpenRoom).toHaveBeenCalledTimes(1))
+    expect(onOpenRoom.mock.calls[0]?.[0]).toEqual(ROOM_SECRET)
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(localStorage.getItem(KEYS)).toBe('[["r3","e1.x"]]')
+    expect(storageValues().some(v => v.includes('pw1234'))).toBe(false)
+    expect(mockedEnterRoom.mock.calls).toEqual([['r3'], ['r3', 'pw1234']])
+    expect(mockedEnterRoom.mock.calls[0]).toHaveLength(1)
   })
 })
 
