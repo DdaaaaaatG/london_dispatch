@@ -41,6 +41,7 @@
 | v2.0.2 | 2026-10-07 | **후작업 동기화(동작·문구 변경 없음)**: ① 공용 Button `ariaDescribedBy?` → §12 행 "해소", AU §8 D-23 해소(지역 훅 `useDescribedBy` 삭제) ② `NETWORK`·인증 3종 문구 공용 `errorText.ts` → 머리 표 공용 요소 · §8 비고 · §12 행 "공용화 완료" · labels.md §8.2·§8.3 ③ 공용 `useLongPress` 삭제 → 머리 표 · §3.2 · §12 · components.md §1·§2.2 · actions.md §3·D-24·D-32 · actions-tests.md · tc.md TC-CH-060 | ui-postprocessor 후작업 · 사용자 승인 |
 | v2.0.3 | 2026-10-07 | **40KB 분할**: §12 공용화 후보 표 → `design/decisions.md` §12(내용 그대로), 이 문서에는 포인터 한 줄. §1 분할 표 갱신 | 메인 세션 실측 41,569바이트 |
 | v2.1 | 2026-10-07 | **S4(구축)**: 신규 `design/memory.md`(전체 델타). 주 문서는 머리 표 · §10 장기기억 행 · §14 비움. 포인터: components.md §2.9·§2.10 · functions.md §3 · labels.md · rtm.md · tc.md · layout.md | R-CHAT-012 🔒 · 메인 세션 사전 확정 1~7 |
+| v2.2 | 2026-10-08 | **시각 보강(CR-004, 보강·CSS만)**: 신규 `design/style.md` — 세 화면 공통 토큰 전/후 표(정본) · 대비 근거 · 파일·클래스별 규칙 · 장식 라벨 방식 · 승인과 다른 점 · 구현 대상 CSS 8개. §11.1 · components.md §4 포인터. 레이아웃·DOM·문구·상태·계약·RTM 불변, 영향 TC 없음 | 사용자 2026-10-08 "갠홈 디자인에 맞춰야" · 승인 5항목 |
 
 ---
 
@@ -316,7 +317,7 @@ v1.7에서 40KB 한계로 표 본문을 분할 문서로 옮겼다. 절 번호�
 
 ## 11. 스타일 · S1 실물 소급
 
-### 11.1 스타일 → `design/components.md` §4
+### 11.1 스타일 → `design/components.md` §4 · 값 정본 **`design/style.md`**(v2.2, CR-004 — 세 화면 공통 토큰 전/후 표·컴포넌트별 규칙)
 
 (v1.6, CR-001) 세바스찬 `--bubble-sebastian-*` **왼쪽** · 시엘 `--bubble-ciel-*` **오른쪽**(아바타·이름 행 좌우 반전) · 유저 `--bubble-user-bg` **가운데 말풍선**(최대 폭 `--bubble-user-max-width` 86%) · OOC **가운데 한 줄**(배경 없음). 캐릭터 말풍선 최대 폭 78%(≤360px 85%), 아바타 28px, D `--color-info`. (S2) C 96~136px `--input-*`, 시트 `--sheet-*`·`--color-overlay`, E Toast.
 

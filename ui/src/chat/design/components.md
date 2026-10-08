@@ -325,6 +325,8 @@ export type UseAutoScrollResult = {
 
 ## 4. 스타일 토큰
 
+> **v2.2(2026-10-08, CR-004) 갠홈 estate 톤 보강:** 토큰 **값**과 컴포넌트별 시각 규칙의 정본은 **`design/style.md`**(§2 토큰 전/후 표 · §4 파일·클래스별 규칙)다. 아래 표의 변수 **이름·배치**는 유효하고, 색·반경·선 값이 style.md와 다르면 style.md가 우선한다. 바뀐 점 요약: 말풍선 모서리 `--radius-lg` → `--radius-bubble`(시엘 `--radius-bubble-mirror`), 화자별 선 `--bubble-{c}-border`, 이름 xs muted, 아바타 원 placeholder 바탕 `--avatar-{c}-bg`, 유저 말풍선 바탕·선 없음 + 글자 muted, 캐릭터 버튼·전송·재시도·OOC 토글은 투명 + 1px 선, 배지는 불투명 elevated + 강청 선·글자, 상단 바 90도 머리띠(chat은 장식 라벨 없음).
+
 | 대상 | 토큰(`.claude/skills/ui_design_concept.md`) |
 |---|---|
 | 배경 | `--color-bg`. 상단 바 아래·D 위·C 위 1px `--color-border` |

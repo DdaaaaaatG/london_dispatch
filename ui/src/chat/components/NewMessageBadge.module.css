@@ -1,8 +1,13 @@
-/* 스크롤 박스 밖 래퍼의 오른쪽 아래에 겹쳐 놓는다. info 톤(ui_design_concept §3 상태 색 안내) */
+/*
+ * 설계 chat/design/style.md §4.2 — 스크롤 박스 밖 래퍼의 오른쪽 아래에 겹쳐 놓는다. info(강청) 톤.
+ * 히스토리 글자 위에 떠 있어 투명 바탕이면 아래 글자와 겹쳐 읽히지 않으므로 불투명 elevated 바탕 + info 선·글자로 덮는다(style.md §6 ①).
+ */
 .root {
   position: absolute;
   right: var(--space-4);
   bottom: var(--space-2);
-  --btn-bg: var(--color-info);
-  --btn-hover: var(--color-info);
+  --btn-bg: var(--color-bg-elevated);
+  --btn-hover: var(--color-bg-elevated);
+  --btn-fg: var(--color-info);
+  --btn-border-primary: var(--color-info);
 }

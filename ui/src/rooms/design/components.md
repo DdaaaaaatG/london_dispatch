@@ -372,6 +372,18 @@ export type NewRoomRowProps = {
 
 ## 3. 스타일 토큰
 
+> **v1.7(2026-10-08, CR-002) 갠홈 estate 톤 보강:** 세 화면 공통 토큰 **값**(전/후 표)과 공용·화면 컴포넌트별 시각 규칙의 정본은 **`ui/src/chat/design/style.md`** §2 · §4다. 아래 표의 변수 이름·배치는 유효하고, 값이 다르면 style.md가 우선한다. §1.20 S2 토큰 중 `--sheet-radius`(→ `var(--radius-panel)` = `16px 0 0 0`) · `--sheet-shadow`(→ `inset 0 1px 0 var(--color-line-bright)`)도 style.md 값으로 바뀐다.
+>
+> **rooms 화면별 차이(이것만 rooms 고유):**
+> | 대상 | 규칙 |
+> |---|---|
+> | 상단 바 제목 "ROOMS" | TopBar `variant='screen'` → 큰 세리프 `--font-display` 22px(`--text-display`) · 자간 .05em · `--color-accent`, 위에 장식 라벨 `THE PHANTOMHIVE ESTATE`(7px · .22em · `--label-color`, CSS `::before` + 빈 대체 텍스트 — 보조기기에 읽히지 않음, style.md §5). 바 배경 90도 머리띠 `--topbar-band` + 아래 1px `--color-border` |
+> | 행 구분선 | `--row-divider` → `--color-line-faint`(연한 선). 행 hover `--row-hover-bg` → 옅은 푸른 바탕 `--btn-hover-bg` |
+> | 「+ 새 방」 | Button md primary → 투명 바탕 + 1px `--btn-border-primary`(`#aebfd8`) + ivory 글자, 직각 |
+> | ⚙ | IconButton → 선 없음 유지, 직각 hover |
+> | 새 방 입력 행 | TextInput 비대칭 모서리 `--radius-field` · 바탕 `--input-bg`(sunken) · 「취소」 secondary 선형 · 「만들기」 primary 선형 |
+> | rooms CSS 파일 | `ListRow`·`NewRoomRow`·`RoomList`·`RoomsScreen` `.module.css` **무수정**(변수 값 변경만으로 반영). 고치는 파일은 style.md §7의 공용 CSS |
+
 | 대상 | 토큰(`.claude/skills/ui_design_concept.md`) |
 |---|---|
 | 화면 배경 | `--color-bg` |

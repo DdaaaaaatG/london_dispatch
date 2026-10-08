@@ -51,3 +51,10 @@ R-ROOMS-001~005 모두 자동 TC 1건 이상 PASS. R-ROOMS-005(레이아웃)는 
 - TC-RM-040(수동, 주인 스크린샷): 부분 PASS. doc/300_검증/screenshots/20261006-2033/rooms-owner.png에서 ⚙ 실측 44x44, 상단 바에서 ⚙ 다음 「+ 새 방」 한 줄, scrollWidth 390=clientWidth(가로 스크롤 없음). 폭 328 캡처와 간격 --space-2 실측은 미실행.
 - 비주인: doc/300_검증/screenshots/20261006-2033/rooms-nonowner.png, 읽기 전용(토큰 없음): doc/300_검증/screenshots/20261006-2033/rooms-readonly.png. 두 화면 모두 ⚙ 없음(DOM 질의 null), 가로 스크롤 없음.
 - FAIL 없음.
+
+## 2026-10-08 시각 보강(CR-002/CR-004)
+실행: tsc --noEmit -p ui exit 0 · npm run lint exit 0 · vitest run(루트 전체) 76 파일 / 1368 테스트 전부 통과(FAIL 0, 재실행 불필요) · npm run build exit 0 · 헤드리스 Chrome 390x565@2x 캡처 4장 · 토큰 사용(값 비기록)
+캡처: doc/300_검증/screenshots/20261008-estate/{rooms-reader,rooms-writer,settings-common,chat-writer}.png
+- rooms 읽기 전용: PASS — 상단 바 머리띠 + 제목 위 라벨 THE PHANTOMHIVE ESTATE, 가로 스크롤 없음(scrollWidth 390=clientWidth).
+- rooms 쓰기: PASS — 버튼 투명 + 1px 직각 선(+ 새 방), 보라·초록 없음.
+- §8 ④ 접근성: PASS — CDP AX 트리 heading 이름이 'ROOMS'뿐(라벨 미포함, document.innerText에도 라벨 없음 = 장식 의사요소).

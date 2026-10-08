@@ -1,3 +1,4 @@
+/* 설계 chat/design/style.md §4.1 — 반경은 --radius-field(비대칭 모서리). 선 두께·높이 불변 */
 .wrap {
   position: relative;
   display: flex;
@@ -12,7 +13,7 @@
   height: 36px;
   padding: 0 var(--space-3);
   border: 1px solid var(--input-border);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-field);
   background: var(--input-bg);
   color: var(--input-fg);
   font-family: var(--font-ui);

@@ -281,3 +281,16 @@ TC-CH-122~138 전부 스펙에 등록되어 있고(`MemorySheet.test.tsx`·`stat
 
 ## 요구ID 커버
 R-CHAT-012(122~135·137·138) · R-CHAT-001(122) · R-CHAT-008(134·136) · R-CHAT-011(126·132~134·137) · R-CHAT-013(139 캡처) · R-MEM-001(124~125·128~130·136) · R-NFR-004(124·131·134·136).
+
+## 2026-10-08 시각 보강(CR-002/CR-004)
+실행: tsc --noEmit -p ui exit 0 · npm run lint exit 0 · vitest run(루트 전체) 76 파일 / 1368 테스트 전부 통과(FAIL 0, 재실행 불필요) · npm run build exit 0 · 헤드리스 Chrome 390x565@2x 캡처 4장 · 토큰 사용(값 비기록)
+캡처: doc/300_검증/screenshots/20261008-estate/{rooms-reader,rooms-writer,settings-common,chat-writer}.png
+- chat: PASS — 라벨 없음, 상단 바 머리띠, 세바스찬 왼쪽(좌상단 직각)·시엘 오른쪽(우상단 직각) 거울 모서리, 가로 스크롤·잘림 없음, 보라·초록 없음. 캐릭터 버튼 투명 + 1px 직각 선. 유저 말풍선은 현재 방에 없어 "유저 가운데 선 없음"(§8 ②)은 SKIP(수동 확인: 유저 발화가 있는 방 필요, 쓰기 금지로 미생성).
+- settings 공통 탭: PASS — 제목 위 라벨 THE PHANTOMHIVE ESTATE, 탭·AI 모델 라디오·세계관 입력 잘림·가로 스크롤 없음, AX heading '캐릭터 설정'(라벨 미포함). 참고: 선택 안 된 Flash 라디오 원이 흰색 채움(보라·초록 아님, 시각 참고사항).
+
+### 재검증 — 캡처 후속 수정(ui-fixer, 2026-10-08)
+수정: `ui/public/img/{sebastian,ciel}.png` 64×64 RGB 단색 플레이스홀더 → 64×64 RGBA 완전 투명(file 확인) · `ui/src/styles/global.css` `:root`에 `color-scheme: dark` 1줄
+실행: tsc --noEmit -p ui exit 0 · vitest run --project ui 47 파일 / 784 테스트 전부 통과(FAIL 0) · npm run build exit 0 · 헤드리스 Chrome 390x565@2x, 캐시 비활성(Network.setCacheDisabled) · 토큰 사용(값 비기록) · 쓰기 요청 없음
+캡처: doc/300_검증/screenshots/20261008-estate/{chat-writer-fix,settings-common-fix}.png
+- chat 아바타: PASS — 세바스찬·시엘 원이 남색 계열 옅은 바탕(--avatar-*-bg) + 은청 테두리로 보임. 적포도·원색 파랑 사라짐. 이미지 4개 로드 성공(naturalWidth 64, 투명)
+- settings 라디오: PASS — 선택 안 된 Flash 라디오가 어두운 원(흰 채움 사라짐). 선택된 Pro는 밝은 점. 그 밖 레이아웃 변화 없음

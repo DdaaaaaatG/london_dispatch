@@ -1,3 +1,4 @@
+/* 설계 chat/design/style.md §4.1 · §5 — 머리띠 그라데이션 · 큰 세리프 화면 제목 · 장식 라벨(CSS 생성 내용, DOM 불변). 색은 토큰만 */
 .root {
   display: flex;
   flex: none;
@@ -5,7 +6,7 @@
   gap: var(--space-2);
   height: 44px;
   padding: 0 var(--space-4);
-  background: var(--color-bg);
+  background: var(--topbar-band), var(--color-bg);
   border-bottom: 1px solid var(--color-border);
 }
 
@@ -40,8 +41,28 @@
 
 .screen {
   color: var(--color-accent);
-  font-size: var(--text-xl);
-  letter-spacing: 0.08em;
+  font-family: var(--font-display);
+  font-size: var(--text-display);
+  font-weight: 400;
+  line-height: 1.1;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+/*
+ * 장식 라벨(style.md §5): 슬래시 뒤 대체 텍스트를 빈 문자열로 줘 h1 접근성 이름에서 뺀다.
+ * 슬래시 없는 대체 content 선언은 앞에 두지 않는다(구형 엔진에서 라벨이 읽힌다). 화면 제목(screen 변형)에만 걸린다.
+ */
+.screen::before {
+  content: 'THE PHANTOMHIVE ESTATE' / '';
+  display: block;
+  margin-bottom: 2px;
+  color: var(--label-color);
+  font-family: var(--font-ui);
+  font-size: var(--label-size);
+  font-weight: 400;
+  line-height: 1.5;
+  letter-spacing: var(--label-tracking);
   text-transform: uppercase;
 }
 

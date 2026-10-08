@@ -1,84 +1,112 @@
 /*
- * 전역 스타일 — 단일 파일(tsx-rules §6). 설계: rooms/design/components.md §3 · chat/design/components.md §4
- * 토큰 출처: .claude/skills/ui_design_concept.md §3~§6 · §8 · §9. 컴포넌트는 이 변수만 쓴다(하드코딩 색 금지).
+ * 전역 스타일 — 단일 파일(tsx-rules §6). 설계: chat/design/style.md §2 (세 화면 공통 토큰 정본, 갠홈 estate 톤)
+ * 토큰 값의 출처는 style.md 다. 컴포넌트는 이 변수만 쓴다(하드코딩 색 금지).
  */
 :root {
-  /* 색 (ui_design_concept §3) */
+  color-scheme: dark; /* 네이티브 폼 컨트롤·스크롤바 다크화 (style.md §2.1) */
+  /* 색 (style.md §2.1) */
   --color-bg: #0b1828;
-  --color-bg-elevated: #102339;
-  --color-bg-sunken: #081220;
-  --color-overlay: rgba(4, 10, 20, 0.6);
-  --color-fg: #e6edf6;
-  --color-fg-muted: #9fb2c9;
-  --color-fg-disabled: #5d6f86;
-  --color-border: rgba(153, 185, 221, 0.22);
-  --color-border-strong: rgba(180, 205, 235, 0.45);
-  --color-primary: #b4cdeb;
+  --color-bg-elevated: #112337;
+  --color-bg-sunken: #050d18;
+  --color-overlay: rgba(5, 7, 13, 0.72);
+  --color-fg: #d9e3f2;
+  --color-fg-muted: #8492aa;
+  --color-fg-disabled: #4a5872;
+  --color-border: rgba(114, 155, 208, 0.32);
+  --color-border-strong: var(--color-line-bright);
+  --color-primary: #aebfd8;
   --color-primary-fg: #0b1828;
-  --color-primary-hover: #cfe0f4;
-  --color-accent: #c3d2e7;
-  --color-success: #7fc8a3;
-  --color-warning: #d9b86a;
-  --color-danger: #d97b73;
-  --color-info: #8ab4ff;
+  --color-primary-hover: #d9e3f2;
+  --color-accent: #c4cfdf;
+  --color-success: #aebfd8;
+  /* 계열 밖 1색 허용(낮은 채도 황동) — 경고만 글자색으로 구별한다(style.md §2.1) */
+  --color-warning: #bcae8c;
+  --color-danger: #b97a6e;
+  --color-info: #729bd0;
   --color-focus: #b4cdeb;
+  --color-line-faint: rgba(168, 176, 192, 0.14);
+  --color-line-bright: rgba(171, 198, 230, 0.55);
 
-  /* 화자별 말풍선 */
-  --bubble-ciel-bg: #16304d;
-  --bubble-ciel-fg: #e6edf6;
-  --bubble-ciel-accent: #6f9ad1;
-  --bubble-sebastian-bg: #2a1f33;
-  --bubble-sebastian-fg: #efe6f2;
-  --bubble-sebastian-accent: #a98bc4;
-  --bubble-user-fg: #9fb2c9;
-  --bubble-ooc-fg: #7f93ab;
-  --bubble-pending-fg: #7f93ab;
-  --bubble-error-border: #d97b73;
+  /* 화자별 말풍선 · 아바타 (style.md §2.2) */
+  --bubble-ciel-bg: rgba(114, 155, 208, 0.12);
+  --bubble-ciel-fg: var(--color-fg);
+  --bubble-ciel-accent: #729bd0;
+  --bubble-sebastian-bg: rgba(174, 191, 216, 0.07);
+  --bubble-sebastian-fg: var(--color-fg);
+  --bubble-sebastian-accent: #aebfd8;
+  --bubble-user-fg: var(--color-fg-muted);
+  --bubble-ooc-fg: var(--color-fg-muted);
+  --bubble-pending-fg: var(--color-fg-muted);
+  --bubble-error-border: var(--color-danger);
   --bubble-busy-opacity: 0.55;
+  --bubble-ciel-border: rgba(114, 155, 208, 0.6);
+  --bubble-sebastian-border: rgba(174, 191, 216, 0.45);
+  --bubble-user-border: transparent;
+  --bubble-user-text: var(--color-fg-muted);
+  --avatar-ciel-bg: rgba(114, 155, 208, 0.24);
+  --avatar-sebastian-bg: rgba(174, 191, 216, 0.16);
+  --radius-bubble: 10px 2px 10px 2px;
+  --radius-bubble-mirror: 2px 10px 2px 10px;
 
-  /* 컴포넌트 변수 (ui_design_concept §3 접두사 + 설계 문서가 값을 정한 것) */
-  --bubble-user-bg: var(--color-bg-elevated);
+  /* 컴포넌트 변수 (style.md §2.3) */
+  --bubble-user-bg: transparent;
   --bubble-max-width: 78%;
   /* CR-001: 유저 가운데 말풍선 최대 폭(모든 폭 공통) */
   --bubble-user-max-width: 86%;
-  --row-hover-bg: var(--color-bg-elevated);
-  --row-divider: var(--color-border);
-  --btn-bg: var(--color-primary);
-  --btn-fg: var(--color-primary-fg);
-  --btn-hover: var(--color-primary-hover);
-  --btn-secondary-bg: var(--color-bg-elevated);
-  --btn-danger-bg: var(--color-danger);
-  --btn-busy-opacity: 0.55;
+  --row-hover-bg: var(--btn-hover-bg);
+  --row-divider: var(--color-line-faint);
+  --btn-bg: transparent;
+  --btn-fg: var(--color-fg);
+  --btn-hover: var(--btn-hover-bg);
+  --btn-secondary-bg: transparent;
+  --btn-danger-bg: transparent;
+  --btn-busy-opacity: 0.4;
+  --btn-border: var(--color-line-bright);
+  --btn-border-primary: var(--color-primary);
+  --btn-secondary-fg: #c4cfdf;
+  --btn-hover-bg: rgba(114, 155, 208, 0.1);
+  --btn-danger-hover-bg: rgba(185, 122, 110, 0.1);
+  --glow: drop-shadow(0 0 5px rgba(166, 202, 241, 0.55));
 
-  /* S2: 입력(§1.20) · 시트 · 겹침 순서 */
+  /* S2: 입력(§1.20) · 시트 · 겹침 순서 (값: style.md §2.3) */
   --input-bg: var(--color-bg-sunken);
   --input-fg: var(--color-fg);
   --input-border: var(--color-border);
   --input-placeholder: var(--color-fg-muted);
   --sheet-bg: var(--color-bg-elevated);
-  --sheet-radius: var(--radius-lg) var(--radius-lg) 0 0;
-  --sheet-shadow: 0 -12px 24px rgba(4, 10, 20, 0.45);
+  --sheet-radius: var(--radius-panel);
+  --sheet-shadow: inset 0 1px 0 var(--color-line-bright);
   --z-sheet: 10;
 
-  /* 타이포 (§4) */
+  /* 상단 바 머리띠 · 장식 라벨 (style.md §2.3 · §5) */
+  --topbar-band: linear-gradient(90deg, rgba(88, 122, 166, 0.17), transparent);
+  --label-size: 7px;
+  --label-tracking: 0.22em;
+  --label-color: #91a9c7;
+
+  /* 타이포 (style.md §2.4). Pretendard 는 로드하지 않는다(설치·CDN 없음) — 기기에 있을 때만 쓰인다 */
   --font-serif: 'Noto Serif KR', 'Nanum Myeongjo', serif;
-  --font-ui: 'Malgun Gothic', '맑은 고딕', 'Segoe UI', system-ui, sans-serif;
+  --font-ui: Pretendard, 'Malgun Gothic', '맑은 고딕', 'Segoe UI', system-ui, sans-serif;
   --text-xs: 11px;
   --text-sm: 12px;
   --text-base: 13px;
   --text-md: 14px;
   --text-lg: 16px;
   --text-xl: 18px;
+  --font-display: 'Times New Roman', 'Noto Serif KR', serif;
+  --text-display: 22px;
 
-  /* 스페이싱 (§5) · 반경 (§6) */
+  /* 스페이싱 · 반경 (style.md §2.4) */
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
   --space-4: 16px;
   --space-5: 24px;
-  --radius-sm: 4px;
-  --radius-md: 8px;
-  --radius-lg: 16px;
+  --radius-sm: 0;
+  --radius-md: 0;
+  --radius-lg: 0;
+  --radius-field: 7px 1px 7px 1px;
+  --radius-panel: 16px 0 0 0;
 }
 
 /* 폭 ≤ 360: 말풍선 최대 폭 85% (§9) */

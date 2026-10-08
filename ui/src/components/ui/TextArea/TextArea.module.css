@@ -1,3 +1,4 @@
+/* 설계 chat/design/style.md §4.1 — 반경은 --radius-field(비대칭 모서리). 선 두께·패딩 불변이라 높이 공식 영향 없음 */
 /* 높이는 TextArea.tsx 가 계산한다(1줄 36px = line-height 20 + 위아래 padding 8) */
 .wrap {
   position: relative;
@@ -12,7 +13,7 @@
   min-width: 0;
   padding: 8px var(--space-3);
   border: 1px solid var(--input-border);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-field);
   background: var(--input-bg);
   color: var(--input-fg);
   font-family: var(--font-ui);

@@ -284,10 +284,24 @@ onChangeModel: (value: LlmModelKey) => void   // index.tsx: value => dispatch({ 
 ```
 - FormPanel의 `Pick`에 `onChangeModel`을 더한다. `activeTab === 'world'`일 때 `<ModelChoice value={state.modelDraft} isReadOnly={state.isSaving} onChange={onChangeModel} />` 다음에 `<WorldForm …/>`(두 형제, 감싸는 원소는 기존 WorldForm 바깥 그대로). 캐릭터 탭에는 렌더하지 않는다.
 - 파일 크기: ModelChoice 약 50줄, ReadyBody +6줄 안팎. 400줄·함수 50줄 한계 안.
+- 시각(v1.3.2, CR-002): 네이티브 라디오 원 유지 · `accent-color: var(--color-primary)`(은청 #aebfd8) · 전역 `color-scheme: dark`로 선택 안 된 원도 어두운 원 — 값 정본 `ui/src/chat/design/style.md` §2·§4.4.
 
 ---
 
 ## 4. 스타일 (CSS Modules · `ui_design_concept.md` 토큰)
+
+> **v1.3.2(2026-10-08, CR-002) 갠홈 estate 톤 보강:** 세 화면 공통 토큰 **값**(전/후 표)과 공용·화면 컴포넌트별 시각 규칙의 정본은 **`ui/src/chat/design/style.md`** v2.2.1 §2 · §4(공용 §4.1 · settings §4.4)다. 아래 표의 변수 이름·배치·세로 배분은 유효하고, 값이 다르면 style.md가 우선한다.
+>
+> **settings 화면별 차이(이것만 settings 고유):**
+> | 대상 | 규칙 |
+> |---|---|
+> | A 상단 바 "캐릭터 설정" | TopBar `variant='screen'` → 바 배경 90도 머리띠 `--topbar-band` + 아래 1px `--color-border`, 제목 위 장식 라벨 `THE PHANTOMHIVE ESTATE`(CSS `::before` 생성 내용 + 빈 대체 텍스트 — DOM 추가 없음, h1 텍스트·접근성 이름 불변, style.md §5). 바 높이 44 불변 |
+> | B Tabs | 밑줄형 유지. 선택 밑줄 2px `--color-primary`(→ `#aebfd8`) · 줄 아래선 `--color-border` · hover 옅은 바탕 |
+> | D StatusBar | 「저장」 Button primary → 투명 바탕 + 1px `#aebfd8` 선 + ivory 글자(선형, 직각) · 「되돌리기」 secondary 선형. 하단 줄 경고 글자 황동 `#bcae8c` · 오류 적갈 |
+> | F StaleNotice | 왼쪽 3px 적갈 막대 · elevated 바탕 · 적갈 글자 |
+> | ModelChoice | 네이티브 라디오 원 **유지**(기능상 원형). `accent-color: var(--color-primary)` → 은청. `global.css` `color-scheme: dark`로 선택 안 된 원도 어두운 원(흰 원 해소) |
+> | C 입력 | TextInput·TextArea 비대칭 모서리 `--radius-field` = `7px 1px 7px 1px` · 필수 표시·오류 적갈. 파일 선택·시트 버튼은 Button 규칙 |
+> | settings CSS 파일 | `Tabs`·`StatusBar`·`StaleNotice`·`ModelChoice`·`FormField`·`CharacterForm`·`WorldForm`·`FilePicker`·`Sheets`·`ReadyBody` `.module.css` · `styles/SettingsScreen.module.css` **수정 0건**(변수 값 변경만으로 반영). 고치는 파일은 style.md §7의 공용 CSS |
 
 | 요소 | 값 |
 |---|---|

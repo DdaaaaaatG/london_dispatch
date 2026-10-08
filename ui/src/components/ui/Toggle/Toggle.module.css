@@ -1,4 +1,7 @@
-/* 작은 캡슐 28px. 터치 영역은 ::after 로 44px 이상 확보한다(ui_design_concept §6) */
+/*
+ * 설계 chat/design/style.md §4.1 — 직각 상자. 켜짐 = 밝은 선 + 옅은 푸른 바탕 + ivory 글자 + 글로우(꺼짐과 선·글자·바탕으로 구별).
+ * 작은 상자 28px. 터치 영역은 ::after 로 44px 이상 확보한다(ui_design_concept §6)
+ */
 .root {
   position: relative;
   display: inline-flex;
@@ -7,7 +10,7 @@
   height: 28px;
   padding: 0 10px;
   border: 1px solid var(--color-border);
-  border-radius: 14px;
+  border-radius: 0;
   background: transparent;
   color: var(--color-fg-muted);
   font-family: var(--font-ui);
@@ -23,9 +26,10 @@
 }
 
 .on {
-  border-color: transparent;
-  background: var(--color-primary);
-  color: var(--color-primary-fg);
+  border-color: var(--btn-border-primary);
+  background: var(--btn-hover-bg);
+  color: var(--color-fg);
+  filter: var(--glow);
 }
 
 .root:focus-visible {

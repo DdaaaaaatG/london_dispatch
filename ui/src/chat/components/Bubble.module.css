@@ -1,5 +1,5 @@
 /*
- * 설계 chat/design/components.md §2.2 · §4 (v1.6, CR-001) — 색·간격은 토큰만.
+ * 설계 chat/design/style.md §4.2 (시각 — 갠홈 estate 톤) · 구조 chat/design/components.md §2.2 · §4 (v1.6, CR-001) — 색·간격은 토큰만.
  * 클래스명은 확정: character · sebastian(왼쪽) · ciel(오른쪽) · user(가운데 말풍선) · ooc(가운데 한 줄). S3e: menuEnabled 는 삭제(말풍선은 포커스를 받지 않는다)
  * 시엘 배치는 CSS 로만 거울(row-reverse)이다. DOM 순서(아바타 → 이름 → 시각 → 본문)는 세바스찬과 같아 읽는 순서가 유지된다.
  */
@@ -28,7 +28,7 @@
   margin: 0;
   padding: var(--space-3);
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-bubble);
   font-family: var(--font-serif);
   font-size: var(--text-base);
   line-height: 1.55;
@@ -46,6 +46,7 @@
   flex: none;
   width: 28px;
   height: 28px;
+  border: 1px solid var(--color-border);
   border-radius: 50%;
   object-fit: cover;
 }
@@ -56,7 +57,9 @@
 }
 
 .name {
-  font-size: var(--text-sm);
+  color: var(--color-fg-muted);
+  font-size: var(--text-xs);
+  letter-spacing: 0.05em;
 }
 
 /* 세바스찬: 왼쪽 */
@@ -64,12 +67,14 @@
   justify-content: flex-start;
 }
 
-.sebastian .name {
-  color: var(--bubble-sebastian-accent);
+.sebastian .avatar {
+  background: var(--avatar-sebastian-bg);
+  border-color: var(--bubble-sebastian-accent);
 }
 
 .sebastian .body {
   background: var(--bubble-sebastian-bg);
+  border-color: var(--bubble-sebastian-border);
   color: var(--bubble-sebastian-fg);
 }
 
@@ -82,17 +87,20 @@
   flex-direction: row-reverse;
 }
 
-.ciel .name {
-  color: var(--bubble-ciel-accent);
+.ciel .avatar {
+  background: var(--avatar-ciel-bg);
+  border-color: var(--bubble-ciel-accent);
 }
 
 .ciel .body {
   background: var(--bubble-ciel-bg);
+  border-color: var(--bubble-ciel-border);
+  border-radius: var(--radius-bubble-mirror);
   color: var(--bubble-ciel-fg);
   text-align: left;
 }
 
-/* 유저: 가운데 말풍선. 머리 줄 "작성자명 · 시각", 배경 있음, 최대 폭 86% */
+/* 유저: 가운데 말풍선. 머리 줄 "작성자명 · 시각", 바탕·선 없음(1px 자리는 유지, 글자 muted), 최대 폭 86% */
 .user {
   flex-direction: column;
   align-items: center;
@@ -116,7 +124,8 @@
 .user .body {
   max-width: var(--bubble-user-max-width);
   background: var(--bubble-user-bg);
-  color: var(--color-fg);
+  border-color: var(--bubble-user-border);
+  color: var(--bubble-user-text);
   text-align: left;
 }
 

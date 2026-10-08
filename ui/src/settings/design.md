@@ -28,6 +28,7 @@
 | v1.2.2 | 2026-10-07 | **후작업 동기화(동작·문구 변경 없음)**: `NETWORK`·인증 3코드 문구를 공용 `errorText.ts`에서 import(§8 비고 · §13 행 "공용화 완료"). `ui/src/state/settingsCandidate.ts` 주석 정정은 문서 영향 없음(확인) | ui-postprocessor 후작업 · 사용자 승인 |
 | v1.3 | 2026-10-08 | **S3f · CR-001 (설계, 소스 미반영).** 「공통」 탭 맨 위 AI 모델 선택: §2.1 탭 이름 「공통」 · §2.3 공통 탭 ASCII 2판(선택·미선택) · §2.2 dirty·saving 행 · §7 `model` 응답·`saveCharacterSettings` 둘째 인자 · §10 비고 · §11 D-ST-1 개정, D-ST-12~15 신규 · §13 ModelChoice 후보 · §14 RTM R-SET-013 행·개정 요구 행, TC-ST-042~053 예약, TC-ST-003·005·009·030·031 기대 갱신. 분할 문서: C §1·§2·§3.4·§3.11·§4 · S §1·§2.1·§2.2(S-16·S-17)·§2.3(T-11)·§2.6 · F F-ST-09·13·18·22 · A §1·§2·§3·§4 | S3f 승인 ①(2026-10-08) · s3f-02 §5·§6 · s3f-03 §3.1 · requirements.md v1.1 |
 | v1.3.1 | 2026-10-08 | 검증 반영: 계약 인용 api.md v0.8(§4.15·§4.16·§5.8.6·§11.17·§16.1)로 갱신, "반영 대기" 삭제(§1·§7·§14) · §12 차이 4를 "요구 개정으로 일치"로 닫고 `modelSource` 제안 철회 · D-ST-14 근거·RTM R-SET-013 상태 갱신 · §2.3 선택 판 캡션(기준값 pro / 초안 flash) · §14.1 TC-ST-005·009·030 기대 갱신 문구 · RTM R-CHAT-009 행 추가(S3c부터 누락) · C §5.1 SheetLayer 행 S3f 무수정 표시 | ui-design-checker FAIL(HIGH 1 · MEDIUM 2 · LOW 3) · 상위 R-SET-013 개정(requirements.md v1.1.1) |
+| v1.3.2 | 2026-10-08 | **시각 보강(CR-002, 보강·CSS만)**: 갠홈 estate 톤. 토큰 전/후 표·컴포넌트 규칙 정본 = `ui/src/chat/design/style.md` v2.2.1(세 화면 공통). §3.1 스타일 포인터 신설 · components.md §4에 settings 차이(상단 바 머리띠 + 장식 라벨 · 탭 밑줄 `#aebfd8` · StatusBar 선형 버튼 · StaleNotice 적갈 · ModelChoice 네이티브 라디오 + `color-scheme: dark` · 입력 비대칭 모서리). settings 고유 CSS 무수정. 레이아웃·DOM·문구·상태·계약·RTM 불변, 영향 TC 없음 | 사용자 2026-10-08 "갠홈 디자인에 맞춰야" · 승인 5항목 · ui-tester 2026-10-08 검증 |
 
 ---
 
@@ -132,6 +133,10 @@
 ## 3. 컴포넌트 → `design/components.md`
 
 요약: SettingsScreen(조립) · 공용 TopBar·IconButton(back·more)·StateView·TextInput·TextArea·Button·BottomSheet·SheetItem·ConfirmDialog·Toast · 로컬 **Tabs · FormField · FilePicker · StaleNotice**(승격 후보는 앞 셋) · 로컬 ReadyBody·SheetLayer·WorldForm·CharacterForm·StatusBar·FileMenuSheet·ExportSheet·ImportSheet · (S3f) 로컬 **ModelChoice**(C §3.11, 승격 후보) · 훅 `useSettingsEditor`·`useSettingsUi`·`useImportForm` · 유틸 `download.ts`. 실물 파일 목록은 C §5.1.
+
+### 3.1 스타일 → `design/components.md` §4 · 값 정본 `ui/src/chat/design/style.md`(v2.2.1, CR-002)
+
+세 화면 공통 토큰 값(§2)·컴포넌트별 시각 규칙(§4.1 공용 · §4.4 settings)·장식 라벨(§5)의 정본은 `ui/src/chat/design/style.md` v2.2.1이다. 이 화면 문서는 settings 화면별 차이만 C §4에 적는다. settings 고유 CSS(`components/*.module.css` · `styles/SettingsScreen.module.css`)는 무수정이며, 변화는 `global.css` 변수 값과 공용 CSS(Button · TopBar · TextInput · TextArea · Toggle)에서 온다. 레이아웃·영역 크기(A44/B40/D36/F40)·DOM·`aria-*`·문구·상태·계약·RTM 불변.
 
 ## 4. 상태 → `design/state.md`
 

@@ -27,6 +27,7 @@
 | v1.5.1 | 2026-10-06 | S3b: `toastToneOf`(F-RM-22) warning 조건에 `LLM_BUDGET_EXCEEDED`(429, R-LLM-007) 추가 — functions.md F-RM-22 · §8.3 비고 · TC-RM-029 기대. 사용처는 chat 재작성 토스트(chat design v1.8), rooms 화면 동작 변경 없음 | 메인 세션 승인(chat S3b 공용 변경 요청) |
 | v1.5.2 | 2026-10-07 | **후작업 동기화(동작·문구 변경 없음)**: ① 공용 Button `ariaDescribedBy?: string`(components.md §1.2) ② `NETWORK`·인증 3종 문구를 공용 `ui/src/components/utils/errorText.ts`로(§1 공용 요소 · §8.3 비고 · §13 행 "공용화 완료") ③ 공용 `useLongPress` 삭제(S3e 사용처 0 — §1 · §3.2 · §13 · components.md §1.19) | ui-postprocessor 후작업 · 사용자 승인 |
 | v1.6.2 | 2026-10-06 | **S3c 구현 동기화(CR-001 적용·검증됨, 동작 변경 없음).** 진입 안내 = `useEntryNotice` 훅(functions.md F-RM-29) · App의 설정 진입·이탈 = `useSettingsNav`, 주인 판정 = `useOwner`(F-RM-24~27 동작 같음) · `useNewRoomUi`가 `showToast` 반환 · labels `settingsAriaLabel` = `캐릭터 설정` · View 유니온 실물이 functions.md §1.1과 같음 · ⚙ 실측 44×44 · chat 스펙 격리 권고(functions.md §2 끝) | S3c 구현 보고 · ui 592/592 · OwnerGate 7건 · 캡처 `doc/300_검증/screenshots/20261006-2033/` |
+| v1.7 | 2026-10-08 | **시각 보강(CR-002, 보강·CSS만)**: 갠홈 estate 톤. 토큰 전/후 표·컴포넌트 규칙 정본 = `ui/src/chat/design/style.md`(세 화면 공통). components.md §3에 rooms 차이(상단 바 큰 세리프 + 장식 라벨 · 연한 행 구분선 · 선형 버튼 · 비대칭 입력창) · §11.1 포인터. 레이아웃·DOM·문구·상태·계약·RTM 불변, 영향 TC 없음 | 사용자 2026-10-08 "갠홈 디자인에 맞춰야" · 승인 5항목 |
 
 ---
 
@@ -271,7 +272,7 @@ api.md **v0.3**을 **인용**한다(재정의 아님).
 
 ## 11. 스타일·설계 가정
 
-### 11.1 스타일 → `design/components.md` §3
+### 11.1 스타일 → `design/components.md` §3 · 값 정본 `ui/src/chat/design/style.md`(v1.7, CR-002)
 
 `--color-bg` 배경, 행 56px·`--row-divider`, 제목 serif, 날짜 `--font-ui` xs. (S2) 「+ 새 방」 Button md primary, B 행 52px, TextInput `--input-*`, 토스트 줄. 전역 토큰 추가는 components.md §1.20.
 

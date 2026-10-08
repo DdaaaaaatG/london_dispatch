@@ -1,3 +1,4 @@
+/* 설계 chat/design/style.md §4.1 — 직각 · 주 버튼 = 투명 바탕 + 1px 은청 선(hover 글로우), 보조 = 1px 밝은 선, 위험 = 적갈 선. 색은 토큰만 */
 .root {
   position: relative;
   display: inline-flex;
@@ -46,25 +47,33 @@
 .primary {
   background: var(--btn-bg);
   color: var(--btn-fg);
+  border-color: var(--btn-border-primary);
 }
 
 .primary:hover:not(:disabled) {
   background: var(--btn-hover);
+  filter: var(--glow);
 }
 
 .secondary {
   background: var(--btn-secondary-bg);
-  color: var(--color-fg);
-  border-color: var(--color-border);
+  color: var(--btn-secondary-fg);
+  border-color: var(--btn-border);
 }
 
 .secondary:hover:not(:disabled) {
-  border-color: var(--color-border-strong);
+  background: var(--btn-hover-bg);
+  border-color: var(--btn-border-primary);
 }
 
 .danger {
   background: var(--btn-danger-bg);
-  color: var(--color-bg);
+  color: var(--color-danger);
+  border-color: var(--color-danger);
+}
+
+.danger:hover:not(:disabled) {
+  background: var(--btn-danger-hover-bg);
 }
 
 .ghost {
