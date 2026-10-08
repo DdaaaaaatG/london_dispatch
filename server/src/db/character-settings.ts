@@ -1,15 +1,24 @@
 /**
  * [목적] character_settings 1행 문서 접근 함수. 읽기·UPSERT 만 하고 JSON 은 해석하지 않는다 (R-SET-003). 설계 db.md §2.5·§3.7
- * [공개 API] createCharacterSettingsRepo(binding) -> CharacterSettingsRepo { get, upsert }, 타입 CharacterSettingsRecord·CharacterSettingsRepo
+ * [공개 API] createCharacterSettingsRepo(binding) -> CharacterSettingsRepo { get, upsert, getModel(S3f) }, 타입 CharacterSettingsRecord·CharacterSettingsRepo
  * [비동기] D1 prepare().bind().first() await. upsert 는 UPSERT 1문장이라 원자적
  * [에러] D1 오류(테이블 없음·CHECK 위반) 전파. upsert 의 RETURNING 행 없음은 AppError INTERNAL
  * [설정] 없음
- * [테스트] server/test/db.test.ts (SRV-T-239)
+ * [테스트] server/test/db.test.ts (SRV-T-239, 347~349)
  */
 import type { D1Database } from '@cloudflare/workers-types'
+import type { LlmModelKey } from '@shared/types'
 import { AppError } from '../app-error'
-import { SQL_CHARACTER_SETTINGS_GET, SQL_CHARACTER_SETTINGS_UPSERT } from './sql'
-import type { CharacterSettingsRow, CharacterSettingsWriteRow } from './types'
+import {
+  SQL_CHARACTER_SETTINGS_GET,
+  SQL_CHARACTER_SETTINGS_MODEL_GET,
+  SQL_CHARACTER_SETTINGS_UPSERT,
+} from './sql'
+import type {
+  CharacterSettingsModelRow,
+  CharacterSettingsRow,
+  CharacterSettingsWriteRow,
+} from './types'
 
 export type CharacterSettingsRecord = {
   /** 설정 본체 JSON 문자열. db 는 해석·검증하지 않는다(재검증은 settings 모듈) */
@@ -18,6 +27,8 @@ export type CharacterSettingsRecord = {
   version: number
   /** epoch ms */
   updatedAt: number
+  /** S3f. 모델 키 칸 원값(판정 안 함). NULL = 고른 적 없음 */
+  llmModel: string | null
 }
 
 export type CharacterSettingsRepo = {
@@ -28,21 +39,32 @@ export type CharacterSettingsRepo = {
     json: string,
     updatedBy: string,
     nowMs: number,
-  ) => Promise<{ version: number; updatedAt: number }>
+    llmModel: LlmModelKey | null,
+  ) => Promise<{ version: number; updatedAt: number; llmModel: string | null }>
+  /** S3f. 모델 키 칸만. 행 없음·NULL 이면 null, 있으면 원값('turbo' 도 그대로) */
+  getModel: () => Promise<string | null>
 }
 
 /** character_settings 저장소를 만든다 */
 export const createCharacterSettingsRepo = (binding: D1Database): CharacterSettingsRepo => ({
   get: async () => {
     const row = await binding.prepare(SQL_CHARACTER_SETTINGS_GET).first<CharacterSettingsRow>()
-    return row === null ? null : { json: row.json, version: row.version, updatedAt: row.updated_at }
+    return row === null
+      ? null
+      : { json: row.json, version: row.version, updatedAt: row.updated_at, llmModel: row.llm_model }
   },
-  upsert: async (json, updatedBy, nowMs) => {
+  upsert: async (json, updatedBy, nowMs, llmModel) => {
     const row = await binding
       .prepare(SQL_CHARACTER_SETTINGS_UPSERT)
-      .bind(json, nowMs, updatedBy)
+      .bind(json, nowMs, updatedBy, llmModel)
       .first<CharacterSettingsWriteRow>()
     if (row === null) throw new AppError('INTERNAL')
-    return { version: row.version, updatedAt: row.updated_at }
+    return { version: row.version, updatedAt: row.updated_at, llmModel: row.llm_model }
+  },
+  getModel: async () => {
+    const row = await binding
+      .prepare(SQL_CHARACTER_SETTINGS_MODEL_GET)
+      .first<CharacterSettingsModelRow>()
+    return row === null ? null : row.llm_model
   },
 })

@@ -40,7 +40,7 @@ export type GenerateDeps = {
   /** config.contextMessages (1~100) */
   contextMessages: number
   /** 지연 생성. 부를 때 키를 확인한다 */
-  llm: () => Llm
+  llm: () => Promise<Llm>
   /** 없으면 no-op. 컨테이너가 memory.summarizeIfNeeded 를 넣는다(S4) */
   afterSpeak?: AfterSpeakHook
   /** S3c. 잠금 선점 뒤 speak·regenerate 마다 1회 부른다(캐시 없음). 없으면 시드 */
@@ -135,7 +135,7 @@ export const createGenerateOps = (deps: GenerateDeps): GenerateOps => {
   const speak: GenerateOps['speak'] = async (roomId, input, background) => {
     const target: unknown = input?.character
     if (!isSpeakTarget(target)) throw new AppError('VALIDATION_ERROR', CHARACTER_INVALID_MESSAGE)
-    const llm = deps.llm()
+    const llm = await deps.llm()
     await llm.ensureBudget()
     const startMs = now()
     const { saved, pick } = await withSpeakLock(roomId, roomNotFound, async () => {
@@ -182,7 +182,7 @@ export const createGenerateOps = (deps: GenerateDeps): GenerateOps => {
     if (target === null) throw messageNotFound()
     if (target.speaker === 'user') throw new AppError('NOT_CHARACTER_MESSAGE')
     const character = target.speaker
-    const llm = deps.llm()
+    const llm = await deps.llm()
     await llm.ensureBudget()
     const startMs = now()
     const saved = await withSpeakLock(target.roomId, messageNotFound, async () => {

@@ -52,7 +52,7 @@ export type MessagesDeps = {
   /** S3. config.contextMessages (1~100) */
   contextMessages: number
   /** S3. 지연 생성 — 부를 때 키를 확인한다(google + 키 없음 → ConfigError CONFIG_INVALID) */
-  llm: () => Llm
+  llm: () => Promise<Llm>
   /** S3 자리. 없으면 no-op. S4 memory 가 채운다 */
   afterSpeak?: AfterSpeakHook
   /** S3c. speak·regenerate 가 잠금 선점 뒤 1회 부른다(캐시 없음). 없으면 시드 */

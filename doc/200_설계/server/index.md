@@ -1,6 +1,6 @@
 # index(Workers 진입점·공통 기반) 설계
 
-- 상태: S1 확정(구현 동기화) · S2 초안 · S3 초안(§2.3 컨테이너 델타) · S3b 초안(§2.3 meter 배선·§2.4·§5·§6.1 델타) · S3c 구현 완료(§2.3.1 settings 배선·§3.1.2·§5.3·§6.2) · **S3d 구현 완료(2026-10-06, server 343/343, SRV-T-261~281 · §12 배선 변화 없음)** · verify 후속 동기화(2026-10-07 — `/api/*` 보안 헤더 SEC-003: §3·§3.1 ②·②a·SRV-T-291·D-IDX-14, 의존 방향 보충 §3) · **S4 초안(2026-10-07, §13 `Services.memory` 배선·llm thunk 공유·afterSpeak 연결 · `scheduled` 미도입)** · 최종 갱신: 2026-10-07
+- 상태: S1 확정(구현 동기화) · S2 초안 · S3 초안(§2.3 컨테이너 델타) · S3b 초안(§2.3 meter 배선·§2.4·§5·§6.1 델타) · S3c 구현 완료(§2.3.1 settings 배선·§3.1.2·§5.3·§6.2) · **S3d 구현 완료(2026-10-06, server 343/343, SRV-T-261~281 · §12 배선 변화 없음)** · verify 후속 동기화(2026-10-07 — `/api/*` 보안 헤더 SEC-003: §3·§3.1 ②·②a·SRV-T-291·D-IDX-14, 의존 방향 보충 §3) · **S4 초안(2026-10-07, §13 `Services.memory` 배선·llm thunk 공유·afterSpeak 연결 · `scheduled` 미도입)** · **S3f 설계 초안(2026-10-08, §14 `llm` 공장 비동기화 `() => Promise<Llm>`·모델 해석 순서·`fallbackModelKey` 주입·배포 순서, SRV-T-350~353)** · 최종 갱신: 2026-10-08
 - 묶음: S1 = `fetch` 진입·Hono 앱 조립·부트스트랩·보안 헤더·공통 에러 핸들러·로거·`/embed` 서빙·health 서비스·`wrangler.toml`. S2 = 서비스 컨테이너에 `auth`·`config` 주입, `AppEnv.Variables.principal`, 인증 미들웨어의 **라우트 단위** 적용 원칙, `RATE_LIMITED`의 `retryAfterSec` 응답 변환. `scheduled` 진입은 S2에서 **추가하지 않는다**(레이트리밋 정리는 요청 경로에서 — [auth.md](auth.md) D-AUTH-7). S4(요약)에서 필요하면 추가한다.
 - 라우트(`server/src/routes/`)는 contract 소유다. 이 문서는 **라우트를 정의하지 않고**, 라우트가 쓸 타입·서비스·규약만 정한다.
 - 관련 문서: [env.md](env.md), [db.md](db.md), [auth.md](auth.md), [rooms.md](rooms.md), [messages.md](messages.md).
@@ -783,10 +783,124 @@ export const createServices = (deps: ServiceDeps): Services => {
 | D-IDX-16 | llm thunk를 지역 상수로 뽑아 messages·memory가 공유 | 서비스마다 thunk 복제 | Config에서 고르는 필드·meter 배선이 한 곳이다. 동작은 기존과 같다(부를 때마다 새 `Llm`) |
 | D-IDX-17 | `afterSpeak`는 컨테이너의 화살표 함수로 연결 | messages가 memory를 import | 서비스끼리 import하지 않는다. 테스트는 훅을 바꿔 끼운다 |
 
+## 14. S3f — `llm` 공장 비동기화 · 모델 해석 배선 (R-LLM-009 🔒 · R-SET-013 🔒 · R-LLM-001 🔒 개정 · R-LLM-007 🔒 개정 · R-ENV-002 🔒 개정)
+
+- 상태: 초안(2026-10-08, 승인 ① 완료). 근거 `s3f-02-전반설계.md` §2.3·§7·§12 · `s3f-03-인계패킷.md` §1.
+- 관련: [llm.md](llm.md) §15(상수표·해석 규칙) · [settings.md](settings.md) §13(`loadModelKey`·`fallbackModelKey`) · [db.md](db.md) §14(0004) · [env.md](env.md) §12 · [messages.md](messages.md) §14 · [memory.md](memory.md) §12.
+- 바뀌는 것은 `server/src/services.ts` 한 파일이다. `ServiceDeps`·`Services`·`AppEnv`·`createServices` 시그니처, `index.ts`·`app.ts`, 라우트 등록, `onError`는 그대로다.
+
+### 14.1 `server/src/services.ts` 델타
+
+```ts
+import { createLlm, createProvider, createUsageMeter, modelKeyOf, resolveLlmModel, type Llm } from './llm'
+
+export const createServices = (deps: ServiceDeps): Services => {
+  const settings = createSettingsService({
+    db: deps.db,
+    logger: deps.logger,
+    now: deps.now,
+    // S3f: 저장값이 없을 때 응답 model = env 모델의 키(두 후보 밖이면 null) — llm.md §15.4
+    fallbackModelKey: modelKeyOf(deps.config.llmModel),
+  })
+  // S3f: 요청마다 D1에서 모델을 읽어 해석한다(캐시 없음). messages·memory 가 같은 함수를 쓴다
+  const llm = async (): Promise<Llm> => {
+    const apiKey = requireLlmApiKey(deps.config) // 1. 동기. 키 없으면 CONFIG_INVALID — D1 읽기 전(R-ENV-003 시점 유지)
+    const stored = await settings.loadModelKey() // 2. D1 PK 1행. 표 밖 → null + llm_model_invalid. D1 오류는 전파
+    const { model, pricing } = resolveLlmModel(stored, {
+      model: deps.config.llmModel,
+      pricing: {
+        priceInputUsdPerM: deps.config.llmPriceInputUsdPerM,
+        priceOutputUsdPerM: deps.config.llmPriceOutputUsdPerM,
+      },
+    }) // 3. 순수
+    return createLlm({
+      // 4. provider·modelName·meter 단가를 같은 해석 결과에서 채운다
+      provider: createProvider({ provider: deps.config.llmProvider, apiKey, model }),
+      timeoutMs: deps.config.llmTimeoutMs,
+      logger: deps.logger,
+      now: deps.now,
+      modelName: model,
+      meter: createUsageMeter({
+        store: deps.db.llmUsage,
+        config: {
+          monthlyBudgetKrw: deps.config.llmMonthlyBudgetKrw,
+          priceInputUsdPerM: pricing.priceInputUsdPerM,
+          priceOutputUsdPerM: pricing.priceOutputUsdPerM,
+          krwPerUsd: deps.config.krwPerUsd,
+        },
+        logger: deps.logger,
+        now: deps.now,
+      }),
+    })
+  }
+  // 이하 memory·messages·auth·rooms 배선 불변 — llm 을 그대로 넘긴다(타입만 () => Promise<Llm>)
+```
+
+- 문서주석 `[비동기]`를 "`llm()` 공장은 D1 PK 1행 읽기 1회(S3f). 그 밖은 클로저 생성뿐"으로, `[설정]`에 `llmModel`·`llmPrice*`를 해석 입력으로 쓴다는 말을 더한다.
+- `createServices`는 동기 그대로다. 공장 함수 `llm`만 비동기다. 공장을 부르기 전에는 D1·제공사에 손대지 않는다(읽기 라우트·health 영향 0).
+
+### 14.2 순서와 실패
+
+| 단계 | 하는 일 | 실패 | 결과 |
+|---|---|---|---|
+| 1 | `requireLlmApiKey(config)` | `LLM_PROVIDER=google`인데 키 없음 | `CONFIG_INVALID` 500. **D1 읽기 0회**(SRV-T-353) |
+| 2 | `settings.loadModelKey()` | D1 오류(0004 미적용 포함) | 숨기지 않고 전파 → speak·regenerate `500 INTERNAL` · 요약은 실패 결과 + warn |
+| 2' | 〃 | 표 밖 저장값 | `null` + `llm_model_invalid {}` → 3에서 env 모델(V4) |
+| 3 | `resolveLlmModel` | 없음 | — |
+| 4 | `createLlm` | 없음(생성만) | — |
+
+- 1·2 모두 speak의 잠금 선점 **앞**이다([messages.md](messages.md) §14). 실패해도 잠금 해제가 필요 없고 LLM 호출 0회다.
+- 자동 전환 금지: 공장은 실패를 잡아 다른 키로 다시 해석하지 않는다. 제공사 오류는 만들어진 `Llm` 안에서 같은 모델로만 재시도한다([llm.md](llm.md) §15.6).
+- `async` 함수 안의 동기 throw(1단계)는 reject로 바뀐다. 호출부가 모두 `await deps.llm()`이라 관찰 결과(에러 코드·전파 위치)는 S3b와 같다.
+
+### 14.3 진입점·설정·배포 순서
+
+- env 키 증감 0. `wrangler.toml [vars]`의 `LLM_MODEL` 값과 `LLM_PRICE_*` 주석만 바뀐다([env.md](env.md) §12.3). §6.1 전문의 해당 3줄은 §12.3이 우선한다.
+- 마이그레이션 `0004_llm_model.sql`([db.md](db.md) §14.4).
+- **배포 순서(필수)**: `npm run build` → `wrangler d1 migrations apply --remote`(0004) → `wrangler deploy`. 코드를 먼저 올리면 `loadModelKey`·`get`의 `SELECT … llm_model`이 "no such column"으로 실패해 **speak·regenerate·설정 GET/PUT이 500**이 되고 요약은 건너뛴다. `/deploy`가 이미 이 순서를 지킨다. 지인이 배포하면 절차서에 이 순서를 그대로 적는다.
+- 되돌리기: 칸은 NULL 허용이라 이전 코드가 무시해도 동작한다. 코드만 이전 커밋으로 되돌려도 안전하다(칸은 남겨 둔다 — `DROP COLUMN` 마이그레이션 금지).
+
+### 14.4 비동기·비용
+
+- speak·regenerate 1회당 D1 PK 읽기 +1, 요약 1회당 +1. 무료 플랜 일 읽기 한도(500만 행) 대비 무시할 수준이고 70초 예산의 D1 여유(4초) 안이다.
+- 프로세스 메모리 캐시를 두지 않는다(인스턴스가 여럿이라 저장 직후 반영을 보장할 수 없다 — R-SET-013 "다음 호출부터").
+
+### 14.5 테스트 (`server/test/app.test.ts`에 추가 — workers pool D1 · `vi.stubGlobal('fetch', …)` · `LLM_PROVIDER=google` · 테스트용 `LLM_API_KEY` · 주인 토큰)
+
+| ID | 조건 | 기대 |
+|---|---|---|
+| SRV-T-350 | E16 PUT `{ settings: 시드, model: 'flash' }` → 같은 테스트에서 E9 speak(`sebastian`) → E16 `model: 'pro'` → speak | 첫 speak의 fetch URL에 `gemini-3.8-flash`, 둘째는 `gemini-3.1-pro-preview`. 각 speak 뒤 `llm_usage` 증가분 = 각본 usage × 그 모델 단가표 값(`estimateKrw`, `toBeCloseTo`). E16 응답 `model`이 각각 `'flash'`·`'pro'` |
+| SRV-T-351 | `flash` 저장 뒤 speak `'auto'`(선택 호출 + 발화 호출) · 같은 서비스로 `services.memory.summarizeIfNeeded(roomId)` 직접 호출(기준을 넘긴 방) | 선택·발화·요약 세 호출 URL 모두 Flash 모델명 |
+| SRV-T-352 | 저장 없음(기본 Pro) + fetch 각본 ① 404 ② 429 ③ 503·503 → speak | 셋 다 502 `LLM_FAILED`. 받은 URL 전부 Pro 모델명, Flash 모델명 0회. 호출 수 1·1·2. 잠금 해제됨 |
+| SRV-T-353 | ① `LLM_API_KEY` 없음 + `characterSettings.getModel` 감시(spy) → speak ② D1에 `UPDATE character_settings SET llm_model = 'turbo'` 직접(행은 시드로 먼저 생성) → speak | ① `500 CONFIG_INVALID`, `getModel` 0회 ② fetch URL = env 모델(Pro 기본값), `llm_model_invalid` error 1건·필드 `{}`, 로그 전체에 `'turbo'` 0건 |
+
+- 라우트 경로(E16 본문 `model` 400 문구·응답 키 5개)는 contract 테스트(API-T)가 본다. 위 표는 E16을 저장 수단으로만 쓴다.
+- 기존 테스트 영향: 컨테이너를 거치는 기존 speak·regenerate·요약 테스트(`routes-generate`·`routes-memory`)는 시그니처 변화가 컨테이너 안에 있어 무수정 통과가 목표다. 단 0004가 적용돼야 한다(`apply-migrations.ts`가 `migrations/` 전체를 적용하므로 파일만 추가하면 된다).
+
+### 14.6 요구 추적
+
+| 요구 | 반영 | 테스트 | 상태 |
+|---|---|---|---|
+| R-LLM-009 🔒 | §14.1 1~4 · §14.2 자동 전환 없음 | SRV-T-352·353 | 설계 ✅ |
+| R-SET-013 🔒 | §14.1(요청마다 해석)·§14.4(캐시 없음) | SRV-T-350·351 | 설계 ✅ |
+| R-LLM-001 🔒(개정) | 해석 모델을 `ProviderConfig.model`로 | SRV-T-350 | 설계 ✅ |
+| R-LLM-007 🔒(개정) | meter 단가 = 해석 단가 | SRV-T-350 | 설계 ✅ |
+| R-ENV-002 🔒(개정) | `fallbackModelKey`·fallback 해석에 `Config.llmModel`·`llmPrice*`를 값으로 | SRV-T-353 ② | 설계 ✅ |
+| R-SET-003·004 🔒(개정) | `settings.loadModelKey`·`fallbackModelKey` 배선 | SRV-T-350·353 | 설계 ✅ |
+
+### 14.7 설계 결정
+
+| ID | 결정 | 대안·근거 |
+|---|---|---|
+| D-IDX-18 | 공장 순서 = 키 확인 → D1 읽기 → 해석 → 생성 | 키 확인을 먼저 두어 키 없는 배포에서 D1을 읽지 않는다(R-ENV-003 시점 유지). 해석 결과 하나로 provider·modelName·단가를 채워 모델과 단가가 어긋날 틈을 없앤다 |
+| D-IDX-19 | 모델을 `generate` 호출마다 넘기지 않고 공장에서 고정 | 02 §2.3 기각안 — 호출마다 넘기면 단가가 다른 자리에서 정해진다 |
+| D-IDX-20 | 설정 GET 응답용 기본 키를 `fallbackModelKey` 값으로 주입 | settings가 `Config`를 받지 않는다(env 단일 진입). settings가 `llm/models.ts`를 import할 필요도 없다 |
+
 ## 변경 이력
 
 | 날짜 | 내용 |
 |---|---|
+| 2026-10-08 | S3f 설계(§14, 승인 ① 완료): `services.ts` `llm` 공장 `() => Promise<Llm>`(requireLlmApiKey → `settings.loadModelKey` → `resolveLlmModel` → `createLlm`(provider·`modelName`·meter 단가 = 한 해석 결과)), settings에 `fallbackModelKey: modelKeyOf(config.llmModel)` 주입, 배포 순서(0004 먼저 — 아니면 speak 500), 되돌리기 안전. SRV-T-350~353, D-IDX-18~20 |
 | 2026-10-07 | S4 설계(§13): `Services.memory`(`createMemoryService` — `contextMessages`·`memorySummaryThreshold`·공유 `llm` thunk), messages `afterSpeak` = `memory.summarizeIfNeeded`, llm thunk 지역 상수 추출, `index.ts`·`wrangler.toml`·`app.ts`·onError 불변, `scheduled`·`[triggers]` 미도입, 로그 키 5개, SRV-T-327, D-IDX-15~17 |
 | 2026-10-07 | verify 후속 동기화(소스 기준, SEC-003·SRV-006): `/api/*` CSP `'none'` + `secureHeaders` 기본값(§1 R-API-006 행, §3 파일 표·미사용 미들웨어 줄, §3.1 그림·② 행·②a 행, §8 SRV-T-291·수동 curl, §9.1 헤더 행, §10, D-IDX-5 보충·D-IDX-14, 확인 필요 1건, Referrer-Policy 제안 부분 반영). §3 의존 방향을 실물 import로 보충(services→llm·settings·env, messages→llm, settings→db·llm). 공개 API 변경 없음 |
 | 2026-10-07 | §12 로그 키에 이름 지목 형태 1행 추가(`speaker_select` mention·`speak_done.selected 'mention'`·fallback warn 없음), 상태 줄 "구현 완료(server 343/343, SRV-T-261~281)" — 구현 실물 기준 |
@@ -810,3 +924,5 @@ export const createServices = (deps: ServiceDeps): Services => {
 파급(S3b): `services.ts` `createServices`의 `llm` thunk에 `meter` 1항목. `ServiceDeps`·`Services`·`AppEnv` 변경 없음. `server/wrangler.toml [vars]` 4줄 추가(§6.1 전문 반영). `app-error.ts`는 주석만. `Db.llmUsage` 추가로 `app.test.ts` `trap` 가짜 `Db` 갱신은 [db.md](db.md) 파급 문단.
 
 파급(S4 공개 API 변경): `Services`에 `memory: MemoryService` 필수 추가 → 라우트(contract)가 E13·E14에서 `c.get('services').memory`를 쓴다. `Services` 키 집합을 단언하는 테스트(`server/test/app.test.ts` SRV-T-161 주변)가 있으면 `memory`를 더한다. `ServiceDeps`·`AppEnv`·`createServices` 시그니처 불변. `createServices` 본문은 llm thunk를 지역 상수로 옮기고 memory 생성·`afterSpeak` 1항목을 더한다. `server/src/index.ts`·`app.ts`·`wrangler.toml` 변경 없음.
+
+파급(S3f 공개 API 변경): `ServiceDeps`·`Services`·`AppEnv`·`createServices` 시그니처 불변. 내부 공장 `llm`의 타입이 `() => Llm` → `() => Promise<Llm>`이 되어 `createMessagesService`·`createMemoryService`의 `llm` deps 타입이 바뀐다([messages.md](messages.md) §14 · [memory.md](memory.md) §12). `createSettingsService`에 필수 deps `fallbackModelKey` 추가 → 직접 생성하는 테스트 `server/test/settings.test.ts` 55행 · `messages-generate.test.ts` 754·810행에 `fallbackModelKey`를 넣는다. `server/test/helpers.ts` 51행 `llm: (): never => …`는 `never`가 `Promise<Llm>`에 대입 가능해 무수정일 수 있다(tsc로 확인).

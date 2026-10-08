@@ -1,6 +1,6 @@
 # messages 모듈 설계
 
-- 상태: S1 확정(구현 동기화) · S2 초안 · S3 초안(§2.3·§4.2·§4.3·§8.2) · S3b 초안(§4.2 예산 게이트·§8.3) · S3c 구현 완료(§4.4·§8.4) · **S3d 구현 완료(2026-10-06, server 343/343, SRV-T-261~281 · §12 speak `'auto'` — 앞 절과 다르면 §12가 우선 · R-LLM-008 개정(이름 지목·선택 15초) 설계 반영)** · verify 후속 동기화(2026-10-07 — §12.2·§12.3 `pick` 반환 구조, §4.4·§8.4 SRV-T-292, §5 S3-R1·§9 S3-R2 문구) · **S4 초안(2026-10-07, §13 afterSpeak 훅 본체 = memory.summarizeIfNeeded · 등록 실패 삼킴 — 시그니처 불변)** · 최종 갱신: 2026-10-07
+- 상태: S1 확정(구현 동기화) · S2 초안 · S3 초안(§2.3·§4.2·§4.3·§8.2) · S3b 초안(§4.2 예산 게이트·§8.3) · S3c 구현 완료(§4.4·§8.4) · **S3d 구현 완료(2026-10-06, server 343/343, SRV-T-261~281 · §12 speak `'auto'` — 앞 절과 다르면 §12가 우선 · R-LLM-008 개정(이름 지목·선택 15초) 설계 반영)** · verify 후속 동기화(2026-10-07 — §12.2·§12.3 `pick` 반환 구조, §4.4·§8.4 SRV-T-292, §5 S3-R1·§9 S3-R2 문구) · **S4 초안(2026-10-07, §13 afterSpeak 훅 본체 = memory.summarizeIfNeeded · 등록 실패 삼킴 — 시그니처 불변)** · **S3f 설계 초안(2026-10-08, §14 `llm: () => Promise<Llm>` · `await deps.llm()` 한 줄씩 — 판정 순서 불변, SRV-T-355)** · 최종 갱신: 2026-10-08
 - 묶음: S1 = R-MSG-001(히스토리 페이지). S2 = R-MSG-002(유저 발화·지시 저장) · R-MSG-004(수정) · R-MSG-005(삭제) · R-MSG-008(권한). S3 = R-MSG-003·006·007(speak·regenerate·방당 잠금) · R-ROOM-005(재작성 갱신) · R-NFR-001·003 · R-MEM-002(훅 자리만, S3 no-op). S3b = R-LLM-007 🔒 월 예산 게이트(speak·regenerate 잠금 전 `llm.ensureBudget()` — 사용량 누적은 llm 안, [llm.md](llm.md) §12).
 - 관련 문서: [db.md](db.md)(`messages` 저장소), [rooms.md](rooms.md)(`updated_at` 갱신 규칙), [auth.md](auth.md)(`Principal`·쓰기 미들웨어), [index.md](index.md)(서비스 컨테이너·에러 핸들러), [llm.md](llm.md)(S3 프롬프트·제공사·재시도).
 
@@ -872,10 +872,79 @@ if (hook !== undefined) {
 | D-MSG-29 | `waitUntil` 등록 실패를 잡아 warn만 남긴다 | 그대로 전파 · 라우트가 처리 | 저장된 대사를 실패로 보이면 중복 대사가 생긴다(D-MSG-18). "실패해도 speak 응답은 성공"(R-MEM-002)을 등록 단계까지 넓힌다. 라우트를 얇게 유지 |
 | D-MSG-30 | `AfterSpeakEvent`에서 `messageId`를 빼지 않는다 | `{ roomId }`만 | 시그니처·기존 테스트(SRV-T-202) 무수정. 값 1개라 비용 없음 |
 
+## 14. S3f — `llm` 공장 비동기화 반영 (R-LLM-009 🔒 · R-SET-013 🔒)
+
+- 상태: 초안(2026-10-08, 승인 ① 완료). 근거 `s3f-02-전반설계.md` §2.3·§7·§8 · `s3f-03-인계패킷.md` §1.2.
+- 관련: [index.md](index.md) §14(공장 순서 — 키 확인 → D1 모델 읽기 → 해석 → 생성) · [llm.md](llm.md) §15(모델 해석·자동 전환 금지).
+- messages는 모델을 모른다. 공장이 돌려준 `Llm`을 쓰기만 하고, 모델 키·모델명·단가를 읽거나 넘기지 않는다.
+
+### 14.1 공개 API 델타
+
+```ts
+// server/src/messages/service.ts · generate.ts — MessagesDeps · GenerateDeps
+llm: () => Promise<Llm>      // 이전 () => Llm
+```
+
+- `MessagesService`·`GenerateOps`·`AfterSpeakEvent`·`speak`/`regenerate` 시그니처와 응답 형태는 그대로다.
+
+### 14.2 `generate.ts` 델타 (두 줄)
+
+| 위치 | 이전 | 이후 |
+|---|---|---|
+| `speak` | `const llm = deps.llm()` | `const llm = await deps.llm()` |
+| `regenerate` | `const llm = deps.llm()` | `const llm = await deps.llm()` |
+
+- `resolveSpeaker(llm: Llm, …)`·`llm.ensureBudget()`·`llm.complete(…)`·`llm.selectSpeaker(…)` 호출은 그대로다. 'auto' 선택과 발화가 **같은 `Llm` 인스턴스**라 같은 모델이다(R-LLM-008 문구 그대로 참).
+- 문서주석 `[비동기]`의 "llm() 확인"을 "await llm()(S3f: 키 확인 → D1 모델 키 1행 → 해석)"으로, `[설정]`의 "llm 지연 생성 함수"를 "llm 비동기 공장"으로 고친다.
+
+### 14.3 판정 순서 (불변 확인)
+
+```
+speak:      입력 검증(VALIDATION_ERROR) → await llm()  ← 여기서 CONFIG_INVALID · D1 오류(500 INTERNAL)
+            → ensureBudget(LLM_BUDGET_EXCEEDED) → 잠금 선점(SPEAK_IN_PROGRESS) → 읽기 3종 → ('auto' 선택) → 발화 → 저장 → finally 해제 → waitUntil afterSpeak
+regenerate: (기존 앞단 검증) → await llm() → ensureBudget → 잠금 → … (§4.3과 같음)
+```
+
+- `await`가 붙은 자리만 같고 단계 순서는 바뀌지 않는다. 공장 실패(키 없음·D1 오류)는 **잠금 선점 앞**이라 잠금 해제가 필요 없고 LLM 호출 0회다(이전 `CONFIG_INVALID`와 같은 자리).
+- 진행 중인 speak는 시작 때 만든 `Llm`의 모델로 끝난다. 그 사이 주인이 저장하면 다음 speak부터 바뀐다(R-SET-013).
+- afterSpeak(요약)는 memory가 자기 시작 시점에 공장을 다시 부른다([memory.md](memory.md) §12).
+
+### 14.4 동시성·에러·env·DB
+
+- 새 잠금·에러 코드·env 키·마이그레이션 없음(0004는 settings 칸 — [db.md](db.md) §14). 시간 예산: D1 PK 읽기 1회(수 ms)가 잠금 밖에서 늘 뿐, 66초 LLM 분배·70초 종결 불변.
+
+### 14.5 테스트 (`server/test/messages-generate.test.ts` — D1 + FakeProvider + 가짜 시계)
+
+| ID | 조건 | 기대 |
+|---|---|---|
+| SRV-T-355 | `llm: vi.fn(async () => { throw new Error('d1 down') })`(공장의 D1 오류 흉내)로 speak · regenerate | 같은 오류로 reject. `rooms.speaking_until` 불변(잠금 선점 0), `messages` 행 수 불변, `ensureBudget`·제공사 호출 0 |
+
+- 기존 테스트 영향(무수정 통과가 목표이고, 바뀌는 것은 공장 감싸기뿐):
+  - 65행 `const llm = (): Llm => createLlm(…)` → `const llm = async (): Promise<Llm> => createLlm(…)`.
+  - 224·561·707행 `vi.fn((): Llm => { throw … })` → `vi.fn(async (): Promise<Llm> => { throw … })`. `not.toHaveBeenCalled()`·에러 코드 단언은 그대로 성립한다.
+  - 754·810행 `createSettingsService({ … })`에 `fallbackModelKey: null` 추가([settings.md](settings.md) §13).
+- 통합(저장 → speak URL·단가, 'auto' 선택 URL, 자동 전환 금지 종단)은 컨테이너 경로라 [index.md](index.md) §14.5 SRV-T-350~352가 본다.
+
+### 14.6 요구 추적
+
+| 요구 | 반영 | 테스트 | 상태 |
+|---|---|---|---|
+| R-LLM-009 🔒 | §14.2(공장 결과만 사용, 자동 전환 경로 없음) | SRV-T-355 · [index.md](index.md) SRV-T-352 | 설계 ✅ |
+| R-SET-013 🔒 | §14.3(다음 speak부터, 진행 중은 이전 모델) | [index.md](index.md) SRV-T-350·351 | 설계 ✅ |
+| R-MSG-003·006·009 🔒 | 판정 순서 불변(§14.3) | 기존 speak·regenerate·auto 테스트 | ✅ |
+
+### 14.7 설계 결정
+
+| ID | 결정 | 대안·근거 |
+|---|---|---|
+| D-MSG-31 | `await deps.llm()`을 기존 `deps.llm()` 자리에 그대로 둔다 | 잠금 안으로 옮기면 D1 오류 때 잠금 해제 경로가 늘고 409 판정보다 늦어진다. 앞에 두면 실패가 잠금 전에 닫힌다 |
+| D-MSG-32 | messages는 모델 키를 받지 않는다 | 모델·단가 해석은 공장 한 곳(D-IDX-18). messages가 알면 해석이 두 곳에 갈라진다 |
+
 ## 변경 이력
 
 | 날짜 | 내용 |
 |---|---|
+| 2026-10-08 | S3f 설계(§14, 승인 ① 완료): `MessagesDeps`·`GenerateDeps.llm` `() => Llm` → `() => Promise<Llm>`, `generate.ts` speak·regenerate `await deps.llm()` 두 줄, 판정 순서 불변(공장 실패는 잠금 앞). 기존 테스트 감싸기(65·224·561·707행)·`fallbackModelKey`(754·810행). SRV-T-355, D-MSG-31·32 |
 | 2026-10-07 | S4 설계(§13): `afterSpeak` 훅 본체를 컨테이너가 `memory.summarizeIfNeeded`로 연결(messages는 memory를 import하지 않음), `generate.ts`의 `background.waitUntil` 등록을 try/catch로 감싸 `after_speak_schedule_failed`(warn), 훅 위치(잠금 해제 뒤)·regenerate 훅 없음 유지 확인, SRV-T-326, D-MSG-29·30. `GenerateDeps`·`MessagesDeps`·`MessagesService` 시그니처 불변 |
 | 2026-10-07 | verify 후속 동기화(소스 기준, SRV-001·SRV-003·S3-R1·S3-R2): §12.2 `pick` 반환 구조 문단, §12.3 흐름 ⑤·⑦ 뒤 `return { saved, pick }`, §4.4 실패 문단·§8.4 SRV-T-292(설정 읽기 실패 시 잠금 해제), §5 `character` 위반 행(실물 문구·HTTP 미도달)·S3-R1 메모, §9 메시지 id 10진 규칙(S3-R2), §10.1. 공개 API 변경 없음 |
 | 2026-10-06 | 마감 동기화(server 343/343): 상태 줄 문구 확정. 번호·파일은 실물 기준(SRV-T-281 `messages-generate` 서비스 경로). SRV-T-270·273·276의 15000·51000·49000 값은 실물과 같다 |
@@ -898,3 +967,5 @@ if (hook !== undefined) {
 파급(S3b): `MessagesDeps`·`GenerateDeps`·`MessagesService` 시그니처 변경 없음. `generate.ts`에 `await llm.ensureBudget()` 2줄과 문서주석 `[에러]`에 `LLM_BUDGET_EXCEEDED` 추가. `server/test/messages-generate.test.ts`의 `llm` 헬퍼는 meter 없이 만들어도 기존 SRV-T-191~209가 그대로 돈다(`LlmDeps.meter?` 선택). S3b 테스트만 meter를 넣는다.
 
 파급(S4): `MessagesDeps`·`GenerateDeps`·`MessagesService`·`AfterSpeakEvent` 시그니처 변경 없음. 호출자 `server/src/services.ts`가 `afterSpeak`를 넣는다([index.md](index.md) §13.1). `generate.ts`는 등록 3줄을 try/catch로 감싸고 문서주석 `[비동기]`에 "등록 실패는 warn"을 더한다. 기존 SRV-T-202(훅 등록·훅 실패 삼킴)는 무수정. 라우트 테스트(`server/test/routes-generate.test.ts`, contract 소유)는 speak 성공 뒤 `waitOnExecutionContext(ctx)`를 기다리도록 바꾸기를 contract에 요청했다([memory.md](memory.md) 「contract 인계」).
+
+파급(S3f 공개 API 변경): `MessagesDeps.llm`·`GenerateDeps.llm` 타입이 `() => Promise<Llm>` → 호출자 `server/src/services.ts`(공장 제공, [index.md](index.md) §14.1)와 직접 생성 테스트 `messages-generate.test.ts`(65·224·561·707행). `MessagesService`·응답 형태 불변이라 라우트(contract) 영향 없음.

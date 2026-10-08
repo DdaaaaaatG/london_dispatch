@@ -158,7 +158,7 @@ const schema = z.object({
   LLM_PROVIDER: z.preprocess(blankToUndefined, z.enum(LLM_PROVIDERS).default('google')),
   LLM_MODEL: z.preprocess(
     blankToUndefined,
-    z.string().regex(MODEL_PATTERN).default('gemini-2.5-flash'),
+    z.string().regex(MODEL_PATTERN).default('gemini-3.1-pro-preview'),
   ),
   LLM_TIMEOUT_MS: intVar(1000, 60000, 60000),
   ALLOWED_FRAME_ANCESTORS: ancestors,

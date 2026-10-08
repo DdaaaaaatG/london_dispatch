@@ -1,6 +1,6 @@
 # memory 모듈 설계
 
-- 상태: S4 초안 · **S4 구현 완료(2026-10-07, server 381/381, SRV-T-296~327 — 구현 동기화)** · **R-MEM-001 🔒 개정 동기화(2026-10-07, 빈 요약 저장 = `source_until_id` 0 리셋 "다시요약" — 구현 반영, SRV-T-331~333)** · 최종 갱신: 2026-10-07
+- 상태: S4 초안 · **S4 구현 완료(2026-10-07, server 381/381, SRV-T-296~327 — 구현 동기화)** · **R-MEM-001 🔒 개정 동기화(2026-10-07, 빈 요약 저장 = `source_until_id` 0 리셋 "다시요약" — 구현 반영, SRV-T-331~333)** · **S3f 설계 초안(2026-10-08, §12 `llm: () => Promise<Llm>` · 게이트 `await deps.llm()` 한 줄 — 요약 시작 시점에 모델 재해석, 단계 순서 불변, SRV-T-356)** · 최종 갱신: 2026-10-08
 - 묶음: **S4**(장기기억) = R-MEM-001 🔒(조회·편집) · R-MEM-002 🔒(speak 뒤 자동 요약) · R-MEM-003(중복 요약 방지·Cron 대체 결정) · R-LLM-007 🔒(요약 호출도 월 예산 누적·게이트) · R-LLM-003 🔒·R-LLM-006(요약은 데이터 블록) · R-CHAT-012 🔒(화면 — 계약·ui 인계만) · R-DB-001 🔒(`memory` 테이블은 0001에 있음, 마이그레이션 없음).
 - 입력: `doc/100_요구조건/requirements.md`(R-MEM·R-LLM-003/006/007·R-CHAT-012·R-NFR-001), `doc/000_프로젝트_확정사항.md` §5.2·§5.4·§5.5(5단계), `rtm.md` S4 행, [messages.md](messages.md) §2.3·§4.2, [llm.md](llm.md) §2.3·§7.1·§12, [db.md](db.md) §2.3·§3.5·§7, [index.md](index.md) §2.3, [env.md](env.md), 실물 `server/src/{messages/generate.ts, db/{memory,sql,index}.ts, llm/{client,prompt,usage,provider,fake}.ts, services.ts, index.ts, env.ts}`, `shared/src/limits.ts`, `server/migrations/0001_init.sql`.
 - 관련 문서(이 묶음의 델타): [messages.md](messages.md) §13(afterSpeak 훅 본체 연결) · [llm.md](llm.md) §14(요약 프롬프트·`CompleteOptions.budgetMs`) · [db.md](db.md) §13(memory·messages 저장소 확장) · [index.md](index.md) §13(배선·`scheduled` 미도입) · [env.md](env.md)(변경 없음 확인).
@@ -496,11 +496,67 @@ export type PutMemoryBody = { summary: string }
 - **요구 밖**: 요약 이력·여러 요약본·"지금 요약" 수동 버튼은 만들지 않는다.
 - **편집 내용이 AI에 주는 영향**: 저장된 요약은 다음 캐릭터 발화부터 프롬프트의 "지난 이야기 요약"으로 들어간다. 요약 안의 지시 문장은 설정을 바꾸지 못한다(주입 완화 — 서버 처리, 화면 안내 불필요).
 
+## 12. S3f — `llm` 공장 비동기화 반영 (R-LLM-009 🔒 · R-SET-013 🔒)
+
+- 상태: 초안(2026-10-08, 승인 ① 완료). 근거 `s3f-02-전반설계.md` §2.3·§8 · `s3f-03-인계패킷.md` §1.2.
+- 관련: [index.md](index.md) §14(공장 순서) · [llm.md](llm.md) §15(해석·자동 전환 금지) · [messages.md](messages.md) §14.
+
+### 12.1 공개 API 델타
+
+```ts
+// server/src/memory/service.ts — MemoryDeps
+llm: () => Promise<Llm>      // 이전 () => Llm
+```
+
+- `MemoryService`(`get`·`put`·`summarizeIfNeeded`)·`SummarizeOutcome`·`SummarizeStage` 시그니처는 그대로다.
+
+### 12.2 `service.ts` 델타 (한 줄)
+
+| 위치 | 이전 | 이후 |
+|---|---|---|
+| `gate`(④ 예산 게이트) | `const llm = deps.llm()` | `const llm = await deps.llm()` |
+
+- `await`는 기존처럼 `try` **밖**이다. 공장 실패(키 없음 `CONFIG_INVALID`·D1 오류)는 `LLM_BUDGET_EXCEEDED`가 아니므로 `gate`가 던지고, `summarizeIfNeeded`의 기존 바깥 처리가 `{ status: 'failed', stage: 'budget', code }` + warn 로그로 닫는다(throw 없음 — 불변).
+- 단계 순서 불변: 읽기(①~③ 기준 판정) → `stage = 'budget'` → `await deps.llm()` → `ensureBudget` → 대상 읽기 → `complete`(≤ 25초) → 조건부 UPSERT. 기준 미달이면 공장을 부르지 않는다(D1 모델 읽기 0회).
+- 문서주석 `[설정]`의 "llm 지연 생성 함수"를 "llm 비동기 공장(요약 시작 때 모델 재해석)"으로 고친다.
+
+### 12.3 모델 시점
+
+- 요약은 speak 응답 뒤 `waitUntil` 안에서 **자기 시작 시점에** 공장을 다시 부른다. speak와 요약 사이에 주인이 모델을 바꿨으면 요약은 새 모델이다(R-SET-013 "다음에 시작하는 요약 호출부터").
+- 요약 호출이 실패해도 다른 모델로 다시 부르지 않는다(자동 전환 금지 — 실패는 기존대로 건너뜀).
+- 비용 누적은 요약 호출 모델의 단가표 값으로 같은 월 행에 더한다([llm.md](llm.md) §15.5).
+
+### 12.4 테스트 (`server/test/memory.test.ts` — workers pool D1 + FakeProvider + 가짜 시계·수집 로거)
+
+| ID | 조건 | 기대 |
+|---|---|---|
+| SRV-T-356 | 기준을 넘긴 방 + `llm: async () => { throw new Error('d1 down') }` → `summarizeIfNeeded` | throw 없이 `{ status: 'failed', stage: 'budget' }`, warn 로그 1건, `memory` 행 불변. 기준 미달 방이면 공장 호출 0회(`vi.fn` 호출 수 0) |
+
+- 기존 테스트 영향: 45행 `llm?: () => Llm` → `llm?: () => Promise<Llm>`, 60행대 `createLlm(…)` 공장을 `async`로 감싼다, 449행 `llm: () => { … }` → `llm: async () => { … }`.
+- 요약 호출 URL이 고른 모델인지는 컨테이너 경로 [index.md](index.md) §14.5 SRV-T-351이 본다.
+
+### 12.5 요구 추적
+
+| 요구 | 반영 | 테스트 | 상태 |
+|---|---|---|---|
+| R-LLM-009 🔒 | §12.2·12.3(공장 결과만 사용, 전환 없음) | SRV-T-356 · [index.md](index.md) SRV-T-351 | 설계 ✅ |
+| R-SET-013 🔒 | §12.3(요약 시작 시점 재해석) | [index.md](index.md) SRV-T-351 | 설계 ✅ |
+| R-MEM-002·003 🔒 | 단계 순서·throw 없음 불변 | 기존 SRV-T-296~327 · SRV-T-356 | ✅ |
+
+### 12.6 설계 결정
+
+| ID | 결정 | 대안·근거 |
+|---|---|---|
+| D-MEM-18 | 요약은 speak의 `Llm`을 넘겨받지 않고 자기 시작 때 공장을 다시 부른다 | messages는 memory를 import하지 않는다(afterSpeak 이벤트는 `roomId`만). 다시 부르면 "다음에 시작하는 요약부터 새 모델"이 그대로 성립한다. 비용은 D1 PK 읽기 1회 |
+
 ## 변경 이력
 
 | 날짜 | 내용 |
 |---|---|
+| 2026-10-08 | S3f 설계(§12, 승인 ① 완료): `MemoryDeps.llm` `() => Promise<Llm>`, `gate`의 `await deps.llm()` 한 줄(try 밖 — 공장 실패는 `failed/budget`), 요약 시작 시점 모델 재해석, 단계 순서 불변. 기존 테스트 감싸기(45·60·449행). SRV-T-356, D-MEM-18 |
 | 2026-10-07 | 테스트 번호 정정(계약 api.md §14.19 기준): 빈 요약 리셋 라우트 테스트를 API-T-123에서 **API-T-125**(memory_put_empty_resets_source)로 바꿈 — §10 R-MEM-001 행·「contract 인계」 테스트 요청·직전 변경 이력 행. API-T-123은 speak "요약 실패 주입에도 201"(routes-generate)로 유지 |
 | 2026-10-07 | R-MEM-001 🔒 개정 동기화(사용자 지정 "다시요약", 소스 기준): trim 후 빈 요약 저장 시 `source_until_id` 0 리셋 → 다음 speak 뒤 처음부터 재요약(100개씩). §2 `put` 주석·§2.1 값 규칙 행·"빈 요약 리셋" 문단, §4.4 경합 1행, §8.1 SRV-T-332·333, §8.2 SRV-T-331 행, §10 R-MEM-001 테스트, D-MEM-17, 「contract 인계」 E14 길이·200 행·테스트 요청(API-T-125), 「ui 인계 메모」 길이 항목. 공개 API 시그니처 불변 |
 | 2026-10-07 | S4 구현 동기화(소스 기준, server 381/381, SRV-T-296~327): 상태 줄, §8.1 SRV-T-298·310 경계 위치 해석 1줄. 파일 구성(`server/src/memory/{index,service,summarize}.ts`·`server/src/llm/summary.ts`)·공개 API·순수 함수 4종·상수 3종·`MemoryDeps`·`SummarizeOutcome`은 설계와 같다. 요약 프롬프트 쪽 차이(`SUMMARY_LABEL` 내부 export·라벨 제거 방식)는 [llm.md](llm.md) §14에 반영 |
 | 2026-10-07 | S4 초안 작성(신규): `get`·`put`·`summarizeIfNeeded`, 순수 함수 4종·상수, 자동 요약 흐름·구간 규칙·25초 예산, 조건부 UPSERT 낙관적 잠금(`source_until_id` + `summary`), Cron 미도입·전환 기준, SRV-T-296~315, D-MEM-1~16, contract·ui 인계 |
+
+파급(S3f 공개 API 변경): `MemoryDeps.llm` 타입이 `() => Promise<Llm>` → 호출자 `server/src/services.ts`(공장 제공, [index.md](index.md) §14.1)와 `server/test/memory.test.ts`(45·60·449행). `MemoryService` 시그니처 불변이라 라우트(E13·E14) 영향 없음.

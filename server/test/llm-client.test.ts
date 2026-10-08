@@ -8,6 +8,8 @@ import {
   FAKE_USAGE,
   FakeProvider,
   buildSummaryPrompt,
+  CHARACTER_PROFILES,
+  COMMON_PROMPT,
   LLM_BUDGET_MS,
   planRetryTimeout,
   SUMMARY_BUDGET_MS,
@@ -507,5 +509,92 @@ describe('S4 요약 시간 예산·사용량 (R-MEM-002·R-LLM-007)', () => {
     expect(rows[0]?.calls).toBe(1)
     expect(rows[0]?.estKrw).toBeGreaterThan(0)
     expect(rows[0]?.promptTokens).toBe(FAKE_USAGE.promptTokens)
+  })
+})
+
+describe('S3f 모델 로그·자동 전환 금지 (llm.md §15.6·15.7)', () => {
+  const MODEL = 'gemini-3.8-flash'
+  const fireAll = async (modelName?: string) => {
+    const clock = makeClock()
+    const lines: string[] = []
+    const logger = createLogger((_l, line) => lines.push(line))
+    const provider = new FakeProvider([
+      { text: '본문 성공' },
+      { error: new LlmError('http_4xx', { httpStatus: 400 }) },
+      { text: 'ciel' },
+      { text: '시엘이라고 하자' },
+    ])
+    const llm = createLlm({
+      provider,
+      timeoutMs: 60_000,
+      logger,
+      now: clock.now,
+      sleep: clock.sleep,
+      ...(modelName === undefined ? {} : { modelName }),
+    })
+    await llm.complete(PROMPT)
+    await appError(llm.complete(PROMPT))
+    const input = {
+      history: [{ speaker: 'user' as const, kind: 'line' as const, text: '안개가 짙다' }],
+      profiles: CHARACTER_PROFILES,
+      common: COMMON_PROMPT,
+    }
+    await llm.selectSpeaker(input)
+    await llm.selectSpeaker({
+      ...input,
+      history: [{ speaker: 'user', kind: 'line', text: '세바스찬, 차를 내와' }],
+    })
+    return lines.map(l => JSON.parse(l) as Record<string, unknown>)
+  }
+
+  it('SRV-T-340 model_field_in_llm_done_failed_speaker_select_only_when_given', async () => {
+    const logs = await fireAll(MODEL)
+    const picked = logs.filter(l =>
+      ['llm_done', 'llm_failed', 'speaker_select'].includes(String(l.event)),
+    )
+    expect(picked.map(l => l.event)).toEqual([
+      'llm_done',
+      'llm_failed',
+      'speaker_select',
+      'speaker_select',
+    ])
+    for (const l of picked) expect(l.model).toBe(MODEL)
+    const plain = await fireAll()
+    for (const l of plain) expect('model' in l).toBe(false)
+    const all = JSON.stringify(logs)
+    expect(all).not.toContain('SYS')
+    expect(all).not.toContain('TURN')
+    expect(all).not.toContain('본문 성공')
+  })
+
+  it.each([
+    ['404', [404], 1],
+    ['429', [429], 1],
+    ['503x2', [503, 503], 2],
+  ])('SRV-T-341 no_automatic_model_switch_on_%s', async (_name, statuses, expectedCalls) => {
+    const PRO = 'gemini-3.1-pro-preview'
+    const urls: string[] = []
+    let i = 0
+    const fetchFn: typeof fetch = async input => {
+      urls.push(String(input))
+      const status = statuses[Math.min(i, statuses.length - 1)] as number
+      i += 1
+      return new Response(JSON.stringify({ error: { status: 'X', message: 'x' } }), { status })
+    }
+    const clock = makeClock()
+    const llm = createLlm({
+      provider: new GeminiProvider({ apiKey: 'k', model: PRO }, fetchFn),
+      timeoutMs: 60_000,
+      logger: createLogger(() => undefined),
+      now: clock.now,
+      sleep: clock.sleep,
+    })
+    const err = await appError(llm.complete(PROMPT))
+    expect(err.code).toBe('LLM_FAILED')
+    expect(urls).toHaveLength(expectedCalls)
+    for (const u of urls) {
+      expect(u).toContain(PRO)
+      expect(u).not.toContain('flash')
+    }
   })
 })

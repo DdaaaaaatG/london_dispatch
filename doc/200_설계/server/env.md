@@ -1,6 +1,6 @@
 # env 모듈 설계
 
-- 상태: 확정(S1 구현 동기화) · S3b 초안(키 4개 — §2 S3b 델타·§3.1·§6) · S3c 구현 완료(`OWNER_MB_IDS` 1키 — §2 S3c 델타) · verify 후속 동기화(`TOKEN_SECRET` 32자 하한, SEC-001 — §3.1·§5·§6.2·§8·D-ENV-13) · S4 확인(2026-10-07, **변경 없음** — memory가 `contextMessages`·`memorySummaryThreshold`를 값으로 받고 새 키·새 검증 없음, [memory.md](memory.md) §6) · 최종 갱신: 2026-10-07
+- 상태: 확정(S1 구현 동기화) · S3b 초안(키 4개 — §2 S3b 델타·§3.1·§6) · S3c 구현 완료(`OWNER_MB_IDS` 1키 — §2 S3c 델타) · verify 후속 동기화(`TOKEN_SECRET` 32자 하한, SEC-001 — §3.1·§5·§6.2·§8·D-ENV-13) · S4 확인(2026-10-07, **변경 없음** — memory가 `contextMessages`·`memorySummaryThreshold`를 값으로 받고 새 키·새 검증 없음, [memory.md](memory.md) §6) · **S3f 설계 초안(2026-10-08, §12 `LLM_MODEL` 기본값 `gemini-3.1-pro-preview`·의미 개정, `LLM_PRICE_*` = 단가표 밖 모델의 폴백, 새 키 0, SRV-T-354)** · 최종 갱신: 2026-10-08
 - 묶음: S1(저장 + 읽기 전용). 이 문서의 공개 API는 전부 S1에서 구현되었다(`requireLlmApiKey`는 S1에서 만들고 S3 speak가 호출). **S2 변경 없음**: S2가 쓰는 `TOKEN_SECRET`·`TOKEN_MIN_LEVEL`·`RATE_LIMIT_PER_MIN`은 이미 `Config`(`tokenSecret`·`tokenMinLevel`·`rateLimitPerMin`)에 있고, [auth.md](auth.md) §6이 값으로 받는다. **S3 변경 없음**: S3가 쓰는 `llmProvider`·`llmModel`·`llmTimeoutMs`·`contextMessages`와 `requireLlmApiKey`는 이미 구현되어 있다. 컨테이너가 speak·regenerate 시점에만 `requireLlmApiKey`를 부르는 지연 생성 함수로 감싼다([llm.md](llm.md) §3.3, R-ENV-003). `requireLlmApiKey`는 `LLM_PROVIDER=fake`이면 키를 요구하지 않고 `''`을 돌려주며, `FakeProvider`는 그 값을 쓰지 않는다(키 없는 로컬 개발·테스트용). **S3b 변경**: 월 비용 상한(R-LLM-007 🔒) 키 4개 `LLM_MONTHLY_BUDGET_KRW`·`LLM_PRICE_INPUT_USD_PER_M`·`LLM_PRICE_OUTPUT_USD_PER_M`·`KRW_PER_USD`(전부 `[vars]`, 비밀 아님)와 소수 변환기 `decimalVar`를 더한다.
 - 관련 문서: [index.md](index.md)(호출 지점·부트스트랩), [db.md](db.md)(`DB` 바인딩 소비), [auth.md](auth.md)(토큰·레이트리밋 설정 소비), [rooms.md](rooms.md), [messages.md](messages.md).
 
@@ -232,7 +232,7 @@ OWNER_MB_IDS=
 | `LLM_API_KEY` | Secrets / `.dev.vars` | ○ | string | 선택(없으면 `undefined`) | 빈 문자열 = 누락. trim 하지 않음 | `llmApiKey` | S3 llm |
 | `TOKEN_MIN_LEVEL` | `[vars]` | ✕ | string\|number | 5 | 정수 1~10(그누보드 `mb_level` 범위) | `tokenMinLevel` | S2 auth |
 | `LLM_PROVIDER` | `[vars]` | ✕ | string | `google` | `google` \| `fake` | `llmProvider` | S3 llm |
-| `LLM_MODEL` | `[vars]` | ✕ | string | `gemini-2.5-flash` | `^[A-Za-z0-9._-]{1,64}$`(REST 경로에 들어가므로 `/`·`:`·공백 금지) | `llmModel` | S3 llm |
+| `LLM_MODEL` | `[vars]` | ✕ | string | `gemini-3.1-pro-preview`(S3f — §12) | `^[A-Za-z0-9._-]{1,64}$`(REST 경로에 들어가므로 `/`·`:`·공백 금지) | `llmModel` | S3 llm |
 | `LLM_TIMEOUT_MS` | `[vars]` | ✕ | string\|number | 60000 | 정수 1000~60000(R-NFR-001 70초 상한 때문에 60초 초과 금지) | `llmTimeoutMs` | S3 llm |
 | `ALLOWED_FRAME_ANCESTORS` | `[vars]` | ✕ | string | `http://london-gossip.my https://london-gossip.my` | 공백 구분 1개 이상. 각 항목 `^https?://[A-Za-z0-9.-]+(:\d{1,5})?$`(경로·`;`·따옴표·`*` 금지 — CSP 헤더 주입 방지). 중복 제거 | `allowedFrameAncestors` | S1 index |
 | `RATE_LIMIT_PER_MIN` | `[vars]` | ✕ | string\|number | 20 | 정수 1~600 | `rateLimitPerMin` | S2 auth |
@@ -328,7 +328,7 @@ fetch(request, env, ctx)                      ← Workers 런타임
 | `LLM_API_KEY` | ○ 선택 | ✕ | ○ 빈 값 | ○ `wrangler secret put LLM_API_KEY` |
 | `TOKEN_MIN_LEVEL` | ○ 기본 5 | ○ `"5"` | 주석(설명만) | ✕ |
 | `LLM_PROVIDER` | ○ 기본 google | ○ `"google"` | 주석 | ✕ |
-| `LLM_MODEL` | ○ 기본 gemini-2.5-flash | ○ `"gemini-2.5-flash"` | 주석 | ✕ |
+| `LLM_MODEL` | ○ 기본 gemini-3.1-pro-preview | ○ `"gemini-3.1-pro-preview"` | 주석 | ✕ |
 | `LLM_TIMEOUT_MS` | ○ 기본 60000 | ○ `"60000"` | 주석 | ✕ |
 | `ALLOWED_FRAME_ANCESTORS` | ○ 기본 2출처 | ○ `"http://london-gossip.my https://london-gossip.my"` | 주석 | ✕ |
 | `RATE_LIMIT_PER_MIN` | ○ 기본 20 | ○ `"20"` | 주석 | ✕ |
@@ -368,15 +368,15 @@ LLM_API_KEY=
 # --- 참고: wrangler.toml [vars] 기본값 (여기 적지 않는다, 설명만) ---
 # TOKEN_MIN_LEVEL=5                      쓰기 허용 최소 등급(그누보드 mb_level 1~10). 확정사항 §9-1
 # LLM_PROVIDER=google                    google | fake. 확정사항 §9-4
-# LLM_MODEL=gemini-2.5-flash             Gemini 모델 식별자
+# LLM_MODEL=gemini-3.1-pro-preview       고르기 전 기본 모델(설정 화면에서 Pro·Flash를 고르면 그 값이 우선)
 # LLM_TIMEOUT_MS=60000                   제공사 호출 타임아웃(ms, 1000~60000)
 # ALLOWED_FRAME_ANCESTORS=http://london-gossip.my https://london-gossip.my   iframe 허용 출처(공백 구분). 확정사항 §9-7
 # RATE_LIMIT_PER_MIN=20                  토큰(mb_id) 단위 쓰기 요청 분당 상한. 확정사항 §9-6
 # CONTEXT_MESSAGES=40                    speak 에 넣는 최근 메시지 수(1~100)
 # MEMORY_SUMMARY_THRESHOLD=60            이 수를 넘으면 오래된 구간을 요약한다(CONTEXT_MESSAGES 보다 커야 함)
 # LLM_MONTHLY_BUDGET_KRW=100000          월 AI 비용 상한(원, 추정). 닿으면 다음 달 1일 0시(KST)까지 캐릭터 버튼 429. R-LLM-007
-# LLM_PRICE_INPUT_USD_PER_M=0.3          입력 토큰 100만 개당 USD(gemini-2.5-flash 공개 단가 — 배포 전 확인)
-# LLM_PRICE_OUTPUT_USD_PER_M=2.5         출력+사고 토큰 100만 개당 USD
+# LLM_PRICE_INPUT_USD_PER_M=0.3          단가표에 없는 모델의 폴백 입력 단가(USD/1M 토큰)
+# LLM_PRICE_OUTPUT_USD_PER_M=2.5         단가표에 없는 모델의 폴백 출력+사고 단가(USD/1M 토큰)
 # KRW_PER_USD=1400                       원/달러 환율(자동 갱신 없음)
 ```
 
@@ -463,10 +463,86 @@ env 모듈은 엔드포인트를 노출하지 않는다. contract가 알아야 �
 - (반영 2026-10-07 — D-ENV-13·SRV-T-290) `TOKEN_SECRET` 최소 길이 32자 검사. R-HANDOFF-003이 "32자 이상 랜덤"을 요구하므로 운영 실수를 막는다. 다만 로컬 "아무 문자열" 사용과 충돌하므로 도입 시 로컬도 32자 이상을 써야 한다.
 - `LOG_LEVEL` 키. server-design-strategy §2 최소 키 목록에 있으나 R-ENV-002에 없어 넣지 않았다. 현재 로거는 레벨 필터 없이 info 이상을 모두 쓴다([index.md](index.md) §3.3).
 
+## 12. S3f — `LLM_MODEL`·`LLM_PRICE_*` 의미 개정 (R-ENV-002 🔒 개정 · R-LLM-009 🔒 · R-LLM-007 🔒 개정)
+
+- 상태: 초안(2026-10-08, 승인 ① 완료 — Q1 기본 모델 = Pro). 근거 `s3f-02-전반설계.md` §2.2·§3·§9 L1 · `s3f-03-인계패킷.md` §1.1.
+- **새 env 키 0.** `Config` 필드·`ENV_KEYS`·`parseEnv`·`requireLlmApiKey` 시그니처와 `ConfigError` 규칙은 그대로다. 바뀌는 것은 `LLM_MODEL` 기본값 1곳과 두 키의 **뜻**(문서·주석)이다.
+- 관련: [llm.md](llm.md) §15(상수표·단가표·해석 규칙) · [index.md](index.md) §14(공장이 `Config.llmModel`·`llmPrice*`를 해석 입력으로 씀).
+
+### 12.1 키 표 델타 (§3.1·§6.1의 해당 행을 대체)
+
+| 키 | 위치 | 타입·검증 | 기본값 | 뜻(S3f) | 비밀 |
+|---|---|---|---|---|---|
+| `LLM_MODEL` | `wrangler.toml [vars]` | 문자열, `MODEL_PATTERN` `/^[A-Za-z0-9._-]{1,64}$/`(불변) | **`gemini-3.1-pro-preview`**(이전 `gemini-2.5-flash`) | 주인이 설정 화면에서 모델을 **고른 적이 없을 때** 쓰는 기본 모델. 고른 키가 있으면 그 키의 상수표 모델명이 우선 | 아님 |
+| `LLM_PRICE_INPUT_USD_PER_M` | `[vars]` | 소수 0~100(불변) | `0.3`(불변) | **모델 단가표(`llm/models.ts`)에 없는 모델**의 폴백 입력 단가(USD/100만 토큰) | 아님 |
+| `LLM_PRICE_OUTPUT_USD_PER_M` | `[vars]` | 소수 0~100(불변) | `2.5`(불변) | 단가표에 없는 모델의 폴백 출력+사고 단가 | 아님 |
+
+- 두 상수표 모델명(`gemini-3.1-pro-preview`·`gemini-3.8-flash`)은 `MODEL_PATTERN`을 통과한다(영문·숫자·`.`·`-`). 패턴은 바꾸지 않는다.
+- env `LLM_MODEL`에 Pro·Flash 모델명을 넣으면 단가는 단가표 값이 쓰이고 `LLM_PRICE_*`는 쓰이지 않는다([llm.md](llm.md) §15.4 V3). `LLM_PRICE_*`는 env가 표 밖 모델(예: `gemini-2.5-flash`)일 때만 의미가 있다(V5).
+- `LLM_API_KEY`(Secrets)·`LLM_PROVIDER`·`LLM_TIMEOUT_MS`·`KRW_PER_USD`·`LLM_MONTHLY_BUDGET_KRW`는 그대로다.
+
+### 12.2 `server/src/env.ts` 델타
+
+```ts
+  LLM_MODEL: z.preprocess(
+    blankToUndefined,
+    z.string().regex(MODEL_PATTERN).default('gemini-3.1-pro-preview'), // S3f: 고르기 전 기본 모델(R-ENV-002 🔒 개정)
+  ),
+```
+
+- 문서주석 `[설정]` 줄은 키 목록이 같아 그대로 둔다. `Config.llmModel` 주석을 "고르기 전 기본 모델(저장 키가 있으면 상수표가 우선 — llm.md §15)"으로 고친다.
+- 다른 파일은 `process.env`·바인딩을 읽지 않는다(불변). `fallbackModelKey`는 컨테이너가 `Config.llmModel`에서 계산한다.
+
+### 12.3 `server/wrangler.toml [vars]`·`server/.dev.vars.example` 델타 (3줄씩 교체 — 실값·비밀값 없음)
+
+Workers에서는 `[vars]` 값이 스키마 기본값보다 먼저 쓰이므로 **`wrangler.toml` 값도 반드시 같이 바꾼다**(스키마 기본값만 바꾸면 배포 동작은 그대로 Flash 2.5다).
+
+```toml
+LLM_MODEL = "gemini-3.1-pro-preview"        # S3f 주인이 설정 화면에서 모델을 고르기 전 기본 모델(R-ENV-002 🔒)
+LLM_PRICE_INPUT_USD_PER_M = "0.3"           # 단가표(server/src/llm/models.ts)에 없는 모델의 폴백 입력 단가(USD/1M 토큰)
+LLM_PRICE_OUTPUT_USD_PER_M = "2.5"          # 단가표에 없는 모델의 폴백 출력+사고 단가(USD/1M 토큰)
+```
+
+```
+# LLM_MODEL=gemini-3.1-pro-preview       고르기 전 기본 모델(설정 화면에서 Pro·Flash를 고르면 그 값이 우선)
+# LLM_PRICE_INPUT_USD_PER_M=0.3          단가표에 없는 모델의 폴백 입력 단가(USD/1M 토큰)
+# LLM_PRICE_OUTPUT_USD_PER_M=2.5         단가표에 없는 모델의 폴백 출력+사고 단가(USD/1M 토큰)
+```
+
+- 열 맞춤은 기존 파일 형식을 따른다. `.dev.vars.example`의 나머지 줄·`LLM_API_KEY` 안내는 그대로다.
+- 지인 Cloudflare 대시보드에 `LLM_MODEL`을 따로 넣어 두었다면 그 값이 `wrangler.toml`보다 우선할 수 있다. handoff 안내 1~2줄은 contract-designer 몫이다(02 §12).
+
+### 12.4 테스트
+
+| ID | 대상 | 조건 | 기대 |
+|---|---|---|---|
+| SRV-T-354 | `parseEnv` | ① `LLM_MODEL` 없음 ② `'gemini-3.8-flash'` ③ `'gemini-3.1-pro-preview'` | ① `llmModel: 'gemini-3.1-pro-preview'` ②③ 그 값 그대로(상수표 모델명이 패턴을 통과). `llmPriceInputUsdPerM` 0.3·`llmPriceOutputUsdPerM` 2.5 기본값 불변 |
+
+- 기존 테스트 영향: `env.test.ts` 30행 기본값 기대 `llmModel: 'gemini-2.5-flash'` → `'gemini-3.1-pro-preview'`. `ENV_KEYS` 길이 단언은 불변.
+- 수동: `wrangler.toml`·`.dev.vars.example`·`parseEnv` 스키마의 `LLM_MODEL` 기본값 3곳이 같은지 눈으로 대조(R-ENV-002 수용 기준).
+
+### 12.5 요구 추적
+
+| 요구 | 반영 | 테스트 | 상태 |
+|---|---|---|---|
+| R-ENV-002 🔒(개정) | §12.1~12.3 | SRV-T-354 | 설계 ✅ |
+| R-LLM-009 🔒 | §12.1 해석 입력의 뜻 | SRV-T-354 · [llm.md](llm.md) SRV-T-337·338 | 설계 ✅ |
+| R-LLM-007 🔒(개정) | `LLM_PRICE_*` = 표 밖 폴백 | [llm.md](llm.md) SRV-T-339 | 설계 ✅ |
+
+### 12.6 설계 결정
+
+| ID | 결정 | 대안·근거 |
+|---|---|---|
+| D-ENV-14 | 기본값 = `gemini-3.1-pro-preview`(Q1 사용자 결정) | 이전 기본값 2.5 Flash는 새 계정에서 막혀 있고, "몰래 가벼운 모델로 바꾸지 않기" 지시와 맞춘다 |
+| D-ENV-15 | `LLM_PRICE_*`를 지우지 않고 표 밖 폴백으로 남긴다 | 지우면 env 로 표 밖 모델을 쓸 때 단가가 없다. 키를 지우는 것은 R-ENV-002 🔒 키 목록 개정이라 범위 밖 |
+| D-ENV-16 | 모델 키(`'pro'`·`'flash'`) 선택은 env가 아니라 D1(설정 화면) | R-SET-013 🔒. env는 "고르기 전" 값만 맡는다 |
+
 ## 변경 이력
 
 | 날짜 | 내용 |
 |---|---|
+| 2026-10-08 | verify 후속 SRV-002(LOW): 현재 값을 서술하던 `LLM_MODEL` 기본값 잔재를 `gemini-3.1-pro-preview`로 정정 — §3.1 키 표(235행)·§6.1 대조표(331행)·§6.2 `.dev.vars.example` 전사(371행, `LLM_PRICE_*` 두 줄 378·379행 뜻 주석 포함 — 실물과 일치). 이력·이전 값 서술(§12.1 「이전」, §12.4 테스트 영향, 이 표)은 유지 |
+| 2026-10-08 | S3f 설계(§12, 승인 ① 완료 — Q1 Pro): `LLM_MODEL` 기본값 `gemini-2.5-flash` → `gemini-3.1-pro-preview`(뜻 = 고르기 전 기본 모델), `LLM_PRICE_*` 뜻 = 단가표 밖 모델의 폴백(기본값 불변), `wrangler.toml [vars]`·`.dev.vars.example` 3줄 교체 문안, 새 키 0. SRV-T-354, D-ENV-14~16 |
 | 2026-10-07 | S4 확인: env 변경 없음(머리말에 명시). memory 서비스가 기존 `Config.contextMessages`·`Config.memorySummaryThreshold`를 컨테이너에서 값으로 받는다([index.md](index.md) §13.1). 검증 규칙 `MEMORY_SUMMARY_THRESHOLD > CONTEXT_MESSAGES`가 요약 배치 크기 ≥ 1을 보장한다([memory.md](memory.md) §2.1). 요약 상수(배치 100·2만 자·25초·목표 2000자)는 코드 상수라 키를 만들지 않는다 |
 | 2026-10-05 | S1 초안 작성 |
 | 2026-10-05 | S1 구현 동기화(상태 확정). 공개 API·키 표는 `server/src/env.ts`와 일치해 본문 변경 없음. S2는 env 변경 없음(머리말에 명시), `.dev.vars.example` 확인 필요 항목 해결 처리 |
@@ -477,3 +553,5 @@ env 모듈은 엔드포인트를 노출하지 않는다. contract가 알아야 �
 | 2026-10-07 | verify 후속 동기화(소스 기준, SEC-001): `TOKEN_SECRET` 32자 하한 — §3.1 검증 칸, §5 원인·경계 문단, §6.2 `.dev.vars.example` 주석 줄(실물 전사), §8 SRV-T-290·수동 체크, §10 R-ENV-003·R-HANDOFF-003, D-ENV-13, 제안 항목 반영 표기. 공개 API·키 목록 불변 |
 
 파급(S3b): `Config`에 필드 4개, `ENV_KEYS`에 4개 추가. `parseEnv` 결과를 구조 비교하는 테스트(SRV-T-001)와 `ENV_KEYS` 길이를 단언하는 테스트가 있으면 갱신한다. `server/wrangler.toml [vars]`에 4줄([index.md](index.md) §6.1 S3b), `server/.dev.vars.example`에 주석 4줄(§6.2)을 더해야 SRV-T-011이 통과한다. `Config`를 직접 만드는 테스트 픽스처(`parseEnv` 대신 객체 리터럴)가 있으면 4필드를 넣는다.
+
+파급(S3f): `Config`·`ENV_KEYS`·`parseEnv` 시그니처 불변. `env.ts` 기본값 1곳, `wrangler.toml [vars]`·`.dev.vars.example` 주석·값 3줄. 기본값을 단언하는 `env.test.ts` 30행 갱신.

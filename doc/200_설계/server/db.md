@@ -1,6 +1,6 @@
 # db 모듈 설계
 
-- 상태: S1 확정(구현 동기화) · S2 초안 · S3 초안(§2.3·§3.5) · S3b 초안(§2.4·§3.6·§7.5) · S3c 구현 완료(§2.5·§3.7·§7.6·§8.1) · **S3d 구현 완료(2026-10-06, SRV-T-261~278 · §12 유저 표시명 투영 — §3.4보다 우선)** · **S4 초안(2026-10-07, §13 memory `getState`·`putSummary`·`advance` · messages `countAfter`·`listAfter` — 마이그레이션 없음)** · **R-MEM-001 🔒 개정 동기화(2026-10-07, 빈 요약 저장 = `source_until_id` 0 리셋 "다시요약" — 구현 반영, SRV-T-331~333)** · 최종 갱신: 2026-10-07
+- 상태: S1 확정(구현 동기화) · S2 초안 · S3 초안(§2.3·§3.5) · S3b 초안(§2.4·§3.6·§7.5) · S3c 구현 완료(§2.5·§3.7·§7.6·§8.1) · **S3d 구현 완료(2026-10-06, SRV-T-261~278 · §12 유저 표시명 투영 — §3.4보다 우선)** · **S4 초안(2026-10-07, §13 memory `getState`·`putSummary`·`advance` · messages `countAfter`·`listAfter` — 마이그레이션 없음)** · **R-MEM-001 🔒 개정 동기화(2026-10-07, 빈 요약 저장 = `source_until_id` 0 리셋 "다시요약" — 구현 반영, SRV-T-331~333)** · **S3f 설계 초안(2026-10-08, §14 마이그레이션 0004 `character_settings.llm_model`·GET 칸 추가·UPSERT 넷째 바인딩 `COALESCE`·`getModel`·배포 순서, SRV-T-347~349)** · 최종 갱신: 2026-10-08
 - 묶음: S1 = 스키마(4테이블 전부)·마이그레이션 `0001_init.sql`·읽기 함수. S2 = 방 생성·이름 변경·연쇄 삭제, 메시지 추가·수정·삭제, 레이트리밋 카운터(§2.1의 "S2" 표시). S3 = speak 잠금 선점·해제, 메시지 단건 조회, 장기기억 summary 읽기(§2.3 — **마이그레이션 없음**). S4용은 §2.2에 예정 시그니처만. S3b = 월 AI 사용량 누적 `llm_usage`(§2.4 — **마이그레이션 `0002_llm_usage.sql`**, R-LLM-007 🔒).
 - 관련 문서: [env.md](env.md)(`DB` 바인딩), [index.md](index.md)(`createDb` 호출 지점), [rooms.md](rooms.md), [messages.md](messages.md), [auth.md](auth.md)(레이트리밋).
 
@@ -1036,10 +1036,125 @@ LIMIT ?3`
 | D-DB-30 | `putSummary`는 조건 없는 UPSERT(마지막 쓰기 승리) | 기대 버전 조건 | 요구에 편집 충돌 감지가 없고 새 에러 코드가 필요하다([memory.md](memory.md) D-MEM-10) |
 | D-DB-31 (R-MEM-001 🔒 개정 2026-10-07) | 빈 요약 리셋을 `SQL_MEMORY_PUT_SUMMARY` 안 `CASE WHEN excluded.summary = '' THEN 0 ELSE memory.source_until_id END`로 | 서비스가 빈 값일 때 별도 리셋 함수 호출 · 새 저장소 함수 | 문장 1개라 원자적이고 `putSummary` 시그니처가 그대로다. 판단 기준 값(trim)은 서비스가 정한다(R-DB-005) |
 
+## 14. S3f — `character_settings.llm_model` 칸 (R-SET-003 🔒 개정 · R-SET-013 🔒 · R-LLM-009 🔒)
+
+- 상태: 초안(2026-10-08, 승인 ① 완료). 근거 `s3f-02-전반설계.md` §1(안 B)·§12 · `s3f-03-인계패킷.md` §1.2·§1.3.
+- 관련: [settings.md](settings.md) §13(키 판정·응답) · [index.md](index.md) §14.3(배포 순서).
+- `Db` 필드는 늘지 않는다. `CharacterSettingsRepo`에 함수 1개(`getModel`)가 늘고 `upsert`가 인자 1개를 더 받는다.
+
+### 14.1 공개 API
+
+```ts
+// server/src/db/character-settings.ts
+import type { LlmModelKey } from '@shared/types'
+
+CharacterSettingsRecord = { json; version; updatedAt; llmModel: string | null }
+upsert: (json, updatedBy, nowMs, llmModel: LlmModelKey | null) => Promise<{ version; updatedAt; llmModel: string | null }>
+getModel: () => Promise<string | null>                                             // 행 없음 → null
+```
+
+| 함수 | 인자 | 반환 | 실패 조건 | 요구 |
+|---|---|---|---|---|
+| `get` | 없음 | 행 없음 `null` · 있으면 `{ json, version, updatedAt, llmModel }`(`llmModel` = 칸 원값, 판정 안 함) | D1 오류 전파 | R-SET-003 |
+| `upsert` | `json`, `updatedBy`, `nowMs`, `llmModel`(`null` = 기존 칸 유지) | `{ version, updatedAt, llmModel }`(`llmModel` = COALESCE 뒤 칸 값) | D1 오류(CHECK 위반 포함) 전파 · RETURNING 없음 `AppError INTERNAL`(기존) | R-SET-003·013 |
+| `getModel` | 없음 | 행 없음 `null` · 있으면 칸 원값(NULL이면 `null`) | D1 오류 전파(0004 미적용 = "no such column") | R-SET-013 · R-LLM-009 |
+
+- db는 키를 판정하지 않는다(`'turbo'`도 그대로 돌려준다). 판정·로그는 settings `toModelKey`([settings.md](settings.md) §13.2).
+- `upsert`의 넷째 인자 타입은 키(`LlmModelKey | null`)라 표 밖 값은 코드로 쓸 수 없다. 반환·`get`·`getModel`은 칸 원값이라 `string | null`이다(마이그레이션 뒤 키를 뺀 경우·D1 직접 수정 대비).
+
+### 14.2 SQL 상수 (`server/src/db/sql.ts` — `// ---- S3f ----` 표시, S3c 두 상수는 교체)
+
+```ts
+export const SQL_CHARACTER_SETTINGS_GET =
+  'SELECT json, version, updated_at, llm_model FROM character_settings WHERE id = 1'
+
+/** 1행 문서 UPSERT. 조건 없음 — 마지막 쓰기 승리(settings.md D-SET-5). ?4 가 NULL 이면 기존 llm_model 유지(S3f) */
+export const SQL_CHARACTER_SETTINGS_UPSERT = `INSERT INTO character_settings (id, json, version, updated_at, updated_by, llm_model)
+VALUES (1, ?1, 1, ?2, ?3, ?4)
+ON CONFLICT (id) DO UPDATE SET
+  json = excluded.json,
+  version = character_settings.version + 1,
+  updated_at = excluded.updated_at,
+  updated_by = excluded.updated_by,
+  llm_model = COALESCE(excluded.llm_model, character_settings.llm_model)
+RETURNING version, updated_at, llm_model`
+
+/** S3f: 모델 키만(본체 JSON 을 읽지 않는다). speak·regenerate·요약 공장이 요청마다 1회 */
+export const SQL_CHARACTER_SETTINGS_MODEL_GET =
+  'SELECT llm_model FROM character_settings WHERE id = 1'
+```
+
+- 바인딩 순서: `.bind(json, nowMs, updatedBy, llmModel)`(기존 3개 뒤에 넷째).
+- 새 행(INSERT 경로)에서 `?4`가 NULL이면 칸은 NULL이다. 갱신 경로에서 `?4`가 NULL이면 `COALESCE`가 기존 칸을 남긴다 — "본문에 `model`이 없으면 유지"를 한 문장에서 처리한다.
+- 칸을 NULL로 되돌리는 경로는 없다(요구 없음 — 계약이 본문 `model: null`을 400으로 막는다).
+
+### 14.3 행 타입 (`server/src/db/types.ts`)
+
+```ts
+/** character_settings 조회 행(S3c · S3f llm_model) */
+export type CharacterSettingsRow = { json: string; version: number; updated_at: number; llm_model: string | null }
+/** character_settings UPSERT RETURNING 행(S3c · S3f llm_model) */
+export type CharacterSettingsWriteRow = { version: number; updated_at: number; llm_model: string | null }
+/** character_settings 모델 칸 조회 행(S3f) */
+export type CharacterSettingsModelRow = { llm_model: string | null }
+```
+
+변환: `get` → `llmModel: row.llm_model` · `upsert` → `llmModel: row.llm_model` · `getModel` → `row === null ? null : row.llm_model`.
+
+### 14.4 마이그레이션 `server/migrations/0004_llm_model.sql` (신규 — 전문)
+
+```sql
+-- 0004_llm_model.sql — 주인이 고른 AI 모델 키 (R-SET-003 개정 · R-SET-013 · R-LLM-009). 설계 doc/200_설계/server/db.md §14
+-- 키('pro'·'flash')만 저장한다. 실제 모델명은 server/src/llm/models.ts 상수표에만 있다
+-- 키 목록은 CHECK 에 박지 않는다(코드 LLM_MODEL_KEYS 가 판정 — 키를 빼도 마이그레이션 불필요, 표 밖 값은 env 폴백)
+-- NULL = 고른 적 없음 → env LLM_MODEL. 기존 행은 NULL 로 남는다(본체·version 보존)
+ALTER TABLE character_settings ADD COLUMN llm_model TEXT
+  CHECK (llm_model IS NULL OR length(llm_model) BETWEEN 1 AND 20);
+```
+
+- 번호: 0003 다음 0004. 적용은 D1 마이그레이션 기록(`d1_migrations`)이 1회를 보장한다. `ALTER TABLE … ADD COLUMN`은 SQLite에 `IF NOT EXISTS`가 없어 **같은 파일을 손으로 다시 실행하면 실패**한다(재실행 금지 — `wrangler d1 migrations apply`만 쓴다).
+- SQLite는 `ADD COLUMN`의 CHECK를 기존 행에 검사한다. 기존 행은 NULL이라 통과한다. 인덱스 없음(PK 1행 조회뿐).
+- 테스트: `server/test/apply-migrations.ts`가 `migrations/` 전체를 적용하므로 파일 추가만으로 workers pool D1에 반영된다.
+- **배포 순서**: `npm run build` → `wrangler d1 migrations apply --remote` → `wrangler deploy`. 반대 순서면 새 코드의 `SQL_CHARACTER_SETTINGS_GET`·`MODEL_GET`이 "no such column: llm_model"로 실패 → speak·regenerate·설정 GET/PUT 500 `INTERNAL`([index.md](index.md) §14.3). 되돌리기는 코드만(칸 유지, `DROP COLUMN` 금지).
+
+### 14.5 동시성·비용
+
+- `upsert`는 1문장이라 본체·version·모델 키가 원자적으로 함께 바뀐다(D1 batch 불필요 — 02 §1 안 B 채택 근거).
+- `getModel`은 PK 1행 1칸. speak·regenerate·요약 1회당 1회(무료 플랜 읽기 한도 대비 무시).
+
+### 14.6 테스트 (`server/test/db.test.ts`에 추가 — workers pool D1)
+
+| ID | 대상 | 조건 | 기대 |
+|---|---|---|---|
+| SRV-T-347 | 0004 | 마이그레이션 적용 D1 | `PRAGMA table_info(character_settings)`에 `llm_model`(TEXT, notnull 0, 기본 NULL). 시드 행 생성 뒤 `UPDATE … SET llm_model = 'x'.repeat(21)` → CHECK 실패 · `''` → 실패 · `'turbo'` → 성공(키 판정은 코드) |
+| SRV-T-348 | `upsert` 넷째 인자 | ① `upsert(j1, 'owner_test', 100, null)` ② `(j2, …, 200, 'flash')` ③ `(j3, …, 300, null)` ④ `(j4, …, 400, 'pro')` | 반환 ① `{1, 100, null}` ② `{2, 200, 'flash'}` ③ `{3, 300, 'flash'}`(COALESCE 유지) ④ `{4, 400, 'pro'}`. 각 단계 `get()`의 `llmModel`이 같은 값 |
+| SRV-T-349 | `getModel` | 행 없음 · SRV-T-348 ② 뒤 · D1 직접 `'turbo'` | `null` · `'flash'` · `'turbo'`(원값 그대로) |
+
+- 기존 테스트 영향: `db.test.ts` SRV-T-239(525·529행)의 `upsert` 호출에 넷째 인자 `null`, 반환 `toEqual`에 `llmModel: null` 추가. 545·547행 CHECK 위반 호출도 넷째 인자 `null`. `get` 결과 단언이 있으면 `llmModel: null`.
+- `Db` 가짜: `messages-generate.test.ts` 779행은 `...real.characterSettings` 펼침이라 `getModel`이 자동으로 따라온다. 그 밖에 `characterSettings`를 손으로 구현한 가짜는 grep 결과 없음(2026-10-08).
+
+### 14.7 요구 추적
+
+| 요구 | 반영 | 테스트 | 상태 |
+|---|---|---|---|
+| R-SET-003 🔒(개정) | §14.2~14.4 | SRV-T-347·348 | 설계 ✅ |
+| R-SET-013 🔒 | §14.1 `upsert`·`getModel` | SRV-T-348·349 | 설계 ✅ |
+| R-LLM-009 🔒 | §14.1(원값 반환, 판정은 settings) | SRV-T-349 | 설계 ✅ |
+| R-DB-001 🔒 | 번호 0004·NULL 허용·CHECK 길이 | SRV-T-347 | 설계 ✅ |
+
+### 14.8 설계 결정
+
+| ID | 결정 | 대안·근거 |
+|---|---|---|
+| D-DB-32 | 칸에는 키를 저장하고 CHECK는 길이만 | 모델명 저장은 이름이 바뀔 때 데이터 이전이 필요하다. CHECK에 키 목록을 박으면 키를 뺄 때 테이블 재작성 마이그레이션이 필요하다 |
+| D-DB-33 | `getModel`을 `get`과 별도 SQL로 | 공장(`llm()`)이 요청마다 부른다. 본체 JSON(최대 20만 자)을 읽지 않아 D1 응답이 작다 |
+| D-DB-34 | "유지"를 `COALESCE(excluded.llm_model, character_settings.llm_model)` 한 문장으로 | 읽고-쓰기 2문장은 사이에 다른 저장이 끼면 값이 뒤섞인다. 1문장이면 원자적이다 |
+
 ## 변경 이력
 
 | 날짜 | 내용 |
 |---|---|
+| 2026-10-08 | S3f 설계(§14, 승인 ① 완료): 마이그레이션 `0004_llm_model.sql`(`ALTER TABLE character_settings ADD COLUMN llm_model TEXT CHECK(NULL 또는 길이 1~20)` — 키만, 목록은 코드 판정), `SQL_CHARACTER_SETTINGS_GET`에 `llm_model`, UPSERT 넷째 바인딩 + `COALESCE(excluded.llm_model, character_settings.llm_model)` + `RETURNING … llm_model`, `SQL_CHARACTER_SETTINGS_MODEL_GET`·`getModel`, 행 타입 3종, 배포 순서(마이그레이션 먼저 — 아니면 speak 500). SRV-T-347~349, D-DB-32~34 |
 | 2026-10-07 | R-MEM-001 🔒 개정 동기화(사용자 지정 "다시요약", 소스 기준 `server/src/db/{sql,memory}.ts`): §13.1 `putSummary` 주석(빈 요약이면 source 0 리셋), §13.2 `SQL_MEMORY_PUT_SUMMARY`를 실물 SQL(`source_until_id = CASE WHEN excluded.summary = '' THEN 0 ELSE memory.source_until_id END`)로 교체·설명 1줄, §13.5 SRV-T-331, §13.6 추적, D-DB-31. 시그니처·마이그레이션 변경 없음 |
 | 2026-10-07 | S4 설계(§13): `MemoryRepo`에 `getState`·`putSummary`·`advance`(조건부 UPSERT 낙관적 잠금), `MessagesRepo`에 `countAfter`(상한 있는 COUNT)·`listAfter`(오름차순), 타입 `MemoryRecord`·`MemorySnapshot`, SQL 상수 5개 전문, 결과 해석, SRV-T-322~325, D-DB-26~29. 마이그레이션 없음(0004 미사용) |
 | 2026-10-06 | S3d 구현 완료 표기(server 336/336, SRV-T-261~278). §12.3 SRV-T-269 입력 정정: 유저 행은 0001 제약상 `author_name` 필수라 NULL 유저 행을 넣을 수 없다 → 이름이 다른 유저 행 두 개로 바꿈(4개 읽기 경로 검증 유지) |
@@ -1059,3 +1174,5 @@ LIMIT ?3`
 파급(S3b 공개 API 변경): `Db`에 `llmUsage` 추가 → `Db`를 직접 구현하는 테스트 가짜 객체(`server/test/app.test.ts`의 `trap`, `rooms.test.ts`·`messages.test.ts`·`auth.test.ts`의 가짜 `Db`)에 `llmUsage`를 추가한다. `server/test/helpers.ts` `resetDb`에 `DELETE FROM llm_usage`를 더하고 `insertUsage` 헬퍼를 추가한다. 기존 저장소 함수 시그니처는 바뀌지 않는다. 호출자는 [index.md](index.md) §2.3 S3b 배선(컨테이너)뿐이다.
 
 파급(S4 공개 API 변경): `MemoryRepo`에 3함수, `MessagesRepo`에 2함수 추가 — `Db` 필드는 늘지 않는다. `Db`를 흉내 내는 테스트 가짜(`server/test/app.test.ts`의 `trap` Proxy, `messages.test.ts`·`messages-generate.test.ts`·`auth.test.ts`의 부분 객체 `as unknown as Db`)는 캐스팅이라 타입 오류가 나지 않는다. `MemoryRepo`·`MessagesRepo`를 `satisfies`로 직접 구현한 가짜가 있으면 새 함수를 추가한다(2026-10-07 `server/test`에서 확인된 것 없음). 기존 `getSummary`·`SQL_MEMORY_DELETE_BY_ROOM`·`pageDesc` 시그니처 불변. `server/test/helpers.ts` `resetDb`는 이미 `memory`를 지운다.
+
+파급(S3f 공개 API 변경): `CharacterSettingsRepo.upsert`에 필수 넷째 인자, 반환·`CharacterSettingsRecord`에 `llmModel`, `getModel` 추가 → 호출자 `server/src/settings/service.ts`만(grep `characterSettings.` 기준). 테스트 `db.test.ts` SRV-T-239 호출·기대값, `settings.test.ts`의 D1 직접 행 삽입(있으면 칸 생략 가능 — NULL). `Db` 필드 증감 없음.

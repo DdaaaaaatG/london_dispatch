@@ -67,7 +67,18 @@ export type LlmUsageRow = {
   est_krw: number
 }
 
-/** character_settings 조회 행(S3c) */
-export type CharacterSettingsRow = { json: string; version: number; updated_at: number }
-/** character_settings UPSERT RETURNING 행(S3c) */
-export type CharacterSettingsWriteRow = { version: number; updated_at: number }
+/** character_settings 조회 행(S3c · S3f llm_model) */
+export type CharacterSettingsRow = {
+  json: string
+  version: number
+  updated_at: number
+  llm_model: string | null
+}
+/** character_settings UPSERT RETURNING 행(S3c · S3f llm_model) */
+export type CharacterSettingsWriteRow = {
+  version: number
+  updated_at: number
+  llm_model: string | null
+}
+/** character_settings 모델 칸 조회 행(S3f) */
+export type CharacterSettingsModelRow = { llm_model: string | null }

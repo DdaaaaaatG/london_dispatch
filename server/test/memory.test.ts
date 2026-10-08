@@ -42,7 +42,7 @@ type Setup = {
 
 type SetupOptions = {
   wrapDb?: (db: Db) => Db
-  llm?: () => Llm
+  llm?: () => Llm | Promise<Llm>
   meter?: boolean
   timeoutMs?: number
 }
@@ -90,7 +90,7 @@ const setup = (steps: FakeStep[] = [], opts: SetupOptions = {}): Setup => {
     logger,
     contextMessages: 40,
     summaryThreshold: 60,
-    llm,
+    llm: () => Promise.resolve(llm()),
   })
   return { svc, db, fake, logs, clock }
 }
@@ -542,5 +542,35 @@ describe('get·put (R-MEM-001)', () => {
       summary: '편집본',
       sourceUntilId: ids[3],
     })
+  })
+})
+
+describe('S3f 공장 D1 오류 (memory.md §12)', () => {
+  it('SRV-T-356 factory_rejection_is_failed_budget_and_not_called_below_threshold', async () => {
+    await seed(61)
+    const llm = vi.fn(async (): Promise<Llm> => {
+      throw new Error('d1 down')
+    })
+    const s = setup([], { llm })
+    expect(await s.svc.summarizeIfNeeded(ROOM)).toEqual({
+      status: 'failed',
+      stage: 'budget',
+      code: 'INTERNAL',
+    })
+    expect(
+      s.logs.filter(l => l.level === 'warn' && l.event === 'memory_summary_failed'),
+    ).toHaveLength(1)
+    expect(await memRow()).toBeNull()
+    expect(llm).toHaveBeenCalledTimes(1)
+
+    await resetDb()
+    await insertRoom(ROOM, 'A', 1, 100)
+    await seed(3)
+    const idle = vi.fn(async (): Promise<Llm> => {
+      throw new Error('d1 down')
+    })
+    const t = setup([], { llm: idle })
+    expect((await t.svc.summarizeIfNeeded(ROOM)).status).toBe('skipped')
+    expect(idle).not.toHaveBeenCalled()
   })
 })

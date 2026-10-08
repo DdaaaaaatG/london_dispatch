@@ -1,6 +1,6 @@
 # llm 모듈 설계
 
-- 상태: 초안 · S3b 초안(§12) · S3c 구현 완료(§3.4·§7.3·§8.2·§10.1·§11.1) · **S3d 구현 완료(2026-10-06, server 343/343, SRV-T-261~281 · §13 화자 선택·유저 라벨 고정 — 앞 절과 다르면 §13이 우선 · R-LLM-008 개정(이름 지목·선택 15초) 설계 반영)** · verify 후속 동기화(2026-10-07 — §2.3 `complete` 분해, §7.1 G3·G4 defang NFC·꺾쇠 접기·유니코드 줄바꿈, §13.4 roleLine NEL, §13.5a 지목 NFKC, SRV-T-293~295, D-LLM-31) · **S4 구현 완료(2026-10-07, server 381/381, SRV-T-316~321 · §14 요약 프롬프트 `summary.ts`·`CompleteOptions.budgetMs` — 호출자 [memory.md](memory.md), 구현 동기화)** · **R-LLM-003 🔒 개정 동기화(2026-10-07, 「어떠한 의지」 = 장면 밖 서술자 — §7.1·§13.3·§14.3, SRV-T-328~330, D-LLM-38)** · 최종 갱신: 2026-10-07
+- 상태: 초안 · S3b 초안(§12) · S3c 구현 완료(§3.4·§7.3·§8.2·§10.1·§11.1) · **S3d 구현 완료(2026-10-06, server 343/343, SRV-T-261~281 · §13 화자 선택·유저 라벨 고정 — 앞 절과 다르면 §13이 우선 · R-LLM-008 개정(이름 지목·선택 15초) 설계 반영)** · verify 후속 동기화(2026-10-07 — §2.3 `complete` 분해, §7.1 G3·G4 defang NFC·꺾쇠 접기·유니코드 줄바꿈, §13.4 roleLine NEL, §13.5a 지목 NFKC, SRV-T-293~295, D-LLM-31) · **S4 구현 완료(2026-10-07, server 381/381, SRV-T-316~321 · §14 요약 프롬프트 `summary.ts`·`CompleteOptions.budgetMs` — 호출자 [memory.md](memory.md), 구현 동기화)** · **R-LLM-003 🔒 개정 동기화(2026-10-07, 「어떠한 의지」 = 장면 밖 서술자 — §7.1·§13.3·§14.3, SRV-T-328~330, D-LLM-38)** · **S3f 설계 초안(2026-10-08, §15 모델 선택 — 상수표·단가표·`resolveLlmModel`·자동 전환 금지·로그 `model`, SRV-T-334~341 · 앞 절과 다르면 §15가 우선)** · 최종 갱신: 2026-10-08
 - 묶음: **S3**(AI 발화). R-LLM-001~006 · R-ENV-003(키 누락 시점) · R-NFR-001(70초 종결). S4 요약(R-MEM-002)은 이 모듈의 `Llm.complete`를 재사용한다(요약 프롬프트·후처리는 S4 memory 설계). **S3b**(월 비용 상한) = R-LLM-007 🔒 · R-API-002 개정(14종째 `LLM_BUDGET_EXCEEDED`) — §12. 응답마다 사용량을 누적하고 speak·regenerate 앞에 예산 게이트를 둔다. S4 요약 호출도 같은 누적 경로(`Llm.complete`)를 탄다.
 - 입력: `doc/000_프로젝트_확정사항.md` §2·§3·§4·§5.2~5.5·§9-3a·§9-4, `doc/100_요구조건/requirements.md`(R-LLM·R-MSG·R-ENV·R-MEM·R-NFR), `rtm.md` S3 행, [env.md](env.md)·[db.md](db.md)·[messages.md](messages.md)·[index.md](index.md)·[auth.md](auth.md), `server/src/{env,app-error,services,app,logger}.ts`, `shared/src/{characters,errors,types,limits}.ts`, api.md §3·§4.0, `doc/state.json` decisions.
 - 관련 문서: [messages.md](messages.md) §2.3·§4.2(speak·regenerate가 이 모듈을 부르는 흐름), [db.md](db.md) §2.3(잠금·조회 함수), [env.md](env.md)(LLM 키 4종).
@@ -1872,10 +1872,204 @@ export const SUMMARY_LABEL = '[지난 이야기 요약]'   // 기존 지역 상�
 | D-LLM-37 | `llm_done`·`llm_failed`에 용도 필드를 더하지 않는다 | `purpose: 'speak' \| 'summary'` | 기존 로그 단언 무수정. memory 이벤트가 같은 요청에서 뒤따라 구분된다 |
 | D-LLM-38 (R-LLM-003 🔒 개정 2026-10-07) | 「어떠한 의지」를 장면 밖 서술자·연출자로 규정한다. 발화 GUARD는 인물로 부르기·말 걸기·대답·2인칭(「당신」)을 금지하고, `[지시]`는 같은 서술자의 연출 지시로 본다. 요약은 서술자 줄을 상황 서술로 녹이고 이름을 본문에 쓰지 않는다 | S3d 문구("참여자의 서술이나 대사") 유지 · 요약에서 '어떠한 의지'로 부르기 | 사용자 지정. 요약문이 「어떠한 의지」를 행위자(인물)로 적었고, 그 요약과 라벨을 본 캐릭터가 유저에게 말을 거는 문제가 관찰됐다. 서술자로 못 박아 장면 속 인물에서 뺀다. 선택 프롬프트는 `GUARD_RULES` 공유(D-LLM-28)로 같이 바뀐다 |
 
+## 15. S3f — 모델 선택 (R-LLM-009 🔒 신규 · R-LLM-001 🔒 개정 · R-LLM-007 🔒 개정 · R-SET-013 🔒 서버 몫)
+
+- 상태: 초안(2026-10-08, 승인 ① 완료 — 사용자 "승인"). 근거 `doc/200_설계/architecture/s3f-02-전반설계.md` §2·§3·§7 · `s3f-03-인계패킷.md` §1. 앞 절(§2.2 `ProviderConfig.model` = `config.llmModel`, §12 단가 = env)과 다르면 이 절이 우선한다.
+- 관련: [settings.md](settings.md) §13(`loadModelKey` — 저장값 판정·`llm_model_invalid`) · [index.md](index.md) §14(컨테이너 공장 순서) · [db.md](db.md) §14(0004·`getModel`) · [env.md](env.md) §12(`LLM_MODEL`·`LLM_PRICE_*` 의미) · [messages.md](messages.md) §14 · [memory.md](memory.md) §12.
+- 사용자 결정(바꾸지 않는다): 기본 모델 = Pro(Q1). 제공사 오류(404·429·5xx·시간 초과) 때 **다른 모델로 자동 전환 금지**(2026-10-06 지시). 요청마다 D1에서 읽어 해석(캐시 없음). 화자 선택·발화·요약이 같은 해석 모델.
+
+### 15.1 목적
+
+| 요구 | 이 절의 몫 |
+|---|---|
+| R-LLM-009 🔒(신규) | 키 → 모델명 상수표, 모델명 → 단가표, 해석 순수 함수, 자동 전환 금지, 로그 `model` |
+| R-LLM-001 🔒(개정) | 모델 식별자를 요청마다 해석해 어댑터에 넘긴다. `LlmProvider`·`GenerateInput`·`createProvider`·`ProviderConfig` 시그니처는 그대로 |
+| R-LLM-007 🔒(개정) | meter 단가 = 그 호출 모델의 단가표 값, 표에 없으면 env `LLM_PRICE_*`. 환율·월 상한·월 키·게이트 규칙 불변 |
+| R-SET-013 🔒(서버 몫) | 저장 다음에 시작하는 발화·화자 선택·요약 호출부터 고른 모델(해석 시점은 [index.md](index.md) §14) |
+
+### 15.2 공개 API
+
+`server/src/llm/models.ts`(신규). `llm/index.ts`가 아래 4개 값·1개 타입을 재노출한다(`ModelPricing`·`LLM_MODEL_OPTIONS`·`LLM_MODEL_PRICES`·`modelKeyOf`·`resolveLlmModel`).
+
+```ts
+// server/src/llm/models.ts
+import type { LlmModelKey } from '@shared/types'   // shared(contract-implementer가 먼저 만든다)
+
+type ModelPricing = { priceInputUsdPerM: number; priceOutputUsdPerM: number }
+const LLM_MODEL_OPTIONS: { readonly [K in LlmModelKey]: { readonly model: string } }
+const LLM_MODEL_PRICES: Readonly<Record<string, ModelPricing>>          // 키 = 모델명
+const modelKeyOf: (model: string) => LlmModelKey | null
+const resolveLlmModel: (stored: LlmModelKey | null, fallback: { model: string; pricing: ModelPricing })
+  => { key: LlmModelKey | null; model: string; pricing: ModelPricing; source: 'saved' | 'env' }
+
+// server/src/llm/client.ts — LlmDeps 에 선택 필드 1개
+LlmDeps.modelName?: string   // llm_done · llm_failed · speaker_select 로그의 model 필드
+```
+
+| 이름 | 반환·의미 | 실패 조건 | 요구 |
+|---|---|---|---|
+| `ModelPricing` | 100만 토큰당 USD(입력·출력). 환율 `KRW_PER_USD`·월 상한은 env 그대로. 기존 `UsagePricing`과 앞 두 필드가 같아 컨테이너가 `krwPerUsd`만 더해 넘긴다 | — | R-LLM-007 |
+| `LLM_MODEL_OPTIONS` | 키 → 실제 모델명. **모델명은 이 표 한 곳에만** 있다(화면·응답·D1은 키만) | — | R-LLM-009 |
+| `LLM_MODEL_PRICES` | 모델명 → 단가. 모델명으로 찾으므로 env `LLM_MODEL`이 Pro 모델명이면 Pro 단가 | — | R-LLM-007·009 |
+| `modelKeyOf(model)` | 상수표에서 모델명이 **정확히 같은** 키, 없으면 `null`(대소문자·공백 정규화 없음) | throw 없음 | R-LLM-009 · R-SET-004 |
+| `resolveLlmModel(stored, fallback)` | §15.4 규칙. 순수 함수 — 로그·D1·시계 없음 | throw 없음 | R-LLM-009 |
+| `LlmDeps.modelName?` | 로그 `model` 필드 값. 없으면 필드를 넣지 않는다(기존 테스트가 직접 만든 `Llm` 하위 호환) | — | R-LLM-009 |
+
+- `stored`는 이미 키로 판정된 값이다. 문자열 → 키 판정과 표 밖 저장값 로그(`llm_model_invalid {}`)는 settings `loadModelKey`의 몫이다([settings.md](settings.md) §13.2). 그래서 `resolveLlmModel`은 로그를 남기지 않는다.
+- `createProvider`·`ProviderConfig`·`createUsageMeter`·`UsageMeterConfig`·`estimateKrw`·`Llm` 시그니처는 그대로다. 컨테이너가 해석한 `model`을 `ProviderConfig.model`과 `modelName`에, `pricing`을 `UsageMeterConfig`의 단가 두 필드에 넣는다([index.md](index.md) §14.1). 한 해석 결과에서 셋을 채우므로 모델과 단가가 어긋날 틈이 없다.
+
+### 15.3 상수표·단가표 (확정 — server-implementer가 그대로 옮긴다)
+
+```ts
+export const LLM_MODEL_OPTIONS: { readonly [K in LlmModelKey]: { readonly model: string } } = {
+  pro: { model: 'gemini-3.1-pro-preview' },
+  flash: { model: 'gemini-3.8-flash' },
+}
+
+// 출처: Google AI 가격표(https://ai.google.dev/gemini-api/docs/pricing) · 확인일 2026-10-07
+// 구간: 프롬프트 20만 토큰 이하. 출력 단가는 사고(thinking) 토큰을 포함한다
+export const LLM_MODEL_PRICES: Readonly<Record<string, ModelPricing>> = {
+  'gemini-3.1-pro-preview': { priceInputUsdPerM: 2.0, priceOutputUsdPerM: 12.0 },
+  // 2027-01-01부터 입력 1.50 / 출력 7.50 예정(가격표 고지). 그날 이후 값과 확인일을 함께 고친다
+  'gemini-3.8-flash': { priceInputUsdPerM: 0.75, priceOutputUsdPerM: 3.75 },
+}
+```
+
+단가표 주석 규칙(코드 리뷰·verify가 이 표로 확인한다):
+
+| 규칙 | 내용 |
+|---|---|
+| 출처 | 단가표 바로 위 주석에 출처 이름(Google AI 가격표)·주소·**확인일(YYYY-MM-DD)**·구간(프롬프트 20만 토큰 이하)을 적는다 |
+| 갱신 | 값을 고치면 확인일도 같이 고친다. 확인일 없이 값만 바꾸지 않는다 |
+| 예정 변경 | 예고된 가격(Flash 2027-01-01 $1.50/$7.50)은 **주석으로만** 적는다. 날짜로 단가를 고르는 코드를 두지 않는다 |
+| 미확인 값 | 공식 값을 확인하지 못한 모델은 표에 넣지 않는다(env 폴백). 꼭 넣어야 하면 **큰 값**(과대 추정 = 월 상한이 일찍 걸리는 안전한 쪽) |
+| 일치 | 상수표의 모든 모델명이 단가표에 있어야 한다(SRV-T-334). 단가표에는 상수표 밖 모델명을 두지 않는다 |
+| 비밀 | 단가·모델명은 비밀값이 아니다. 키·토큰은 이 파일에 없다 |
+
+### 15.4 해석 규칙과 벡터 5
+
+```
+resolveLlmModel(stored, fallback)                    fallback = { model: Config.llmModel, pricing: Config.llmPrice* }
+  stored !== null → model = LLM_MODEL_OPTIONS[stored].model   key = stored                     source 'saved'
+  stored === null → model = fallback.model                    key = modelKeyOf(fallback.model) source 'env'
+  pricing = LLM_MODEL_PRICES[model] ?? fallback.pricing        (모델명으로 찾는다)
+```
+
+| # | D1 `llm_model` | env `LLM_MODEL` | `loadModelKey` | 해석(model · pricing · source · key) | 응답 `model`(E15·E16) | 로그 |
+|---|---|---|---|---|---|---|
+| V1 | `'pro'` | 무관 | `'pro'` | Pro 모델명 · Pro 단가 · saved · `'pro'` | `'pro'` | — |
+| V2 | `'flash'` | 무관 | `'flash'` | Flash 모델명 · Flash 단가 · saved · `'flash'` | `'flash'` | — |
+| V3 | NULL(또는 행 없음) | `gemini-3.1-pro-preview`(기본값) | `null` | Pro 모델명 · **Pro 단가(단가표)** · env · `'pro'` | `'pro'` | — |
+| V4 | `'turbo'`(D1에 직접) | 기본값 | `null` | V3과 같음 | `'pro'` | `llm_model_invalid {}` error 1건(값 미기록) |
+| V5 | NULL | `gemini-2.5-flash`(표 밖) | `null` | `gemini-2.5-flash` · env 단가 · env · `null` | `null` | — |
+
+- 응답 `model`은 해석 결과 `key`와 늘 같다(settings가 `fallbackModelKey = modelKeyOf(Config.llmModel)`를 주입받아 같은 규칙을 쓴다 — [settings.md](settings.md) §13.2). "화면이 보여 주는 모델 = 다음 호출 모델"이 불변식이다.
+
+### 15.5 단가 벡터 3 (`estimateKrw` — 기존 함수, 단가만 바뀐다)
+
+입력 usage `{ promptTokens: 1_000_000, outputTokens: 600_000, thoughtsTokens: 400_000 }`, `krwPerUsd` 1400.
+
+| 모델 | 단가(입력/출력) | 기대 원화 |
+|---|---|---|
+| `gemini-3.1-pro-preview` | 단가표 2.00 / 12.00 | (2.00 + 12.00) × 1400 = **19,600** |
+| `gemini-3.8-flash` | 단가표 0.75 / 3.75 | (0.75 + 3.75) × 1400 = **6,300** |
+| `gemini-2.5-flash`(표 밖) | env 0.30 / 2.50 | (0.30 + 2.50) × 1400 = **3,920** |
+
+- 0.30은 이진 소수로 정확하지 않으므로 표 밖 행은 `toBeCloseTo(3920, 6)`으로 단언한다.
+- 누적: 호출마다 그 호출 모델의 단가로 계산해 기존 월 행(`llm_usage`)에 더한다. 한 달 안에 모델을 바꿔도 누적은 이어진다. 상한 판정·해제 규칙 불변(§12).
+
+### 15.6 자동 전환 금지 (R-LLM-009 🔒)
+
+- `Llm` 하나 = 모델 하나다. `createLlm`은 만들 때 받은 provider 하나만 부르고, 재시도(§2.3 `withRetry`)도 같은 provider다.
+- llm 모듈 어디에도 "다른 키·다른 모델로 다시 해석"하는 경로를 두지 않는다. 컨테이너도 `llm()` 실패를 잡아 다른 모델로 다시 만들지 않는다([index.md](index.md) §14.2).
+- 오류별 동작은 기존 그대로다: `http_4xx`(404 포함)·`http_429` → 즉시 `LLM_FAILED` · `http_5xx`·`network`·`timeout` → **같은 모델**로 1회 재시도 후 `LLM_FAILED` · 화자 선택 실패 → 기본 화자(같은 `Llm`) · 요약 실패 → 건너뜀.
+- 404는 프리뷰 모델 종료·이름 변경일 수 있다. 대응은 사람이 상수표 한 줄을 고쳐 배포하는 것이다(§15.13 D-LLM-41).
+
+### 15.7 로그 `model` 필드
+
+| event | 추가 필드 | 값 |
+|---|---|---|
+| `llm_done` | `model` | `deps.modelName` |
+| `llm_failed` | `model` | 같음 |
+| `speaker_select`(mention·선택 결과·기본 화자 전부) | `model` | 같음 |
+
+- 모델명은 비밀이 아니다(확정사항 §8 대상 아님). 운영에서 "고른 모델로 불렸는지"를 `wrangler tail`로 확인하는 수단이다. 본문·프롬프트·키는 여전히 넣지 않는다.
+- `deps.modelName`이 없으면 `model` 키를 넣지 않는다(`undefined` 값 키도 만들지 않는다).
+- `llm_attempt_failed`·`llm_usage_*`·`llm_budget_*` 로그는 바꾸지 않는다(요구 범위 밖).
+
+### 15.8 비동기·동시성
+
+```
+[요청] speak/regenerate ──► await deps.llm() ──► (컨테이너) requireLlmApiKey → loadModelKey(D1 1행) → resolveLlmModel → createLlm
+                              │                                                                     └ 이 Llm 의 provider·meter·modelName = 같은 model
+                              ├─ 'auto' 선택 호출 ─┐
+                              └─ 발화 호출 ─────────┴─ 같은 Llm = 같은 모델
+[waitUntil] summarizeIfNeeded ─► await deps.llm() ─► 다시 읽고 해석(그 사이 저장됐으면 새 모델)
+```
+
+- 해석은 `llm()`을 부를 때마다 1회다. 캐시·모듈 수준 상태가 없다(Workers 인스턴스가 여럿이어도 같다).
+- 진행 중인 호출은 시작 때 만든 `Llm`의 모델로 끝난다. 주인이 그 사이 저장하면 **다음에 시작하는** 호출부터 바뀐다(R-SET-013).
+- 시간: speak당 D1 PK 1행 읽기 1회가 는다(수 ms). 70초 예산(R-NFR-001 🔒)과 66초 LLM 분배(§13.7)는 바꾸지 않는다.
+
+### 15.9 에러
+
+- 새 에러 클래스·에러 코드 없음(R-API-002 🔒 15종 그대로). `modelKeyOf`·`resolveLlmModel`은 throw 하지 않는다. `stored`에 키가 아닌 문자열은 타입이 막는다.
+- D1 읽기 오류(0004 미적용 포함)는 settings `loadModelKey`에서 숨기지 않고 전파 → `llm()` reject → speak·regenerate `500 INTERNAL`, 요약은 실패 결과·warn 로그([index.md](index.md) §14.2).
+
+### 15.10 테스트
+
+`server/test/llm-models.test.ts`(신규 — 순수 함수만, D1 없음):
+
+| ID | 대상 | 조건 | 기대 |
+|---|---|---|---|
+| SRV-T-334 | 상수표·단가표 | — | `Object.keys(LLM_MODEL_OPTIONS)` 정렬 = shared `LLM_MODEL_KEYS` 정렬. `pro`·`flash` 모델명이 §15.3 값. 상수표의 모든 모델명이 `LLM_MODEL_PRICES`에 있고 단가표 키 수 = 2 |
+| SRV-T-335 | `modelKeyOf` | Pro 모델명 · Flash 모델명 · `'gemini-2.5-flash'` · `''` | `'pro'` · `'flash'` · `null` · `null` |
+| SRV-T-336 | `resolveLlmModel` V1·V2 | `stored` `'pro'`·`'flash'`, fallback `{ 'gemini-2.5-flash', 0.3/2.5 }` | source `'saved'`, key = stored, model·pricing = 상수표·단가표 값(fallback 무시) |
+| SRV-T-337 | V3 | `null`, fallback `{ Pro 모델명, 0.3/2.5 }` | source `'env'`, key `'pro'`, pricing = 단가표 Pro 값(env 단가 무시) |
+| SRV-T-338 | V5 | `null`, fallback `{ 'gemini-2.5-flash', 0.3/2.5 }` | source `'env'`, key `null`, model `'gemini-2.5-flash'`, pricing = fallback.pricing(같은 값) |
+| SRV-T-339 | 단가 벡터 3 | §15.5 usage를 `estimateKrw(usage, { ...resolve(...).pricing, krwPerUsd: 1400 })`로 | 19,600 · 6,300 · 3,920(`toBeCloseTo`) |
+
+`server/test/llm-client.test.ts`(추가)·`server/test/llm-gemini.test.ts`(추가):
+
+| ID | 대상 | 조건 | 기대 |
+|---|---|---|---|
+| SRV-T-340 | `createLlm` 로그 | `modelName: 'gemini-3.8-flash'` + Fake 각본 성공 1·실패 1·`selectSpeaker` mention 1·선택 1. 대조군: `modelName` 없음 | 네 로그 줄의 `model` = `'gemini-3.8-flash'`. 대조군은 `model` 키 없음. 로그 전체에 본문·프롬프트 문자열 0건 |
+| SRV-T-341 | 자동 전환 금지(단위) | Pro 모델명 `GeminiProvider` + 주입 fetch 각본 ① 404 ② 429 ③ 503·503 → `createLlm(...).complete` | 받은 URL 전부 Pro 모델명 포함, Flash 모델명 포함 0회. 호출 수 ① 1 ② 1 ③ 2. 셋 다 `LLM_FAILED` |
+
+- 해석 벡터 V4(표 밖 저장값)는 판정 위치가 settings라 [settings.md](settings.md) §13.8 SRV-T-342와 [index.md](index.md) §14.5 SRV-T-353에서 본다. 통합(저장 → speak URL·단가, 'auto'·요약 URL, 자동 전환 금지 종단)은 [index.md](index.md) §14.5 SRV-T-350~352.
+- 기존 테스트 영향: `llm-client.test.ts`의 로그 단언은 이벤트 이름 기준이라 `model` 추가로 깨지지 않는다. `llm-gemini.test.ts`의 `'gemini-2.5-flash'` 고정 URL 스냅샷(27·48행)은 어댑터에 직접 넘긴 값이라 그대로 둔다.
+- 수동(실제 Gemini, 지인 키를 `server/.dev.vars`에 넣은 로컬): 설정 화면에서 Flash 저장 → 버튼 1회 → `wrangler tail`·dev 로그에 `llm_done.model = gemini-3.8-flash`. Pro로 되돌려 같은 확인. Pro 응답 시간(`ms`)을 기록한다(02 §13 위험).
+
+### 15.11 contract 요구 명세
+
+- 계약에 노출하는 것은 **키**뿐이다(`LlmModelKey`·`LLM_MODEL_KEYS` — shared). 모델명·단가는 응답·문서(api.md)에 싣지 않는다.
+- 응답 `model`의 뜻(= §15.4 해석 결과 `key`)은 [settings.md](settings.md) §13.9가 E15·E16 쪽으로 넘긴다.
+
+### 15.12 요구 추적
+
+| 요구 | 반영 | 테스트 | 상태 |
+|---|---|---|---|
+| R-LLM-009 🔒(신규) | §15.2~15.7 | SRV-T-334~341 · V4는 342·353 · 통합 350~352 | 설계 ✅ |
+| R-LLM-001 🔒(개정) | §15.2(어댑터 불변, 모델은 컨테이너가 해석해 `ProviderConfig.model`로) | SRV-T-341 · 350 | 설계 ✅ |
+| R-LLM-007 🔒(개정) | §15.3·15.5 | SRV-T-339 · 350(누적 증가분) | 설계 ✅ |
+| R-SET-013 🔒(서버 몫) | §15.8 | SRV-T-350·351 | 설계 ✅ |
+| R-LLM-008 | 불변 확인 — 선택과 발화가 같은 `Llm`이라 같은 모델(§15.8) | SRV-T-351 | ✅ |
+
+### 15.13 설계 결정
+
+| ID | 결정 | 대안·근거 |
+|---|---|---|
+| D-LLM-39 | 해석 순수 함수 `resolveLlmModel`은 **이미 판정된 키**를 받는다. 표 밖 문자열 판정·로그는 settings | 대안: 문자열을 받아 llm이 로그. 기각 — 순수 함수에 logger가 들어가고, 저장값 판정 규칙이 응답(`get`)과 호출(`loadModelKey`) 두 곳에 갈라진다 |
+| D-LLM-40 | 단가는 **모델명**으로 찾는다(키가 아니라) | env `LLM_MODEL`이 Pro 모델명이면 저장값이 없어도 Pro 단가가 맞게 나온다(V3). 키로 찾으면 env 경로는 늘 env 단가가 된다 |
+| D-LLM-41 | 자동 전환 없음. 프리뷰 종료(404)도 사람의 상수표 수정으로만 | 사용자 지시(2026-10-06 "몰래 가벼운 모델로 바꾸기 금지"). 전환하면 비용·품질이 주인 모르게 바뀐다 |
+| D-LLM-42 | `modelName`은 `LlmDeps`의 **선택** 필드 | 기존 `createLlm` 직접 생성 테스트가 무수정 통과. 컨테이너는 항상 넣는다 |
+| D-LLM-43 | 20만 토큰 초과 구간 단가는 넣지 않는다 | 확인 필요: 설정 본문 상한 128KB + 대화 40개 + 요약 2000자로 20만 토큰에 닿기 어렵다고 본다. 넘는 프롬프트는 과소 추정이 된다 — S5 실측 때 `usageMetadata.promptTokenCount`로 확인 |
+
 ## 변경 이력
 
 | 날짜 | 내용 |
 |---|---|
+| 2026-10-08 | S3f 설계(§15, 승인 ① 완료): `llm/models.ts` 신규(`ModelPricing`·`LLM_MODEL_OPTIONS` pro `gemini-3.1-pro-preview`·flash `gemini-3.8-flash`·`LLM_MODEL_PRICES` Google 가격표 2026-10-07 Pro $2/$12·Flash $0.75/$3.75·`modelKeyOf`·`resolveLlmModel` 순수 함수), 단가표 주석 규칙, 해석 벡터 5·단가 벡터 3, 자동 전환 금지, `LlmDeps.modelName?` → `llm_done`·`llm_failed`·`speaker_select` 로그 `model`. SRV-T-334~341, D-LLM-39~43 |
 | 2026-10-07 | R-LLM-003 🔒 개정 동기화(사용자 지정, 소스 기준 server 395/395): 「어떠한 의지」 = 장면 밖 서술자·연출자. §7.1 GUARD 2·3번째 줄을 실물 `GUARD_RULES` 문구로 교체(템플릿·예시 2곳 — 남아 있던 S3d 이전 `[유저 이름]` 표기도 정리), §13.3 GUARD 개정 문구·선택 프롬프트 자동 적용 1줄, §14.3 `SUMMARY_SYSTEM` 서술자 규칙 2줄·`[지시]` 문구·개정 메모, §14.7 SRV-T-328~330, §14.9 추적 행, D-LLM-38. 공개 API 변경 없음 |
 | 2026-10-07 | S4 구현 동기화(소스 기준, server 381/381): §14.2 `prompt.ts` 내부 export 3개(`summaryLines`·`OOC_LABEL`·`SUMMARY_LABEL`), `summaryLines` 인자 `string \| null \| undefined`, §14.4 라벨 제거는 `startsWith` 반복(정규식 아님, 동작 동일), 파급 문단 export 목록. `summary.ts` 공개 API·`CompleteOptions.budgetMs?`·SRV-T-316~321은 설계와 같다 |
 | 2026-10-07 | S4 설계(§14): `llm/summary.ts` 신규(`buildSummaryPrompt`·`postprocessSummary`·`SUMMARY_BUDGET_MS` 25초·`SUMMARY_TARGET_CHARS` 2000·`SUMMARY_SYSTEM` 전문), `CompleteOptions.budgetMs?`(선택), `prompt.ts` 내부 export `summaryLines`·`OOC_LABEL`(출력 불변), 비용 누적·게이트 경로, SRV-T-316~321, D-LLM-32~37 |
@@ -1897,3 +2091,5 @@ export const SUMMARY_LABEL = '[지난 이야기 요약]'   // 기존 지역 상�
 파급(S3b 공개 API 변경): `GenerateOutput.usage?`·`LlmError.usage?`·`LlmDeps.meter?`는 선택 필드라 기존 호출자 타입에 영향이 없다. 단 Fake·Gemini가 이제 `usage`를 채우므로 결과 객체 전체를 `toEqual({ text })`로 단언하는 테스트(`server/test/llm-gemini.test.ts` 66·212·215행)는 `{ text, usage }` 또는 `.text` 비교로 고친다(`llm-client.test.ts` 182행은 `withRetry` 직접 각본이라 영향 없음 — 구현 시 확인). `Llm`에 `ensureBudget` 필수 추가 → `Llm`을 만드는 곳은 `createLlm`뿐이다(2026-10-06 `server/test`에 `complete:` 직접 구현 0건). `index.ts` 재노출 추가. 컨테이너 배선은 [index.md](index.md) §2.3 S3b 델타.
 
 파급(S4 공개 API 변경): `CompleteOptions`에 선택 필드 `budgetMs?` → 기존 호출(`messages/generate.ts`의 `complete(prompt, { spentMs })`·`complete(prompt)`)과 테스트는 무수정. `prompt.ts`는 `buildUserTurn`의 요약 줄 생성을 `summaryLines`로 뽑고 `OOC_LABEL`·`SUMMARY_LABEL`을 내부 export할 뿐이라 조립 결과가 같다(스냅샷 SRV-T-167~171·252~255·268 무수정이어야 한다 — 바뀌면 구현 오류). `index.ts`에 `buildSummaryPrompt`·`postprocessSummary`·`SUMMARY_BUDGET_MS`·`SUMMARY_TARGET_CHARS`·`SUMMARY_SYSTEM`·`SummaryPromptInput` 재노출 추가. `Llm` 타입·`createLlm` 시그니처 불변.
+
+파급(S3f 공개 API 변경): `llm/index.ts`에 `models.ts` 재노출 5개 추가(비파괴). `LlmDeps.modelName?`은 선택 필드라 기존 `createLlm` 호출(테스트 포함)은 무수정. `createProvider`·`createUsageMeter`·`estimateKrw` 시그니처 불변 — 호출자 `server/src/services.ts`만 해석 값을 넣도록 바뀐다([index.md](index.md) §14.1). 새 파일 `server/test/llm-models.test.ts`.

@@ -11,15 +11,15 @@ compatibility_flags = ["nodejs_compat"]
 [vars]
 TOKEN_MIN_LEVEL = "5"
 LLM_PROVIDER = "google"
-LLM_MODEL = "gemini-2.5-flash"
+LLM_MODEL = "gemini-3.1-pro-preview"        # S3f 주인이 설정 화면에서 모델을 고르기 전 기본 모델(R-ENV-002)
 LLM_TIMEOUT_MS = "60000"
 ALLOWED_FRAME_ANCESTORS = "http://london-gossip.my https://london-gossip.my"
 RATE_LIMIT_PER_MIN = "20"
 CONTEXT_MESSAGES = "40"
 MEMORY_SUMMARY_THRESHOLD = "60"
 LLM_MONTHLY_BUDGET_KRW = "100000"           # S3b 월 AI 비용 상한(원, 추정) — R-LLM-007
-LLM_PRICE_INPUT_USD_PER_M = "0.3"           # S3b gemini-2.5-flash 입력 단가(USD/1M 토큰, 배포 전 확인)
-LLM_PRICE_OUTPUT_USD_PER_M = "2.5"          # S3b 출력+사고 단가(USD/1M 토큰)
+LLM_PRICE_INPUT_USD_PER_M = "0.3"           # S3f 단가표(server/src/llm/models.ts)에 없는 모델의 폴백 입력 단가(USD/1M 토큰)
+LLM_PRICE_OUTPUT_USD_PER_M = "2.5"          # 단가표에 없는 모델의 폴백 출력+사고 단가(USD/1M 토큰)
 KRW_PER_USD = "1400"                        # S3b 원/달러 환율
 
 # D1 — 스키마는 migrations/*.sql (doc/200_설계/server/db.md §7)

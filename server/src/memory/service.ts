@@ -42,7 +42,7 @@ export type MemoryDeps = {
   /** config.memorySummaryThreshold (2~1000, > contextMessages — parseEnv 가 보장) */
   summaryThreshold: number
   /** 지연 생성. 요약이 필요할 때만 부른다(키 확인 포함) */
-  llm: () => Llm
+  llm: () => Promise<Llm>
 }
 
 export type MemoryService = {
@@ -104,7 +104,7 @@ export const createMemoryService = (deps: MemoryDeps): MemoryService => {
 
   /** ④: 예산 게이트. 초과면 llm 대신 null(건너뜀), 그 밖의 실패는 던진다 */
   const gate = async (roomId: string): Promise<Llm | null> => {
-    const llm = deps.llm()
+    const llm = await deps.llm()
     try {
       await llm.ensureBudget()
     } catch (e) {

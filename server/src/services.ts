@@ -12,7 +12,14 @@ import { createAuthService, type AuthService, type Principal } from './auth'
 import type { Db } from './db'
 import { requireLlmApiKey, type Config, type Env } from './env'
 import type { Logger } from './logger'
-import { createLlm, createProvider, createUsageMeter, type Llm } from './llm'
+import {
+  createLlm,
+  createProvider,
+  createUsageMeter,
+  modelKeyOf,
+  resolveLlmModel,
+  type Llm,
+} from './llm'
 import { createMemoryService, type MemoryService } from './memory'
 import { createMessagesService, type MessagesService } from './messages'
 import { createRoomsService, type RoomsService } from './rooms'
@@ -58,31 +65,45 @@ export const APP_VERSION: string = pkg.version
 
 /** 서비스 컨테이너를 만든다. 요청마다 부트스트랩이 호출 */
 export const createServices = (deps: ServiceDeps): Services => {
-  const settings = createSettingsService({ db: deps.db, logger: deps.logger, now: deps.now })
-  // 지연 생성: speak·regenerate·요약이 부를 때 키를 확인한다(R-ENV-003). messages·memory 가 같은 함수를 쓴다(상태 없음)
-  const llm = (): Llm =>
-    createLlm({
-      provider: createProvider({
-        provider: deps.config.llmProvider,
-        apiKey: requireLlmApiKey(deps.config),
-        model: deps.config.llmModel,
-      }),
+  const settings = createSettingsService({
+    db: deps.db,
+    logger: deps.logger,
+    now: deps.now,
+    // S3f: 저장값이 없을 때 응답 model = env 모델의 키(두 후보 밖이면 null) — llm.md §15.4
+    fallbackModelKey: modelKeyOf(deps.config.llmModel),
+  })
+  // S3f: 요청마다 D1에서 모델을 읽어 해석한다(캐시 없음). messages·memory 가 같은 함수를 쓴다(상태 없음)
+  // 순서: 키 확인(R-ENV-003, D1 읽기 전) → 저장 키 읽기 → 해석 → 생성. 실패해도 다른 모델로 바꾸지 않는다(R-LLM-009)
+  const llm = async (): Promise<Llm> => {
+    const apiKey = requireLlmApiKey(deps.config)
+    const stored = await settings.loadModelKey()
+    const { model, pricing } = resolveLlmModel(stored, {
+      model: deps.config.llmModel,
+      pricing: {
+        priceInputUsdPerM: deps.config.llmPriceInputUsdPerM,
+        priceOutputUsdPerM: deps.config.llmPriceOutputUsdPerM,
+      },
+    })
+    return createLlm({
+      provider: createProvider({ provider: deps.config.llmProvider, apiKey, model }),
       timeoutMs: deps.config.llmTimeoutMs,
       logger: deps.logger,
       now: deps.now,
+      modelName: model,
       // S3b: 월 비용 상한. db.llmUsage 가 UsageStore 포트를 구조적으로 만족한다
       meter: createUsageMeter({
         store: deps.db.llmUsage,
         config: {
           monthlyBudgetKrw: deps.config.llmMonthlyBudgetKrw,
-          priceInputUsdPerM: deps.config.llmPriceInputUsdPerM,
-          priceOutputUsdPerM: deps.config.llmPriceOutputUsdPerM,
+          priceInputUsdPerM: pricing.priceInputUsdPerM,
+          priceOutputUsdPerM: pricing.priceOutputUsdPerM,
           krwPerUsd: deps.config.krwPerUsd,
         },
         logger: deps.logger,
         now: deps.now,
       }),
     })
+  }
   const memory = createMemoryService({
     db: deps.db,
     now: deps.now,

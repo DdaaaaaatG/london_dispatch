@@ -1,6 +1,6 @@
 # settings 모듈 설계
 
-- 상태: 구현 완료(2026-10-06, server 318/318) · api.md v0.5 대조 정정(§12 N1~N7 · §12.1 M1~M6 대조표) · verify 후속 동기화(2026-10-07 — §2.2 출력 타입 이중 단언 유지 근거·D-SET-10) · 최종 갱신: 2026-10-07
+- 상태: 구현 완료(2026-10-06, server 318/318) · api.md v0.5 대조 정정(§12 N1~N7 · §12.1 M1~M6 대조표) · verify 후속 동기화(2026-10-07 — §2.2 출력 타입 이중 단언 유지 근거·D-SET-10) · **S3f 설계 초안(2026-10-08, §13 `loadModelKey`·응답 `model`(effectiveKey)·`put` 셋째 인자·`fallbackModelKey` 주입·로그 `settings_saved{…, model}`·`llm_model_invalid{}`, SRV-T-342~346 · 앞 절과 다르면 §13이 우선)** · 최종 갱신: 2026-10-08
 - 묶음: **S3c**(캐릭터 설정 화면 — 갠홈 주인 전용). 이 문서의 공개 API는 전부 S3c에서 구현한다. 작업 모드는 보강(rooms·chat·server·contract 구현 완료 위에 추가).
 - 결정 출처: `doc/200_설계/architecture/s3c-02-전반설계.md`(결정 1~6) · `s3c-03-인계패킷.md` §1 · requirements §11-1(R-SET-001~012) · `doc/state.json` decisions(2026-10-06 승인 ①, 같은 날 Q2 수정 — **`OWNER_MB_IDS`에는 지인(갠홈 주인) 회원 ID만** 둔다. 02 §11 Q2 권고 「지인+사용자」를 대체) · 메인 세션 결정 2026-10-06(400 문구 단일 소스 = shared `checkCharacterSettings`, api.md v0.5 N1~N7 전부 수용).
 - 계약 정본: `doc/200_설계/contract/api.md` v0.5 §2.7(주인 판정) · §4.15(E15) · §4.16(E16·400 문구 표·검사 순서) · §5.8(`shared/src/settings.ts`) · §15.12(N1~N7). 이 문서는 그 규약을 server 쪽에서 지키는 방법만 적고 문구·상한을 다시 옮겨 적지 않는다.
@@ -362,6 +362,138 @@ contract-designer가 이 문서 초안과 대조한 6건이다. 전부 반영했
 | M5 | `world` 화면 이름 `공통 세계관` | §1 서술 · §2.2 라벨 항목 = `세계관`(탭 이름은 화면 labels 몫). server 문서 다른 곳에 옛 라벨 없음(grep) | 반영 |
 | M6 | server 내부 `SettingsIssue { path: string }`가 shared 이름과 충돌 | server 쪽 타입을 **없앴다**(개명 대신 shared `SettingsIssue`·`SettingsCheckResult`를 그대로 사용 — §2 · §11 "03 §1.3 시그니처 대비"). 같은 이름의 server 타입 0개 | 반영 |
 
+## 13. S3f — AI 모델 키 저장·판정 (R-SET-013 🔒 신규 · R-SET-003·004·005 🔒 개정 · R-SET-012 개정 · R-LLM-009 🔒)
+
+- 상태: 초안(2026-10-08, 승인 ① 완료). 근거 `s3f-02-전반설계.md` §1·§2.2·§4·§7 · `s3f-03-인계패킷.md` §1.2.
+- 관련: [db.md](db.md) §14(칸·`getModel`·UPSERT) · [llm.md](llm.md) §15(해석 규칙 V1~V5) · [index.md](index.md) §14(`fallbackModelKey` 주입·공장 순서).
+- 모델 키는 같은 `character_settings` 행의 **별도 칸** `llm_model`이다. 본체 JSON(R-SET-002 🔒 strict)·정규화 규칙(§2.3)·400 문구 표(§5.1)·내보내기 화이트리스트는 바뀌지 않는다.
+
+### 13.1 목적
+
+| 요구 | 이 절의 몫 |
+|---|---|
+| R-SET-013 🔒 | 주인이 고른 키를 기존 저장(E16)과 한 문장으로 저장, 다음 호출의 해석 입력(`loadModelKey`) |
+| R-SET-003 🔒(개정) | `llm_model` 칸 읽기·쓰기(본체와 별개) |
+| R-SET-004 🔒(개정) | 응답 `model` = 지금 쓰는 모델 키(effectiveKey), 두 후보 밖이면 `null` |
+| R-SET-005 🔒(개정) | `put` 셋째 인자 `model?` — 없으면 저장값 유지 |
+| R-SET-012(개정) | `settings_saved{mbId, version, model}` · `llm_model_invalid{}` |
+| R-LLM-009 🔒 | 표 밖 저장값 → `null` + error 로그(값 미기록) |
+
+### 13.2 공개 API
+
+```ts
+// server/src/settings/service.ts
+import type { LlmModelKey } from '@shared/types'
+
+type SettingsDeps = { db; logger; now; fallbackModelKey: LlmModelKey | null }   // 컨테이너가 modelKeyOf(config.llmModel)
+type SettingsService = {
+  get: () => Promise<CharacterSettingsResponse>                                   // + model
+  put: (settings: CharacterSettings, by: Principal, model?: LlmModelKey) => Promise<CharacterSettingsResponse>
+  loadForPrompt: () => Promise<PromptSettings>                                     // 불변
+  loadModelKey: () => Promise<LlmModelKey | null>   // 표 밖 저장값 → null + error 로그 llm_model_invalid {}. D1 오류는 전파
+}
+```
+
+| 함수 | 인자 | 반환 | 실패 조건(에러 코드) | 요구 |
+|---|---|---|---|---|
+| `get` | 없음 | 기존 4필드 + `model` | D1 오류 전파(→ 500 `INTERNAL`) | R-SET-004 |
+| `put` | `settings`(routes zod 통과), `by`, `model?`(routes zod 통과 키 또는 `undefined`) | 기존 4필드 + `model` | 재검증 실패 `VALIDATION_ERROR`(기존) · D1 오류 전파 | R-SET-005·013 |
+| `loadForPrompt` | 없음 | 불변 | 불변 | R-SET-006 |
+| `loadModelKey` | 없음 | 저장 키 또는 `null` | D1 오류 전파(→ 공장 reject → 500 `INTERNAL`) | R-SET-013 · R-LLM-009 |
+
+값 규칙(내부 함수 `toModelKey(raw: string | null): LlmModelKey | null` 하나가 판정한다 — shared `LLM_MODEL_KEYS`에 있으면 그 키, `null`이면 `null`, 그 밖이면 `logger.error('llm_model_invalid', {})` 후 `null`):
+
+| 경우 | `loadModelKey` | 응답 `model`(effectiveKey) |
+|---|---|---|
+| 행 없음 | `null` | `fallbackModelKey` |
+| 칸 NULL | `null` | `fallbackModelKey` |
+| 칸 `'pro'`·`'flash'` | 그 키 | 그 키 |
+| 칸이 표 밖(`'turbo'`) | `null` + `llm_model_invalid {}` | `fallbackModelKey` + `llm_model_invalid {}` |
+| 본체 JSON 훼손(시드 대체, §2.4) | 칸 기준(위 규칙) | **칸 기준**(시드로 대체해도 `model`은 칸에서 읽는다) |
+
+- effectiveKey = `toModelKey(칸) ?? fallbackModelKey`. 컨테이너가 `fallbackModelKey = modelKeyOf(config.llmModel)`을 넣으므로 응답 `model`은 [llm.md](llm.md) §15.4 `resolveLlmModel(...).key`와 늘 같다(화면 표시 = 다음 호출 모델).
+- `put`: `db.characterSettings.upsert(JSON.stringify(정규화 본체), by.mbId, now(), model ?? null)` 1문장. `null`이면 SQL `COALESCE`가 기존 칸을 유지한다([db.md](db.md) §14.2). 응답 `model` = `toModelKey(saved.llmModel) ?? fallbackModelKey`.
+- 시드 상태에서 모델만 바꿔 저장해도(화면이 시드 본체 + `model`을 보낸다) 행이 생겨 `isDefault: false`, `version: 1`이다(D-F1 — 별도 분기 없음).
+- `loadModelKey`는 본체 JSON을 읽지 않는다(`db.characterSettings.getModel()` — `SELECT llm_model`만). speak는 `loadForPrompt`로 행을 따로 한 번 더 읽는다(두 읽기 사이에 저장이 끼면 본체와 모델이 다른 버전일 수 있다 — D-SET-13).
+
+### 13.3 내부 구조
+
+| 파일 | 변경 |
+|---|---|
+| `server/src/settings/service.ts` | `SettingsDeps.fallbackModelKey`, 내부 `toModelKey`, `readCurrent`가 `row.llmModel`로 `model` 채움, 시드 응답에도 `model`, `put` 셋째 인자, `loadModelKey` |
+| `server/src/settings/index.ts` | 재노출 이름 불변(타입 모양만 바뀜) |
+| `server/src/settings/schema.ts` | 변경 없음(본체 스키마 불변 — `model` 검사는 routes zod, contract 소유) |
+
+- 의존: shared(`LlmModelKey`·`LLM_MODEL_KEYS`) · db. `llm/models.ts`는 import하지 않는다(모델명·단가를 모른다).
+- 상태·캐시 없음(기존과 같다).
+
+### 13.4 비동기·동시성
+
+- `get`: 기존 PK 1행 읽기에 칸 하나가 더해질 뿐 쿼리 수 불변. `put`: UPSERT 1문장(본체·모델·version이 원자적으로 함께 바뀐다). `loadModelKey`: PK 1행 1칸.
+- 마지막 쓰기 승리(D-SET-5) 그대로. 주인이 저장하는 동안 진행 중인 speak는 시작 때 읽은 모델로 끝난다.
+
+### 13.5 에러·로그
+
+- 새 에러 클래스·코드 없음. `model` 값 위반(`null`·표 밖)은 routes zod가 `settings` 검사 **뒤에** 400 `VALIDATION_ERROR`(문구 `공통 · AI 모델 값이 올바르지 않습니다.` — shared 상수)로 막는다. `put`은 검증된 키만 받는다.
+- §5.2 로그 표를 아래로 대체한다(R-SET-012 개정 — 4종, 본문·필드 값 0):
+
+| event | level | 필드 | 내는 곳 |
+|---|---|---|---|
+| `settings_saved` | info | `mbId`, `version`, `model`(저장 뒤 effectiveKey — 응답 `model`과 같은 값, `null` 가능) | settings `put` |
+| `owner_denied` | info | `mbId` | auth `assertOwner` |
+| `character_settings_invalid` | error | `field` | settings `readCurrent` |
+| `llm_model_invalid` | error | 없음(`{}`) — 저장된 표 밖 값을 남기지 않는다 | settings `toModelKey`(`get`·`put` 응답 계산·`loadModelKey` 어디서든 표 밖을 만날 때마다 1건) |
+
+### 13.6 설정(env)
+
+- 읽는 키 없음. `fallbackModelKey`는 컨테이너가 `Config.llmModel`에서 계산해 **값**으로 넘긴다([index.md](index.md) §14.1).
+
+### 13.7 DB
+
+- [db.md](db.md) §14(마이그레이션 0004 `llm_model TEXT NULL`, `CharacterSettingsRecord.llmModel`, `upsert` 넷째 인자, `getModel`).
+
+### 13.8 테스트 (`server/test/settings.test.ts`에 추가 — workers pool D1 · 수집 로거)
+
+| ID | 함수 | 조건 | 기대 |
+|---|---|---|---|
+| SRV-T-342 | `loadModelKey` | ① 행 없음 ② `put(…, 'flash')` 뒤 ③ D1에 `UPDATE … SET llm_model = 'turbo'` 직접 | ① `null` ② `'flash'` ③ `null` + `llm_model_invalid` 1건, 필드 `{}`, 로그 전체에 `'turbo'` 0건 |
+| SRV-T-343 | `loadModelKey` | `getModel`이 throw 하는 가짜 `Db`(또는 `character_settings` 미생성 D1) | 같은 오류로 reject(숨기지 않음), `null`로 바꾸지 않음 |
+| SRV-T-344 | `get` 응답 `model` | `fallbackModelKey` `'pro'`·`null` × 행 없음·칸 `'flash'`·칸 `'turbo'`·본체 훼손 + 칸 `'flash'` | 행 없음 → fallback(`'pro'`/`null` — V5 응답판) · `'flash'` → `'flash'` · `'turbo'` → fallback + 로그 1건 · 본체 훼손 → 시드 본체 + `model: 'flash'` |
+| SRV-T-345 | `put` 셋째 인자 | ① 시드 상태에서 시드 본체 + `'flash'` ② 본체만 바꿔 `model` 생략 ③ `'pro'` | ① `isDefault: false`, `version: 1`, `model: 'flash'` ② `version: 2`, `model: 'flash'`(유지) ③ `version: 3`, `model: 'pro'`. 각 단계 `get()`이 같은 값 |
+| SRV-T-346 | 로그 grep | SRV-T-345 전 과정 | `settings_saved` 3건, 키 집합 `{mbId, version, model}`, `model` 값 `'flash'`·`'flash'`·`'pro'`. 로그 전체에 본체 문자열(세계관·persona 문구) 0건 |
+
+- 기존 테스트 영향: `settings.test.ts` 55행 `createSettingsService({ db, logger, now })`에 `fallbackModelKey` 추가(기존 테스트는 `null`이면 응답 `model: null`). SRV-T-245~249의 응답 `toEqual` 단언에 `model` 키 추가. `messages-generate.test.ts` 754·810행 직접 생성에도 `fallbackModelKey`.
+- 수동: 설정 화면에서 Flash 저장 → ⋯ 없이 다시 열기(E15) → `model: 'flash'`. dev 로그에 `settings_saved` `model` 키, 본문 없음.
+
+### 13.9 contract 요구 명세 (api.md v0.8 · shared — contract 소유)
+
+| 대상 | server가 주는 것 | contract가 정할 것 |
+|---|---|---|
+| E15 응답 | `get()` 반환의 `model: LlmModelKey \| null`(의미 = 지금 실제로 쓰는 모델의 키) | `CharacterSettingsResponse.model` 타입·문장, 응답 키 4 → 5 |
+| E16 본문 | `put(settings, by, body.model)` — 본문에 키가 없으면 **`undefined`를 넘긴다**(`null` 금지) | `PutCharacterSettingsBody.model?` zod(`z.enum(LLM_MODEL_KEYS).optional()`), `settings` 검사 뒤, 400 문구 상수 |
+| E16 응답 | `put` 반환의 `model` = 저장 뒤 effectiveKey | 응답 타입 |
+| 판정 순서·주인·레이트리밋·본문 상한 | 불변 | 불변 |
+
+### 13.10 요구 추적
+
+| 요구 | 반영 | 테스트 | 상태 |
+|---|---|---|---|
+| R-SET-013 🔒 | §13.2 `put`·`loadModelKey` | SRV-T-342·345 · 통합 [index.md](index.md) SRV-T-350 | 설계 ✅ |
+| R-SET-003 🔒(개정) | §13.2·§13.7 | SRV-T-342·345 | 설계 ✅ |
+| R-SET-004 🔒(개정) | §13.2 effectiveKey | SRV-T-344 | 설계 ✅ |
+| R-SET-005 🔒(개정) | §13.2 셋째 인자 · §13.9 | SRV-T-345 | 설계 ✅ (400 경로는 API-T) |
+| R-SET-012(개정) | §13.5 로그 4종 | SRV-T-342·346 | 설계 ✅ |
+| R-LLM-009 🔒 | §13.2 `toModelKey`(V4) | SRV-T-342·344 | 설계 ✅ |
+
+### 13.11 설계 결정
+
+| ID | 결정 | 대안·근거 |
+|---|---|---|
+| D-SET-11 | `settings_saved.model` = 저장 뒤 effectiveKey(응답 `model`과 같은 값) | 대안: 칸 원값. 기각 — 표 밖 값을 로그에 남길 수 있다(R-SET-012). 운영에서 "지금 무엇으로 불리는가"와 같은 값이 읽기 쉽다 |
+| D-SET-12 | 본체 훼손으로 시드 대체해도 `model`은 칸에서 읽는다 | speak 쪽 `loadModelKey`가 칸만 보므로 응답도 칸 기준이어야 화면 표시 = 실제 호출이 유지된다 |
+| D-SET-13 | `loadModelKey`는 `loadForPrompt`와 별도 읽기(D1 2회) | 03 §1.2 시그니처 고정. 두 읽기 사이 저장이 끼면 본체·모델 버전이 다를 수 있으나 둘 다 "다음 호출부터 반영"(R-SET-013) 범위 안이다. 한 번 읽기로 묶는 안은 공장(`llm()`)과 프롬프트 읽기를 합쳐야 해서 판정 순서(예산 게이트 → 잠금 → 읽기)가 바뀐다 |
+| D-SET-14 | `llm_model_invalid`는 표 밖 값을 만날 때마다 1건(중복 억제 없음) | 상태를 두지 않는다(Workers 인스턴스 여럿). 주인이 다시 저장하면 사라진다 |
+
 ## 변경 이력
 
 | 날짜 | 내용 |
@@ -372,3 +504,6 @@ contract-designer가 이 문서 초안과 대조한 6건이다. 전부 반영했
 | 2026-10-06 | 테스트 입력 정정(server-implementer 보고): 훼손 행 입력 `json='{'`(1자)는 0003 CHECK `length(json) BETWEEN 2 AND 200000`에 걸려 INSERT·UPDATE 자체가 실패한다. SRV-T-248·수동 체크의 입력을 `'{{'`(2자, JSON 파싱 실패)로 바꿨다. 마이그레이션 전문은 그대로 |
 | 2026-10-06 | 구현 완료 동기화(server 318/318 · tsc 0 · eslint 0). 설계와 다른 점 3건: ① SRV-T-260은 가짜 `Db` 경우만(설계 허용 선택) ② `characterSettingsSchema` 출력 타입을 `z.ZodType<CharacterSettings, unknown>`로 고정(`as unknown as` 단언 — §2 시그니처 줄 갱신) ③ `server/test/settings.test.ts`에 lint용 `Draft` 타입 추가 |
 | 2026-10-07 | verify 후속 동기화(소스 기준, SRV-002): §2.2 이중 단언 유지 근거, D-SET-10. 코드는 문서주석만 추가, 공개 API 변경 없음 |
+| 2026-10-08 | S3f 설계(§13, 승인 ① 완료): `SettingsDeps.fallbackModelKey`, `loadModelKey`(표 밖 → `null` + `llm_model_invalid {}`, D1 오류 전파), 응답 `model` = effectiveKey(본체 훼손 시에도 칸 기준), `put(settings, by, model?)` → UPSERT 넷째 인자(`null` = 유지), §5.2 로그 표를 4종으로 대체(`settings_saved{mbId, version, model}`). SRV-T-342~346, D-SET-11~14 |
+
+파급(S3f 공개 API 변경): `SettingsDeps`에 필수 `fallbackModelKey` → 호출자 `server/src/services.ts`([index.md](index.md) §14.1)와 직접 생성 테스트(`settings.test.ts` 55행 · `messages-generate.test.ts` 754·810행). `SettingsService`에 `loadModelKey` 추가·`put` 셋째 인자(선택)·응답 `model` 필드 → 호출자 라우트 `server/src/routes/settings.ts`(contract-implementer)와 컨테이너. 응답 키 단언 `routes-settings.test.ts` 159행(4 → 5, contract 소유).

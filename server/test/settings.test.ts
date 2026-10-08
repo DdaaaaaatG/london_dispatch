@@ -10,7 +10,7 @@ import {
   WORLD_FIELD_SPEC,
   checkCharacterSettings,
 } from '@shared/settings'
-import type { CharacterSettings } from '@shared/types'
+import type { CharacterSettings, LlmModelKey } from '@shared/types'
 import { SETTINGS_VECTORS, validSettings } from '../../shared/test/settings-vectors'
 import { createApp } from '../src/app'
 import { AppError } from '../src/app-error'
@@ -43,7 +43,11 @@ const SENTINEL = 'SENTINEL_VALUE_7c1'
 
 type Log = { level: string; event: string; [k: string]: unknown }
 
-const setup = (dbOverride?: (db: Db) => Db, now = () => NOW) => {
+const setup = (
+  dbOverride?: (db: Db) => Db,
+  now = () => NOW,
+  fallbackModelKey: LlmModelKey | null = null,
+) => {
   const lines: string[] = []
   const logs: Log[] = []
   const logger = createLogger((_l, line) => {
@@ -52,7 +56,7 @@ const setup = (dbOverride?: (db: Db) => Db, now = () => NOW) => {
   })
   const baseDb = createDb(env.DB)
   const db = dbOverride === undefined ? baseDb : dbOverride(baseDb)
-  return { svc: createSettingsService({ db, logger, now }), db, logs, lines }
+  return { svc: createSettingsService({ db, logger, now, fallbackModelKey }), db, logs, lines }
 }
 
 const insertRow = async (json: string, version = 3): Promise<void> => {
@@ -216,6 +220,7 @@ describe('서비스 (R-SET-003)', () => {
       version: 0,
       updatedAt: null,
       isDefault: true,
+      model: null,
     })
     expect(logs).toHaveLength(0)
   })
@@ -233,6 +238,7 @@ describe('서비스 (R-SET-003)', () => {
       version: 1,
       updatedAt: NOW,
       isDefault: false,
+      model: null,
     })
     expect(second.version).toBe(2)
     expect(await svc.get()).toEqual(second)
@@ -291,6 +297,7 @@ describe('서비스 (R-SET-003)', () => {
         version: 0,
         updatedAt: null,
         isDefault: true,
+        model: null,
       })
       const errs = logs.filter(l => l.event === 'character_settings_invalid')
       expect(errs).toHaveLength(1)
@@ -360,7 +367,7 @@ describe('로그·장애 (R-SET-012 · N5)', () => {
       Object.keys(logs.find(l => l.event === event) ?? {}).filter(
         k => !['level', 'event', 'ts', 'time', 'msg'].includes(k),
       )
-    expect(keysOf('settings_saved').sort()).toEqual(['mbId', 'version'])
+    expect(keysOf('settings_saved').sort()).toEqual(['mbId', 'model', 'version'])
     expect(keysOf('owner_denied')).toEqual(['mbId'])
     expect(keysOf('character_settings_invalid')).toEqual(['field'])
   })
@@ -372,6 +379,7 @@ describe('로그·장애 (R-SET-012 · N5)', () => {
         throw new Error('d1 down')
       },
       upsert: db.characterSettings.upsert,
+      getModel: db.characterSettings.getModel,
     },
   })
 
@@ -403,5 +411,92 @@ describe('로그·장애 (R-SET-012 · N5)', () => {
     )
     expect([res.status, await res.clone().text()]).toEqual([500, expect.anything()])
     expect(((await res.json()) as { error: { code: string } }).error.code).toBe('INTERNAL')
+  })
+})
+
+describe('S3f 모델 키 (settings.md §13)', () => {
+  const seedBody = (): CharacterSettings => DEFAULT_CHARACTER_SETTINGS
+  const setModelRaw = (raw: string): Promise<unknown> =>
+    env.DB.prepare('UPDATE character_settings SET llm_model = ?1 WHERE id = 1').bind(raw).run()
+  const keysOf = (logs: Log[], event: string): string[] =>
+    Object.keys(logs.find(l => l.event === event) ?? {}).filter(
+      k => !['level', 'event', 'ts', 'time', 'msg'].includes(k),
+    )
+
+  it('SRV-T-342 loadModelKey_null_for_no_row_key_for_saved_null_and_log_for_off_table', async () => {
+    const { svc, logs, lines } = setup()
+    expect(await svc.loadModelKey()).toBeNull()
+    await svc.put(seedBody(), OWNER, 'flash')
+    expect(await svc.loadModelKey()).toBe('flash')
+    await setModelRaw('turbo')
+    expect(await svc.loadModelKey()).toBeNull()
+    const invalid = logs.filter(l => l.event === 'llm_model_invalid')
+    expect(invalid).toHaveLength(1)
+    expect(invalid[0]?.level).toBe('error')
+    expect(keysOf(invalid, 'llm_model_invalid')).toEqual([])
+    expect(lines.join('\n')).not.toContain('turbo')
+  })
+
+  it('SRV-T-343 loadModelKey_propagates_d1_failure', async () => {
+    const { svc } = setup(db => ({
+      ...db,
+      characterSettings: {
+        ...db.characterSettings,
+        getModel: async () => {
+          throw new Error('d1 down')
+        },
+      },
+    }))
+    await expect(svc.loadModelKey()).rejects.toThrow('d1 down')
+  })
+
+  it('SRV-T-344 get_model_is_effective_key_from_column_then_fallback', async () => {
+    for (const fallback of ['pro', null] as const) {
+      await resetDb()
+      const none = setup(undefined, undefined, fallback)
+      expect((await none.svc.get()).model).toBe(fallback)
+      await none.svc.put(seedBody(), OWNER, 'flash')
+      expect((await none.svc.get()).model).toBe('flash')
+      await setModelRaw('turbo')
+      const bad = setup(undefined, undefined, fallback)
+      expect((await bad.svc.get()).model).toBe(fallback)
+      expect(bad.logs.filter(l => l.event === 'llm_model_invalid')).toHaveLength(1)
+    }
+    // 본체 훼손 → 시드 본체 + 칸 기준 model
+    await resetDb()
+    const s = setup(undefined, undefined, 'pro')
+    await s.svc.put(seedBody(), OWNER, 'flash')
+    await env.DB.prepare("UPDATE character_settings SET json = '{{' WHERE id = 1").run()
+    const got = await setup(undefined, undefined, 'pro').svc.get()
+    expect(got.isDefault).toBe(true)
+    expect(got.settings).toEqual(DEFAULT_CHARACTER_SETTINGS)
+    expect(got.model).toBe('flash')
+  })
+
+  it('SRV-T-345 put_third_arg_sets_keeps_and_changes_model', async () => {
+    const { svc } = setup(undefined, undefined, 'pro')
+    const first = await svc.put(seedBody(), OWNER, 'flash')
+    expect(first).toMatchObject({ isDefault: false, version: 1, model: 'flash' })
+    expect(await svc.get()).toEqual(first)
+    const second = await svc.put(filledAtLimit() as CharacterSettings, OWNER)
+    expect(second).toMatchObject({ version: 2, model: 'flash' })
+    expect(await svc.get()).toEqual(second)
+    const third = await svc.put(filledAtLimit() as CharacterSettings, OWNER, 'pro')
+    expect(third).toMatchObject({ version: 3, model: 'pro' })
+    expect(await svc.get()).toEqual(third)
+  })
+
+  it('SRV-T-346 settings_saved_log_has_model_key_and_no_body', async () => {
+    const { svc, logs, lines } = setup(undefined, undefined, 'pro')
+    await svc.put(seedBody(), OWNER, 'flash')
+    await svc.put(filledAtLimit() as CharacterSettings, OWNER)
+    await svc.put(filledAtLimit() as CharacterSettings, OWNER, 'pro')
+    const saved = logs.filter(l => l.event === 'settings_saved')
+    expect(saved).toHaveLength(3)
+    for (const l of saved)
+      expect(keysOf([l], 'settings_saved').sort()).toEqual(['mbId', 'model', 'version'])
+    expect(saved.map(l => l.model)).toEqual(['flash', 'flash', 'pro'])
+    const body = JSON.stringify(filledAtLimit())
+    expect(lines.join('\n')).not.toContain(body.slice(10, 60))
   })
 })

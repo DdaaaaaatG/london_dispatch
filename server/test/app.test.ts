@@ -2,13 +2,13 @@
 import { createExecutionContext, env } from 'cloudflare:test'
 import { Hono } from 'hono'
 import { HTTPException } from 'hono/http-exception'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { AppError } from '../src/app-error'
 import { createApp, buildCsp } from '../src/app'
 import { createDb, type Db } from '../src/db'
 import { parseEnv, type Env } from '../src/env'
-import { FAKE_DEFAULT_TEXT } from '../src/llm'
-import { insertLines, insertRoom, resetDb } from './helpers'
+import { DEFAULT_CHARACTER_SETTINGS, estimateKrw, FAKE_DEFAULT_TEXT, kstMonthKey } from '../src/llm'
+import { insertLine, insertLines, insertRoom, resetDb, usageRow } from './helpers'
 import { createLogger, type LogLevel } from '../src/logger'
 import { APP_VERSION, createServices, type AppEnv } from '../src/services'
 
@@ -400,5 +400,173 @@ describe('S4 memory 배선 (index.md §13.3)', () => {
       sourceUntilId: ids[20],
       updatedAt: NOW,
     })
+  })
+})
+
+describe('S3f 모델 해석 배선 (index.md §14.5)', () => {
+  const OWNER = { mbId: 'owner_test', nick: '주인', chName: '', level: 5, displayName: '주인' }
+  const PRO = 'gemini-3.1-pro-preview'
+  const FLASH = 'gemini-3.8-flash'
+  const USAGE = { promptTokenCount: 1000, candidatesTokenCount: 500, thoughtsTokenCount: 500 }
+  const bg = { waitUntil: (_p: Promise<unknown>) => undefined }
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  const geminiOk = (text: string): Response =>
+    new Response(
+      JSON.stringify({ candidates: [{ content: { parts: [{ text }] } }], usageMetadata: USAGE }),
+      { status: 200 },
+    )
+
+  /** 전역 fetch 대체: 호출 URL 을 기록하고 각본(없으면 마지막 값 반복)대로 응답 */
+  const stubFetch = (respond: (n: number) => Response) => {
+    const urls: string[] = []
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: unknown) => {
+        urls.push(String(input))
+        return respond(urls.length)
+      }),
+    )
+    return urls
+  }
+
+  const build = (overrides: Record<string, unknown> = {}, wrapDb?: (db: Db) => Db) => {
+    const lines: string[] = []
+    const logs: Record<string, unknown>[] = []
+    const logger = createLogger((_l, line) => {
+      lines.push(line)
+      logs.push(JSON.parse(line) as Record<string, unknown>)
+    })
+    const base = createDb(env.DB)
+    const services = createServices({
+      db: wrapDb === undefined ? base : wrapDb(base),
+      logger,
+      now: () => NOW,
+      config: parseEnv(
+        baseEnv({ LLM_PROVIDER: 'google', LLM_API_KEY: 'not-a-real-key', ...overrides }),
+      ),
+    })
+    return { services, lines, logs }
+  }
+
+  const spentKrw = async (): Promise<number> => (await usageRow(kstMonthKey(NOW)))?.est_krw ?? 0
+  const price = (model: string) => {
+    const p = { pro: [2.0, 12.0], flash: [0.75, 3.75] }[model === PRO ? 'pro' : 'flash']
+    return {
+      priceInputUsdPerM: p[0] as number,
+      priceOutputUsdPerM: p[1] as number,
+      krwPerUsd: 1400,
+    }
+  }
+  const usageOf = { promptTokens: 1000, outputTokens: 500, thoughtsTokens: 500 }
+
+  it('SRV-T-350 saved_model_drives_speak_url_and_usage_price_and_switches_back', async () => {
+    await resetDb()
+    await insertRoom('r', 'R', 1, 100)
+    await insertLine('r', '시작', 2)
+    const { services } = build()
+    const urls = stubFetch(() => geminiOk('대사입니다'))
+
+    expect((await services.settings.put(DEFAULT_CHARACTER_SETTINGS, OWNER, 'flash')).model).toBe(
+      'flash',
+    )
+    const before1 = await spentKrw()
+    await services.messages.speak('r', { character: 'ciel' }, bg)
+    expect(urls).toHaveLength(1)
+    expect(urls[0]).toContain(FLASH)
+    expect((await spentKrw()) - before1).toBeCloseTo(estimateKrw(usageOf, price(FLASH)), 6)
+
+    expect((await services.settings.put(DEFAULT_CHARACTER_SETTINGS, OWNER, 'pro')).model).toBe(
+      'pro',
+    )
+    const before2 = await spentKrw()
+    await services.messages.speak('r', { character: 'ciel' }, bg)
+    expect(urls[1]).toContain(PRO)
+    expect((await spentKrw()) - before2).toBeCloseTo(estimateKrw(usageOf, price(PRO)), 6)
+  })
+
+  it('SRV-T-351 auto_select_and_summary_use_saved_model', async () => {
+    await resetDb()
+    await insertRoom('r', 'R', 1, 100)
+    await insertLine('r', '시작', 2)
+    await insertRoom('s', 'S', 1, 100) // 요약 기준을 넘긴 방(speak 가 아니라 직접 호출)
+    await insertLines('s', 61)
+    const { services } = build()
+    await services.settings.put(DEFAULT_CHARACTER_SETTINGS, OWNER, 'flash')
+    const urls = stubFetch(n => geminiOk(n === 1 ? 'ciel' : '요약 또는 대사'))
+
+    const saved = await services.messages.speak('r', { character: 'auto' }, bg)
+    expect(saved.speaker).toBe('ciel')
+    expect(urls).toHaveLength(2) // 선택 + 발화
+    const outcome = await services.memory.summarizeIfNeeded('s')
+    expect(outcome.status).toBe('summarized')
+    expect(urls).toHaveLength(3)
+    for (const u of urls) {
+      expect(u).toContain(FLASH)
+      expect(u).not.toContain(PRO)
+    }
+  })
+
+  it.each([
+    ['404', [404], 1],
+    ['429', [429], 1],
+    ['503x2', [503, 503], 2],
+  ])('SRV-T-352 provider_%s_never_switches_model', async (_n, statuses, calls) => {
+    await resetDb()
+    await insertRoom('r', 'R', 1, 100)
+    const { services } = build()
+    const urls = stubFetch(
+      n =>
+        new Response(JSON.stringify({ error: { status: 'X', message: 'x' } }), {
+          status: statuses[Math.min(n, statuses.length) - 1] as number,
+        }),
+    )
+    await expect(services.messages.speak('r', { character: 'ciel' }, bg)).rejects.toMatchObject({
+      code: 'LLM_FAILED',
+    })
+    expect(urls).toHaveLength(calls)
+    for (const u of urls) {
+      expect(u).toContain(PRO)
+      expect(u).not.toContain('flash')
+    }
+    const lock = await env.DB.prepare('SELECT speaking_until AS s FROM rooms WHERE id = ?1')
+      .bind('r')
+      .first<{ s: number | null }>()
+    expect(lock?.s).toBeNull()
+  })
+
+  it('SRV-T-353 key_check_precedes_d1_read_and_off_table_value_falls_back_to_env', async () => {
+    await resetDb()
+    await insertRoom('r', 'R', 1, 100)
+    // ① 키 없음 → D1 읽기 0회
+    let reads = 0
+    const spied = build({ LLM_API_KEY: undefined }, db => ({
+      ...db,
+      characterSettings: {
+        ...db.characterSettings,
+        getModel: async () => {
+          reads += 1
+          return db.characterSettings.getModel()
+        },
+      },
+    }))
+    await expect(
+      spied.services.messages.speak('r', { character: 'ciel' }, bg),
+    ).rejects.toMatchObject({ name: 'ConfigError' })
+    expect(reads).toBe(0)
+
+    // ② 표 밖 저장값 → env 모델 + llm_model_invalid 1건(값 미기록)
+    const { services, logs, lines } = build()
+    await services.settings.put(DEFAULT_CHARACTER_SETTINGS, OWNER)
+    await env.DB.prepare("UPDATE character_settings SET llm_model = 'turbo' WHERE id = 1").run()
+    const urls = stubFetch(() => geminiOk('대사'))
+    await services.messages.speak('r', { character: 'ciel' }, bg)
+    expect(urls[0]).toContain(PRO)
+    const invalid = logs.filter(l => l.event === 'llm_model_invalid')
+    expect(invalid).toHaveLength(1)
+    expect(lines.join('\n')).not.toContain('turbo')
   })
 })

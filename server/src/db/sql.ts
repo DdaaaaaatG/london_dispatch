@@ -1,6 +1,6 @@
 /**
  * [목적] SQL 문자열 상수(S1 조회 + S2 쓰기·레이트리밋). 문자열 연결·보간 금지, 값은 전부 bind (R-DB-003). 설계 db.md §3.1·§3.2
- * [공개 API] S4 SQL_MEMORY_STATE_BY_ROOM·PUT_SUMMARY·ADVANCE, SQL_MESSAGES_COUNT_AFTER·LIST_AFTER / S3c SQL_CHARACTER_SETTINGS_GET·UPSERT / S3b SQL_LLM_USAGE_ADD·BY_MONTH / S3 SQL_ROOMS_ACQUIRE_SPEAK_LOCK·RELEASE_SPEAK_LOCK, SQL_MESSAGES_BY_ID, SQL_MEMORY_SUMMARY_BY_ROOM / S1 SQL_ROOMS_LIST_SUMMARIES·EXISTS·TOUCH, SQL_MESSAGES_PAGE_LATEST·BEFORE / S2 SQL_ROOMS_INSERT·UPDATE_TITLE·SUMMARY_BY_ID·DELETE·TOUCH_BY_MESSAGE, SQL_MEMORY_DELETE_BY_ROOM, SQL_MESSAGES_DELETE_BY_ROOM·INSERT_IF_ROOM·UPDATE_TEXT·DELETE, SQL_RATE_LIMITS_HIT·PURGE_BEFORE
+ * [공개 API] S4 SQL_MEMORY_STATE_BY_ROOM·PUT_SUMMARY·ADVANCE, SQL_MESSAGES_COUNT_AFTER·LIST_AFTER / S3c SQL_CHARACTER_SETTINGS_GET·UPSERT / S3f SQL_CHARACTER_SETTINGS_MODEL_GET / S3b SQL_LLM_USAGE_ADD·BY_MONTH / S3 SQL_ROOMS_ACQUIRE_SPEAK_LOCK·RELEASE_SPEAK_LOCK, SQL_MESSAGES_BY_ID, SQL_MEMORY_SUMMARY_BY_ROOM / S1 SQL_ROOMS_LIST_SUMMARIES·EXISTS·TOUCH, SQL_MESSAGES_PAGE_LATEST·BEFORE / S2 SQL_ROOMS_INSERT·UPDATE_TITLE·SUMMARY_BY_ID·DELETE·TOUCH_BY_MESSAGE, SQL_MEMORY_DELETE_BY_ROOM, SQL_MESSAGES_DELETE_BY_ROOM·INSERT_IF_ROOM·UPDATE_TEXT·DELETE, SQL_RATE_LIMITS_HIT·PURGE_BEFORE
  * [비동기] 없음
  * [에러] 없음
  * [설정] 없음
@@ -96,17 +96,23 @@ export const SQL_LLM_USAGE_BY_MONTH =
 
 // ---- S3c ----
 export const SQL_CHARACTER_SETTINGS_GET =
-  'SELECT json, version, updated_at FROM character_settings WHERE id = 1'
+  'SELECT json, version, updated_at, llm_model FROM character_settings WHERE id = 1'
 
-/** 1행 문서 UPSERT. 조건 없음 — 마지막 쓰기 승리(settings.md D-SET-5) */
-export const SQL_CHARACTER_SETTINGS_UPSERT = `INSERT INTO character_settings (id, json, version, updated_at, updated_by)
-VALUES (1, ?1, 1, ?2, ?3)
+/** 1행 문서 UPSERT. 조건 없음 — 마지막 쓰기 승리(settings.md D-SET-5). ?4 가 NULL 이면 기존 llm_model 유지(S3f) */
+export const SQL_CHARACTER_SETTINGS_UPSERT = `INSERT INTO character_settings (id, json, version, updated_at, updated_by, llm_model)
+VALUES (1, ?1, 1, ?2, ?3, ?4)
 ON CONFLICT (id) DO UPDATE SET
   json = excluded.json,
   version = character_settings.version + 1,
   updated_at = excluded.updated_at,
-  updated_by = excluded.updated_by
-RETURNING version, updated_at`
+  updated_by = excluded.updated_by,
+  llm_model = COALESCE(excluded.llm_model, character_settings.llm_model)
+RETURNING version, updated_at, llm_model`
+
+// ---- S3f ----
+/** 모델 키 칸만(본체 JSON 을 읽지 않는다). speak·regenerate·요약 공장이 요청마다 1회 */
+export const SQL_CHARACTER_SETTINGS_MODEL_GET =
+  'SELECT llm_model FROM character_settings WHERE id = 1'
 
 // ---- S4 ----
 export const SQL_MEMORY_STATE_BY_ROOM =

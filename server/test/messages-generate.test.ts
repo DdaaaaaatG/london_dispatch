@@ -49,6 +49,8 @@ type SetupOptions = {
   afterSpeak?: (e: { roomId: string; messageId: number }) => Promise<void>
   /** S3c: 설정 읽기 함수(없으면 시드) */
   loadPromptSettings?: () => Promise<PromptSettings>
+  /** S3f: 공장 교체(D1 오류 흉내) */
+  llm?: () => Promise<Llm>
 }
 
 /** 가짜 시계·수집 로거·FakeProvider 를 단 서비스를 만든다 */
@@ -92,7 +94,7 @@ const setup = (steps: FakeStep[] = [], opts: SetupOptions = {}): Setup => {
     now,
     logger,
     contextMessages: opts.contextMessages ?? 40,
-    llm,
+    llm: opts.llm ?? (() => Promise.resolve(llm())),
     ...(opts.afterSpeak === undefined ? {} : { afterSpeak: opts.afterSpeak }),
     ...(opts.loadPromptSettings === undefined
       ? {}
@@ -229,7 +231,7 @@ describe('speak', () => {
       now: () => T0,
       logger: createLogger(() => undefined),
       contextMessages: 40,
-      llm,
+      llm: () => Promise.resolve(llm()),
     })
     const bad = { character: 'meirin' } as unknown as { character: 'ciel' }
     expect(await codeOf(svc.speak('a', bad, { waitUntil: () => undefined }))).toBe(
@@ -566,7 +568,7 @@ describe('regenerate', () => {
       now: () => T0,
       logger: createLogger(() => undefined),
       contextMessages: 40,
-      llm,
+      llm: () => Promise.resolve(llm()),
     })
     const m = await svc.addUserMessage(
       'a',
@@ -712,7 +714,7 @@ describe('월 비용 게이트 (S3b)', () => {
       now: () => T0,
       logger: createLogger(() => undefined),
       contextMessages: 40,
-      llm,
+      llm: () => Promise.resolve(llm()),
     })
     const m = await svc.addUserMessage(
       'a',
@@ -751,7 +753,12 @@ describe('S3c 설정 읽기', () => {
   }
   const OWNER = { mbId: 'owner_test', nick: 'o', chName: '', level: 5, displayName: 'o' }
   const settingsFor = (s: Setup) =>
-    createSettingsService({ db: s.db, logger: createLogger(() => undefined), now: () => T0 })
+    createSettingsService({
+      db: s.db,
+      logger: createLogger(() => undefined),
+      now: () => T0,
+      fallbackModelKey: null,
+    })
 
   it('SRV-T-256 speak_and_regenerate_use_settings_saved_just_before', async () => {
     await insertRoom('a', 'A', 1, 100)
@@ -807,7 +814,12 @@ describe('S3c 설정 읽기', () => {
     const logs: Log[] = []
     const logger = createLogger((_l, line) => void logs.push(JSON.parse(line) as Log))
     const probe = setup()
-    const settings = createSettingsService({ db: probe.db, logger, now: () => T0 })
+    const settings = createSettingsService({
+      db: probe.db,
+      logger,
+      now: () => T0,
+      fallbackModelKey: null,
+    })
     const s = setup([{ text: '시드' }], { loadPromptSettings: settings.loadForPrompt })
     const msg = await s.svc.speak('a', { character: 'ciel' }, s.bg)
     expect(msg.text).toBe('시드')
@@ -1115,5 +1127,24 @@ describe('S4 afterSpeak 등록 실패 삼킴 (messages.md §13.4)', () => {
     const warn = s.logs.filter(l => l.event === 'after_speak_schedule_failed')
     expect(warn).toHaveLength(1)
     expect(warn[0]).toMatchObject({ level: 'warn', roomId: 'a', errName: 'Error' })
+  })
+})
+
+describe('S3f 공장 D1 오류 (messages.md §14)', () => {
+  beforeEach(resetDb)
+
+  it('SRV-T-355 factory_rejection_propagates_before_lock_and_provider', async () => {
+    await insertRoom('a', 'A', 1, 100)
+    const targetId = await insertLine('a', '원문', 5)
+    const llm = vi.fn(async (): Promise<Llm> => {
+      throw new Error('d1 down')
+    })
+    const s = setup([{ text: '쓰이면 안 됨' }], { llm })
+    await expect(s.svc.speak('a', { character: 'ciel' }, s.bg)).rejects.toThrow('d1 down')
+    await expect(s.svc.regenerate(targetId)).rejects.toThrow('d1 down')
+    expect(llm).toHaveBeenCalledTimes(2)
+    expect(await lockOf('a')).toBeNull()
+    expect(await countOf('a')).toBe(1)
+    expect(s.fake.calls).toHaveLength(0)
   })
 })

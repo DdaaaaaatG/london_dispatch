@@ -522,18 +522,21 @@ describe('character_settings (S3c)', () => {
   it('SRV-T-239 characterSettings_get_upsert_and_checks', async () => {
     const db = createDb(env.DB)
     expect(await db.characterSettings.get()).toBeNull()
-    expect(await db.characterSettings.upsert('{"a":1}', 'owner_test', 100)).toEqual({
+    expect(await db.characterSettings.upsert('{"a":1}', 'owner_test', 100, null)).toEqual({
       version: 1,
       updatedAt: 100,
+      llmModel: null,
     })
-    expect(await db.characterSettings.upsert('{"a":2}', 'owner_test', 200)).toEqual({
+    expect(await db.characterSettings.upsert('{"a":2}', 'owner_test', 200, null)).toEqual({
       version: 2,
       updatedAt: 200,
+      llmModel: null,
     })
     expect(await db.characterSettings.get()).toEqual({
       json: '{"a":2}',
       version: 2,
       updatedAt: 200,
+      llmModel: null,
     })
     const insert = (id: number, json: string, by: string) =>
       env.DB.prepare(
@@ -542,9 +545,9 @@ describe('character_settings (S3c)', () => {
         .bind(id, json, by)
         .run()
     await expect(insert(2, '{}', 'owner_test')).rejects.toThrow()
-    await expect(db.characterSettings.upsert('{}', 'x'.repeat(21), 300)).rejects.toThrow()
+    await expect(db.characterSettings.upsert('{}', 'x'.repeat(21), 300, null)).rejects.toThrow()
     await expect(
-      db.characterSettings.upsert('x'.repeat(200_001), 'owner_test', 300),
+      db.characterSettings.upsert('x'.repeat(200_001), 'owner_test', 300, null),
     ).rejects.toThrow()
     await env.DB.prepare('DELETE FROM character_settings').run()
     await insert(1, '{{', 'owner_test')
@@ -706,5 +709,56 @@ describe('S4 memory·messages 저장소 (db.md §13)', () => {
     expect(list.every(m => m.roomId === 'a')).toBe(true)
     expect((await db.messages.listAfter('a', 0, 100)).map(m => m.id)).toEqual(a)
     expect(await db.messages.listAfter('a', a[5] ?? 0, 5)).toEqual([])
+  })
+})
+
+describe('character_settings.llm_model (S3f, db.md §14)', () => {
+  it('SRV-T-347 migration_0004_adds_nullable_checked_column', async () => {
+    const info = await env.DB.prepare('PRAGMA table_info(character_settings)').all<{
+      name: string
+      type: string
+      notnull: number
+      dflt_value: string | null
+    }>()
+    const col = info.results.find(c => c.name === 'llm_model')
+    expect(col).toMatchObject({ type: 'TEXT', notnull: 0, dflt_value: null })
+    const db = createDb(env.DB)
+    await db.characterSettings.upsert('{"a":1}', 'owner_test', 100, null)
+    const set = (v: string) =>
+      env.DB.prepare('UPDATE character_settings SET llm_model = ?1 WHERE id = 1').bind(v).run()
+    await expect(set('x'.repeat(21))).rejects.toThrow()
+    await expect(set('')).rejects.toThrow()
+    await set('turbo')
+    expect(await db.characterSettings.getModel()).toBe('turbo')
+  })
+
+  it('SRV-T-348 upsert_fourth_arg_coalesce_keeps_existing', async () => {
+    const db = createDb(env.DB)
+    const up = (j: string, t: number, m: 'pro' | 'flash' | null) =>
+      db.characterSettings.upsert(j, 'owner_test', t, m)
+    expect(await up('{"a":1}', 100, null)).toEqual({ version: 1, updatedAt: 100, llmModel: null })
+    expect(await up('{"a":2}', 200, 'flash')).toEqual({
+      version: 2,
+      updatedAt: 200,
+      llmModel: 'flash',
+    })
+    expect((await db.characterSettings.get())?.llmModel).toBe('flash')
+    expect(await up('{"a":3}', 300, null)).toEqual({
+      version: 3,
+      updatedAt: 300,
+      llmModel: 'flash',
+    })
+    expect((await db.characterSettings.get())?.llmModel).toBe('flash')
+    expect(await up('{"a":4}', 400, 'pro')).toEqual({ version: 4, updatedAt: 400, llmModel: 'pro' })
+    expect((await db.characterSettings.get())?.llmModel).toBe('pro')
+  })
+
+  it('SRV-T-349 getModel_null_without_row_then_raw_value', async () => {
+    const db = createDb(env.DB)
+    expect(await db.characterSettings.getModel()).toBeNull()
+    await db.characterSettings.upsert('{"a":1}', 'owner_test', 100, 'flash')
+    expect(await db.characterSettings.getModel()).toBe('flash')
+    await env.DB.prepare("UPDATE character_settings SET llm_model = 'turbo' WHERE id = 1").run()
+    expect(await db.characterSettings.getModel()).toBe('turbo')
   })
 })

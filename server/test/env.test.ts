@@ -27,7 +27,7 @@ describe('parseEnv', () => {
       tokenSecret: TEST_SECRET,
       tokenMinLevel: 5,
       llmProvider: 'google',
-      llmModel: 'gemini-2.5-flash',
+      llmModel: 'gemini-3.1-pro-preview',
       llmTimeoutMs: 60000,
       allowedFrameAncestors: ['http://london-gossip.my', 'https://london-gossip.my'],
       rateLimitPerMin: 20,
@@ -277,5 +277,20 @@ describe('OWNER_MB_IDS (S3c)', () => {
       expect(JSON.stringify(caught)).not.toContain('SENTINEL_OWNER_ID_')
       expect((caught as ConfigError).message).not.toContain('SENTINEL_OWNER_ID_')
     }
+  })
+})
+
+describe('S3f LLM_MODEL 기본값 (env.md §12)', () => {
+  it('SRV-T-354 parseEnv_llm_model_default_is_pro_and_table_names_pass', () => {
+    const c = parseEnv(base)
+    expect(c.llmModel).toBe('gemini-3.1-pro-preview')
+    expect(c.llmPriceInputUsdPerM).toBe(0.3)
+    expect(c.llmPriceOutputUsdPerM).toBe(2.5)
+    for (const m of ['gemini-3.8-flash', 'gemini-3.1-pro-preview']) {
+      expect(parseEnv({ ...base, LLM_MODEL: m }).llmModel).toBe(m)
+    }
+    // 기본값 세 곳(스키마·wrangler.toml·.dev.vars.example)이 같다
+    expect(wranglerToml).toMatch(/^LLM_MODEL = "gemini-3\.1-pro-preview"/m)
+    expect(devVarsExample).toMatch(/^# LLM_MODEL=gemini-3\.1-pro-preview\b/m)
   })
 })

@@ -118,6 +118,8 @@ export type LlmDeps = {
   sleep?: (ms: number) => Promise<void>
   /** S3b. 없으면 누적·게이트 없음(기존 테스트 하위 호환). 컨테이너는 항상 넣는다 */
   meter?: UsageMeter
+  /** S3f. 로그 model 필드 값. 없으면 필드를 넣지 않는다(기존 직접 생성 테스트 하위 호환) */
+  modelName?: string
 }
 
 const defaultSleep = (ms: number): Promise<void> => new Promise(resolve => setTimeout(resolve, ms))
@@ -129,6 +131,7 @@ const toAppError = (err: LlmError): AppError =>
 /** Llm 을 만든다. 요청마다 새로 만든다(상태는 호출 안의 지역 변수뿐) */
 export const createLlm = (deps: LlmDeps): Llm => {
   const { provider, timeoutMs, logger, now, meter } = deps
+  const modelField = deps.modelName === undefined ? {} : { model: deps.modelName }
   const clock: RetryClock = { now, sleep: deps.sleep ?? defaultSleep }
 
   /** 시도 1회 + 사용량 누적(성공·차단·형식 불일치 응답 모두). 누적 실패는 meter 가 삼킨다 */
@@ -187,6 +190,7 @@ export const createLlm = (deps: LlmDeps): Llm => {
       )
       logger.info('llm_done', {
         provider: provider.name,
+        ...modelField,
         attempts,
         outChars: countCodePoints(out.text),
         ms: now() - start,
@@ -197,6 +201,7 @@ export const createLlm = (deps: LlmDeps): Llm => {
       const appError = toAppError(err)
       logger.error('llm_failed', {
         provider: provider.name,
+        ...modelField,
         code: appError.code,
         reason: err.reason,
         attempts,
@@ -217,6 +222,7 @@ export const createLlm = (deps: LlmDeps): Llm => {
     if (mentioned !== null) {
       logger.info('speaker_select', {
         provider: provider.name,
+        ...modelField,
         result: 'mention',
         character: mentioned,
         ms: 0,
@@ -243,6 +249,7 @@ export const createLlm = (deps: LlmDeps): Llm => {
     const ms = now() - start
     logger.info('speaker_select', {
       provider: provider.name,
+      ...modelField,
       result: source,
       reason,
       httpStatus,
