@@ -34,7 +34,7 @@
 | (수동) TC-CH-163 | 스크린샷 390×565 | 방 메뉴 5항목 · 잠금 시트 · 걸기 시트(placeholder · 실패 문구 판) · 풀기 확인 · 입장 재요구 판(토큰 있음/없음) — `doc/300_검증/screenshots/{YYYYMMDD-HHMM}/`. `manual-checklist.md` 행 |
 
 | TC-CH-164 | 재입장 뒤 `locked` 복귀(D-48) | `locked: true` 방 · E7 `ROOM_LOCKED` → `onRoomRenamed`에 `locked: true`는 원래 true라 0회 / 토큰 있음 · `enterRoom('r1')` 200 `entryKey: null` → `ld:roomKeys`에 r1 없음 · `onRoomRenamed` 인자 `{ …, locked: false }` 1회 · `listMessages` 재호출 / 200 문자열이면 `locked: false` 호출 0회 |
-| TC-CH-165 | 조용한 재입장 상한(D-55) | 토큰 있음 · `enterRoom` 항상 200 `e1.x` · `listMessages` 항상 `ROOM_LOCKED` → `enterRoom` 정확히 2회 → 3번째 `ROOM_LOCKED`에서 `enterRoom` 호출 없이 시트(`role=dialog` 이름 `비밀번호`) / 대조: 2번째 재입장 뒤 `listMessages` 200이면 카운터 0 → 다음 `ROOM_LOCKED`에서 다시 조용한 시도 1회 |
+| TC-CH-165 | 조용한 재입장 상한(D-55) | 토큰 있음 · `enterRoom` 항상 200 `e1.x` · `listMessages` 항상 `ROOM_LOCKED` → `enterRoom` 정확히 2회 → 3번째 `ROOM_LOCKED`에서 `enterRoom` 호출 없이 시트(`role=dialog` 이름 `비밀번호`, 같은 커밋에 열려 입력 포커스 — 카운터는 껍데기 상태라 2회째 재입장 렌더에서 `canWrite`가 false로 재계산됨) / 대조: 2번째 재입장 뒤 `listMessages` 200이면 카운터 0 → 다음 `ROOM_LOCKED`에서 다시 조용한 시도 1회 |
 
 - 번호: TC-FLOW-163(자동)과 TC-CH-163(수동)은 ui-test-designer가 겹치지 않게 다시 매길 수 있다(예약 범위 140~165).
 
@@ -61,7 +61,7 @@
 | `ui/src/chat/useRoomLockGate.ts`(신규) | F-CH-63~66 |
 | `ui/src/chat/components/LockedRoomView.tsx`(신규) · `LockMenuSheet.tsx`(신규) | LK §1.3 · §1.4 |
 | `ui/src/chat/components/RoomMenuSheet.tsx` · `ChatSheets.tsx` | LK §1.5 |
-| `ui/src/chat/useChatScreen.ts` · `useChatLoader.ts` · `useWriteFailure.ts` | `onRoomLocked` 전달 · F-CH-69 · F-CH-70 |
+| `ui/src/chat/useChatScreen.ts` · `useChatLoader.ts` · `useWriteFailure.ts` | `onRoomLocked` · `onRoomOpened` 전달 · F-CH-69 · F-CH-70(`useChatLoader(roomId, { onRoomLocked, onRoomOpened })`) |
 | `ui/src/chat/useMessageWrites.ts` | F-CH-71 · F-CH-72 |
 | `ui/src/chat/useMemorySheet.ts` | F-CH-73 |
 | `ui/src/chat/useRoomActions.ts` · `useChatSheets.ts` | F-CH-74~81 · F-CH-84. `useChatSheets.ts`가 400줄·함수 50줄을 넘으면 잠금 핸들러를 `useLockSheets.ts`로 분리 |

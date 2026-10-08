@@ -192,14 +192,14 @@ export type LockMenuSheetProps = { roomTitle: string; onChangePassword: () => vo
 | `isLocked` | 입장 재요구 판 표시 중 | `boolean` | `false` | `useRoomLockGate` `useState` |
 | `isLockedRef` | 같은 틱의 두 번째 `ROOM_LOCKED` 무시 | `MutableRefObject<boolean>` | `false` | `useRoomLockGate` `useRef` |
 | `epoch` | 재입장 때 `ChatRoomView`를 새로 마운트하는 key | `number` | `0` | `useRoomLockGate` `useState` |
-| `quietReentryCount` | 한 `ROOM_LOCKED` 에피소드 안에서 조용한 시도로 재입장한 연속 횟수(D-55) | `MutableRefObject<number>` | `0` | `useRoomLockGate` `useRef`. 재입장 뒤 첫 정상 첫 로드(`onRoomOpened`)에 0 |
+| `quietReentryCount` | 한 `ROOM_LOCKED` 에피소드 안에서 조용한 시도로 재입장한 연속 횟수(D-55) | `number` | `0` | **껍데기 `ChatScreen`의 상태** — `useRoomLockGate` 안 `useState`(ref 아님: 렌더 중 읽어 `canWrite`를 계산하므로 상태여야 재렌더된다, eslint `react-hooks/refs`). 조용한 재입장 시 `setQuietReentryCount(n => n + 1)`, 재입장 뒤 첫 정상 첫 로드(`onRoomOpened`)에 `setQuietReentryCount(0)` |
 | `latestRef` | 비동기 콜백이 최신 `room`·`viewer`·`onBack`·`onRoomUpdated`를 읽게 | `MutableRefObject<UseRoomLockGateOptions>` | 첫 options(매 렌더 `useLayoutEffect` 갱신) | `useRoomLockGate` |
 | `latestLockedRef` | `handleWriteFailure`가 최신 `onRoomLocked`를 부르게 | `MutableRefObject<() => void>` | 첫 `onRoomLocked`(매 렌더 `useLayoutEffect` 갱신, `latestRef` 선례) | `useWriteFailure` |
 | `backButtonRef` | 잠긴 판 ‹ 포커스 대상 | `RefObject<HTMLButtonElement>` | `null` | `LockedRoomView` `useRef`(ChatTopBar `backButtonRef`로 전달) |
 | `entry.sheet` | 입장 시트 | `EntrySheet`(rooms §1.22) | `null` | `useRoomEntry` 내부 |
 | `roomBusy` (확장) | 방 쪽 요청 중 | `RoomBusy = 'rename' \| 'delete' \| 'setPassword' \| 'clearPassword' \| null` | `null` | `useRoomActions` `useRoomBusy`(기존 상태 + ref) |
 | `sheet` (확장) | 열린 시트 | `ChatSheet \| null`(LK §1.5 세 종 추가) | `null` | `useChatSheets` |
-| 증명 | 방별 입장 증명 | rooms §1.21 | — | `state/roomKeys.ts`(화면은 save·forget만 부른다) |
+| 증명 | 방별 입장 증명 | rooms §1.21 | — | `state/roomKeys.ts`(화면은 `saveRoomKey`·`forgetRoomKey`·`getRoomKey`(재입장 뒤 `locked` 복귀 판정, F-CH-65)만 부른다) |
 
 - 비밀번호 원문은 어떤 상태에도 없다(PromptSheet·RoomEntrySheet 로컬 `value`뿐). 토큰도 없다(R-CHAT-009 🔒).
 - `roomBusy !== null`이면 기존 규칙대로 ⋯ 비활성(`isMenuDisabled`)·말풍선 버튼 줄 잠금(`isActionLocked`)이 함께 걸린다(D-51).
@@ -219,14 +219,14 @@ export type UseRoomLockGateResult = {
 
 | # | 시그니처(위치) | 입력 | 출력·상태 변경 | 동작 | 예외·분기 | 요구ID |
 |---|---|---|---|---|---|---|
-| **F-CH-63** | `useRoomLockGate(options): UseRoomLockGateResult` (`useRoomLockGate.ts`) | LK §2 | LK §2 | `const entry = useRoomEntry({ canWrite: viewer.canWrite && quietReentryCount.current < QUIET_REENTRY_MAX, onEntered: enterAgain, onRoomGone: leave })`(`QUIET_REENTRY_MAX = 2`, 파일 지역 상수 — D-55. rooms 공용 시그니처 불변: `canWrite` 값만 좁힌다). 반환 매핑: `sheet = entry.sheet` · **`submitPassword = entry.submitPassword`**(그대로 전달) · `onRoomLocked`(F-CH-64) · `onRoomOpened = () => { quietReentryCount.current = 0 }` · `cancelLockedEntry`·`back`(F-CH-66). 콜백은 `latestRef`로 최신 `room`·`viewer`·`onBack`·`onRoomUpdated`를 읽는다 | 50줄 넘으면 F-CH-64·66을 같은 파일 함수로 | R-LOCK-004 · 006 |
+| **F-CH-63** | `useRoomLockGate(options): UseRoomLockGateResult` (`useRoomLockGate.ts`) | LK §2 | LK §2 | `const entry = useRoomEntry({ canWrite: viewer.canWrite && quietReentryCount < QUIET_REENTRY_MAX, onEntered: enterAgain, onRoomGone: leave })`(**상태 `quietReentryCount`를 읽는다 — 렌더 중 ref 읽기 금지**)(`QUIET_REENTRY_MAX = 2`, 파일 지역 상수 — D-55. rooms 공용 시그니처 불변: `canWrite` 값만 좁힌다). 반환 매핑: `sheet = entry.sheet` · **`submitPassword = entry.submitPassword`**(그대로 전달) · `onRoomLocked`(F-CH-64) · `onRoomOpened = () => setQuietReentryCount(0)`(setter는 안정 참조라 `useCallback` 없이도 `ChatRoomView`에 넘겨도 되고, 호출하면 껍데기가 재렌더된다. 값이 이미 0이면 React가 재렌더를 생략) · `cancelLockedEntry`·`back`(F-CH-66). 콜백은 `latestRef`로 최신 `room`·`viewer`·`onBack`·`onRoomUpdated`를 읽는다 | 50줄 넘으면 F-CH-64·66을 같은 파일 함수로 | R-LOCK-004 · 006 |
 | **F-CH-64** | `onRoomLocked(): void` | — | `isLocked = true` · 증명 삭제 · 판정 | `isLockedRef.current`면 무시 → `isLockedRef = true` → `setIsLocked(true)` → `room.locked === false`면 `onRoomUpdated({ ...room, locked: true })`(서버가 잠김을 알려 줬다 — 메뉴 분기 일치, D-48) → `entry.requestEntry(room, 'locked')`(**증명 삭제는 이 호출이 한다** — `forgetRoomKey` 직접 호출 없음. `quietReentryCount ≥ 2`면 `canWrite`가 false로 들어가 조용한 시도 없이 바로 시트 — D-55). 포커스는 LK §1.3 규칙(시트가 같은 커밋에 열렸으면 ‹ 포커스 생략). 같은 커밋에 `ChatRoomView`가 언마운트 → 진행 중 요청·시트·편집·임시 말풍선 폐기(`isActive`), **실패한 쓰기 자동 재시도 없음** | 토스트·읽기 전용 전환 없음(`isAuthFailure` false, api.md §2.8.5) | R-LOCK-006 · 004 · R-CHAT-010 |
-| **F-CH-65** | `enterAgain(): void` (useRoomEntry `onEntered`) | 입장 성공(증명 저장은 useRoomEntry가 마침) | `isLocked = false` · `epoch + 1` · (조건부) 방 정보 · 카운터 | ① 시트 없이 들어왔으면(`entry.sheet === null`, 조용한 시도 성공) `quietReentryCount.current += 1`, 시트로 들어왔으면 그대로 ② **`getRoomKey(room.id) === null`이면**(= E17 `entryKey: null`, 그사이 잠금이 풀린 방) **`onRoomUpdated({ ...room, locked: false })`**(F-CH-64의 `locked: true`를 되돌림 — D-48) ③ `isLockedRef = false` → `setIsLocked(false)` → `setEpoch(n => n + 1)` → 새 `ChatRoomView` 마운트 = 첫 진입 F-CH-02 그대로(`saveLastRoomId` · ‹ 포커스 · `listMessages`가 새 증명 헤더로) | `entryKey: null`(그사이 잠금 해제)도 같은 경로 | R-LOCK-004 · 005 |
+| **F-CH-65** | `enterAgain(): void` (useRoomEntry `onEntered`) | 입장 성공(증명 저장은 useRoomEntry가 마침) | `isLocked = false` · `epoch + 1` · (조건부) 방 정보 · 카운터 | ① 시트 없이 들어왔으면(`entry.sheet === null`, 조용한 시도 성공) `setQuietReentryCount(n => n + 1)`(재렌더 → 다음 판정의 `canWrite` 재계산), 시트로 들어왔으면 그대로 ② **`getRoomKey(room.id) === null`이면**(= E17 `entryKey: null`, 그사이 잠금이 풀린 방) **`onRoomUpdated({ ...room, locked: false })`**(F-CH-64의 `locked: true`를 되돌림 — D-48) ③ `isLockedRef = false` → `setIsLocked(false)` → `setEpoch(n => n + 1)` → 새 `ChatRoomView` 마운트 = 첫 진입 F-CH-02 그대로(`saveLastRoomId` · ‹ 포커스 · `listMessages`가 새 증명 헤더로) | `entryKey: null`(그사이 잠금 해제)도 같은 경로 | R-LOCK-004 · 005 |
 | **F-CH-66** | `cancelLockedEntry(): void` · `leave(): void` · `back(): void` | 시트 취소·Esc·덮개 / `NOT_FOUND` / ‹ | 목록 | `cancelLockedEntry`: `sheet?.isBusy`면 무시 → `entry.cancelEntry()` → `leave()`. `leave` = `back` = `clearLastRoomId()` → `onBack()` | — | R-LOCK-004 · R-ROOMS-004 |
 | **F-CH-67** | `LockedRoomView(props)` (`components/LockedRoomView.tsx`) | LK §1.3 | 판 렌더 | LK §1.3 | — | R-LOCK-004 · 006 · R-CHAT-001 |
 | **F-CH-68** | `ChatScreen`(껍데기, F-CH-01 개정) · `ChatRoomView` (`index.tsx`) | `ChatScreenProps` | LK §1.3 | 옛 본문 = `ChatRoomView`. 판정 `gate.isLocked` 하나 | — | R-LOCK-006 |
 | **F-CH-69** | `useWriteFailure(onAuthFailure, onRoomLocked)` (F-CH-16 개정) | 실패 | — | `handleWriteFailure` 첫 줄: `error.code === 'ROOM_LOCKED'`면 `latestLockedRef.current()` 후 **return**(토스트 없음, `revokedRef` 불변). 그 밖 불변. `useChatScreen` 옵션에 `onRoomLocked` 추가해 넘긴다 | 모든 쓰기 실패 경로(send · edit · delete · regenerate · rename · deleteRoom · memory · setRoomPassword · clearRoomPassword)가 여기로 모인다(D-45) | R-LOCK-006 · R-CHAT-011 |
-| **F-CH-70** | `useChatLoader(roomId, onRoomLocked)` (F-CH-03·05 개정) | 읽기 실패 | — | `loadInitial`·`loadOlder`: `!result.ok && result.error.code === 'ROOM_LOCKED'`면 `onRoomLocked()` 후 return(`initialLoadFailed`·`olderLoadFailed` dispatch 없음). `loadInitial` 성공이면 `initialLoadSucceeded` dispatch 직후 `onRoomOpened()`(D-55 카운터 리셋 — 시그니처 `useChatLoader(roomId, { onRoomLocked, onRoomOpened })`). 그 밖 불변 | 읽기 전용 열람자도 이 경로(E7) | R-LOCK-006 · R-MSG-001 |
+| **F-CH-70** | `useChatLoader(roomId, { onRoomLocked, onRoomOpened })` (F-CH-03·05 개정) | 읽기 실패 | — | `loadInitial`·`loadOlder`: `!result.ok && result.error.code === 'ROOM_LOCKED'`면 `onRoomLocked()` 후 return(`initialLoadFailed`·`olderLoadFailed` dispatch 없음). `loadInitial` 성공이면 `initialLoadSucceeded` dispatch 직후 `onRoomOpened()`(D-55 카운터 리셋 — 시그니처 `useChatLoader(roomId, { onRoomLocked, onRoomOpened })`). 그 밖 불변 | 읽기 전용 열람자도 이 경로(E7) | R-LOCK-006 · R-MSG-001 |
 | **F-CH-71** | `settleSpeakFailure` (F-CH-42 개정, useMessageWrites) | speak 실패 | — | 첫 분기 조건을 `isAuthFailure(error) \|\| error.code === 'ROOM_LOCKED'`로: `speakDiscarded` → `onFailure(error, 'speak')`(실패 말풍선·「재시도」 없음) | 전송 뒤 자동 응답(`'auto'`)도 같다 | R-LOCK-006 · R-CHAT-005 |
 | **F-CH-72** | 메시지 id 래퍼 호출에 `roomId` (F-CH-20·23·34 개정, `useMessageWrites.ts`) | `options.roomId` | 요청 헤더 `X-Room-Key`(래퍼가 `getRoomKey(roomId)`로) | `editMessage(messageId, { text }, roomId)` · `deleteMessage(messageId, roomId)` · `regenerate(messageId, roomId)`. 그 밖 래퍼(`listMessages`·`appendUser`·`speak`·`renameRoom`·`deleteRoom`·`getMemory`·`putMemory`)는 호출 모양 불변(래퍼가 첫 인자 `roomId`로 헤더를 붙인다, api.md §11.18) | 빠뜨리면 tsc 오류 | R-LOCK-006 · R-MSG-004·005·006 |
 | **F-CH-73** | `useMemoryLoad` · `useMemorySave` 떠남 조건 (F-CH-56·57 개정) | E13·E14 실패 | `onLeave(error)` | 조건 `isAuthFailure(e) \|\| e.code === 'NOT_FOUND' \|\| e.code === 'ROOM_LOCKED'`. `memoryLeft`는 불변(`NOT_FOUND` 외 → `handleWriteFailure` → F-CH-69) | — | R-LOCK-006 |
@@ -289,7 +289,7 @@ E7(첫 로드·이전 페이지) · E8~E14 · E5·E6 · E18·E19 응답 ROOM_LOC
  → onRoomLocked(F-CH-64): 이미 잠긴 판이면 무시
  → (room.locked false 면) App 방 갱신 locked true
  → ChatRoomView 언마운트(진행 중 응답 폐기, 하단 바 입력·임시 말풍선·편집기·시트 사라짐, 자동 재시도 없음)
- → LockedRoomView: ‹ 포커스 · 「잠긴 방입니다」 · ⋯·하단 바 없음
+ → LockedRoomView: ‹ 포커스(시트 없을 때만, §1.3) · 「잠긴 방입니다」 · ⋯·하단 바 없음
  → requestEntry(room, 'locked'): forgetRoomKey(room.id)
      ├ 토큰 있음 → enterRoom(room.id)(비밀번호 없음, 진행 표시 없음)
      │   ├ 200 문자열 → saveRoomKey → 재입장(F-CH-65)   ← 주인(R-LOCK-005)
@@ -419,7 +419,7 @@ E7(첫 로드·이전 페이지) · E8~E14 · E5·E6 · E18·E19 응답 ROOM_LOC
 | D-52 | 잠긴 판 전환 때 하단 바 입력 중이던 글은 사라진다 | 실패한 쓰기 자동 재시도 없음(인계 메모). 입력 보존을 위해 상태를 들고 있으면 D-44의 일괄 폐기가 깨진다. **매뉴얼 기재로 충분 — 메인 결정(2026-10-08)** |
 | D-53 | 주인이 증명을 잃으면 조용한 시도 동안 `잠긴 방입니다`가 잠깐 보였다 바로 재입장 | 진행 표시를 더하지 않는다(rooms D-L9). 화면은 주인 여부를 모른다 |
 | D-54 | 걸기·바꾸기 시트 카운터 상한 32, placeholder `6자 이상 권장` | rooms D-L1 · D-L2 · 사용자 결정 U6 |
-| D-55 | **조용한 재입장은 한 `ROOM_LOCKED` 에피소드당 연속 2회까지, 3회째는 조용한 시도 없이 입장 시트.** 카운터 `quietReentryCount` 1개: 조용한 시도로 재입장할 때 +1(F-CH-65), 재입장 뒤 첫 정상 첫 로드(`onRoomOpened`, F-CH-70)에 0. 시트로 들어오면 늘지 않는다 | 서버 이상(E17은 200을 주는데 E7이 계속 `ROOM_LOCKED`)일 때 조용한 시도 ↔ 재입장 무한 반복을 막는다. rooms `useRoomEntry`의 `canWrite` 값만 좁혀 공용 시그니처를 건드리지 않는다 |
+| D-55 | **조용한 재입장은 한 `ROOM_LOCKED` 에피소드당 연속 2회까지, 3회째는 조용한 시도 없이 입장 시트.** 카운터 = 껍데기 `ChatScreen`의 **상태** `quietReentryCount` 1개(`useState`, ref 아님 — 렌더 중 읽어 `useRoomEntry`의 `canWrite = viewer.canWrite && quietReentryCount < 2`를 계산): 조용한 시도로 재입장할 때 +1(F-CH-65), 재입장 뒤 첫 정상 첫 로드(`onRoomOpened`, F-CH-70)에 0. 시트로 들어오면 늘지 않는다 | 서버 이상(E17은 200을 주는데 E7이 계속 `ROOM_LOCKED`)일 때 조용한 시도 ↔ 재입장 무한 반복을 막는다. rooms `useRoomEntry`의 `canWrite` 값만 좁혀 공용 시그니처를 건드리지 않는다 |
 
 구성안·메인 권고와 다른 것: 없음(D-47은 메인 승인).
 
