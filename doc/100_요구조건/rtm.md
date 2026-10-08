@@ -94,6 +94,15 @@
 | R-SET-011 | S3c | 인증 만료 중 저장 실패 → 초안 보존·내보내기 | settings stale 상태 | - | - | - | TC-ST-016·023·028·032 | 완료(S3c) |
 | R-SET-012 | S3c | 로그에 설정 본문 미기록 | - | - | settings·auth 로그 | - | SRV-T-259(로그 본문 0건) | 완료(S3c) |
 | R-SET-013 | S3f | 🔒 설정 화면 AI 모델 선택(Pro/Flash) | settings: ModelChoice · modelDraft · hasUnsavedChanges | E15·E16 `model` (api.md v0.8 §4.15·§4.16) | settings.get/put · loadModelKey · 0004 | - | TC-ST-042~053 · API-T-126~131·UI-033~034 · SRV-T-342~349 · 캡처 `doc/300_검증/screenshots/20261008-1210/`(3장) | 완료(S3f) |
+| R-LOCK-001 | S6 | 🔒 생성 시 비밀번호(선택) | rooms: NewRoomRow 비밀번호 칸 | E4 `password?`/`entryKey` (api.md v0.9) | rooms.createRoom(+hash) | TOKEN_SECRET | (설계) | 승인 ① |
+| R-LOCK-002 | S6 | 🔒 잠금 설정·변경·해제 | chat: ⋯ 잠금 시트 | E18 PUT · E19 DELETE `/rooms/:id/password` | rooms.setPassword/clearPassword | - | | 승인 ① |
+| R-LOCK-003 | S6 | 🔒 목록 제목+자물쇠(날짜 숨김) | rooms: ListRow 자물쇠 | E3 `RoomSummary.locked` | rooms.listRooms | - | | 승인 ① |
+| R-LOCK-004 | S6 | 🔒 입장 증명 브라우저 기억 | state/roomKeys.ts · 입장 시트 | E17 POST `/rooms/:id/enter` → `entryKey` · 헤더 `X-Room-Key` | auth.entryKey(파생·검증) | TOKEN_SECRET | | 승인 ① |
+| R-LOCK-005 | S6 | 🔒 주인 프리패스 | rooms/chat: 토큰 있으면 무비밀번호 입장 시도 | E17 주인 분기 | auth.isOwner 재사용 | OWNER_MB_IDS | | 승인 ① |
+| R-LOCK-006 | S6 | 🔒 잠긴 방 관문 403 ROOM_LOCKED | chat: ROOM_LOCKED → 증명 삭제·재입력 | E5~E14·E18·E19 관문 · `ROOM_LOCKED` | routes requireRoomEntry | - | | 승인 ① |
+| R-LOCK-007 | S6 | 🔒 원문 미저장·해시·헤더 전용 | localStorage `ld:roomKeys`만 | 헤더 `X-Room-Key` 규약 | rooms.hash(PBKDF2) · 0005 pass_hash | TOKEN_SECRET | | 승인 ① |
+| R-LOCK-008 | S6 | 입장 시도 분당 5회 | 429 안내 | `RATE_LIMITED`(+초) | rate_limits `enter:{roomId}` | ROOM_ENTER_LIMIT_PER_MIN | | 승인 ① |
+| R-LOCK-009 | S6 | 🔒 호환(추가만) | 기존 화면 무변경 | 비파괴 분류 | 0005 ADD COLUMN | - | | 승인 ① |
 
 ## 전건 충족 대조표 (Phase 4에서 채움)
 
@@ -109,3 +118,4 @@
 | S4 | 4 (MEM 3 · CHAT-012) | 4 | vitest 1274/1274(`npx vitest run` 2026-10-07, shared 141·server 392·ui 741) · SRV-T-296~327 · `doc/300_검증/screenshots/20261007-1817/`(7장) · typecheck·lint·build 0 · 종단: memory GET/PUT/401/400 · 실키 자동 요약 11.6초 · `ui/src/chat/test/result.md` S4 절 · api.md §12.6 |
 | S3f | 2 신규(SET-013 · LLM-009) + 개정 9(ENV-002 · LLM-001·007 · SET-003·004·005·007·009·012) | 11 | vitest 1368/1368(`npx vitest run` 2026-10-08, shared 145·server 439·ui 784) · typecheck·lint·build 0 · verify PASS `doc/300_검증/verify-S3f-20261008-1217.md`(C/H/M 0, LOW 5 후속) · 캡처 `doc/300_검증/screenshots/20261008-1210/`(3장) · 종단 curl E15/E16(pro v0 → flash v1 → 생략 유지 v2 → turbo 400 → pro v3 · 무토큰 401) · 로컬 D1 0004 적용 · api.md v0.8 §12.7 · `ui/src/settings/test/result.md` S3f 절 · CR-001 | 완료(S3f) |
 | S5 | | | |
+| S6 | 9 신규(LOCK-001~009) + 개정 22 | 9 | 승인 ① 2026-10-08 · 설계 진행 중 | 설계 |

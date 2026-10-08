@@ -23,6 +23,7 @@
 | S3f | AI 모델 선택(Pro/Flash) | SET-013 · LLM-009 · 개정: ENV-002, LLM-001·007, SET-003·004·005·007·009·012 | 갠홈 주인이 설정 화면 공통 탭에서 Pro·Flash를 골라 저장, 다음 생성부터 적용. 자동 전환 없음(승인 ① 2026-10-08) |
 | S4 | 장기기억 | MEM 전부, CHAT-012 | 자동 요약과 장기기억 보기·편집 |
 | S5 | 전달·배포 | HANDOFF 전부, 배포 절차 | 갠홈에 줄 임베드 주소·토큰 PHP 조각, Cloudflare 배포 |
+| S6 | 방 비밀번호 잠금 | LOCK-001~009 · 개정: API-001·002, AUTH-003, ROOM-001~004, MSG-001~006, MEM-001, ROOMS-001·002·004, CHAT-001·010, DB-001, ENV-002 | 방 생성 시 비밀번호(선택)·기존 방 잠금/변경/해제, 목록 자물쇠, 입장 증명 브라우저 기억, 주인 프리패스. 설계 `doc/200_설계/architecture/s6-0{1,2,3}-*.md` |
 
 ---
 
@@ -31,14 +32,14 @@
 | ID | 🔒 | 요구 | 수용 기준 |
 |---|---|---|---|
 | R-ENV-001 | 🔒 | 설정·비밀값은 `server/src/env.ts`의 `parseEnv(raw)`에서만 읽는다. Workers `env` 바인딩을 요청 진입점(`index.ts`)이 받아 파싱하고 서비스에는 값으로 전달한다. | 다른 파일에 `process.env`·`import.meta.env`·바인딩 키 직접 참조 없음(grep 0건). 훅이 차단. |
-| R-ENV-002 | 🔒 | 키 목록과 기본값. Secrets: `TOKEN_SECRET`(**32자 이상**, 미만이면 `CONFIG_INVALID` — 2026-10-07 verify SEC-001 후속), `LLM_API_KEY`, (S3c 추가 2026-10-06) `OWNER_MB_IDS`(갠홈 주인 회원 ID 목록, 쉼표·공백 구분 — **지인 ID만**, 기본 빈 값 = 설정 엔드포인트 전원 403. 비밀값은 아니나 회원 ID를 저장소에 남기지 않도록 Secrets 권고, `[vars]`도 허용). `[vars]`: `TOKEN_MIN_LEVEL=5`, `LLM_PROVIDER=google`, `LLM_MODEL=gemini-3.1-pro-preview`(**S3f 개정 2026-10-08 🔒**: 주인이 설정 화면에서 모델을 고른 적이 없을 때 쓰는 기본 모델), `LLM_TIMEOUT_MS=60000`, `ALLOWED_FRAME_ANCESTORS="http://london-gossip.my https://london-gossip.my"`, `RATE_LIMIT_PER_MIN=20`, `CONTEXT_MESSAGES=40`, `MEMORY_SUMMARY_THRESHOLD=60`, (S3b 추가 2026-10-06) `LLM_MONTHLY_BUDGET_KRW=100000`, `LLM_PRICE_INPUT_USD_PER_M=0.30`, `LLM_PRICE_OUTPUT_USD_PER_M=2.50`, `KRW_PER_USD=1400`(S3f 개정 2026-10-08 🔒: `LLM_PRICE_*`는 R-LLM-009 모델 단가표에 없는 모델의 폴백 단가). 바인딩: `DB`(D1), `ASSETS`(정적). | `server/.dev.vars.example`·`wrangler.toml [vars]`·`parseEnv` 스키마의 키가 일치. 숫자 키는 숫자로 변환·범위 검사. |
+| R-ENV-002 | 🔒 | 키 목록과 기본값. Secrets: `TOKEN_SECRET`(**32자 이상**, 미만이면 `CONFIG_INVALID` — 2026-10-07 verify SEC-001 후속), `LLM_API_KEY`, (S3c 추가 2026-10-06) `OWNER_MB_IDS`(갠홈 주인 회원 ID 목록, 쉼표·공백 구분 — **지인 ID만**, 기본 빈 값 = 설정 엔드포인트 전원 403. 비밀값은 아니나 회원 ID를 저장소에 남기지 않도록 Secrets 권고, `[vars]`도 허용). `[vars]`: `TOKEN_MIN_LEVEL=5`, `LLM_PROVIDER=google`, `LLM_MODEL=gemini-3.1-pro-preview`(**S3f 개정 2026-10-08 🔒**: 주인이 설정 화면에서 모델을 고른 적이 없을 때 쓰는 기본 모델), `LLM_TIMEOUT_MS=60000`, `ALLOWED_FRAME_ANCESTORS="http://london-gossip.my https://london-gossip.my"`, `RATE_LIMIT_PER_MIN=20`, `CONTEXT_MESSAGES=40`, `MEMORY_SUMMARY_THRESHOLD=60`, (S3b 추가 2026-10-06) `LLM_MONTHLY_BUDGET_KRW=100000`, `LLM_PRICE_INPUT_USD_PER_M=0.30`, `LLM_PRICE_OUTPUT_USD_PER_M=2.50`, `KRW_PER_USD=1400`(S3f 개정 2026-10-08 🔒: `LLM_PRICE_*`는 R-LLM-009 모델 단가표에 없는 모델의 폴백 단가). 바인딩: `DB`(D1), `ASSETS`(정적). | `server/.dev.vars.example`·`wrangler.toml [vars]`·`parseEnv` 스키마의 키가 일치. 숫자 키는 숫자로 변환·범위 검사. **(S6 개정 2026-10-08 🔒)** `[vars]` `ROOM_ENTER_LIMIT_PER_MIN`(정수, 기본 5) 추가. `TOKEN_SECRET` 용도에 "방 입장 증명 HMAC 키 파생" 추가(새 Secret 없음). |
 | R-ENV-003 | | 필수 키 누락·형식 오류 시 해당 요청을 `500 CONFIG_INVALID`로 응답하고 로그에 **키 이름만** 남긴다(실값 금지). `LLM_API_KEY` 누락은 speak 호출 시점에만 실패하고 읽기 경로는 동작한다. | 테스트: 키 하나씩 비운 바인딩으로 호출 → 코드·로그 확인. |
 
 ## 2. server — DB (Cloudflare D1)
 
 | ID | 🔒 | 요구 | 수용 기준 |
 |---|---|---|---|
-| R-DB-001 | 🔒 | 스키마(확정사항 §5.4): `rooms(id TEXT PK, title, created_at, updated_at, speaking_until NULL)` · `messages(id INTEGER PK AUTOINCREMENT, room_id, speaker 'sebastian'\|'ciel'\|'user', kind 'line'\|'ooc', text, author_mb_id, author_name, created_at)` · `memory(room_id PK, summary, source_until_id, updated_at)` · `rate_limits(mb_id, window_start, count, PK(mb_id, window_start))`. 시각은 epoch ms INTEGER. | `server/migrations/0001_init.sql`에 CHECK 제약 포함. 로컬 적용 후 `PRAGMA table_info`로 확인. |
+| R-DB-001 | 🔒 | 스키마(확정사항 §5.4): `rooms(id TEXT PK, title, created_at, updated_at, speaking_until NULL)` · `messages(id INTEGER PK AUTOINCREMENT, room_id, speaker 'sebastian'\|'ciel'\|'user', kind 'line'\|'ooc', text, author_mb_id, author_name, created_at)` · `memory(room_id PK, summary, source_until_id, updated_at)` · `rate_limits(mb_id, window_start, count, PK(mb_id, window_start))`. 시각은 epoch ms INTEGER. | `server/migrations/0001_init.sql`에 CHECK 제약 포함. 로컬 적용 후 `PRAGMA table_info`로 확인. **(S6 개정 2026-10-08 🔒)** `rooms.pass_hash TEXT NULL`(0005, ADD COLUMN만). NULL = 잠기지 않음, 기존 방 전부 NULL. |
 | R-DB-002 | | 스키마 변경은 `server/migrations/NNNN_*.sql` 추가로만. 로컬은 `wrangler d1 migrations apply <DB> --local`, 운영은 `/deploy` 안에서 `--remote`. | 마이그레이션 외 DDL 코드 없음. |
 | R-DB-003 | | 모든 SQL은 `prepare().bind()` 파라미터 바인딩. 여러 문장은 `DB.batch([...])`로 묶는다. 방 삭제는 messages·memory 삭제와 한 batch. | 문자열 연결 SQL 0건(리뷰). 방 삭제 후 고아 레코드 0건 테스트. |
 | R-DB-004 | | 인덱스 `messages(room_id, id)`, `rooms(updated_at)`. | 마이그레이션에 포함. |
@@ -50,7 +51,7 @@
 |---|---|---|---|
 | R-AUTH-001 | 🔒 | 토큰 형식 `base64url(payload).base64url(HMAC-SHA256(payload, SECRET))`. payload JSON `{ mb_id, nick, ch_name, level, exp }`, `exp`는 epoch **초**(발급+12h). | 갠홈 PHP 조각(R-TOKEN-001)으로 만든 토큰이 서버 검증을 통과(교차 테스트 벡터 1건 이상). |
 | R-AUTH-002 | 🔒 | 검증: 서명(Web Crypto `crypto.subtle`, 상수시간 비교) → `exp` 만료 → `level >= TOKEN_MIN_LEVEL`. 실패 코드: 형식·서명·만료 → `401 TOKEN_INVALID`, 등급 미달 → `403 LEVEL_TOO_LOW`. | 각 실패 경로 테스트. |
-| R-AUTH-003 | 🔒 | 토큰 없는 요청: 읽기 엔드포인트는 허용, 쓰기 엔드포인트는 `401 TOKEN_REQUIRED`. 토큰은 `Authorization: Bearer <t>` 헤더만 받는다(쿠키·쿼리 금지). **예외(2026-10-06 S3c 개정)**: 설정 엔드포인트(R-SET-004)는 읽기도 토큰과 주인 판정이 필요하다. | 쓰기 엔드포인트 전건 미들웨어 적용 확인(라우트 표 대조). 설정 GET 무토큰 401 테스트. |
+| R-AUTH-003 | 🔒 | 토큰 없는 요청: 읽기 엔드포인트는 허용, 쓰기 엔드포인트는 `401 TOKEN_REQUIRED`. 토큰은 `Authorization: Bearer <t>` 헤더만 받는다(쿠키·쿼리 금지). **예외(2026-10-06 S3c 개정)**: 설정 엔드포인트(R-SET-004)는 읽기도 토큰과 주인 판정이 필요하다. | 쓰기 엔드포인트 전건 미들웨어 적용 확인(라우트 표 대조). 설정 GET 무토큰 401 테스트. **(S6 개정 2026-10-08 🔒)** 읽기 엔드포인트는 계속 토큰 불필요. 단 잠긴 방의 내용(E7)은 입장 증명 헤더 `X-Room-Key`가 필요. E17은 토큰 선택(있으면 검증, 실패는 익명). |
 | R-AUTH-004 | 🔒(2026-10-06 S3d 개정) | 저장 이름 = `ch_name`이 비어 있지 않으면 `ch_name`, 아니면 `nick`을 `author_name`에 기록(감사용). **응답·화면·프롬프트에는 쓰지 않는다. 유저 메시지의 `authorName`은 항상 고정 명칭 「어떠한 의지」**(단일 소스 `shared/src/characters.ts`, 서버 행 변환 한 곳에서 투영). | 저장 두 경우 테스트 · 응답 authorName 고정 테스트 · 응답·로그에 실명 0건. |
 | R-AUTH-005 | 확인 필요(§9-6) | 쓰기 요청 레이트리밋: `mb_id` 단위 분 창당 `RATE_LIMIT_PER_MIN`회. 창 식별은 `window_start = floor(now/60000) * 60000`(창 시작 epoch ms, R-DB-001 시각 규칙과 일치). D1 `rate_limits` 조건부 UPSERT. 초과 → `429 RATE_LIMITED`, 응답에 `retryAfterSec`. 오래된 창 행은 주기적으로 삭제. | 21번째 요청 429 테스트. |
 | R-AUTH-006 | 🔒 | 로그·응답에 토큰 원문·payload 전체·SECRET을 남기지 않는다. 식별은 `mb_id`만. | 로그 출력 grep 테스트. |
@@ -59,22 +60,22 @@
 
 | ID | 🔒 | 요구 | 수용 기준 |
 |---|---|---|---|
-| R-ROOM-001 | 🔒 | 방 목록 조회: `id, title, createdAt, updatedAt, messageCount`를 `updatedAt` 내림차순. 누구나. | 빈 목록·여러 방 정렬 테스트. |
-| R-ROOM-002 | 🔒 | 방 생성: `title` 1~60자(trim 후). id는 `crypto.randomUUID()`. 토큰 필요. | 경계값(0·61자) 400. |
-| R-ROOM-003 | 🔒 · 확인 필요(§9-5) | 방 이름 변경: 등급 통과자 누구나. `title` 규칙 동일. | 테스트. |
-| R-ROOM-004 | 🔒 · 확인 필요(§9-5) | 방 삭제: 등급 통과자 누구나. messages·memory 실삭제(soft delete 없음). | 삭제 후 404·고아 0건. |
+| R-ROOM-001 | 🔒 | 방 목록 조회: `id, title, createdAt, updatedAt, messageCount`를 `updatedAt` 내림차순. 누구나. | 빈 목록·여러 방 정렬 테스트. **(S6 개정 2026-10-08 🔒)** 목록 필드에 `locked`(boolean) 추가. 비밀번호·해시·증명은 응답에 없다. |
+| R-ROOM-002 | 🔒 | 방 생성: `title` 1~60자(trim 후). id는 `crypto.randomUUID()`. 토큰 필요. | 경계값(0·61자) 400. **(S6 개정 2026-10-08 🔒)** 생성 본문 `password?`(4~32자, 코드 포인트, trim 없음), 응답에 `entryKey`(잠갔을 때만 값). 생성+잠금은 INSERT 1문(원자). |
+| R-ROOM-003 | 🔒 · 확인 필요(§9-5) | 방 이름 변경: 등급 통과자 누구나. `title` 규칙 동일. | 테스트. **(S6 개정 2026-10-08 🔒)** 잠긴 방의 이름 변경은 입장 증명 또는 주인만(R-LOCK-006 관문). |
+| R-ROOM-004 | 🔒 · 확인 필요(§9-5) | 방 삭제: 등급 통과자 누구나. messages·memory 실삭제(soft delete 없음). | 삭제 후 404·고아 0건. **(S6 개정 2026-10-08 🔒)** 잠긴 방의 삭제는 입장 증명 또는 주인만(R-LOCK-006 관문). |
 | R-ROOM-005 | | `updated_at`은 메시지 추가·수정·삭제·재작성 시 갱신한다. | 테스트. |
 
 ## 5. server — MSG (메시지)
 
 | ID | 🔒 | 요구 | 수용 기준 |
 |---|---|---|---|
-| R-MSG-001 | 🔒 | 히스토리 페이지 조회 `before`(메시지 id, 생략 시 최신)·`limit`(기본 30, 최대 100). 반환은 오래된→새 순, `hasMore` 포함. 누구나. | 3페이지 연속 조회 테스트. |
-| R-MSG-002 | 🔒 | 유저 발화/지시 저장: `text` 1~2000자, `ooc` boolean. speaker `user`, kind `ooc ? 'ooc' : 'line'`, `author_mb_id`·`author_name`(R-AUTH-004). **AI를 호출하지 않는다.** 토큰 필요. | LLM 어댑터 호출 0회 검증. |
-| R-MSG-003 | 🔒 | speak `{ character: 'sebastian' \| 'ciel' \| 'auto' }`(`'auto'`는 R-MSG-009 — 2026-10-06 S3d 개정): 해당 캐릭터가 1턴 말한다. 직전 발화자 무관(같은 캐릭터 연속 허용). 결과 메시지를 저장·반환. 토큰 필요. | 연속 2회 같은 캐릭터 테스트. FakeProvider로 결정적 테스트. |
-| R-MSG-004 | 🔒 | 메시지 수정: `text` 1~2000자. 캐릭터·유저 메시지 모두 가능. 토큰 필요. | 테스트. |
-| R-MSG-005 | 🔒 | 메시지 삭제. 토큰 필요. | 테스트. |
-| R-MSG-006 | 🔒 | 재작성(regenerate): 대상이 캐릭터 메시지이고 **그 방의 마지막 메시지**일 때만, 같은 캐릭터로 다시 생성해 `text`를 교체. 아니면 `409 NOT_LAST_MESSAGE`. 유저 메시지는 `400 NOT_CHARACTER_MESSAGE`. | 경계 테스트 3종. |
+| R-MSG-001 | 🔒 | 히스토리 페이지 조회 `before`(메시지 id, 생략 시 최신)·`limit`(기본 30, 최대 100). 반환은 오래된→새 순, `hasMore` 포함. 누구나. | 3페이지 연속 조회 테스트. **(S6 개정 2026-10-08 🔒)** 잠긴 방이면 입장 관문(R-LOCK-006)을 먼저 통과해야 한다(열람자는 `X-Room-Key`). |
+| R-MSG-002 | 🔒 | 유저 발화/지시 저장: `text` 1~2000자, `ooc` boolean. speaker `user`, kind `ooc ? 'ooc' : 'line'`, `author_mb_id`·`author_name`(R-AUTH-004). **AI를 호출하지 않는다.** 토큰 필요. | LLM 어댑터 호출 0회 검증. **(S6 개정 2026-10-08 🔒)** 잠긴 방이면 입장 관문(R-LOCK-006) 선통과. |
+| R-MSG-003 | 🔒 | speak `{ character: 'sebastian' \| 'ciel' \| 'auto' }`(`'auto'`는 R-MSG-009 — 2026-10-06 S3d 개정): 해당 캐릭터가 1턴 말한다. 직전 발화자 무관(같은 캐릭터 연속 허용). 결과 메시지를 저장·반환. 토큰 필요. | 연속 2회 같은 캐릭터 테스트. FakeProvider로 결정적 테스트. **(S6 개정 2026-10-08 🔒)** 잠긴 방이면 입장 관문(R-LOCK-006) 선통과. |
+| R-MSG-004 | 🔒 | 메시지 수정: `text` 1~2000자. 캐릭터·유저 메시지 모두 가능. 토큰 필요. | 테스트. **(S6 개정 2026-10-08 🔒)** 잠긴 방이면 입장 관문(R-LOCK-006) 선통과(메시지 id 경로 → 방 id 조회 후 판정). |
+| R-MSG-005 | 🔒 | 메시지 삭제. 토큰 필요. | 테스트. **(S6 개정 2026-10-08 🔒)** 잠긴 방이면 입장 관문(R-LOCK-006) 선통과. |
+| R-MSG-006 | 🔒 | 재작성(regenerate): 대상이 캐릭터 메시지이고 **그 방의 마지막 메시지**일 때만, 같은 캐릭터로 다시 생성해 `text`를 교체. 아니면 `409 NOT_LAST_MESSAGE`. 유저 메시지는 `400 NOT_CHARACTER_MESSAGE`. | 경계 테스트 3종. **(S6 개정 2026-10-08 🔒)** 잠긴 방이면 입장 관문(R-LOCK-006) 선통과. |
 | R-MSG-007 | 🔒 | speak·regenerate는 방당 동시 1건. `rooms.speaking_until`을 조건부 UPDATE로 선점(만료 90초), 끝나면 해제. 선점 실패 → `409 SPEAK_IN_PROGRESS`. | 동시 2요청 중 1건 409 테스트. 만료 후 재선점 테스트. |
 | R-MSG-008 | 확인 필요 | 수정·삭제 권한은 작성자 제한 없이 등급 통과자 누구나(§9-5 기본값과 일관). | 다른 mb_id로 수정 성공 테스트. |
 | R-MSG-009 | 🔒 | **(S3d, 사용자 지정 2026-10-06)** speak `'auto'`: 서버가 최근 대화를 보고 세바스찬·시엘 중 **정확히 1명**을 골라 1턴 생성·저장한다. 잠금(R-MSG-007)·월 상한(R-LLM-007)·레이트리밋·에러 코드는 speak와 같다. 응답 `speaker` = 고른 캐릭터. 지시(OOC) 뒤에도 같은 동작. | FakeProvider 각본으로 선택 2종·기본 화자, 409·429 공유 TC. |
@@ -83,7 +84,7 @@
 
 | ID | 🔒 | 요구 | 수용 기준 |
 |---|---|---|---|
-| R-MEM-001 | 🔒 | 장기기억 조회·편집: `summary` 0~4000자. 편집은 `source_until_id`를 유지한다. **개정 2026-10-07(사용자 지정 🔒 "다시요약")**: 단, trim 후 **빈 요약으로 저장하면 `source_until_id`를 0으로 되돌려** 다음 speak 때 처음부터 다시 요약한다(요약 삭제 = 재요약 요청). 비어 있지 않은 편집은 유지. 토큰 필요. | 테스트. |
+| R-MEM-001 | 🔒 | 장기기억 조회·편집: `summary` 0~4000자. 편집은 `source_until_id`를 유지한다. **개정 2026-10-07(사용자 지정 🔒 "다시요약")**: 단, trim 후 **빈 요약으로 저장하면 `source_until_id`를 0으로 되돌려** 다음 speak 때 처음부터 다시 요약한다(요약 삭제 = 재요약 요청). 비어 있지 않은 편집은 유지. 토큰 필요. | 테스트. **(S6 개정 2026-10-08 🔒)** 잠긴 방이면 입장 관문(R-LOCK-006) 선통과. |
 | R-MEM-002 | 🔒 | 자동 요약: speak 성공 응답 **뒤** `ctx.waitUntil()`로 실행. 방 메시지 수가 `MEMORY_SUMMARY_THRESHOLD`를 넘으면 `source_until_id` 이후부터 최근 `CONTEXT_MESSAGES`개를 제외한 구간을 LLM으로 요약해 기존 `summary`에 합치고 `source_until_id`를 전진. 실패해도 speak 응답은 성공, 실패는 로그. | FakeProvider로 임계 전후 테스트. 실패 주입 시 응답 200 확인. |
 | R-MEM-003 | | 요약 동시 실행 방지: 요약 중 플래그(또는 `source_until_id` 조건부 UPDATE)로 중복 요약을 막는다. `waitUntil` 지속 한계로 실패가 반복되면 Cron Trigger(`scheduled`)로 대체 — server-designer가 memory 설계에서 확정. | 설계 문서에 결정 기록. |
 
@@ -105,8 +106,8 @@
 
 | ID | 🔒 | 요구 | 수용 기준 |
 |---|---|---|---|
-| R-API-001 | 🔒 | 엔드포인트(확정사항 §5.2): `GET /embed`(+`?t=`) · `GET /api/health` · `GET/POST /api/rooms` · `PATCH/DELETE /api/rooms/:id` · `GET /api/rooms/:id/messages?before&limit` · `POST /api/rooms/:id/user` · `POST /api/rooms/:id/speak` · `PATCH/DELETE /api/messages/:id` · `POST /api/messages/:id/regenerate` · `GET/PUT /api/rooms/:id/memory` · `GET/PUT /api/settings/characters`(갠홈 주인 전용, S3c — 2026-10-06 개정 추가). 이 밖의 엔드포인트는 만들지 않는다. | `api.md` 표 = `shared/src/endpoints.ts` = routes = `ui/src/api` 4자 대조표. |
-| R-API-002 | 🔒 | 에러 응답 `{ error: { code, message } }`. 코드는 `shared/src/errors.ts` 단일 소스: `VALIDATION_ERROR, TOKEN_REQUIRED, TOKEN_INVALID, LEVEL_TOO_LOW, RATE_LIMITED, NOT_FOUND, SPEAK_IN_PROGRESS, NOT_LAST_MESSAGE, NOT_CHARACTER_MESSAGE, LLM_FAILED, LLM_EMPTY, LLM_BUDGET_EXCEEDED, CONFIG_INVALID, OWNER_ONLY, INTERNAL`(15종 — 2026-10-06 R-LLM-007로 1종, 같은 날 R-SET-001로 `OWNER_ONLY` 403 1종 추가 개정). 메시지는 한국어. | 전 라우트 에러 경로가 이 형식. |
+| R-API-001 | 🔒 | 엔드포인트(확정사항 §5.2): `GET /embed`(+`?t=`) · `GET /api/health` · `GET/POST /api/rooms` · `PATCH/DELETE /api/rooms/:id` · `GET /api/rooms/:id/messages?before&limit` · `POST /api/rooms/:id/user` · `POST /api/rooms/:id/speak` · `PATCH/DELETE /api/messages/:id` · `POST /api/messages/:id/regenerate` · `GET/PUT /api/rooms/:id/memory` · `GET/PUT /api/settings/characters`(갠홈 주인 전용, S3c — 2026-10-06 개정 추가). 이 밖의 엔드포인트는 만들지 않는다. | `api.md` 표 = `shared/src/endpoints.ts` = routes = `ui/src/api` 4자 대조표. **(S6 개정 2026-10-08 🔒)** 엔드포인트 16 → 19: E17 `POST /api/rooms/:id/enter` · E18 `PUT /api/rooms/:id/password` · E19 `DELETE /api/rooms/:id/password`. |
+| R-API-002 | 🔒 | 에러 응답 `{ error: { code, message } }`. 코드는 `shared/src/errors.ts` 단일 소스: `VALIDATION_ERROR, TOKEN_REQUIRED, TOKEN_INVALID, LEVEL_TOO_LOW, RATE_LIMITED, NOT_FOUND, SPEAK_IN_PROGRESS, NOT_LAST_MESSAGE, NOT_CHARACTER_MESSAGE, LLM_FAILED, LLM_EMPTY, LLM_BUDGET_EXCEEDED, CONFIG_INVALID, OWNER_ONLY, INTERNAL`(15종 — 2026-10-06 R-LLM-007로 1종, 같은 날 R-SET-001로 `OWNER_ONLY` 403 1종 추가 개정). 메시지는 한국어. | 전 라우트 에러 경로가 이 형식. **(S6 개정 2026-10-08 🔒)** 코드 15 → 17: `ROOM_LOCKED`(403) · `ROOM_PASSWORD_WRONG`(403). 둘 다 isAuthFailure 아님(읽기 전용 전환 없음). |
 | R-API-003 | 🔒 | 토큰은 `Authorization: Bearer` 헤더. 화면은 `?t=`를 읽어 메모리에만 둔다(localStorage·쿠키 금지). | ui/api 래퍼가 헤더 부착, 저장 코드 없음(grep). |
 | R-API-004 | | 필드 camelCase, 시각 epoch ms, id는 문자열(room)·정수(message). 요청 본문은 zod 스키마로 검증, 실패 `400 VALIDATION_ERROR`. | 스키마 테스트. |
 | R-API-005 | | `GET /api/health` → `{ ok: true, version }`. DB 접근 없이 응답. | curl. |
@@ -127,17 +128,17 @@
 
 | ID | 🔒 | 요구 | 수용 기준 |
 |---|---|---|---|
-| R-ROOMS-001 | 🔒 | 방 목록: 제목·마지막 갱신 날짜를 최신순으로. 항목 탭 → 대화 화면. | TC. |
-| R-ROOMS-002 | 🔒 | 「+ 새 방」 버튼은 **토큰 있을 때만 렌더**. 제목 입력(1~60자) → 생성 → 그 방의 대화 화면으로 이동. | 토큰 없음 시 DOM에 없음. |
+| R-ROOMS-001 | 🔒 | 방 목록: 제목·마지막 갱신 날짜를 최신순으로. 항목 탭 → 대화 화면. | TC. **(S6 개정 2026-10-08 🔒)** 잠긴 방은 **제목과 자물쇠만** 표시(마지막 대화 날짜 숨김 — 사용자 결정 Q3). 탭 → 저장된 증명이 없으면 비밀번호 입력 시트. |
+| R-ROOMS-002 | 🔒 | 「+ 새 방」 버튼은 **토큰 있을 때만 렌더**. 제목 입력(1~60자) → 생성 → 그 방의 대화 화면으로 이동. | 토큰 없음 시 DOM에 없음. **(S6 개정 2026-10-08 🔒)** 새 방 입력에 비밀번호 칸(선택, 4~32자, "6자 이상 권장" 안내). |
 | R-ROOMS-003 | | 로딩·빈 목록("아직 방이 없습니다")·오류(재시도 버튼) 상태 표시. | TC 3종. |
-| R-ROOMS-004 | 확인 필요 | 방에 들어갈 때 마지막 본 방 id를 `localStorage`(try/catch)에 저장. 앱 시작 시 기록이 있으면 그 방 대화 화면으로 바로 연다. **‹ 뒤로로 목록에 돌아오면 기록을 지운다**(마지막으로 본 화면이 목록이므로 다음 열기는 목록에서 시작. 2026-10-05 메인 세션 결정, 재진입 가둠 방지). 저장 불가 환경에서도 동작. | localStorage throw 모킹 TC. 뒤로 → 재마운트 시 목록 TC. |
+| R-ROOMS-004 | 확인 필요 | 방에 들어갈 때 마지막 본 방 id를 `localStorage`(try/catch)에 저장. 앱 시작 시 기록이 있으면 그 방 대화 화면으로 바로 연다. **‹ 뒤로로 목록에 돌아오면 기록을 지운다**(마지막으로 본 화면이 목록이므로 다음 열기는 목록에서 시작. 2026-10-05 메인 세션 결정, 재진입 가둠 방지). 저장 불가 환경에서도 동작. | localStorage throw 모킹 TC. 뒤로 → 재마운트 시 목록 TC. **(S6 개정 2026-10-08 🔒)** 잠긴 방은 저장된 입장 증명이 없으면 자동 진입하지 않는다. |
 | R-ROOMS-005 | 🔒 | 폭 390px, 높이는 패널에 맞춤(약 565px), Rosebell 계열 토큰(`ui_design_concept.md` — **2026-10-08 갠홈 estate 실측 톤으로 개정**: 남색 단일 계열·투명 1px 선 버튼·직각/비대칭 모서리·상단 바 머리띠와 대문자 장식 라벨, 정본 `ui/src/chat/design/style.md`), CSS Modules. | 스크린샷. |
 
 ## 11. ui — CHAT (대화 화면)
 
 | ID | 🔒 | 요구 | 수용 기준 |
 |---|---|---|---|
-| R-CHAT-001 | 🔒 | 상단 바: ‹ 뒤로 · 방 제목 · 날짜(**방 생성일**, MM.DD) · ⋯ 메뉴. ⋯ 메뉴는 토큰 있을 때만 렌더하며 항목은 이름 변경 · 장기기억 · 방 삭제(confirm). | TC. |
+| R-CHAT-001 | 🔒 | 상단 바: ‹ 뒤로 · 방 제목 · 날짜(**방 생성일**, MM.DD) · ⋯ 메뉴. ⋯ 메뉴는 토큰 있을 때만 렌더하며 항목은 이름 변경 · 장기기억 · 방 삭제(confirm). | TC. **(S6 개정 2026-10-08 🔒)** ⋯ 메뉴 항목 = 이름 변경 · 장기기억 · **잠금**(걸기/바꾸기/풀기, 토큰 있을 때만) · 방 삭제. |
 | R-CHAT-002 | 🔒 | 히스토리 말풍선(**2026-10-05 지인 지정으로 개정**): **세바스찬은 왼쪽**(아바타·이름), **시엘은 오른쪽**(아바타·이름), **유저 발화는 가운데**(작성자가 누구든 고정 명칭 「어떠한 의지」 표시 — 2026-10-06 S3d 사용자 지정 🔒, 이전 "작성자 이름 표시"; 말풍선 스타일), OOC 지시도 가운데이되 유저 발화와 구분되는 스타일(`— [지시] … —`, 배경 없음). 시각 표시. | 스냅샷·스크린샷(세바스찬 좌·시엘 우·유저 중앙·OOC 중앙 4종). |
 | R-CHAT-003 | 🔒 | 위로 스크롤이 맨 위에 닿으면 이전 페이지(`before`) 로드 후 스크롤 위치 유지. 새 메시지 추가 시 맨 아래로 자동 스크롤(사용자가 위쪽을 보고 있으면 "새 메시지" 표시만). | TC. |
 | R-CHAT-004 | 🔒 | 하단 바(토큰 있을 때만 렌더): 「세바스찬」「시엘」 버튼 · OOC 토글 · 입력창(1~2000자) · 전송. | 토큰 없음 시 DOM에 없음. |
@@ -145,8 +146,8 @@
 | R-CHAT-006 | 🔒(2026-10-06 S3d 개정) | 전송 → user 저장(OOC 토글 반영) → **저장 성공하면 곧바로 자동 응답(R-CHAT-014, speak `'auto'`)**. 저장 실패면 AI 호출 없음. 저장만 하는 전송은 두지 않는다(사용자 결정). 빈 입력은 전송 비활성. 저장 후 입력창 비움. (이전: "AI 호출 없음") | api 모킹: /user 성공 → speak(auto) 1회 · /user 실패 → speak 0회. |
 | R-CHAT-007 | 🔒 | 말풍선 롱프레스(500ms)/우클릭 → 바텀시트 메뉴: 수정(인라인 편집) · 재작성(캐릭터 메시지이고 마지막일 때만 표시, confirm 없음) · 삭제(confirm). 토큰 있을 때만. **개정 2026-10-07(사용자 지정 🔒, S3e)**: 바텀시트 메뉴 대신 **말풍선 아래 항상 보이는 액션 버튼** — 모든 메시지에 「수정」「삭제」(삭제는 confirm 유지), 마지막 캐릭터 메시지에는 「재작성」 추가(confirm 없음). 토큰 있을 때만 렌더, 생성·쓰기 대기 중 비활성. 롱프레스/우클릭 메뉴는 제거(버튼으로 대체). 권한 규칙(R-MSG-008: 등급 통과자 누구나)은 변경 없음. | TC 4종. |
 | R-CHAT-008 | 🔒 | 토큰 없으면 하단 바·⋯ 메뉴·롱프레스 메뉴·새 방 버튼을 **렌더하지 않는다**(숨김 아님). | DOM 부재 TC. |
-| R-CHAT-009 | 🔒 | 토큰은 `?t=`에서 읽어 메모리(모듈 상태)에만 둔다. URL에서 제거하지 않아도 되나 저장은 금지. 모든 쓰기 api 호출에 헤더로 부착. | grep: localStorage에 토큰 저장 코드 0건. |
-| R-CHAT-010 | | 스크롤 위치·마지막 본 방은 `localStorage`(try/catch). | TC. |
+| R-CHAT-009 | 🔒 | 토큰은 `?t=`에서 읽어 메모리(모듈 상태)에만 둔다. URL에서 제거하지 않아도 되나 저장은 금지. 모든 쓰기 api 호출에 헤더로 부착. | grep: localStorage에 토큰 저장 코드 0건. **(S6 개정 2026-10-08 🔒)** 개정 없음 — 확인: 방 입장 증명(`X-Room-Key`)은 토큰이 아니며 토큰 보관 규칙(메모리만)은 그대로다. |
+| R-CHAT-010 | | 스크롤 위치·마지막 본 방은 `localStorage`(try/catch). | TC. **(S6 개정 2026-10-08 🔒)** `localStorage`에 방별 입장 증명(`ld:roomKeys`, 최대 50개)도 둔다(try/catch). 회원 토큰이 아니다. |
 | R-CHAT-011 | | 오류 코드별 한국어 안내: `RATE_LIMITED`(잠시 후), `SPEAK_IN_PROGRESS`(생성 중), `LEVEL_TOO_LOW`·`TOKEN_INVALID`(쓰기 UI를 읽기 전용으로 전환하고 안내), `LLM_FAILED`(재시도). | TC. |
 | R-CHAT-012 | 🔒 | 장기기억 시트: `summary` 보기 · 편집(0~4000자) · 저장. ⋯ 메뉴에서 진입. | TC. |
 | R-CHAT-013 | 🔒 | 390×565 안에서 그린다. 버튼에 접근성 레이블. Rosebell 토큰(2026-10-08 갠홈 estate 톤 개정 — 말풍선은 1px 선+옅은 바탕·비대칭 모서리, 시엘 강청·세바스찬 은청, 아바타 자리는 인장 이미지 대기). | 스크린샷(읽기 전용·쓰기 2종). |
@@ -171,6 +172,22 @@
 | R-SET-011 | | 인증 만료 중 저장 실패(401) 시 초안 보존(stale)·내보내기 허용. | TC. |
 | R-SET-012 | | 로그에 설정 본문·필드 값 미기록. `settings_saved{mbId,version,model}`(S3f 개정 2026-10-08: model은 키) · `owner_denied{mbId}` · `character_settings_invalid{field}` · `llm_model_invalid{}`(S3f)만. | 로그 grep 테스트(본문 0건). |
 | R-SET-013 | 🔒 | **(S3f, 2026-10-08 사용자 지정)** 갠홈 주인이 설정 화면 「공통」 탭 맨 위에서 AI 모델을 Pro·Flash 중 하나로 고르고 기존 「저장」으로 저장한다. 다음에 시작하는 발화·화자 선택·요약 호출부터 적용, 진행 중 호출은 이전 모델. 고른 적 없으면 서버 기본값(env `LLM_MODEL`)을 쓴다. 화면은 응답 `model`(지금 실제로 쓰는 키)을 선택된 판으로 보이고, `model: null`(서버 기본값이 두 후보 밖)일 때만 미선택 안내 문구(02 §2.2 effectiveKey — "저장된 Pro"와 "기본값 Pro"는 구분하지 않는다, 사용자 승인 ① 2026-10-08). 모델만 바꿔도 dirty·되돌리기·이탈 확인이 동작하고 저장 시 version+1(시드 상태면 `isDefault: false`). 설명 문구에 가격 숫자 없음. 저장 중 라디오 비활성. | 저장 → 다음 speak 요청 URL에 고른 모델명(fetch 주입). 화면 TC: 세 판(pro·flash·null) 렌더 · 선택 → 저장 본문 `model` · 본체만 저장 시 `model` 키 없음 · 되돌리기 · 이탈 확인 · 저장 중 비활성 · 내보내기 파일 `model` 0건. |
+
+## 11-2. 횡단 — LOCK (방 비밀번호 잠금, S6)
+
+> 승인 ① 2026-10-08 저녁. 사용자 결정 🔒: ① 목록에 제목+자물쇠(날짜 숨김) ② 입장 증명 브라우저 기억 ③ 주인 프리패스 ④ 비밀번호 4~32자·"6자 이상 권장" ⑤ 입장 시도 방마다 분당 5회 ⑥ 비주인 글쓰기 권한자는 증명 보유 방만 변경·해제 ⑦ Cloudflare Free 기준 해시. 설계: `doc/200_설계/architecture/s6-02-전반설계.md`.
+
+| ID | 🔒 | 요구 | 수용 기준 |
+|---|---|---|---|
+| R-LOCK-001 | 🔒 | 방을 만들 때 비밀번호(선택, 4~32자 코드 포인트, trim 없음)를 걸 수 있다. 생성과 잠금은 한 번에(원자). | E4 `password` 있음 → `locked: true` + `entryKey` · 없음 → 지금과 같음 · 3자·33자 400. |
+| R-LOCK-002 | 🔒 | 기존 방에 잠금 설정·비밀번호 변경·잠금 해제. 토큰 필수. 잠긴 방은 주인 또는 증명 보유자만. | E18·E19 정상·관문·멱등 · 변경 뒤 옛 증명 `ROOM_LOCKED`. |
+| R-LOCK-003 | 🔒 | (결정 ①·Q3) 목록에 잠긴 방도 제목과 자물쇠를 보인다. **마지막 대화 날짜는 숨긴다.** 내용은 노출하지 않는다. | E3 `locked` · 잠긴 행 자물쇠·날짜 없음 · 접근성 이름("잠긴 방"). |
+| R-LOCK-004 | 🔒 | (결정 ②) 비밀번호를 맞히면 입장 증명을 받아 브라우저에 기억, 같은 브라우저에서 다시 묻지 않는다. 비밀번호 변경·해제 시 무효 → 다시 묻는다. | E17 · 저장·재사용 · 변경 후 재입력 TC. |
+| R-LOCK-005 | 🔒 | (결정 ③) 주인(`OWNER_MB_IDS`)은 비밀번호 없이 입장·변경·해제. | E17 주인 무비밀번호 200 · 주인 E18·E19 증명 없이 200 · `OWNER_MB_IDS` 빈 목록이면 프리패스 없음. |
+| R-LOCK-006 | 🔒 | 잠긴 방의 내용·관리 경로(E5~E14·E18·E19)는 증명(또는 토큰 경로의 주인) 없으면 `403 ROOM_LOCKED`. 열람자는 증명으로 E7만. | 경로별 관문 TC(방 id 경로·메시지 id 경로). |
+| R-LOCK-007 | 🔒 | 비밀번호 원문은 어디에도 저장하지 않는다. 해시 = PBKDF2-SHA256 + salt(반복 수를 문자열에 기록, Free 기준 CPU 5ms 이하). 증명은 `X-Room-Key` 헤더로만, 화면은 localStorage(try/catch)에만. 로그·응답·문서에 비밀번호·해시·증명 값 없음. | 해시 형식 · 로그 grep 0건 · E3 응답에 해시 없음 · 토큰 localStorage 0건 유지. |
+| R-LOCK-008 | | 비밀번호 입장 시도는 방마다 분당 `ROOM_ENTER_LIMIT_PER_MIN`(기본 5)회. 초과 `429 RATE_LIMITED`(+초). 주인·비밀번호 없는 요청은 세지 않는다. 해시 계산 전에 센다. | 6번째 시도 429 · 다음 분 회복 · 해시 미계산 확인. |
+| R-LOCK-009 | 🔒 | 호환: 기존 방은 잠기지 않음, 0005는 칸 추가만, 계약은 추가만(비파괴). 갠홈 PHP·토큰 변경 없음. | 마이그레이션 적용 뒤 기존 테스트 무수정 통과(픽스처 `locked` 추가 제외). |
 
 ## 12. 비기능 (NFR)
 
