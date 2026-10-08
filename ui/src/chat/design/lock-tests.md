@@ -30,13 +30,13 @@
 | TC-CH-160 | 저장소·비밀값 | 잠금 미사용 흐름(TC-CH-024) 뒤 키 = `['ld:lastRoomId']` 이하(+ 스크롤 키) · 토큰 값 저장소 0건 · 걸기·입장 뒤 비밀번호 원문 저장소 0건 · (리뷰 grep) chat 소스 `localStorage` 0 · `fetch` 0 · `console.`에 password·entryKey 0 |
 | TC-CH-161 | 잠긴 방 메뉴 분기 일치 | `locked: false` 방에서 `ROOM_LOCKED` → `onRoomRenamed`에 `locked: true` 1회 → (App 재렌더 후) 재입장 → 잠금 → 잠금 시트(걸기 시트 아님) |
 | TC-CH-162 | TC-FLOW 토큰 | App(`?t=x`) → 방 진입 → 잠금 → `abcd` 잠그기 → ‹ → 목록 행 자물쇠 → 같은 행 탭 → `enterRoom` 0회로 chat 진입(증명 재사용) → 잠금 풀기 → ‹ → 행 자물쇠 없음 |
-| TC-FLOW-163 | TC-FLOW 읽기 전용 | App(토큰 없음) · 증명 있는 잠긴 방 진입 → `listMessages` `ROOM_LOCKED`(비밀번호 바뀜) → 판 + 시트 → 입장 → 대화 표시 / 취소 → 목록 |
+| TC-FLOW-CH-22 | TC-FLOW 읽기 전용(자동 흐름 — 옛 예약 번호 TC-FLOW-163) | App(토큰 없음) · 증명 있는 잠긴 방 진입 → `listMessages` `ROOM_LOCKED`(비밀번호 바뀜) → 판 + 시트 → 입장 → 대화 표시 / 취소 → 목록 |
 | (수동) TC-CH-163 | 스크린샷 390×565 | 방 메뉴 5항목 · 잠금 시트 · 걸기 시트(placeholder · 실패 문구 판) · 풀기 확인 · 입장 재요구 판(토큰 있음/없음) — `doc/300_검증/screenshots/{YYYYMMDD-HHMM}/`. `manual-checklist.md` 행 |
 
 | TC-CH-164 | 재입장 뒤 `locked` 복귀(D-48) | `locked: true` 방 · E7 `ROOM_LOCKED` → `onRoomRenamed`에 `locked: true`는 원래 true라 0회 / 토큰 있음 · `enterRoom('r1')` 200 `entryKey: null` → `ld:roomKeys`에 r1 없음 · `onRoomRenamed` 인자 `{ …, locked: false }` 1회 · `listMessages` 재호출 / 200 문자열이면 `locked: false` 호출 0회 |
 | TC-CH-165 | 조용한 재입장 상한(D-55) | 토큰 있음 · `enterRoom` 항상 200 `e1.x` · `listMessages` 항상 `ROOM_LOCKED` → `enterRoom` 정확히 2회 → 3번째 `ROOM_LOCKED`에서 `enterRoom` 호출 없이 시트(`role=dialog` 이름 `비밀번호`, 같은 커밋에 열려 입력 포커스 — 카운터는 껍데기 상태라 2회째 재입장 렌더에서 `canWrite`가 false로 재계산됨) / 대조: 2번째 재입장 뒤 `listMessages` 200이면 카운터 0 → 다음 `ROOM_LOCKED`에서 다시 조용한 시도 1회 |
 
-- 번호: TC-FLOW-163(자동)과 TC-CH-163(수동)은 ui-test-designer가 겹치지 않게 다시 매길 수 있다(예약 범위 140~165).
+- 번호(재배정 확정): 자동 흐름은 **TC-FLOW-CH-22**, TC-CH-163은 수동(**MC-CH-23·24**, `test/manual-checklist.md`). 이전 메모 — TC-FLOW-163(자동)과 TC-CH-163(수동)은 ui-test-designer가 겹치지 않게 다시 매길 수 있다(예약 범위 140~165).
 
 ## 2. 기존 TC 영향
 
