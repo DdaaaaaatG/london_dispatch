@@ -12,6 +12,7 @@
 | S3d 델타 | **`design/auto.md`**(절 표기 `AU`, v1.9.1 구현 동기화): 상태 T35·T36 · `SpeakTarget` · PendingBubble 중립 변형 · 유저 작성자 표기 · F-CH-17·31·32 개정 · F-CH-42~44 · 잠금·끼어들기 0회 · 파이프라인 · 문구 · 접근성·읽기 전용 · 결정 D-17~23. TC 영향·TC-CH-098~109는 **`design/auto-tests.md`**(v1.9.1 분리). **다른 분할 문서의 S3 서술과 겹치면 AU가 우선**한다 |
 | S3e 델타 | **`design/actions.md`**(절 표기 `AC`, v2.0): R-CHAT-007 🔒 개정 — 말풍선 아래 「수정」「삭제」 + 마지막 캐릭터 「재작성」 버튼 줄 `BubbleActions`, 롱프레스/우클릭 바텀시트 메뉴 제거 · 배선 · 삭제 목록 · 비활성 규칙 · F-CH-45~52 · 포커스 · 문구 · D-24~32. TC-CH-110~121·기존 TC 영향표는 **`design/actions-tests.md`**(v2.0.1, 옛 AC §11). CR-003. **다른 분할 문서의 말풍선 메뉴 서술과 겹치면 AC가 우선**한다 |
 | S4 델타 | **`design/memory.md`**(절 표기 `ME`, v2.1): R-CHAT-012 🔒 장기기억 시트 — ⋯ 메뉴 항목 · `MemorySheet`·`useMemorySheet`·`state/memory.ts` · F-CH-53~62 · 계약 api.md **v0.7** E13·E14 · 문구 · D-33~42. TC-CH-122~139·영향표·인계는 **`design/memory-tests.md`**(v2.1.1). 리듀서 불변 |
+| S6 델타 | **`design/lock.md`**(절 표기 `LK`, v2.3): 요구 v2.2 R-CHAT-001 🔒·010 개정 · R-LOCK-002·004·005·006·007·009 — ⋯ 「잠금」 · `LockMenuSheet` · 걸기/바꾸기 PromptSheet(password) · 풀기 ConfirmDialog · 입장 재요구 판(`ChatScreen` 껍데기 + `ChatRoomView key={epoch}` · `LockedRoomView` · `useRoomLockGate`) · 모든 요청 `ROOM_LOCKED` 처리 · 메시지 id 래퍼 `roomId` · F-CH-63~85 · 계약 api.md **v0.9** E17~E19·관문 · D-44~54. TC-CH-140~163·영향표·인계는 **`design/lock-tests.md`**(`LT`). 공용 델타는 rooms components.md §1.7·§1.11·§1.12·§1.17·§1.21~§1.23 인용만. **다른 분할 문서와 겹치면 LK가 우선** |
 | 구현 상태 | S3d·S3e 구현 완료(2026-10-07). **S4 구현 완료**(ui 738/741, ME v2.1.2 동기화) |
 | 묶음 | S1 · S2 구현 완료 + **S3 상세**: R-CHAT-004(캐릭터 버튼 2) · 005(speak · 임시/실패 말풍선 · 재시도) · 007(재작성) · 011(S3 코드) · 003(speak 트리거) · 002(임시 말풍선 배치) · 013(S3 요소). S4는 §14 |
 | 레이아웃 확정 상태 | **확정**(읽기 전용 판 · 토큰 있음 판 · S3 생성 중/실패/재작성 중 조각). (S4) 방 메뉴 장기기억 항목·장기기억 시트는 **확정**(ME §0) |
@@ -42,6 +43,7 @@
 | v2.0.3 | 2026-10-07 | **40KB 분할**: §12 공용화 후보 표 → `design/decisions.md` §12(내용 그대로), 이 문서에는 포인터 한 줄. §1 분할 표 갱신 | 메인 세션 실측 41,569바이트 |
 | v2.1 | 2026-10-07 | **S4(구축)**: 신규 `design/memory.md`(전체 델타). 주 문서는 머리 표 · §10 장기기억 행 · §14 비움. 포인터: components.md §2.9·§2.10 · functions.md §3 · labels.md · rtm.md · tc.md · layout.md | R-CHAT-012 🔒 · 메인 세션 사전 확정 1~7 |
 | v2.2 | 2026-10-08 | **시각 보강(CR-004, 보강·CSS만)**: 신규 `design/style.md` — 세 화면 공통 토큰 전/후 표(정본) · 대비 근거 · 파일·클래스별 규칙 · 장식 라벨 방식 · 승인과 다른 점 · 구현 대상 CSS 8개. §11.1 · components.md §4 포인터. 레이아웃·DOM·문구·상태·계약·RTM 불변, 영향 TC 없음 | 사용자 2026-10-08 "갠홈 디자인에 맞춰야" · 승인 5항목 |
+| v2.3 | 2026-10-08 | **S6(구축 — 방 비밀번호 잠금)**: 신규 `design/lock.md`(전체 델타) · `design/lock-tests.md`(TC-CH-140~163 · 영향 · 인계). 주 문서는 머리 표 S6 행만. RTM `design/rtm.md` R-CHAT-001·010 개정 행 · R-LOCK 6행. §3.1 트리·§10 분기표의 S6 변경은 LK §1.1·§8이 우선(포인터) | 승인 ① 2026-10-08 · s6-03 §3.3 · ui-layout-04 §5 · api.md v0.9 |
 
 ---
 
