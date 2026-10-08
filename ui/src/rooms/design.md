@@ -28,6 +28,7 @@
 | v1.5.1 | 2026-10-06 | S3b: `toastToneOf`(F-RM-22) warning 조건에 `LLM_BUDGET_EXCEEDED`(429, R-LLM-007) 추가 — functions.md F-RM-22 · §8.3 비고 · TC-RM-029 기대. 사용처는 chat 재작성 토스트(chat design v1.8), rooms 화면 동작 변경 없음 | 메인 세션 승인(chat S3b 공용 변경 요청) |
 | v1.5.2 | 2026-10-07 | **후작업 동기화(동작·문구 변경 없음)**: ① 공용 Button `ariaDescribedBy?: string`(components.md §1.2) ② `NETWORK`·인증 3종 문구를 공용 `ui/src/components/utils/errorText.ts`로(§1 공용 요소 · §8.3 비고 · §13 행 "공용화 완료") ③ 공용 `useLongPress` 삭제(S3e 사용처 0 — §1 · §3.2 · §13 · components.md §1.19) | ui-postprocessor 후작업 · 사용자 승인 |
 | v1.6.2 | 2026-10-06 | **S3c 구현 동기화(CR-001 적용·검증됨, 동작 변경 없음).** 진입 안내 = `useEntryNotice` 훅(functions.md F-RM-29) · App의 설정 진입·이탈 = `useSettingsNav`, 주인 판정 = `useOwner`(F-RM-24~27 동작 같음) · `useNewRoomUi`가 `showToast` 반환 · labels `settingsAriaLabel` = `캐릭터 설정` · View 유니온 실물이 functions.md §1.1과 같음 · ⚙ 실측 44×44 · chat 스펙 격리 권고(functions.md §2 끝) | S3c 구현 보고 · ui 592/592 · OwnerGate 7건 · 캡처 `doc/300_검증/screenshots/20261006-2033/` |
+| v1.8.4 | 2026-10-08 | 40KB 분할: §11.2 결정·가정 표 → `design/history.md` | 실측 40,966B |
 | v1.8.3 | 2026-10-08 | 검증 MINOR 6 반영: S6 TC → tc.md §14.2, TC-RM-065·066 추가, F-RM-41 순서, RTM R-LOCK-004·009, lock.md D-L1~4·D-L8·§13 | design-checker PASS |
 | v1.8.2 | 2026-10-08 | **40KB 분할**: §11.3 S1 실물 소급 델타(R-1~R-6)를 `design/history.md`로 내용 그대로 옮기고 본문은 제목 + 연결 줄만 | 메인 세션 실측 41,201바이트 |
 | v1.8.1 | 2026-10-08 | **40KB 분할**: §14.1 예정 TC 목록(TC-RM-001~040)을 `design/tc.md`로 내용 그대로 옮기고 본문은 연결 줄만. RTM 표는 그대로 | 메인 세션 실측 48,156바이트 |
@@ -297,14 +298,7 @@ api.md **v0.3**을 **인용**한다(재정의 아님). **S6부터 v0.9**(§4.2·
 
 ### 11.2 설계 결정·가정
 
-| # | 내용 | 이유 |
-|---|---|---|
-| D-1(결정) | 방에 들어갈 때 마지막 본 방을 기록하고(chat F-CH-02), ‹ 뒤로로 목록에 돌아오면 기록을 지운다(chat F-CH-10). 목록에 없는 방이면 자동 진입 판정에서도 지운다(F-RM-08). 저장 불가 환경은 try/catch로 무시 | 메인 세션 결정 2026-10-05 |
-| D-2(결정) | `ui/src/main.tsx`는 `global.css` import, 토큰 초기화(`initToken`·`configureClient`)와 `<App />` 렌더만 하고, 화면 분기는 `ui/src/App.tsx`가 한다 | App을 테스트할 수 있게 분리(메인 세션 승인). S2에서 토큰 두 줄이 더해졌다(api.md §2.4 "main.tsx가 렌더 전에 한 번") |
-| A-2(가정) | 목록 로드가 실패하면 자동 진입을 미루고, 재시도가 성공한 시점에 판정한다 | 방 정보는 목록으로만 얻는다(단건 조회 없음) |
-| D-3(결정, S2) | 생성 성공 시 목록을 갱신하지 않고 응답 `RoomSummary`로 바로 chat에 들어간다 | R-ROOMS-002 "생성 → 그 방의 대화 화면으로 이동", api.md §4.6 "목록 갱신 방식은 ui 몫". 돌아올 때 목록을 다시 불러온다(F-RM-03) |
-| D-4(결정, S2) | `viewer`는 App 상태 하나다. 쓰기 실패가 `isAuthFailure`면 어느 화면에서든 App이 토큰을 비우고 읽기 전용으로 바꾼다. 안내 토스트는 실패를 받은 화면이 띄운다 | api.md §2.4가 "강등 방식·viewer 계산 위치는 ui 설계" |
-| A-3(가정, S2) | rooms 토스트 줄은 화면 맨 아래 in-flow 28px다. 구성안 §1 그림에는 없고 §3이 Toast를 "두 화면" 공용으로 적었다. chat E 줄(하단 바 바로 위)과 같은 "화면 아래쪽 한 줄" 규칙을 따른다 | 생성 실패 안내 자리가 필요하다. 구조 변경이 아니라 상태 조각 배치로 본다. 다르게 원하면 ui-layout-designer 확인 |
+→ `design/history.md` §11.2(D-1~D-4 · A-2 · A-3). 40KB 한계로 v1.8.4에 내용 그대로 옮겼다.
 
 ### 11.3 S1 실물 소급 델타 (v1.4) → `design/history.md`
 
