@@ -1,12 +1,21 @@
 # rooms(방 목록) 테스트 시나리오
 
 - 기준: `ui/src/rooms/design.md` v1.5(+ `design/components.md` · `design/functions.md` · `design/a11y.md`) / `ui/src/rooms/requirements.md` v1.4 / `doc/200_설계/contract/api.md` v0.3.1 / chat 쪽 공용 인용 `ui/src/chat/design.md` v1.5
-- 작성일: 2026-10-05(S3c 증분 2026-10-06) · 작성: ui-test-designer · 모드: **증분**(S1 TC-RM-001~017 · S2 TC-RM-018~032 보존, **S3c TC-RM-033~040 추가**) · 상태: **v0.6 — S3c 증분 초안(검증 대기)**. S2까지의 판정은 v0.5 그대로
+- 작성일: 2026-10-05(S3c 증분 2026-10-06 · **S6 증분 2026-10-08**) · 작성: ui-test-designer · 모드: **증분**(S1 TC-RM-001~017 · S2 TC-RM-018~032 · S3c TC-RM-033~040 보존, **S6 TC-RM-041~066 추가 · TC-RM-023·026 S6 개정**) · 상태: **v0.7 — S6 증분 초안(검증 대기)**. S3c까지의 판정은 v0.6 그대로
 - **S3c 기준(추가)**: `ui/src/rooms/design.md` v1.6.1(§2.2.1 · §7 E15 판정 행 · §8.1 `settingsAriaLabel` · §10 ⚙ 행 · §14 R-SET-009·010) · `design/functions.md` §1.1 · F-RM-24~29 · `design/pipeline.md` §6.6 · `design/components.md` §1.3 `settings` · §1.18 `success` · `design/a11y.md` S3c 포커스 순서 · `ui/src/settings/design.md` v1.2 · api.md v0.5 §2.7 · §4.15
 - **S3c 공통 전제(추가)**
   - **판정 래퍼 모킹**: 토큰이 있는 App 스펙은 모두 `vi.mock('@/api/settings', () => ({ getCharacterSettings: vi.fn(), saveCharacterSettings: vi.fn() }))`를 둔다. 판정 effect(F-RM-24)가 토큰이 있으면 첫 렌더 뒤 1회 부르기 때문이다. 주인 판정이 주제가 아닌 스펙은 `beforeEach`에서 기본값 비주인 `NOT_OWNER`(`fail('OWNER_ONLY')`, `@/settings/test/fixtures`)를 준다 — 단언은 바뀌지 않는다(변경 대기열 Q-02).
   - **판정 결과 관찰**: "조용히 실패" = ⚙ DOM 없음 · 「+ 새 방」 유지 · `getToken()` 유지(revokeWrite 미호출) · `role=alert` 없음. 응답 본문은 쓰지 않으므로 픽스처 `SAVED_RESPONSE` 하나로 충분하다.
   - **RoomsScreen 새 선택 props**: `isOwner?` · `onOpenSettings?` · `entryNotice?` · `onEntryNoticeShown?`. S1·S2 화면 스펙은 넘기지 않는다(기본값 = 기존 동작).
+- **S6 기준(추가, v0.7 2026-10-08)**: `ui/src/rooms/design.md` v1.8.3(§2.4 · §7 E4·E17 행 · §8.1 S6 3행 · §8.3 `VALIDATION_ERROR` 개정 · §10 S6 3행 · §14 RTM S6 행) · `design/lock.md`(§1 레이아웃 · §2 컴포넌트 · §3 상태 · F-RM-30~54 · §6.7~§6.11 · §7 계약 · §8 문구 · §10 읽기 전용 · §11 D-L1~13) · `design/tc.md` §14.2(예정 TC-RM-041~066 — 번호 그대로 확정) · `design/components.md` §1.7 S6 · §1.11 S6 · §1.12 S6 · §1.17 S6 · §1.21~§1.23 · §2.1 S6 · §2.2 S6 · §2.4 S6 · `design/a11y.md` S6 6행 · `ui/src/rooms/requirements.md` v1.7(R-ROOMS-001·002·004 S6 개정 · R-LOCK-001·003~009 · U-RM-12~19) · api.md v0.9 §4.19(E17)
+- **S6 공통 전제(추가)**
+  - **래퍼 모킹 확장**: `vi.mock('@/api/rooms', () => ({ listRooms, createRoom, renameRoom, deleteRoom, enterRoom, setRoomPassword, clearRoomPassword }))`(전부 `vi.fn()`). 훅(`useRoomEntry`)이 `@/api` 재노출로 import해도 같은 모듈이 모킹된다. App 흐름은 `@/api/messages`·`@/api/settings`도(Q-02 규칙). `fetch` 모킹 금지.
+  - **증명 캐시 초기화**: 매 TC 전 `localStorage.clear()` → `resetRoomKeyCache()`(F-RM-37, 테스트 정리 전용). 증명을 미리 심을 때는 `localStorage.setItem('ld:roomKeys', '[["r3","e1.x"]]')`를 **렌더 전에** 한다(캐시는 첫 접근 때 1회 읽음).
+  - **픽스처(S6)**: 안 잠긴 방 `체스 대결`(r2, 10.03) · `티타임`(r1, 10.05) — `locked: false`. 잠긴 방 `비밀 다과회`(r3, updatedAt **10.04** — 화면 어디에도 나오면 안 되는 감지값, `locked: true`). 화면 단위 목록 순서 `[r2, r3, r1]`(내림차순이 아님 — 재정렬 감지). 잠긴 행 이름 `비밀 다과회, 잠긴 방`. 새 방 응답 `안개 낀 런던`(r9). tc.md 요지의 `'r1'`은 "잠긴 방 id" 자리이고 이 문서에서는 `r3`이다. 증명 자리표시 `e1.x`·`e1.k`, 비밀번호 자리표시 `pw1234`·`abcd`(실값 아님).
+  - **비밀번호 입력 찾기**: `type=password`는 role이 없다 → `getByLabelText('새 방 비밀번호')`·`within(dialog).getByLabelText('방 비밀번호')`. 시트 = `getByRole('dialog', { name: '비밀번호' })`, 덮개 = `dialog.parentElement`(C §1.15 overlay).
+  - **인자 개수 단언**: 조용한 시도 `enterRoom(id)`는 `mock.calls[0]`이 `['r3']`이고 **길이 1**(`toHaveLength(1)`)로 본다. `toEqual`만으로는 `['r3', undefined]`를 구분하지 못한다.
+  - **비동기 순서**: 조용한 시도·시트 제출은 deferred로 "요청 중" 상태를 먼저 단언 → `await act(async () => d.resolve(…))` → `waitFor`로 결과. "호출 없음" 단언 앞에는 `await act(async () => {})`. 가짜 시계는 쓰지 않는다(S6에 화면 타이머 없음, lock.md §6.8 끝).
+  - **원문 미보관 관찰**: `localStorage`·`sessionStorage` 모든 키·값에 비밀번호·토큰 문자열이 없음을 훑어 본다(R-LOCK-007).
 - 묶음: **S1(저장 + 읽기 전용 화면)** + **S2(토큰 + 새 방)**. S1 TC의 토큰 분기는 "없음"(READ_ONLY_VIEWER) 그대로다. S2 TC는 토큰 있음/없음 쌍(TC-RM-011 ↔ 018)과 전환(024)을 더한다.
 - **S2 공통 전제(추가 — S1 전제는 아래 그대로 유지)**
   - **토큰 주입 진입점 통일**: 화면 단위 스펙은 `viewer` props(`WRITER_VIEWER`·`READ_ONLY_VIEWER`, `@/state/viewer`)로만 준다. App 통합 스펙은 `render(<App />)` **전에** `initToken('?t=test-token')`(`@/state/token`, 설계가 정한 유일한 읽기 진입점)을 부르고 `afterEach`에서 `clearToken()`. `window.history.replaceState`·`main.tsx` import·`configureClient` 호출은 쓰지 않는다(래퍼를 모킹하므로 Bearer 헤더 부착은 api 스펙 API-T-UI-011~013 몫).
@@ -165,7 +174,7 @@
 ### TC-RM-023 · (S2) 생성 실패(비인증) · 종류: 자동 · 요구: R-CHAT-011 · R-ROOMS-002 · 설계: §6.5 실패 행 · F-RM-18·22 · §8.3 · C §1.18 · A 토스트 · 토큰: 있음
 - Given 입력 `'안개 낀 런던'`, `createRoom` 대기 → 실패. 코드: `INTERNAL` · `RATE_LIMITED`+`retryAfterSec: 40` · `RATE_LIMITED`(값 없음) · `NETWORK` · `VALIDATION_ERROR`
 - When `만들기` → (가짜 시계 설치) → 실패 resolve → 1999ms → 1ms → 같은 입력으로 다시 `만들기`(2회째 응답 `ok(안개 낀 런던 r9)`)
-- Then ⓐ `role=alert` 문구·톤: `ERROR_MESSAGES.INTERNAL`(danger) · `요청이 너무 많습니다. 40초 후 다시 시도해 주세요.`(warning) · `ERROR_MESSAGES.RATE_LIMITED`(warning) · `서버에 연결할 수 없습니다.`(danger) · `방 제목은 1~60자로 입력해 주세요.`(danger). `SERVER-RAW-MESSAGE` 없음. B 행·입력값 `'안개 낀 런던'` 유지, 「+ 새 방」 유지, `만들기` enabled. 1999ms에 alert 있음 → 2000ms에 없음 ⓑ 실패 시점: `onAuthFailure` 0회, `onOpenRoom` 0회, 저장소 키 0개 → 재제출 성공 뒤: `onOpenRoom` 1회(응답 RoomSummary), `onAuthFailure` 0회 유지 ⓒ 실패 시점 `createRoom` 1회 `[{ title: '안개 낀 런던' }]` → 재제출 뒤 총 2회, 2회째 인자도 `[{ title: '안개 낀 런던' }]`(실패가 다음 제출을 막지 않음)
+- Then ⓐ `role=alert` 문구·톤: `ERROR_MESSAGES.INTERNAL`(danger) · `요청이 너무 많습니다. 40초 후 다시 시도해 주세요.`(warning) · `ERROR_MESSAGES.RATE_LIMITED`(warning) · `서버에 연결할 수 없습니다.`(danger) · **(S6 개정, D-L12)** `방 제목(1~60자)과 비밀번호(4~32자)를 확인해 주세요.`(danger, 옛 `방 제목은 1~60자로 입력해 주세요.` 대체 — 같은 문구를 TC-RM-057(b)도 단언). `SERVER-RAW-MESSAGE` 없음. B 행·입력값 `'안개 낀 런던'` 유지, 「+ 새 방」 유지, `만들기` enabled. 1999ms에 alert 있음 → 2000ms에 없음 ⓑ 실패 시점: `onAuthFailure` 0회, `onOpenRoom` 0회, 저장소 키 0개 → 재제출 성공 뒤: `onOpenRoom` 1회(응답 RoomSummary), `onAuthFailure` 0회 유지 ⓒ 실패 시점 `createRoom` 1회 `[{ title: '안개 낀 런던' }]` → 재제출 뒤 총 2회, 2회째 인자도 `[{ title: '안개 낀 런던' }]`(실패가 다음 제출을 막지 않음)
 - 스펙: `NewRoom.test.tsx`
 
 ### TC-RM-024 · (S2) 인증 실패 전환 · 종류: 자동 · 요구: R-CHAT-011 · R-CHAT-009 · R-CHAT-008 · 설계: §6.5 isAuthFailure 행 · F-RM-12·18·19 · §8.3 인증 3행 · §10 전환 · 토큰: 있음 → 없음
@@ -180,10 +189,11 @@
 - Then ⓐ (a)(b) B 행 없음, 「+ 새 방」에 포커스 → 다시 열면 입력값 `''`·카운터 `0/60` (c) B 행 유지, 입력값 유지 ⓑ (a)(b) `create` 초기값(관찰: 빈 입력) (c) 무시 ⓒ (a)(b) `createRoom` 0회 (c) 1회
 - 스펙: `NewRoom.test.tsx`
 
-### TC-RM-026 · (S2) Enter 제출·IME · 종류: 자동 · 요구: R-ROOMS-002 · 설계: C §1.12 IME 판정 · C §2.4 `onEnter` · F-RM-17 가드 · A 키보드 · 토큰: 있음
+### TC-RM-026 · (S2) Enter 제출·IME — **(S6 개정 → TC-RM-054)** · 종류: 자동 · 요구: R-ROOMS-002 · 설계: C §1.12 IME 판정 · C §2.4 `onEnter` · F-RM-17 가드 · A 키보드 · 토큰: 있음
+- **S6 개정(R-ROOMS-002 S6 개정 · L D-L3 · L F-RM-53)**: (d) "유효 제목 Enter → `createRoom` 1회"는 **폐기**. 제목 Enter는 이제 비밀번호 칸으로 포커스를 옮기고 제출하지 않는다 — 새 기대는 TC-RM-054(a). (a)(b)(c)는 "제목 Enter는 제출하지 않는다"로 S6에서도 성립해 유지한다
 - Given 입력 행이 열려 있다
-- When (a) `'안개 낀 런던'` 입력 후 `keyDown Enter` + `isComposing: true` (b) 같은 값에서 `keyDown Enter` + `keyCode: 229` (c) `'   '`에서 Enter (d) `'안개 낀 런던'`에서 Enter
-- Then ⓐ (a)(b)(c) B 행 그대로, 입력값 그대로 (d) 대기 표시(`readOnly`) ⓑ `onOpenRoom` 0회(응답 전) ⓒ (a)(b)(c) `createRoom` 0회 (d) 1회 `[{ title: '안개 낀 런던' }]`
+- When (a) `'안개 낀 런던'` 입력 후 `keyDown Enter` + `isComposing: true` (b) 같은 값에서 `keyDown Enter` + `keyCode: 229` (c) `'   '`에서 Enter ~~(d) `'안개 낀 런던'`에서 Enter~~
+- Then ⓐ (a)(b)(c) B 행 그대로, 입력값 그대로 ⓑ `onOpenRoom` 0회 ⓒ (a)(b)(c) `createRoom` 0회
 - 스펙: `NewRoom.test.tsx`
 
 ### TC-RM-027 · (S2) App 토큰 흐름 · 종류: 자동 · 요구: R-ROOMS-002 · R-CHAT-008 · R-CHAT-009 · R-NFR-004 · 설계: F §1.1 `viewer` 초기값 · F-RM-01·21 · C §1.8·§1.10 · §6.1 · 토큰: 있음 / 없음
@@ -270,6 +280,166 @@
 - Then ⓐ ⚙ → 「+ 새 방」 한 줄, 간격 `--space-2`, ⚙ 44×44, 가로 스크롤 없음 ⓑ 해당 없음 ⓒ 해당 없음 — 수동 확인표 `ui/src/settings/test/manual-checklist.md` MC-ST-05(S3c 확인표에 묶음)
 - 스펙: `ui/src/settings/test/manual-checklist.md`
 
+## TC 목록 — S6 방 비밀번호 잠금 (v0.7, 설계 예약 번호 TC-RM-041~066 유지)
+
+절 표기: `L` = `design/lock.md`, `C` = `design/components.md`, `A` = `design/a11y.md`. 스펙 파일: `lock.test.tsx`(화면 041~053·058) · `NewRoomLock.test.tsx`(054~057) · `useRoomEntry.test.tsx`(065 · 049(c) · 051(e) · 052(d)) · `state/roomKeys.test.ts`(059 · 055(c)) · `passwordInputs.test.tsx`(061) · `LockFlow.test.tsx`(063 · 064 · 066 · 060(a)) — 전부 `ui/src/rooms/test/` 아래.
+
+### TC-RM-041 · (S6) 잠긴 행 표시 · 종류: 자동 · 요구: R-LOCK-003 · R-ROOMS-001(S6 개정) · 설계: §2.4 · L §1.2 · L §1.4 · C §2.1 S6 `LockGlyph` · C §2.2 S6 · L F-RM-54 · L §8.1 `lockedRowAriaLabel` · L §10 2행 · L D-L4 · A S6 잠긴 행 · L §7 끝(E18·E19 미호출) · 토큰: 없음 / 있음(같은 기대)
+- Given `listRooms` → `[체스 대결 r2(10.03), 비밀 다과회 r3(locked, 10.04), 티타임 r1(10.05)]`. `viewer` = (a) `READ_ONLY_VIEWER` (b) `WRITER_VIEWER`
+- When 마운트하고 목록이 그려진다
+- Then ⓐ 행 버튼 이름이 받은 순서 그대로 `체스 대결, 마지막 갱신 10.03` → `비밀 다과회, 잠긴 방` → `티타임, 마지막 갱신 10.05`. 잠긴 행 안 `<svg aria-hidden="true" focusable="false">` 1개, `<time>` **0개**, 글자에 `비밀 다과회` 있고 `10.04` 없음, 화면 전체에 `10.04` 텍스트 0건. 안 잠긴 행은 `<time dateTime="2026-10-05">`가 있고 `svg` 없음 ⓑ 저장소 키 0개 ⓒ `listRooms` 1회, `enterRoom`·`createRoom`·`renameRoom`·`deleteRoom`·`setRoomPassword`·`clearRoomPassword` 0회
+- 스펙: `ui/src/rooms/test/lock.test.tsx`
+
+### TC-RM-042 · (S6) 판정 ① 안 잠긴 방 · 종류: 자동 · 요구: R-ROOMS-001 · R-LOCK-009 · 설계: L F-RM-41 ① · L F-RM-47 · L §6.7 1행 · 토큰: 없음 / 있음(같은 기대)
+- Given TC-RM-041 목록, 증명 없음
+- When `티타임` 행을 클릭한다
+- Then ⓐ `dialog` 없음 ⓑ `onOpenRoom` 1회(인자 = `티타임` RoomSummary), `ld:roomKeys` 없음 ⓒ `enterRoom` 0회
+- 스펙: `lock.test.tsx`
+
+### TC-RM-043 · (S6) 판정 ② 저장된 증명 · 종류: 자동 · 요구: R-LOCK-004 · R-ROOMS-001 · 설계: L F-RM-34 · L F-RM-41 ② · L §6.7 2행 · 토큰: 없음 / 있음(같은 기대)
+- Given 렌더 전 `ld:roomKeys` = `[["r3","e1.x"]]`, TC-RM-041 목록
+- When `비밀 다과회, 잠긴 방` 행을 클릭한다
+- Then ⓐ `dialog` 없음 ⓑ `onOpenRoom` 1회(인자 = `비밀 다과회`), `ld:roomKeys` 그대로 `[["r3","e1.x"]]` ⓒ `enterRoom` 0회
+- 스펙: `lock.test.tsx`
+
+### TC-RM-044 · (S6) 판정 ③ 조용한 시도 성공 · 종류: 자동 · 요구: R-LOCK-005 · R-LOCK-004 · 설계: L F-RM-41 ③ · L F-RM-42 성공 · L F-RM-35 · L §6.7 ③ 200 두 행 · L §7 E17 행(인자 1개) · L D-L9 · A S6 조용한 시도 · 토큰: 있음
+- Given `WRITER_VIEWER`, 증명 없음. (a) `enterRoom` deferred → `ok({ entryKey: 'e1.x' })` (b) `ok({ entryKey: null })`
+- When 잠긴 행 클릭 → (a) 대기 상태 확인 → resolve
+- Then ⓐ (a) 대기 중 `role=status`·`dialog` 없음(진행 표시 없음, D-L9) → 응답 뒤에도 `dialog` 없음 (b) `dialog` 없음 ⓑ (a) `onOpenRoom` 대기 중 0회 → 응답 뒤 1회(`비밀 다과회`), `ld:roomKeys` = `[["r3","e1.x"]]` (b) `onOpenRoom` 1회, `ld:roomKeys` 없음 ⓒ `enterRoom` 1회, `mock.calls[0]` = `['r3']`, **길이 1**(비밀번호 인자 없음)
+- 스펙: `lock.test.tsx`
+
+### TC-RM-045 · (S6) 판정 ③ `ROOM_LOCKED` → 시트 · 종류: 자동 · 요구: R-LOCK-005 · R-LOCK-004 · 설계: L F-RM-42 `ROOM_LOCKED` · L §6.7 403 행 · L §2.1 트리(시트는 `<section>` 다음) · L F-RM-46 · C §1.22 · L §8.2 `title`·`submit`·`cancel` · L §7 끝(`isAuthFailure` false) · A S6 입장 시트 · 토큰: 있음
+- Given `WRITER_VIEWER`, 증명 없음, `enterRoom` → `fail('ROOM_LOCKED')`
+- When 잠긴 행을 클릭한다
+- Then ⓐ `dialog "비밀번호"`(h2 `비밀번호`)가 열리고 입력 `방 비밀번호`(값 `''`)에 **포커스**, `role=alert` 0개, `입장` disabled · `취소` enabled. 시트가 DOM에서 목록(`list`) **뒤**. `새 방 만들기` 버튼 그대로(읽기 전용 전환 없음) ⓑ `onOpenRoom` 0회, `onAuthFailure` 0회, `ld:roomKeys` 없음 ⓒ `enterRoom` 1회 `['r3']`(길이 1)
+- 스펙: `lock.test.tsx`
+
+### TC-RM-046 · (S6) 판정 ④ 읽기 전용 → 바로 시트 · 종류: 자동 · 요구: R-LOCK-006 · R-ROOMS-001(S6 개정) · 설계: L F-RM-41 ④ · L §6.7 ④ · L §10 3·4행 · §10 S6 입장 시트 행 · 토큰: 없음
+- Given `READ_ONLY_VIEWER`, 증명 없음
+- When 잠긴 행을 클릭한다
+- Then ⓐ 클릭 직후 `dialog "비밀번호"`, 입력 포커스, alert 없음, `입장` disabled. `새 방 만들기` 없음(TC-RM-045와 토큰 쌍) ⓑ `onOpenRoom` 0회, `ld:roomKeys` 없음 ⓒ `enterRoom` **0회**(요청 없이 시트)
+- 스펙: `lock.test.tsx`
+
+### TC-RM-047 · (S6) 시트 제출 성공 · 종류: 자동 · 요구: R-LOCK-004 · R-LOCK-007 · R-LOCK-006 · 설계: L F-RM-43 성공 · L §6.8 요청 중·200 두 행 · L §3 끝(원문 미보관) · C §1.17 `isBusy` · 토큰: 없음
+- Given `READ_ONLY_VIEWER`, 시트 열림. (a) `enterRoom` deferred → `ok({ entryKey: 'e1.x' })` (b) `ok({ entryKey: null })`
+- When 입력 `pw1234` → `입장` 클릭 → (a) 대기 상태 확인 → resolve
+- Then ⓐ (a) 대기 중 입력 `readOnly`, `입장`·`취소` disabled → 응답 뒤 `dialog` 없음 (b) `dialog` 없음 ⓑ `onOpenRoom` 1회(`비밀 다과회`). (a) `ld:roomKeys` = `[["r3","e1.x"]]` (b) `ld:roomKeys` 없음. 저장소(local·session) 어떤 값에도 `pw1234` 없음 ⓒ `enterRoom` 1회 `['r3', 'pw1234']`
+- 스펙: `lock.test.tsx`
+
+### TC-RM-048 · (S6) 비밀번호 틀림 · 종류: 자동 · 요구: R-LOCK-004 · 설계: L F-RM-43 그 밖 · L §6.8 `ROOM_PASSWORD_WRONG` 행 · L §8.2 · A S6 실패 문구 `role=alert` · 토큰: 없음
+- Given `READ_ONLY_VIEWER`, 시트 열림, `enterRoom` → `fail('ROOM_PASSWORD_WRONG')`
+- When 입력 `wrong1` → `입장`
+- Then ⓐ 시트 안 `role=alert` = `비밀번호가 맞지 않습니다.`, `SERVER-RAW-MESSAGE` 없음, 같은 `dialog` 유지, 입력값 `wrong1` 유지·`readOnly` 해제, `입장`·`취소` enabled ⓑ `onOpenRoom` 0회, `ld:roomKeys` 없음 ⓒ `enterRoom` 1회
+- 스펙: `lock.test.tsx`
+
+### TC-RM-049 · (S6) 시트 문구 코드별 · 종류: 자동 · 요구: R-LOCK-008 · R-LOCK-004 · 설계: L F-RM-45 · L §8.2 전 행 · C §1.23 · L F-RM-42 그 밖 · L §6.8 `RATE_LIMITED`·`NETWORK` 행 · L §7 E17 코드 목록 · 토큰: 없음 (a)(c) / 있음 (b)
+- Given (a) `READ_ONLY_VIEWER` 시트 제출 실패: `RATE_LIMITED`+`retryAfterSec: 42` · `RATE_LIMITED`(값 없음) · `NETWORK` · `INTERNAL` (b) `WRITER_VIEWER` 조용한 시도 실패: `NETWORK` · `INTERNAL` · `CONFIG_INVALID` · `TOKEN_INVALID`(E17은 내지 않지만 와도 시트, F-RM-42) (c) 단위: `enterErrorText`·`ROOM_ENTRY_TEXT`
+- When (a) `pw1234` → `입장` (b) 잠긴 행 클릭 (c) 함수 호출
+- Then ⓐ (a) 시트 안 alert = `비밀번호를 너무 자주 입력했습니다. 42초 후 다시 시도해 주세요.` · `비밀번호를 너무 자주 입력했습니다. 잠시 후 다시 시도해 주세요.` · `서버에 연결할 수 없습니다.` · `ERROR_MESSAGES.INTERNAL`. 화면 alert 1개(토스트 없음), `SERVER-RAW-MESSAGE` 없음, 입력값 유지 (b) 시트가 열리며 alert = `서버에 연결할 수 없습니다.` · `ERROR_MESSAGES.INTERNAL` · `ERROR_MESSAGES.CONFIG_INVALID` · `ERROR_MESSAGES.TOKEN_INVALID`, `새 방 만들기` 유지 (c) `ROOM_ENTRY_TEXT` = `{ title: '비밀번호', inputAriaLabel: '방 비밀번호', submit: '입장', cancel: '취소' }`, 코드별 반환이 (a) 문구·`ROOM_PASSWORD_WRONG` 문구·`ERROR_MESSAGES.CONFIG_INVALID`와 같고 서버 `message` 미포함 ⓑ (a)(b) `onAuthFailure` 0회, `onOpenRoom` 0회 ⓒ (a) `enterRoom` 1회(자동 재시도 없음) (b) `enterRoom` 1회, 길이 1
+- 스펙: `lock.test.tsx`(a)(b) · `useRoomEntry.test.tsx`(c)
+
+### TC-RM-050 · (S6) `NOT_FOUND` → 목록 다시 받기 · 종류: 자동 · 요구: R-LOCK-004 · 설계: L F-RM-42 `NOT_FOUND` · L F-RM-43 `NOT_FOUND` · L F-RM-48 · L §6.8 `NOT_FOUND` 행 · L D-L10 · A S6 목록 다시 받기 · 토큰: 없음 (a) / 있음 (b)
+- Given `listRooms` 1회째 TC-RM-041 목록, 2회째 `[체스 대결, 티타임]`. (a) `READ_ONLY_VIEWER` 시트 제출 → `fail('NOT_FOUND')` (b) `WRITER_VIEWER` 조용한 시도 → `fail('NOT_FOUND')`
+- When (a) `pw1234` → `입장` (b) 잠긴 행 클릭
+- Then ⓐ `dialog` 없음, 새 목록에서 `비밀 다과회, 잠긴 방` 행 없음·`티타임` 행 있음, `role=alert` 0개(토스트 없음) ⓑ `onOpenRoom` 0회 ⓒ `listRooms` 총 2회, `enterRoom` 1회
+- 스펙: `lock.test.tsx`
+
+### TC-RM-051 · (S6) 시트 닫기 · 종류: 자동 · 요구: R-LOCK-004 · R-LOCK-007 · 설계: L F-RM-44 · L §6.8 취소 행 · C §1.15 Esc·덮개·포커스 복귀 · C §1.17 `isBusy` · L §3 끝 · A S6 입장 시트 · 토큰: 없음
+- Given `READ_ONLY_VIEWER`, 잠긴 행 클릭으로 시트 열림, 입력 `pw1234`. (d) `enterRoom` deferred로 제출 중 (e) 훅 단위: `submitPassword` 대기 중
+- When (a) `취소` 클릭 (b) Esc (c) 덮개(`dialog.parentElement`) 클릭 → 각각 같은 행 다시 클릭 (d) 요청 중 Esc·덮개 (e) 요청 중 `cancelEntry()` → 응답(`ROOM_PASSWORD_WRONG`) 뒤 `cancelEntry()`
+- Then ⓐ (a)(b)(c) `dialog` 없음, 포커스 = 탭한 행 → 다시 열면 입력값 `''` (d) 같은 `dialog` 유지, 입력값 유지 ⓑ (a)(b)(c) 저장소에 `pw1234` 없음 (e) 요청 중 `sheet` = `{ room: r3, isBusy: true, error: null }` 그대로 → 응답 뒤 `cancelEntry()`로 `sheet = null` ⓒ (a)(b)(c) `enterRoom` 0회 (d) 1회(추가 없음)
+- 스펙: `lock.test.tsx`(a)~(d) · `useRoomEntry.test.tsx`(e)
+
+### TC-RM-052 · (S6) 시트 입력 규칙 · 종류: 자동 · 요구: R-LOCK-004 · R-LOCK-007 · 설계: C §1.22 `RoomEntrySheet` 렌더(`maxChars` 64·placeholder 없음·`inputType`) · L §1.3 · L §8.2 끝 · L F-RM-39 `isEnterPasswordValid` · L F-RM-43 가드 · L D-L2 · L D-L5 · L D-L6 · C §1.12 IME · 토큰: 없음
+- Given `READ_ONLY_VIEWER`, 시트 열림, `enterRoom` → `fail('ROOM_PASSWORD_WRONG')`. (d) 훅 단위
+- When 값을 `''` → `'a'` → 64자 → 65자 → `' a '`로 바꾸고 IME Enter(`isComposing`·`keyCode 229`) → Enter. (d) 시트 없이 `submitPassword('pw1234')` → 시트 연 뒤 `submitPassword('')`·`submitPassword(65자)`
+- Then ⓐ 입력 `type="password"`·`autocomplete="new-password"`·placeholder 속성 없음, 카운터 `0/64`. `''` → `입장` disabled · `a` → enabled · 64 → `64/64` enabled · 65 → `65/64` 카운터 `over`, `aria-invalid="true"`, disabled, 값 65자 그대로 · `' a '` → `3/64`(trim 없음) enabled ⓑ (d) `sheet` = `{ room: r3, isBusy: false, error: null }` 유지 ⓒ IME Enter 뒤 `enterRoom` 0회 → Enter 뒤 1회 `['r3', ' a ']`(원문 그대로) (d) `enterRoom` 0회
+- 스펙: `lock.test.tsx` · `useRoomEntry.test.tsx`(d)
+
+### TC-RM-053 · (S6) 연타 · 종류: 자동 · 요구: R-LOCK-004 · 설계: L §3 `quietInFlightRef`·`submitInFlightRef` · L F-RM-41 가드 · L F-RM-43 가드 · L D-L9 · 토큰: 있음 (a) / 없음 (b)
+- Given (a) `WRITER_VIEWER`, 조용한 시도 deferred (b) `READ_ONLY_VIEWER`, 시트 입력 `pw1234`, 제출 deferred
+- When (a) 잠긴 행 클릭 → 대기 중 같은 행·`티타임` 행 클릭 → `ok({ entryKey: 'e1.x' })` (b) 한 `act` 안에서 `입장` 클릭 2회 → 대기 중 입력에서 Enter → `ROOM_PASSWORD_WRONG`
+- Then ⓐ (a) 대기 중 `dialog` 없음 (b) 대기 중 시트 유지 ⓑ (a) 대기 중 `onOpenRoom` 0회(`티타임` 탭도 무시) → 응답 뒤 1회, 인자 = `비밀 다과회` ⓒ (a) `enterRoom` 1회 (b) 1회 `['r3', 'pw1234']`, 응답 뒤에도 1회
+- 스펙: `lock.test.tsx`
+
+### TC-RM-054 · (S6) B 2줄 · 제목 Enter → 비밀번호 (**TC-RM-026(d) 개정**) · 종류: 자동 · 요구: R-ROOMS-002(S6 개정) · R-LOCK-001 · 설계: L §1.1 · C §2.4 S6 · L §3 `passwordInputRef` · L F-RM-53 · L §8.1 `newRoomPasswordAriaLabel`·`newRoomPasswordPlaceholder` · L §10 1행 · L D-L3 · A S6 새 방 2줄 포커스·비밀번호 입력 · 토큰: 있음 (a) / 없음 (b)
+- Given (a) `WRITER_VIEWER`, `createRoom` → `ok({ ...안개 낀 런던, entryKey: null })` (b) `READ_ONLY_VIEWER`
+- When (a) 「+ 새 방」 → 제목 `안개 낀 런던` → 제목에서 Enter → 비밀번호 칸 IME Enter → Enter (b) 목록이 그려진다
+- Then ⓐ (a) 제목 `textbox "새 방 제목"` 포커스, 비밀번호 입력(`새 방 비밀번호`) `type="password"`·placeholder `비밀번호(선택, 6자 이상 권장)`·카운터 `0/32`, 제목 카운터 `0/60`. group 안 DOM 순서 = 제목 → `취소` → 비밀번호 → `만들기`. 제목 Enter 뒤 포커스 = 비밀번호 입력, 제목 `readOnly` 아님 (b) `새 방 만들기`·group·`새 방 비밀번호` 라벨 요소·`input[type=password]` 모두 DOM 없음(토큰 쌍) ⓑ (a) 제목 Enter 뒤 `create.isSubmitting` false(관찰: readOnly 아님) ⓒ (a) 제목 Enter·IME Enter 뒤 `createRoom` 0회 → 비밀번호 Enter 뒤 1회 `[{ title: '안개 낀 런던' }]` (b) `createRoom` 0회
+- 스펙: `ui/src/rooms/test/NewRoomLock.test.tsx`
+
+### TC-RM-055 · (S6) 비밀번호 경계 · 종류: 자동 · 요구: R-LOCK-001 · R-ROOMS-002 · 설계: L F-RM-39 · L F-RM-49 · L §6.9 3 · C §1.11 S6 · C §1.12 S6 카운터 · C §2.4 S6 `만들기` 조건 · L D-L5 · L D-L2(32) · 토큰: 있음 / 무관(c)
+- Given (a)(b) `WRITER_VIEWER`, B 열림, 제목 `안개 낀 런던` (c) 순수 함수
+- When (a) 비밀번호를 `''` → `abc` → `abcd` → 32자 → 33자 → `' ab '` → `'😀😀😀😀'`로 바꾼다 (b) 제목을 `'   '`로 바꾼다 (c) 함수 호출
+- Then ⓐ (a) `''` `0/32` enabled · `abc` `3/32` disabled·`over` 없음·`aria-invalid` 아님 · `abcd` `4/32` enabled · 32 `32/32` enabled · 33 `33/32` disabled·`over`·`aria-invalid="true"`·값 33자 그대로 · `' ab '` `4/32` enabled · 이모지 4개 `4/32` enabled (b) `만들기` disabled ⓑ (c) `countPasswordChars('')`=0·`(' ab ')`=4·이모지 4개=4 · `isRoomPasswordSettable` 0/3/4/32/33 → F/F/T/T/F · `isRoomPasswordValid` 0/3/4/32/33 → T/F/T/T/F, `' ab '`·이모지 4개 T · `isEnterPasswordValid` 0/1/64/65 → F/T/T/F ⓒ `createRoom` 0회
+- 스펙: `NewRoomLock.test.tsx`(a)(b) · `ui/src/rooms/test/state/roomKeys.test.ts`(c)
+
+### TC-RM-056 · (S6) 생성 본문·증명 · 종류: 자동 · 요구: R-LOCK-001 · R-LOCK-004 · R-LOCK-007 · R-ROOMS-002 · 설계: L F-RM-50 · L §6.9 4 · L §7 E4 행 · L D-L7 · §7 E4 행 · 토큰: 있음
+- Given `WRITER_VIEWER`, 제목 `안개 낀 런던`. (a) 비밀번호 `''`, 응답 `{ ...r9(locked false), entryKey: null }` (b) 비밀번호 `abcd`, 응답 `{ ...r9(locked true), entryKey: 'e1.k' }`
+- When `만들기` 클릭
+- Then ⓐ (a)(b) 화면 전환은 App 몫(RoomsScreen 단위에서는 `onOpenRoom` 호출로 관찰) ⓑ (a) `onOpenRoom` 1회, 인자 = r9 RoomSummary와 같고 `entryKey` 속성 **없음**, `ld:roomKeys` 없음 (b) `onOpenRoom` 1회, 인자 = 잠긴 r9와 같고 `entryKey` 속성 없음, `ld:roomKeys` = `[["r9","e1.k"]]`, 저장소에 `abcd` 없음 ⓒ (a) `createRoom` 1회, 본문 키 = `['title']`만(`password` 키 없음), `listRooms` 1회 유지 (b) `createRoom` 1회 `[{ title: '안개 낀 런던', password: 'abcd' }]`
+- 스펙: `NewRoomLock.test.tsx`
+
+### TC-RM-057 · (S6) 새 방 취소·실패 · 종류: 자동 · 요구: R-ROOMS-002 · R-LOCK-001 · R-LOCK-007 · 설계: L F-RM-51 · L F-RM-50 실패 · L §6.9 5 · §8.3 `VALIDATION_ERROR` 개정 · L D-L12 · F-RM-12·18 · L §10 1행(전환 후) · 토큰: 있음 → 없음(c)
+- Given `WRITER_VIEWER`, B에 제목 `안개 낀 런던`·비밀번호 `abcd`. (b) `createRoom` → `INTERNAL` · `VALIDATION_ERROR` (c) `createRoom` → `TOKEN_INVALID`
+- When (a) `취소` 클릭 또는 비밀번호 칸에서 Esc → 「+ 새 방」 다시 클릭 (b) `만들기` (c) `만들기` → `rerender(viewer=READ_ONLY_VIEWER)`(App 흉내)
+- Then ⓐ (a) B 닫힘, 포커스 「+ 새 방」 → 다시 열면 제목·비밀번호 둘 다 `''` (b) 토스트 `role=alert` = `ERROR_MESSAGES.INTERNAL` · `방 제목(1~60자)과 비밀번호(4~32자)를 확인해 주세요.`, `SERVER-RAW-MESSAGE` 없음, 제목·비밀번호 값 유지, `만들기` enabled (c) 전환 뒤 group·`새 방 비밀번호`·`input[type=password]` DOM 없음 ⓑ (b) `onOpenRoom`·`onAuthFailure` 0회 (c) `onAuthFailure` 1회. (a)(b)(c) `ld:roomKeys` 없음, 저장소에 `abcd` 없음 ⓒ (a) `createRoom` 0회 (b)(c) 1회 `[{ title: '안개 낀 런던', password: 'abcd' }]`
+- 스펙: `NewRoomLock.test.tsx`
+
+### TC-RM-058 · (S6) 자동 진입 보류 · 종류: 자동 · 요구: R-ROOMS-004(S6 개정) · R-LOCK-004 · 설계: L F-RM-52 · L §6.10 · L D-L11 · F-RM-08 · 토큰: 있음 (a) / 없음 (b) / 무관 (c)(d)
+- Given TC-RM-041 목록, 렌더 전 `ld:lastRoomId`. (a)(b) = `r3`(잠김), 증명 없음, `autoOpenRoomId='r3'`, viewer (a) WRITER (b) READ_ONLY (c) = `r3` + `ld:roomKeys` `[["r3","e1.x"]]` (d) = `r1`(안 잠김)
+- When 마운트하고 목록 응답이 온다
+- Then ⓐ (a)(b) 잠긴 행이 보이고 `dialog` 없음 (c)(d) `dialog` 없음 ⓑ (a)(b) `onAutoOpenSettled` 1회, `onOpenRoom` 0회, `ld:lastRoomId` **삭제**, `ld:roomKeys` 없음 (c) `onAutoOpenSettled` 1회 + `onOpenRoom(비밀 다과회)` 1회 (d) `onOpenRoom(티타임)` 1회(회귀) ⓒ (a)~(d) `enterRoom` 0회(토큰이 있어도 조용한 시도 안 함)
+- 스펙: `lock.test.tsx`
+
+### TC-RM-059 · (S6) roomKeys 단위 · 종류: 자동 · 요구: R-LOCK-004 · R-LOCK-007 · R-CHAT-010(S6 개정) · 설계: C §1.21 · L F-RM-30~37 · L `commit` · L §3 증명 캐시 · C §1.7 S6 원문 3함수 · L §6.11 · 토큰: 무관
+- Given 매 TC `localStorage.clear()` → `resetRoomKeyCache()`. 저장소 throw는 `Storage.prototype` spy
+- When 아래 (a)~(h)를 호출한다
+- Then ⓐ 해당 없음(화면 없음) ⓑ (a) `parseRoomKeys`: `null`·`''`·`'not json'`·객체·숫자 → `[]` · 원소 `{x:1}`·`[1,'k']`·`['r2','']`·`['','k']`·`'str'` 제외 · 중복 id → 마지막 증명(길이 2, 순서는 단언하지 않음) · 60개 → 뒤쪽 50개(`r10`~`r59`), `ROOM_KEYS_MAX === 50` (b) `upsertRoomKey`: 50개 + 새 쌍 → 50개, `r0` 탈락, 새 쌍 맨 뒤, 입력(동결 배열) 불변 · 같은 방 재저장 → 기존 쌍 빼고 새 증명으로 맨 뒤 (c) `removeRoomKey`·`findRoomKey`(없으면 `null`) · `serializeRoomKeys([])` = `null`, `[['a','k1']]` → `'[["a","k1"]]'` (d) `saveRoomKey('r3','')` 무시 → `saveRoomKey('r3','e1.x')` → `ld:roomKeys` = `'[["r3","e1.x"]]'`, `getRoomKey('r3')` = `'e1.x'`, 없는 방 `null` (e) 첫 `getRoomKey` 뒤 저장소를 바꿔도 캐시 값 유지, 그 키 `getItem` 1회 → `resetRoomKeyCache()` 뒤 새 값 (f) 없는 방 `forgetRoomKey` → 마지막 쌍 삭제 → `ld:roomKeys` 키 자체 삭제 (g) `getItem` throw → `getRoomKey` `null`(throw 없음) · `setItem`·`removeItem` throw → `saveRoomKey` 뒤 같은 세션 `getRoomKey` = `'e1.x'`, `forgetRoomKey` 뒤 `null` (h) `loadRoomKeysRaw` 없음·`''` → `null`, `saveRoomKeysRaw`·`clearRoomKeysRaw` 쓰기·삭제, throw는 삼킴 ⓒ (d) 빈 증명 저장 시 `setItem` 0회 (f) 없는 방 삭제 시 `setItem`·`removeItem` 0회, 마지막 쌍 삭제 시 `removeItem('ld:roomKeys')`. api 호출 없음
+- 스펙: `ui/src/rooms/test/state/roomKeys.test.ts`
+
+### TC-RM-060 · (S6) 저장소 회귀·비노출 · 종류: 자동(a) · 수동(b 리뷰) · 요구: R-LOCK-009 · R-LOCK-007 · R-LOCK-006 · R-CHAT-010 · 설계: L §6.11 끝 · L F-RM-33·36 · L F-RM-38 · C §1.7 끝(리뷰 grep) · C §1.21 끝 · 토큰: 있음
+- Given (a) `initToken('?t=test-token')` → `<App />`, 목록 `[티타임, 비밀 다과회(잠김)]` (b) 구현 뒤 소스 트리
+- When (a) `티타임` 진입 → ‹ 뒤로(잠긴 방은 열지 않음) (b) 수동 확인표 MC-RM-14 절차
+- Then ⓐ (a) 목록으로 돌아옴 ⓑ (a) 저장소 키가 S5 키(`ld:lastRoomId`·`ld:scroll:*`)뿐이고 `ld:roomKeys` 없음, local·session 어디에도 `test-token` 없음, `sessionStorage` 0개 (b) `localStorage` 접근은 `storage.ts`뿐 · `configureClient` 호출은 `main.tsx`뿐이고 순서 `initToken` → `configureClient({ getToken, getRoomKey })` → render · 비밀번호·증명 변수의 `console.` 출력 0건 ⓒ (a) `enterRoom` 0회
+- 스펙: `ui/src/rooms/test/LockFlow.test.tsx`(a) · `test/manual-checklist.md` MC-RM-14(b)
+
+### TC-RM-061 · (S6) 공용 델타 TextInput·PromptSheet · 종류: 자동 · 요구: R-LOCK-001 · R-ROOMS-002 · 설계: C §1.12 S6 · C §1.17 S6 · L §2.2 1·2행 · L D-L1 · L D-L5 · L D-L6 · 토큰: 무관
+- Given 공용 부품 단독 렌더(라벨은 임의 문자열 — 공용 부품은 문구를 갖지 않음)
+- When (a) `TextInput type="password" value=" ab " maxChars={32}` · 같은 type 33자 (b) `type` 생략 `value=" ab " maxChars={60}` (c) `PromptSheet inputType="password" placeholder="6자 이상 권장" maxChars={32}` (d) 두 props 생략
+- Then ⓐ (a) `<input type="password" autocomplete="new-password" autocapitalize="off" spellcheck="false">`, 카운터 `4/32`(trim 없음) · 33자 → `33/32` `over`·`aria-invalid="true"` (b) `type="text"`·`autocomplete="off"`, 카운터 `2/60`(trim 후, 회귀 없음) (c) 시트 안 입력 `type="password"`·`autocomplete="new-password"`·placeholder `6자 이상 권장`, 카운터 `0/32` (d) `textbox` `type="text"`, placeholder 없음, `dialog` 이름 그대로 ⓑ 해당 없음(부품 상태는 props로 관찰) ⓒ api 호출 없음
+- 스펙: `ui/src/rooms/test/passwordInputs.test.tsx`
+
+### TC-RM-062 · (S6) 스크린샷 · 종류: 수동 · 요구: R-LOCK-003 · R-ROOMS-005 · R-LOCK-001 · 설계: L §1.1~§1.4 · L §1.1 표(B 96·목록 425) · L §1.1 끝(354px 미만 잘림) · 토큰: 없음 / 있음
+- Given 잠긴 방이 섞인 시드, 뷰포트 390×565·328
+- When 목록 자물쇠 판 · B 2줄 판 · 입장 시트 틀림 문구 판을 캡처
+- Then ⓐ 잠긴 행 자물쇠 16 + 간격 8 + 제목, 날짜 없음. B 96·목록 425, 두 입력 오른쪽 끝 한 세로선. 시트 문구 1줄 약 185px. 328px에서 B2 placeholder 잘림 정도 기록 ⓑ 해당 없음 ⓒ 해당 없음 — 수동 확인표 MC-RM-10
+- 스펙: `test/manual-checklist.md` MC-RM-10
+
+### TC-RM-063 · (S6) App 흐름 읽기 전용 잠긴 방 · 종류: 자동 · 요구: R-LOCK-004 · R-LOCK-006 · R-ROOMS-001 · R-LOCK-007 · 설계: L §6.7 ④ · L §6.8 · L F-RM-34(getter) · L F-RM-38 · F-RM-02·03 · 토큰: 없음
+- Given `initToken('')` → `<App />`, 목록 `[티타임, 비밀 다과회(잠김)]`, `enterRoom` → `ok({ entryKey: 'e1.x' })`, `listMessages` → 빈 페이지
+- When 잠긴 행 탭 → 시트에 `pw1234` → `입장` → chat → ‹ 뒤로 → 같은 행 탭
+- Then ⓐ 첫 진입 `main "대화: 비밀 다과회"` → 뒤로 뒤 `main "방 목록"` → 두 번째 탭에서 `dialog` 없이 다시 `main "대화: 비밀 다과회"` ⓑ 첫 진입 뒤 `ld:lastRoomId='r3'`, `ld:roomKeys` = `[["r3","e1.x"]]`, `getRoomKey('r3')` = `'e1.x'`(main.tsx가 래퍼에 넘기는 getter 값) → 뒤로 뒤 `ld:lastRoomId` 삭제. `getToken() === null`, 저장소에 `pw1234` 없음 ⓒ `enterRoom` 총 1회 `['r3', 'pw1234']`(두 번째 탭은 0회 추가), `listMessages` 첫 인자 `'r3'`
+- 스펙: `LockFlow.test.tsx`
+
+### TC-RM-064 · (S6) App 흐름 토큰 있음 · 종류: 자동 · 요구: R-LOCK-005 · R-LOCK-004 · 설계: L §6.7 ③ · L F-RM-42 · L §7 E17 토큰 헤더 열(헤더 자체는 api 스펙 API-T-UI-037) · 토큰: 있음
+- Given `initToken('?t=test-token')` → `<App />`(주인 판정 mock 비주인 — 화면은 주인 여부를 이 흐름에 쓰지 않음, L §3 끝). (a) `enterRoom` → `ok({ entryKey: 'e1.x' })`(서버가 주인으로 판정한 경우) (b) 1회째 `ROOM_LOCKED` → 2회째 `ok({ entryKey: 'e1.x' })`
+- When 잠긴 행 탭 → (b) 시트에 `pw1234` → `입장`
+- Then ⓐ (a) `dialog` 없이 `main "대화: 비밀 다과회"` (b) 시트 → `main "대화: 비밀 다과회"` ⓑ `getRoomKey('r3')` = `'e1.x'`. (a) 저장소에 `test-token` 없음 (b) `getToken()` = `'test-token'`(전환 없음) ⓒ (a) `enterRoom` 호출 = `[['r3']]` (b) `[['r3'], ['r3', 'pw1234']]`
+- 스펙: `LockFlow.test.tsx`
+
+### TC-RM-065 · (S6) `requestEntry(room, 'locked')` 훅 단위 · 종류: 자동 · 요구: R-LOCK-004 · R-LOCK-006 · 설계: L F-RM-40 · L F-RM-41(순서 확정: `'locked'`면 가드보다 먼저 `forgetRoomKey`) · L F-RM-42 · L §3 `quietInFlightRef`·`isActiveRef`·`latestRef` · C §1.22 · L §13 4행(rooms 소유) · L §6.7 끝 · 토큰: 있음 (a)(c1)(d)(e) / 없음 (b)(c2)
+- Given `renderHook(useRoomEntry, { canWrite, onEntered, onRoomGone })`. 필요 시 렌더 전 증명 심기
+- When (a) `ld:roomKeys`=`[["r3","e1.x"]]`, `requestEntry(r3, 'locked')` → `ROOM_LOCKED` resolve · 옛 요약 `{ r1, locked: false }`로 `requestEntry(…, 'locked')` → `ok({ entryKey: 'e2.y' })` (b) 토큰 없음, 같은 증명, `requestEntry(r3, 'locked')` (c1) 증명 `[["r4","e4.z"]]`, `requestEntry(r3)` 대기 중 `requestEntry(r4, 'locked')` (c2) 토큰 없음, `requestEntry(r3)`로 시트 연 뒤 `requestEntry(r4, 'locked')` (d) `requestEntry(r3)` 대기 중 언마운트 → `ok({ entryKey: 'e1.x' })` (e) 대기 중 `rerender`로 `onEntered`를 새 함수로 바꿈 → 성공
+- Then ⓐ 해당 없음(훅 단위 — 화면 쪽은 TC-RM-045·046) ⓑ (a) 호출 직후 `getRoomKey('r3')` `null`·`ld:roomKeys` 키 삭제·`sheet` `null` → 응답 뒤 `sheet` = `{ room: r3, isBusy: false, error: null }`, `onEntered` 0회 · 옛 요약 → `onEntered` 1회(그 요약), `getRoomKey('r1')` = `'e2.y'`(① 건너뜀) (b) 증명 삭제, `sheet` = `{ room: r3, isBusy: false, error: null }` (c1) `getRoomKey('r4')` `null`, `sheet` `null` 유지 → r3 응답(`ROOM_LOCKED`) 뒤 `sheet.room` = r3 (c2) `getRoomKey('r4')` `null`, `sheet` = r3 그대로 (d) `onEntered` 0회, `ld:roomKeys` 없음 (e) 옛 `onEntered` 0회, 새 함수 1회(r3) ⓒ (a) `enterRoom` `['r3']` 길이 1 · `['r1']` (b) 0회 (c1) 총 1회(추가 없음) (c2) 0회
+- 스펙: `ui/src/rooms/test/useRoomEntry.test.tsx`
+
+### TC-RM-066 · (S6) App 흐름 잠긴 새 방(U-RM-15) · 종류: 자동 · 요구: R-LOCK-001 · R-LOCK-004 · R-ROOMS-002 · R-LOCK-007 · 설계: L §6.9 · L F-RM-50 · L D-L7 · L F-RM-41 ② · 토큰: 있음
+- Given `initToken('?t=test-token')` → `<App />`, `listRooms` 1회째 `[티타임]`·2회째 `[안개 낀 런던(r9, 잠김), 티타임]`, `createRoom` → `ok({ ...r9 잠김, entryKey: 'e1.k' })`
+- When 「+ 새 방」 → 제목 `안개 낀 런던` + 비밀번호 `abcd` → `만들기` → chat → ‹ 뒤로 → `안개 낀 런던, 잠긴 방` 행 탭
+- Then ⓐ 생성 뒤 `main "대화: 안개 낀 런던"` → 목록(잠긴 행) → 탭 뒤 `dialog` 없이 `main "대화: 안개 낀 런던"` ⓑ 생성 직후 `ld:roomKeys` = `[["r9","e1.k"]]`, 저장소에 `abcd`·`test-token` 없음 ⓒ `createRoom` 1회 `[{ title: '안개 낀 런던', password: 'abcd' }]`, `enterRoom` **0회**(판정 ②)
+- 스펙: `LockFlow.test.tsx`
+
 ## TC-FLOW
 
 S1·S2 행. **ⓒ 호출 횟수는 단계 증분으로 읽는다**: 체인 안에서 각 Step의 ⓒ 횟수는 그 Step에서 새로 생긴 호출 수이고 앞 Step 호출에 더해진다(CF-02). 표기: `A → B`는 **순차 인계**(A의 결과 상태가 B의 Given). `분기:`는 같은 지점에서 갈라지는 **대안·독립 확인**(서로 상태를 넘기지 않는다).
@@ -306,6 +476,32 @@ S1·S2 행. **ⓒ 호출 횟수는 단계 증분으로 읽는다**: 체인 안�
 
 ### TC-FLOW-RM-11 · U-RM-11 등급 회원 비주인(S3c) · Steps: TC-RM-034 → TC-RM-035(b) · 분기: TC-RM-035(a)
 - 판정 403·401·네트워크·5xx(→ ⚙ 없음, 「+ 새 방」·토큰 유지, 안내 없음) → 비주인 렌더 분기. 분기: 토큰이 없으면 판정 요청 자체가 없다
+
+S6 행(v0.7). 표기 규약은 위와 같다(`→` 순차 인계, `분기:` 독립 대안, ⓒ는 단계 증분). TC-RM-063·064·066은 App 통합 TC 자체가 시작→완료 체인이라 마지막 Step으로 둔다.
+
+### TC-FLOW-RM-12 · U-RM-12 잠긴 방이 섞인 목록(읽기 전용) · Steps: TC-RM-041(a) → TC-RM-042 · 분기: TC-RM-041(b)
+- 목록 응답(→ 잠긴 행 = 자물쇠 + 제목, 날짜 DOM 없음, 안 잠긴 행 불변, 받은 순서) → 같은 목록에서 안 잠긴 행 탭은 지금처럼 바로 진입(`enterRoom` 0회). 분기: 토큰이 있어도 행 표시는 같다
+
+### TC-FLOW-RM-13 · U-RM-13 비밀번호를 아는 잠긴 방 읽기(읽기 전용) · Steps: TC-RM-046 → TC-RM-052 → TC-RM-047(a) → TC-RM-043 → TC-RM-063
+- 잠긴 행 탭(→ 요청 없이 시트, 입력 포커스) → 입력 규칙(password·0/64·trim 없음) → 제출 성공(→ 증명 저장·진입, 원문 미저장) → 그 증명이 있는 상태의 재탭 = 시트 없이 진입 → App 단위로 같은 체인(시트 → chat → ‹ 뒤로 → 재탭 무요청 진입)
+
+### TC-FLOW-RM-14 · U-RM-14 틀림·과다 시도·연결 실패 · Steps: TC-RM-046 → TC-RM-048 → TC-RM-049(a) · 분기: TC-RM-051 | TC-RM-047(a) | TC-RM-053(b) | TC-RM-050(a)
+- 시트(→ 열림) → 틀림 문구·입력 유지(→ 다시 입력 가능) → 429 초 문구·연결 실패 문구(코드마다 독립 Given). 분기: 취소·Esc·덮개로 닫기 | 맞는 비밀번호로 성공 | 연타 1회 | 방이 사라짐 → 목록 다시 받기
+
+### TC-FLOW-RM-15 · U-RM-15 잠긴 새 방 만들기(토큰 있음) · Steps: TC-RM-054(a) → TC-RM-055 → TC-RM-056(b) → TC-RM-066 · 분기: TC-RM-056(a) | TC-RM-057 | TC-RM-054(b)
+- 「+ 새 방」 2줄(→ 제목 Enter = 비밀번호 칸) → 비밀번호 경계(4~32, 빈칸 = 잠그지 않음) → `createRoom({ title, password })` → 증명 저장·entryKey 없는 RoomSummary로 진입 → App 단위로 생성 → chat → ‹ 뒤로 → 같은 방 재탭 무요청 진입. 분기: 빈 비밀번호(잠그지 않은 방) | 취소·실패·인증 실패 전환 | 토큰 없음이면 B·비밀번호 칸 DOM 없음
+
+### TC-FLOW-RM-16 · U-RM-16 갠홈 주인이 잠긴 방 입장 · Steps: TC-RM-044(a) → TC-RM-064(a)
+- 잠긴 행 탭(→ 조용한 `enterRoom(id)`, 서버가 주인으로 판정해 200 + 증명) → 시트 없이 진입·증명 저장 → App 단위 같은 체인. 화면은 주인 여부를 묻지 않는다(서버 판정은 서버 TC 몫)
+
+### TC-FLOW-RM-17 · U-RM-17 등급 회원(주인 아님) 잠긴 방 입장 · Steps: TC-RM-045 → TC-RM-047(a) → TC-RM-064(b) · 분기: TC-RM-049(b) | TC-RM-050(b) | TC-RM-053(a)
+- 잠긴 행 탭(→ 조용한 시도 `ROOM_LOCKED` → 문구 없는 시트, 읽기 전용 전환 없음) → 비밀번호 제출 성공 → App 단위 같은 체인. 분기: 조용한 시도 실패 코드(시트 + 문구) | 방 사라짐 | 대기 중 연타 무시
+
+### TC-FLOW-RM-18 · U-RM-18 잠긴 방을 보다 닫았고 증명이 없다 · Steps: TC-RM-058(a) · 분기: TC-RM-058(b) | TC-RM-058(c) | TC-RM-058(d) | TC-RM-065(a)
+- 저장 id = 잠긴 방 + 증명 없음(→ 자동 진입 없음, 기록 삭제, 시트·요청 없음, 목록에 머묾). 분기: 토큰 없음도 같음 | 증명이 있으면 자동 진입 | 안 잠긴 방 회귀 | chat이 증명 무효(`ROOM_LOCKED`)를 받으면 훅이 증명을 지우고 다시 판정
+
+### TC-FLOW-RM-19 · U-RM-19 잠긴 방을 쓰지 않는다 · Steps: TC-RM-060(a) → TC-RM-042 · 분기: TC-RM-059(f) | TC-RM-056(a)
+- 안 잠긴 방 진입·복귀(→ 저장소 키 S5 그대로, `ld:roomKeys` 없음, 토큰 값 없음) → 안 잠긴 행 탭은 지금처럼 진입. 분기: 마지막 쌍 삭제 시 키 자체 삭제 | 비밀번호 없이 만든 새 방은 증명 저장 없음
 
 ## 추적표
 
@@ -489,12 +685,98 @@ S1·S2 행. **ⓒ 호출 횟수는 단계 증분으로 읽는다**: 체인 안�
 | U-RM-10 | TC-FLOW-RM-10 |
 | U-RM-11 | TC-FLOW-RM-11 |
 
+## 추적표 — S6 추가분 (v0.7)
+
+### 요구 ↔ TC (S6)
+
+| 요구ID | TC | 비고 |
+|---|---|---|
+| R-ROOMS-001 🔒 (S6 개정: 잠긴 방 제목+자물쇠·날짜 숨김·탭 → 증명 없으면 시트) | TC-RM-041 · 042 · 043 · 046 · 063 | S1 기대는 TC-RM-001~003 유지 |
+| R-ROOMS-002 🔒 (S6 개정: 비밀번호 칸) | TC-RM-054 · 055 · 056 · 057 · 061 · 066 · 023(S6 개정 문구) · 026(S6 개정) | 토큰 없음 쌍 = TC-RM-054(b) |
+| R-ROOMS-004 (S6 개정: 잠긴 방 + 증명 없음 = 자동 진입 안 함) | TC-RM-058 | S1 기대는 TC-RM-008·009·014 유지 |
+| R-LOCK-001 🔒 | TC-RM-054 · 055 · 056 · 057 · 061 · 066 | |
+| R-LOCK-003 🔒 | TC-RM-041 · 062 | |
+| R-LOCK-004 🔒 | TC-RM-043 · 044 · 045 · 047 · 048 · 049 · 050 · 051 · 052 · 053 · 056 · 058 · 059 · 063 · 064 · 065 · 066 | "변경·해제 시 무효 → 다시 묻는다"의 화면 몫 = TC-RM-065(`'locked'` 재판정) |
+| R-LOCK-005 🔒 | TC-RM-044 · 045 · 064 | 서버 판정 자체는 서버 TC |
+| R-LOCK-006 🔒 | TC-RM-046 · 047 · 060(b) · 063 · 065 | 헤더 부착은 api 스펙 API-T-UI-035 |
+| R-LOCK-007 🔒 | TC-RM-047 · 051 · 052 · 056 · 057 · 059 · 060 · 063 · 066 | |
+| R-LOCK-008 | TC-RM-049 | 화면은 429 문구만 |
+| R-LOCK-009 🔒 | TC-RM-042 · 060 · 058(d) + 기존 TC 픽스처 `locked: false`(변경 대기열 Q-03) | |
+| R-CHAT-010 (S6 개정 L12: 증명 저장소) | TC-RM-059 · 060 | |
+
+### 설계 항목 ↔ TC (S6)
+
+| 설계 항목 | TC |
+|---|---|
+| §2.4 S6 판 · L §1.1 B 2줄 레이아웃·높이 | TC-RM-054 · 062 |
+| L §1.2 읽기 전용 판 | TC-RM-041(a) · 046 · 054(b) |
+| L §1.3 입장 시트(제목 h2·password·n/64·문구 한 줄) | TC-RM-045 · 048 · 052 · 062 |
+| L §1.4 ListRow 잠긴 변형(날짜 DOM 없음·이름) · C §2.1 S6 `LockGlyph` | TC-RM-041 · 062 |
+| L §2.1 트리(시트 위치 `<section>` 다음) | TC-RM-045 |
+| L §2.2 분류(공용 델타 · roomKeys · storage · limits · roomEntry · ListRow · NewRoomRow) | TC-RM-061 · 059 · 055(c) · 065 · 041 · 054 |
+| L §3 `create.password` · `passwordInputRef` | TC-RM-054 · 055 · 057(a) |
+| L §3 `sheet` | TC-RM-045 · 047 · 048 · 065 |
+| L §3 `quietInFlightRef` · `submitInFlightRef` | TC-RM-053 · 065(c1) |
+| L §3 `isActiveRef` · `latestRef` | TC-RM-065(d) · 065(e) |
+| L §3 증명 캐시 · 원문 미보관 | TC-RM-059(e) · 047 · 056 · 063 |
+| L F-RM-30 parse · F-RM-31 upsert · F-RM-32 remove/find · F-RM-33 serialize | TC-RM-059(a)(b)(c) |
+| L F-RM-34 getRoomKey · F-RM-35 saveRoomKey · F-RM-36 forgetRoomKey · `commit` · F-RM-37 reset | TC-RM-059(d)(e)(f)(g) · 043 |
+| L F-RM-38 main.tsx 주입 | TC-RM-060(b) · 063(getter 값) |
+| L F-RM-39 limits 4함수 | TC-RM-055(c) · 052 |
+| L F-RM-40 useRoomEntry | TC-RM-065 |
+| L F-RM-41 requestEntry ①~④·가드·`'locked'` 순서 | TC-RM-042 · 043 · 044 · 045 · 046 · 053(a) · 065 |
+| L F-RM-42 quietEnter 성공·`ROOM_LOCKED`·`NOT_FOUND`·그 밖 | TC-RM-044 · 045 · 050(b) · 049(b) |
+| L F-RM-43 submitPassword 성공·`NOT_FOUND`·그 밖·가드 | TC-RM-047 · 050(a) · 048 · 049(a) · 053(b) · 052(d) |
+| L F-RM-44 cancelEntry | TC-RM-051 |
+| L F-RM-45 enterErrorText | TC-RM-049 |
+| L F-RM-46 RoomEntrySheet · C §1.22 렌더 | TC-RM-045 · 052 |
+| L F-RM-47 행 선택 → requestEntry | TC-RM-042 · 043 |
+| L F-RM-48 onRoomGone = retry | TC-RM-050 |
+| L F-RM-49 changePassword | TC-RM-055 |
+| L F-RM-50 submitCreate(본문·증명·실패 유지) | TC-RM-056 · 057(b) |
+| L F-RM-51 cancelCreate·resetCreate | TC-RM-057(a) |
+| L F-RM-52 resolveAutoOpen | TC-RM-058 |
+| L F-RM-53 B1 Enter · B2 Enter · Esc | TC-RM-054 · 057(a) |
+| L F-RM-54 잠긴 행 매핑 · C §2.2 S6 | TC-RM-041 |
+| L §6.7 판정 파이프라인 | TC-RM-042~046 |
+| L §6.8 시트 제출 표 전 행 | TC-RM-047 · 048 · 049 · 050 · 051 |
+| L §6.9 새 방 + 비밀번호 1~5 | TC-RM-054 · 055 · 056 · 057 |
+| L §6.10 자동 진입 표 | TC-RM-058 |
+| L §6.11 저장소 실패·저장소 불변 | TC-RM-059(g) · 060(a) |
+| L §7 / §7 E4·E17 행 · getter 주입 행 | TC-RM-056 · 044 · 047 · 063 |
+| L §8.1 `lockedRowAriaLabel` · `newRoomPasswordAriaLabel` · `newRoomPasswordPlaceholder` | TC-RM-041 · 054 |
+| L §8.2 `ROOM_ENTRY_TEXT` · `enterErrorText` 전 행 | TC-RM-045 · 049 |
+| §8.3 `VALIDATION_ERROR` 개정 문구 | TC-RM-057(b) · 023 |
+| L §9 · A S6 6행(잠긴 행·2줄 포커스·비밀번호 입력·입장 시트·조용한 시도·목록 다시 받기) | TC-RM-041 · 054 · 055 · 045 · 051 · 044 · 050 |
+| L §10 · §10 S6 3행(B2 미렌더 · 잠긴 행 토큰 무관 · 시트 토큰 무관 · 조용한 시도 토큰 있을 때만) | TC-RM-054(b) · 057(c) · 041 · 045/046 · 044/046 |
+| L §11 D-L1 · D-L2 · D-L3 · D-L4 · D-L5 · D-L6 · D-L7 | TC-RM-061 · 052/055 · 054 · 041 · 055/061 · 052/061 · 056 |
+| L §11 D-L8 · D-L9 · D-L10 · D-L11 · D-L12 | TC-RM-065(import 경로) · 044/053 · 050 · 058 · 057 |
+| L §11 D-L13 · L §13 chat 몫 | 비행동 항목 — rooms TC 대상 아님(chat 설계·TC 몫). 훅 동작은 TC-RM-065가 rooms 소유 |
+| C §1.7 S6 storage 원문 3함수 | TC-RM-059(h) |
+| C §1.11 S6 · C §1.12 S6 · C §1.17 S6 | TC-RM-055(c) · 061 · 061 |
+| C §1.21 · C §1.22 · C §1.23 | TC-RM-059 · 065 · 049(c) |
+| C §2.4 S6 NewRoomRow 2줄(props·DOM 순서·버튼 md·`만들기` 조건) | TC-RM-054 · 055 · 062 |
+
+### 사용자행 ↔ TC-FLOW (S6)
+
+| 사용자행 | TC-FLOW |
+|---|---|
+| U-RM-12 | TC-FLOW-RM-12 |
+| U-RM-13 | TC-FLOW-RM-13 |
+| U-RM-14 | TC-FLOW-RM-14 |
+| U-RM-15 | TC-FLOW-RM-15 |
+| U-RM-16 | TC-FLOW-RM-16 |
+| U-RM-17 | TC-FLOW-RM-17 |
+| U-RM-18 | TC-FLOW-RM-18 |
+| U-RM-19 | TC-FLOW-RM-19 |
+
 ## 변경 대기열(미검증)
 
 | Q-nn | 일자 | CR-ID | 변경 요약 | 변경 파일 | 영향 TC 후보 | 신규 TC 필요 | 상태 |
 |---|---|---|---|---|---|---|---|
 | Q-01 | 2026-10-05 | —(메인 세션 결정 TK-05, S1 불변 예외 승인) | S2에서 `RoomsScreen` props `onAuthFailure`가 필수가 되어 S1 스펙 렌더 도우미에 빈 콜백 `onAuthFailure={vi.fn()}`을 더함. S1 단언은 바꾸지 않음 | `ui/src/rooms/test/RoomsScreen.test.tsx`(renderRooms) | TC-RM-001~011 · 014 · 016 · 017(같은 렌더 도우미) | 없음(단언 불변) | 전환됨(TC-RM-001~017 스펙 렌더 도우미) |
 | Q-02 | 2026-10-06 | CR-001(S3c) | App 주인 판정(F-RM-24)이 토큰 있을 때 `getCharacterSettings`를 1회 부른다 → 토큰 있는 App 스펙에 `vi.mock('@/api/settings')` + `beforeEach` 기본 비주인(`NOT_OWNER`) 추가. 단언은 바꾸지 않음 | `ui/src/rooms/test/AppWrite.test.tsx`(반영) · `ui/src/chat/test/AuthTransition.test.tsx`·`RoomMenu.test.tsx`·`SpeakFlow.test.tsx`(chat 소유 — 같은 mock 3줄 필요, 미반영) | TC-RM-021(b) · 024(b) · 027 · chat 쪽 App 통합 TC | 없음(단언 불변) | AppWrite 전환됨(TC-RM-021·024·027 스펙) · chat 3파일 대기 |
+| Q-03 | 2026-10-08 | —(S6 구축, tc.md §14.2 끝 "기존 TC 영향") | `RoomSummary`에 `locked: boolean` 필수 추가(E3) → 기존 스펙 픽스처에 `locked: false`를 더해야 tsc가 통과한다. 래퍼 mock 팩토리에 `enterRoom`·`setRoomPassword`·`clearRoomPassword` 추가(App 통합 스펙은 chat이 import할 수 있어 필요). **ui-test-designer는 목록만 적고 고치지 않음 — ui-implementer가 구현 때 일괄**(위임문 지시). 단언은 바꾸지 않는다 | rooms: `RoomsScreen.test.tsx`(2곳) · `NewRoom.test.tsx`(3곳: ROOM_CHESS·ROOM_TEA·CREATED) · `App.test.tsx`(2곳) · `AppWrite.test.tsx`(2곳: ROOM_TEA·CREATED) · `OwnerGate.test.tsx`(1곳). chat 소유(같은 조치 필요, 미반영): `SpeakFlow`·`RoomMenu`(2)·`Regenerate`·`ChatScreen`·`Composer`·`MessageActions`·`AutoReply`·`AuthTransition`·`ChatScroll`·`MemorySheet` `.test.tsx` | TC-RM-001~040 전부(픽스처 공유) | 없음(단언 불변) | 대기 |
 
 ### 변경이력 보충 — v0.5 (2026-10-05)
 
@@ -510,3 +792,4 @@ ui-test-checker S2 판정 FAIL 지적 반영: TC-RM-023 재제출 2회 단언 �
 | v0.4 | 2026-10-05 | **S2 증분**: S2 공통 전제(토큰 주입 = `viewer` props / App은 `initToken`·`clearToken`, 쓰기 래퍼 모킹, 가짜 시계 규칙). TC-RM-018~032 추가, TC-FLOW-RM-07~09 추가, 사용자행 U-RM-07~09 연결, 「S2 이월」 절을 「추적표 — S2 추가분」으로 대체. 스펙 신규 `NewRoom.test.tsx`·`AppWrite.test.tsx`·`ui/src/state/{token,writeRules}.test.ts`·공용 부품 3종. S1 TC-RM-001~017 변경 없음 | 구축 S2, design.md v1.4 §14.1 RTM |
 | v0.4.1 | 2026-10-06 | TC-RM-029 `toastToneOf` 기대에 `LLM_BUDGET_EXCEEDED` → `warning`, `LLM_FAILED`·`SPEAK_IN_PROGRESS` → `danger` 행 추가(스펙 `writeRules.test.ts` 같은 표). rooms 화면 동작 변경 없음(방 생성은 이 코드를 받지 않는다) | rooms design v1.5.1 F-RM-22 · chat S3b TC-CH-097 |
 | v0.6 | 2026-10-06 | **S3c 증분(CR-001)**: S3c 기준·공통 전제 추가, TC-RM-033~040 추가(자동 7 · 수동 1), TC-FLOW-RM-10·11, 「추적표 — S3c 추가분」, 변경 대기열 Q-02(AppWrite mock 추가, chat 3파일 대기). TC-RM-001~032 변경 없음. 스펙 신규 `OwnerGate.test.tsx`. 수동 절차는 settings 확인표 MC-ST-05·06 | rooms design v1.6.1 §14 · settings design v1.2 §14 |
+| v0.7 | 2026-10-08 | **S6 증분(방 비밀번호 잠금)**: S6 기준·공통 전제 추가. TC-RM-041~066 확정(설계 예약 번호 유지 — 자동 24 · 수동 1(062) · 자동+리뷰 1(060)). TC-FLOW-RM-12~19(U-RM-12~19). 「추적표 — S6 추가분」. **기존 TC 개정 2건**: TC-RM-023 `VALIDATION_ERROR` 문구를 §8.3 개정 문구로(D-L12 — TC-RM-057(b)와 모순 방지) · TC-RM-026 (d) 폐기 → TC-RM-054(D-L3). 변경 대기열 Q-03(픽스처 `locked: false`·mock 확장 — 목록만). 스펙 신규 `lock.test.tsx` · `NewRoomLock.test.tsx` · `useRoomEntry.test.tsx` · `state/roomKeys.test.ts` · `passwordInputs.test.tsx` · `LockFlow.test.tsx`, `NewRoom.test.tsx` TC-RM-023 문구 1행·TC-RM-026 (d) 블록 삭제. 확인표 v0.3(MC-RM-10~14) | rooms design v1.8.3 §14 · lock.md · tc.md §14.2 · requirements v1.7 · 승인 ②(2026-10-08) |

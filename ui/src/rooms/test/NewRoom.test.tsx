@@ -250,7 +250,8 @@ describe('RoomsScreen 방 생성 (R-ROOMS-002 · R-CHAT-011)', () => {
     ['RATE_LIMITED', 40, '요청이 너무 많습니다. 40초 후 다시 시도해 주세요.', 'warning'],
     ['RATE_LIMITED', undefined, ERROR_MESSAGES.RATE_LIMITED, 'warning'],
     ['NETWORK', undefined, '서버에 연결할 수 없습니다.', 'danger'],
-    ['VALIDATION_ERROR', undefined, '방 제목은 1~60자로 입력해 주세요.', 'danger'],
+    // (S6 개정, lock.md D-L12 · design.md §8.3) 옛 문구 「방 제목은 1~60자로 입력해 주세요.」 대체
+    ['VALIDATION_ERROR', undefined, '방 제목(1~60자)과 비밀번호(4~32자)를 확인해 주세요.', 'danger'],
   ] as const)(
     'TC-RM-023: 생성 실패 %s(retryAfterSec=%s) → 토스트 문구·톤, 입력 유지, 2초 뒤 사라짐, 전환 없음',
     async (code, retryAfterSec, text, tone) => {
@@ -382,10 +383,10 @@ describe('RoomsScreen 취소·Esc·Enter (R-ROOMS-002 · a11y)', () => {
     })
   })
 
-  it('TC-RM-026: IME 조합 Enter·keyCode 229·무효 제목 Enter → 호출 없음, 유효 제목 Enter → 1회', async () => {
-    const pending = deferred<Result<RoomSummary>>()
-    mockedCreateRoom.mockReturnValueOnce(pending.promise)
-    const { onOpenRoom } = renderRooms()
+  // (S6 개정) (d) "유효 제목 Enter → createRoom 1회"는 폐기 — 제목 Enter = 비밀번호 칸으로 포커스(D-L3).
+  // 새 기대는 NewRoomLock.test.tsx TC-RM-054(a). 여기서는 (a)(b)(c) "제목 Enter 는 제출하지 않는다"만 남긴다.
+  it('TC-RM-026: IME 조합 Enter·keyCode 229·무효 제목 Enter → 호출 없음 ((d)는 TC-RM-054 로 개정)', async () => {
+    renderRooms()
     const { user, input } = await openRow()
 
     fireEvent.change(input, { target: { value: '안개 낀 런던' } })
@@ -400,15 +401,5 @@ describe('RoomsScreen 취소·Esc·Enter (R-ROOMS-002 · a11y)', () => {
     expect(input.value).toBe('   ') // (c) 입력값 그대로
     expect(mockedCreateRoom).not.toHaveBeenCalled()
     expect(screen.getByRole('group', { name: NEW_ROOM })).not.toBeNull()
-
-    fireEvent.change(input, { target: { value: '안개 낀 런던' } })
-    await user.keyboard('{Enter}')
-    expect(mockedCreateRoom).toHaveBeenCalledTimes(1)
-    expect(mockedCreateRoom.mock.calls[0]).toEqual([{ title: '안개 낀 런던' }])
-    expect(input.readOnly).toBe(true)
-    expect(onOpenRoom).not.toHaveBeenCalled()
-    await act(async () => {
-      pending.resolve(ok(CREATED))
-    })
   })
 })
