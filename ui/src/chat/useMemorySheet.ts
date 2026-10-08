@@ -41,9 +41,9 @@ type Lifecycle = {
 
 const LOADING: MemoryLoad = { phase: 'loading' }
 
-/** 인증 3종·NOT_FOUND: 시트가 할 일이 없다 — 시트를 닫고 화면 공통 처리로 넘긴다(F-CH-60) */
+/** 인증 3종·NOT_FOUND·ROOM_LOCKED(S6, F-CH-73): 시트가 할 일이 없다 — 시트를 닫고 화면 공통 처리로 넘긴다(F-CH-60) */
 const isLeaveError = (error: ApiError): boolean =>
-  isAuthFailure(error) || error.code === 'NOT_FOUND'
+  isAuthFailure(error) || error.code === 'NOT_FOUND' || error.code === 'ROOM_LOCKED'
 
 const useLifecycle = (props: MemorySheetProps): Lifecycle => {
   const aliveRef = useRef(false)

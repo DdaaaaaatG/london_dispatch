@@ -33,6 +33,9 @@ vi.mock('@/api/rooms', () => ({
   createRoom: vi.fn(),
   renameRoom: vi.fn(),
   deleteRoom: vi.fn(),
+  setRoomPassword: vi.fn(),
+  clearRoomPassword: vi.fn(),
+  enterRoom: vi.fn(),
 }))
 vi.mock('@/api/memory', () => ({
   getMemory: vi.fn(),
@@ -62,6 +65,7 @@ const ROOM: RoomSummary = {
   createdAt: new Date(2026, 9, 5, 9, 0).getTime(),
   updatedAt: new Date(2026, 9, 5, 16, 40).getTime(),
   messageCount: 1,
+  locked: false,
 }
 const ROOM_CHESS: RoomSummary = {
   id: 'r2',
@@ -69,6 +73,7 @@ const ROOM_CHESS: RoomSummary = {
   createdAt: new Date(2026, 9, 1, 9, 0).getTime(),
   updatedAt: new Date(2026, 9, 3, 21, 5).getTime(),
   messageCount: 1,
+  locked: false,
 }
 const NEW_TITLE = '팬텀하이브 저택의 밤'
 const PAGE: MessagesPage = {
@@ -181,16 +186,16 @@ afterEach(() => {
 })
 
 describe('⋯ 방 메뉴 (R-CHAT-001)', () => {
-  it('TC-CH-047: ⋯ → 방 메뉴(머리·항목 4개 순서, S4 장기기억 포함) → 취소·Esc 뒤 ⋯ 포커스, 장기기억 조회 0회', async () => {
+  it('TC-CH-047: ⋯ → 방 메뉴(머리·항목 5개 순서, S4 장기기억 · S6 잠금 포함) → 취소·Esc 뒤 ⋯ 포커스, 장기기억 조회 0회', async () => {
     renderChat()
     const { user, menu } = await openRoomMenu()
     expect(menu.querySelector('p')?.textContent).toBe('방 메뉴 · 티타임')
-    // S4 개정(v1.0): 옛 ['이름 변경', '방 삭제', '취소'] + "장기기억 없음" 단언 → 4항목(순서 정본 TC-CH-122)
+    // S4 개정(v1.0): 옛 ['이름 변경', '방 삭제', '취소'] + "장기기억 없음" 단언 → 4항목(순서 정본 TC-CH-122). S6 개정: 「잠금」이 장기기억과 방 삭제 사이에 들어와 5항목(TC-CH-140)
     expect(
       within(menu)
         .getAllByRole('button')
         .map(b => b.textContent),
-    ).toEqual(['이름 변경', '장기기억', '방 삭제', '취소'])
+    ).toEqual(['이름 변경', '장기기억', '잠금', '방 삭제', '취소'])
     await user.click(within(menu).getByRole('button', { name: '취소' }))
     expect(screen.queryByRole('dialog')).toBeNull()
     expect(document.activeElement).toBe(screen.getByRole('button', { name: MORE }))

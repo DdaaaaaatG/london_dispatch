@@ -43,6 +43,9 @@ vi.mock('@/api/rooms', () => ({
   createRoom: vi.fn(),
   renameRoom: vi.fn(),
   deleteRoom: vi.fn(),
+  setRoomPassword: vi.fn(),
+  clearRoomPassword: vi.fn(),
+  enterRoom: vi.fn(),
 }))
 
 const mockedList = vi.mocked(listMessages)
@@ -71,6 +74,7 @@ const ROOM: RoomSummary = {
   createdAt: new Date(2026, 9, 5, 9, 0).getTime(),
   updatedAt: new Date(2026, 9, 7, 18, 0).getTime(),
   messageCount: 4,
+  locked: false,
 }
 const at = (h: number, m: number): number => new Date(2026, 9, 5, h, m).getTime()
 const msg = (over: Partial<Message> & Pick<Message, 'id'>): Message => ({

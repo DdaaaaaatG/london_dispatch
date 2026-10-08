@@ -40,6 +40,9 @@ vi.mock('@/api/rooms', () => ({
   createRoom: vi.fn(),
   renameRoom: vi.fn(),
   deleteRoom: vi.fn(),
+  setRoomPassword: vi.fn(),
+  clearRoomPassword: vi.fn(),
+  enterRoom: vi.fn(),
 }))
 vi.mock('@/api/memory', () => ({
   getMemory: vi.fn(),
@@ -74,6 +77,7 @@ const ROOM: RoomSummary = {
   createdAt: new Date(2026, 9, 5, 9, 0).getTime(),
   updatedAt: new Date(2026, 9, 5, 16, 40).getTime(),
   messageCount: 2,
+  locked: false,
 }
 const at = (h: number, m: number): number => new Date(2026, 9, 5, h, m).getTime()
 const M101: Message = {
@@ -324,7 +328,7 @@ describe('S3e 인증 실패 전환 — 버튼 줄 미렌더, App 통합 (R-CHAT-
     await enterRoom()
     expect(actionGroups()).toHaveLength(3)
     fireEvent.click(actionAt(2, '재작성'))
-    expect(mockedRegenerate.mock.calls).toEqual([[104]])
+    expect(mockedRegenerate.mock.calls).toEqual([[104, 'r1']])
 
     await act(async () => {
       d.resolve(fail('TOKEN_INVALID'))
@@ -355,7 +359,7 @@ describe('S3e 인증 실패 전환 — 버튼 줄 미렌더, App 통합 (R-CHAT-
     expect(within(screen.getByRole('log')).getAllByRole('listitem')).toHaveLength(2)
     expectReadOnly()
     expect(getToken()).toBeNull()
-    expect(mockedDelete.mock.calls).toEqual([[103]])
+    expect(mockedDelete.mock.calls).toEqual([[103, 'r1']])
   })
 })
 

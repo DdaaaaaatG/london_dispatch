@@ -1,11 +1,17 @@
 /**
- * chat 화면 확정 문구·라벨 — 단일 소스 설계 chat/design.md §8.1 · §8.1.1 · §8.2 · §8.3 · design/actions.md §8(S3e 버튼 줄 라벨) · design/memory.md §6(S4 장기기억)
+ * chat 화면 확정 문구·라벨 — 단일 소스 설계 chat/design.md §8.1 · §8.1.1 · §8.2 · §8.3 · design/actions.md §8(S3e 버튼 줄 라벨) · design/memory.md §6(S4 장기기억) · design/lock.md §6(S6 방 잠금)
  * JSX·유틸에 한글 문구 리터럴을 직접 쓰지 않는다(aria-label · 오류 문구 포함).
  * 캐릭터 이름은 여기가 아니라 CHARACTERS[id].shortName(shared)이 단일 소스다(R-LLM-002).
  */
 import { USER_DISPLAY_NAME } from '@shared/characters'
 import { ERROR_MESSAGES } from '@shared/errors'
-import { MEMORY_SUMMARY_MAX, MESSAGE_TEXT_MAX, ROOM_TITLE_MAX } from '@shared/limits'
+import {
+  MEMORY_SUMMARY_MAX,
+  MESSAGE_TEXT_MAX,
+  ROOM_PASSWORD_MAX,
+  ROOM_PASSWORD_MIN,
+  ROOM_TITLE_MAX,
+} from '@shared/limits'
 import type { ApiError, ApiErrorCode } from '@/api'
 import { AUTH_FAILURE_TEXT, NETWORK_TEXT } from '@/components/utils/errorText'
 
@@ -96,6 +102,28 @@ export const labels = {
   memoryDiscardConfirm: '버리기',
   /** 버림 확인의 취소 쪽(첫 포커스) */
   memoryKeepEditing: '계속 고치기',
+  // ── S6 (design/lock.md §6) ──
+  /** 방 메뉴 항목 */
+  lock: '잠금',
+  lockMenuAriaLabel: '잠금 메뉴',
+  lockMenuHeader: (title: string): string => `잠금 · ${title}`,
+  changePassword: '비밀번호 바꾸기',
+  unlock: '잠금 풀기',
+  setPasswordTitle: '비밀번호 걸기',
+  setPasswordSave: '잠그기',
+  changePasswordTitle: '비밀번호 바꾸기',
+  changePasswordSave: '바꾸기',
+  passwordInputAriaLabel: '새 비밀번호',
+  passwordPlaceholder: '6자 이상 권장',
+  unlockTitle: '잠금을 풀까요?',
+  unlockBody: '잠금을 풀면 누구나 이 방 대화를 볼 수 있습니다.',
+  unlockConfirm: '풀기',
+  /** 성공 토스트(success) 셋 */
+  roomLockedNotice: '방을 잠갔습니다.',
+  passwordChanged: '비밀번호를 바꿨습니다.',
+  unlockedNotice: '잠금을 풀었습니다.',
+  /** 입장 재요구 판 StateView(role=status) */
+  lockedRoom: '잠긴 방입니다',
 } as const
 
 /** 유저 말풍선·버튼 줄 이름의 작성자 표기(F-CH-43). 받은 값을 그대로 쓰고, 비었을 때만 고정 명칭(R-CHAT-002 · R-AUTH-004) */
@@ -117,6 +145,7 @@ export const errorDetail = (code: ApiErrorCode): string => {
 /**
  * 쓰기 6종 중 화면이 실패를 안내하는 동작(deleteMessage·deleteRoom 의 NOT_FOUND 는 실패로 보지 않는다).
  * S4: 'memory' = 장기기억 조회·저장(시트 안 문구와 전환 문구가 같은 표를 쓴다)
+ * S6: 'setRoomPassword' · 'clearRoomPassword' = 방 비밀번호 걸기·바꾸기(E18)와 풀기(E19)
  */
 export type WriteAction =
   | 'send'
@@ -127,6 +156,8 @@ export type WriteAction =
   | 'speak'
   | 'regenerate'
   | 'memory'
+  | 'setRoomPassword'
+  | 'clearRoomPassword'
 
 const rateLimitedText = (retryAfterSec: number | undefined): string =>
   retryAfterSec === undefined
@@ -148,6 +179,9 @@ const notFoundText = (action: WriteAction): string =>
 const validationText = (action: WriteAction): string => {
   if (action === 'renameRoom') return `방 제목은 1~${ROOM_TITLE_MAX}자로 입력해 주세요.`
   if (action === 'memory') return `장기기억은 0~${MEMORY_SUMMARY_MAX}자로 입력해 주세요.`
+  if (action === 'setRoomPassword') {
+    return `비밀번호는 ${ROOM_PASSWORD_MIN}~${ROOM_PASSWORD_MAX}자로 입력해 주세요.`
+  }
   if (action === 'speak' || action === 'regenerate') return ERROR_MESSAGES.VALIDATION_ERROR
   return `메시지는 1~${MESSAGE_TEXT_MAX}자로 입력해 주세요.`
 }

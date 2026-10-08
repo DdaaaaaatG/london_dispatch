@@ -40,6 +40,9 @@ vi.mock('@/api/rooms', () => ({
   createRoom: vi.fn(),
   renameRoom: vi.fn(),
   deleteRoom: vi.fn(),
+  setRoomPassword: vi.fn(),
+  clearRoomPassword: vi.fn(),
+  enterRoom: vi.fn(),
 }))
 
 const mockedList = vi.mocked(listMessages)
@@ -55,6 +58,7 @@ const ROOM: RoomSummary = {
   createdAt: new Date(2026, 9, 5, 9, 0).getTime(),
   updatedAt: new Date(2026, 9, 7, 18, 0).getTime(),
   messageCount: 3,
+  locked: false,
 }
 const at = (h: number, m: number): number => new Date(2026, 9, 5, h, m).getTime()
 const msg = (over: Partial<Message> & Pick<Message, 'id'>): Message => ({
@@ -239,7 +243,7 @@ describe('재작성 실행·진행·성공 (R-CHAT-007 · R-CHAT-005)', () => {
     const d = startRegenerate(72)
     expect(screen.queryByRole('dialog')).toBeNull()
     expect(screen.queryByRole('alertdialog')).toBeNull()
-    expect(mockedRegenerate.mock.calls).toEqual([[72]])
+    expect(mockedRegenerate.mock.calls).toEqual([[72, 'r1']])
 
     const root = rootOf(72)
     expect(root.classList.contains('regenerating')).toBe(true)
@@ -460,7 +464,7 @@ describe('다른 쓰기 대기 중 생성 잠금 — 잠금 표 edit·delete·re
     })
     expect(screen.queryByRole('group', { name: '메시지 수정' })).toBeNull()
     expectSpeakLocked(false)
-    expect(mockedEdit.mock.calls).toEqual([[72, { text: '고친 대사' }]])
+    expect(mockedEdit.mock.calls).toEqual([[72, { text: '고친 대사' }, 'r1']])
     expect(mockedSpeak).toHaveBeenCalledTimes(1)
   })
 
@@ -477,7 +481,7 @@ describe('다른 쓰기 대기 중 생성 잠금 — 잠금 표 edit·delete·re
       del.resolve(ok(undefined))
     })
     expectSpeakLocked(false)
-    expect(mockedDelete.mock.calls).toEqual([[71]])
+    expect(mockedDelete.mock.calls).toEqual([[71, 'r1']])
     expect(mockedSpeak).toHaveBeenCalledTimes(1)
   })
 
@@ -490,7 +494,7 @@ describe('다른 쓰기 대기 중 생성 잠금 — 잠금 표 edit·delete·re
       d.resolve(ok(M72_NEW))
     })
     expectSpeakLocked(false)
-    expect(mockedRegenerate.mock.calls).toEqual([[72]])
+    expect(mockedRegenerate.mock.calls).toEqual([[72, 'r1']])
     expect(mockedSpeak).toHaveBeenCalledTimes(1)
   })
 })
@@ -518,7 +522,7 @@ describe('S3b 월 AI 비용 한도 초과 — regenerate (R-CHAT-011 · R-CHAT-0
 
     vi.useFakeTimers()
     act(() => vi.advanceTimersByTime(60_000))
-    expect(mockedRegenerate.mock.calls).toEqual([[72]])
+    expect(mockedRegenerate.mock.calls).toEqual([[72, 'r1']])
     expect(mockedList).toHaveBeenCalledTimes(1) // 재조회 없음
   })
 })

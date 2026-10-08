@@ -28,6 +28,7 @@ const ROOM: RoomSummary = {
   createdAt: new Date(2026, 9, 5, 9, 0).getTime(),
   updatedAt: new Date(2026, 9, 7, 18, 0).getTime(),
   messageCount: 4,
+  locked: false,
 }
 const at = (hour: number, minute: number): number => new Date(2026, 9, 5, hour, minute).getTime()
 const PAGE: MessagesPage = {

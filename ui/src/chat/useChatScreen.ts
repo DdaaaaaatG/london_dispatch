@@ -4,6 +4,7 @@
  * 화면 상태는 이 훅 하나가 한 곳(화면 최상위)에 모은다: 대화 상태(useChatLoader) · 스크롤(useAutoScroll · useScrollMemory) ·
  * 쓰기(useWriteFailure · useMessageWrites) · 시트(useChatSheets) · 읽기 전용 전환(useAccessRevoked). 단방향 흐름이다.
  * 전이 규칙은 ui/src/state/chat.ts 리듀서가 소유한다 — 여기에 다시 쓰지 않는다.
+ * S6(design/lock.md): ROOM_LOCKED 는 잠금 관문(useRoomLockGate)의 onRoomLocked 로 수렴한다 — 읽기는 useChatLoader, 쓰기는 useWriteFailure 가 부른다. 요구 R-LOCK-006.
  */
 import { useCallback, useLayoutEffect, useRef, useState } from 'react'
 import type { Dispatch, RefObject } from 'react'
@@ -25,6 +26,10 @@ export type UseChatScreenOptions = {
   onBack: () => void
   onAuthFailure: () => void
   onRoomRenamed: (room: RoomSummary) => void
+  /** S6: 어느 요청이든 ROOM_LOCKED 를 받았다(F-CH-64). 껍데기 ChatScreen 이 이 화면을 언마운트하고 입장을 다시 요구한다 */
+  onRoomLocked: () => void
+  /** S6: 첫 로드 성공(D-55 조용한 재입장 횟수 리셋, F-CH-70) */
+  onRoomOpened: () => void
 }
 
 /** 스크롤: 저장 거리 복원 · 앞붙임 앵커 · 뒤붙임 자동 스크롤 · 이탈 시 저장, 그리고 새 메시지 배지 동작(F-CH-08) */
@@ -143,6 +148,23 @@ const useRevokeCleanup = (
     backButtonRef.current?.focus()
   })
 
+/**
+ * 포커스 복귀 묶음: 히스토리 log(F-CH-30) · 재조회 뒤 log(F-CH-41) · 편집 뒤 「수정」(F-CH-50) · 방 사라짐 시 목록 복귀(F-CH-33).
+ * 훅 호출 순서(= effect 순서)는 분리 전과 같다
+ */
+const useChatFocus = (
+  loader: UseChatLoaderResult,
+  autoScroll: ReturnType<typeof useAutoScroll>,
+  backButtonRef: RefObject<HTMLButtonElement | null>,
+  onBack: () => void,
+) => {
+  const focusLog = useFocusLog(autoScroll.containerRef, backButtonRef)
+  const requestLogFocus = useLogFocusAfterCommit(loader.state.phase, focusLog)
+  const edit = useEditFocusReturn(focusLog)
+  const onRoomGone = useRoomGone(onBack)
+  return { focusLog, requestLogFocus, onRoomGone, ...edit }
+}
+
 /** 쓰기 6종과 시트, 인증 실패 전환(F-CH-16 · F-CH-29 · F-CH-30) */
 const useChatWrites = (
   options: UseChatScreenOptions,
@@ -150,23 +172,18 @@ const useChatWrites = (
   autoScroll: ReturnType<typeof useAutoScroll>,
   backButtonRef: RefObject<HTMLButtonElement | null>,
 ) => {
-  const { room, viewer, onBack, onAuthFailure, onRoomRenamed } = options
+  const { room, viewer, onBack, onAuthFailure, onRoomRenamed, onRoomLocked } = options
   const { dispatch, getState, isActive, loadInitial } = loader
-  const { toast, handleWriteFailure, showNotice } = useWriteFailure(onAuthFailure)
-  const { containerRef, isNearBottom } = autoScroll
-
-  const focusLog = useFocusLog(containerRef, backButtonRef)
-  const requestLogFocus = useLogFocusAfterCommit(loader.state.phase, focusLog)
-  const { editFocusId, requestEditFocus, onEditFocusDone } = useEditFocusReturn(focusLog)
-  const onRoomGone = useRoomGone(onBack)
+  const { toast, handleWriteFailure, showNotice } = useWriteFailure(onAuthFailure, onRoomLocked)
+  const focus = useChatFocus(loader, autoScroll, backButtonRef, onBack)
   const writes = useMessageWrites({
     roomId: room.id,
     dispatch,
     getState,
     isActive,
-    isNearBottom,
+    isNearBottom: autoScroll.isNearBottom,
     onFailure: handleWriteFailure,
-    onRoomGone,
+    onRoomGone: focus.onRoomGone,
   })
   const sheets = useChatSheets({
     room,
@@ -176,19 +193,19 @@ const useChatWrites = (
     loadInitial,
     removeMessage: writes.removeMessage,
     regenerateMessage: writes.regenerateMessage,
-    requestLogFocus,
-    requestEditFocus,
+    requestLogFocus: focus.requestLogFocus,
+    requestEditFocus: focus.requestEditFocus,
     handleWriteFailure,
     showNotice,
-    onRoomGone,
-    focusLog,
+    onRoomGone: focus.onRoomGone,
+    focusLog: focus.focusLog,
     onBack,
     onRoomRenamed,
   })
   useRevokeCleanup(viewer.canWrite, sheets.closeSheet, dispatch, backButtonRef)
-  const saveEdit = useSaveEditAndFocus(writes.saveEdit, requestEditFocus)
-  const retrySpeak = useRetrySpeak(writes.speakAs, focusLog)
-  const editFocus = { editFocusId, onEditFocusDone }
+  const saveEdit = useSaveEditAndFocus(writes.saveEdit, focus.requestEditFocus)
+  const retrySpeak = useRetrySpeak(writes.speakAs, focus.focusLog)
+  const editFocus = { editFocusId: focus.editFocusId, onEditFocusDone: focus.onEditFocusDone }
   return {
     toast,
     send: writes.send,
@@ -201,8 +218,8 @@ const useChatWrites = (
 }
 
 export const useChatScreen = (options: UseChatScreenOptions) => {
-  const { room, onBack } = options
-  const loader = useChatLoader(room.id)
+  const { room, onBack, onRoomLocked, onRoomOpened } = options
+  const loader = useChatLoader(room.id, { onRoomLocked, onRoomOpened })
   const { loadInitial } = loader
   const backButtonRef = useRef<HTMLButtonElement>(null)
   const { autoScroll, showNewest } = useChatScroll(room.id, loader)

@@ -42,6 +42,9 @@ vi.mock('@/api/rooms', () => ({
   createRoom: vi.fn(),
   renameRoom: vi.fn(),
   deleteRoom: vi.fn(),
+  setRoomPassword: vi.fn(),
+  clearRoomPassword: vi.fn(),
+  enterRoom: vi.fn(),
 }))
 
 const mockedList = vi.mocked(listMessages)
@@ -70,6 +73,7 @@ const ROOM: RoomSummary = {
   createdAt: new Date(2026, 9, 5, 9, 0).getTime(),
   updatedAt: new Date(2026, 9, 7, 18, 0).getTime(),
   messageCount: 4,
+  locked: false,
 }
 const at = (h: number, m: number): number => new Date(2026, 9, 5, h, m).getTime()
 const msg = (over: Partial<Message> & Pick<Message, 'id'>): Message => ({
@@ -588,7 +592,7 @@ describe('「수정」 — 인라인 수정 (R-CHAT-007 · R-MSG-004 · R-CHAT-0
     expect(items()[2]?.textContent).toContain('새 본문')
     await waitFor(() => expect(document.activeElement).toBe(actionOf(USER_NAME, '수정')))
     expect(actionOf(USER_NAME, '수정').disabled).toBe(false)
-    expect(mockedEdit.mock.calls).toEqual([[103, { text: '새 본문' }]])
+    expect(mockedEdit.mock.calls).toEqual([[103, { text: '새 본문' }, 'r1']])
   })
 
   it.each([
@@ -695,7 +699,7 @@ describe('「삭제」 — 확인 시트 (R-CHAT-007 · R-MSG-005 · R-CHAT-013)
     expect(screen.queryByRole('alertdialog')).toBeNull()
     expect(document.activeElement).toBe(screen.getByRole('log'))
     expect(localStorage.getItem('ld:lastRoomId')).toBe('r1')
-    expect(mockedDelete.mock.calls).toEqual([[103]])
+    expect(mockedDelete.mock.calls).toEqual([[103, 'r1']])
   })
 
   it('TC-CH-046: (a) INTERNAL → 말풍선 유지, 시트 닫힘, 토스트, 포커스 = 그 「삭제」(TC-CH-116)', async () => {
@@ -709,7 +713,7 @@ describe('「삭제」 — 확인 시트 (R-CHAT-007 · R-MSG-005 · R-CHAT-013)
     expect(items()).toHaveLength(4)
     await waitFor(() => expect(document.activeElement).toBe(actionOf(USER_NAME, '삭제')))
     expect(onAuthFailure).not.toHaveBeenCalled()
-    expect(mockedDelete.mock.calls).toEqual([[103]])
+    expect(mockedDelete.mock.calls).toEqual([[103, 'r1']])
   })
 
   it('TC-CH-046: (b) NOT_FOUND → 말풍선 제거, 토스트 없음', async () => {
@@ -744,7 +748,7 @@ describe('「삭제」 — 확인 시트 (R-CHAT-007 · R-MSG-005 · R-CHAT-013)
     expect(screen.getByRole('log').scrollTop).toBe(2507)
     expect(mockedList).toHaveBeenCalledTimes(2)
     expect(mockedList.mock.calls[1]).toEqual(['r1'])
-    expect(mockedDelete.mock.calls).toEqual([[101]])
+    expect(mockedDelete.mock.calls).toEqual([[101, 'r1']])
   })
 
   it('TC-CH-046: (d) 마지막 1개 삭제 + hasMore=false → 재호출 없이 "아직 대화가 없습니다"', async () => {
@@ -777,7 +781,7 @@ describe('「재작성」 — confirm 없음 (R-CHAT-007 · R-CHAT-005 · R-MSG-
 
     // 생성 중 상태 — resolve 전 안정 시점에서 한 번에 본다(커밋 타이밍 경합 대비 waitFor)
     await waitFor(() => {
-      expect(mockedRegenerate.mock.calls).toEqual([[72]])
+      expect(mockedRegenerate.mock.calls).toEqual([[72, 'r1']])
       const root = rootIn(items()[2] as HTMLElement)
       expect(root.classList.contains('regenerating')).toBe(true)
       expect((root.querySelector('.body') as HTMLElement).getAttribute('aria-busy')).toBe('true')
@@ -824,7 +828,7 @@ describe('「재작성」 — confirm 없음 (R-CHAT-007 · R-CHAT-005 · R-MSG-
     await waitFor(() => expectActionsLocked(false))
     await flushPending()
     expect(document.activeElement).toBe(input())
-    expect(mockedRegenerate.mock.calls).toEqual([[72]])
+    expect(mockedRegenerate.mock.calls).toEqual([[72, 'r1']])
   })
 
   it('TC-CH-117: LLM_FAILED → 토스트 "재작성을 다시 눌러 주세요"(D-30), 원 본문, 「재작성」 활성·포커스', async () => {
@@ -843,7 +847,7 @@ describe('「재작성」 — confirm 없음 (R-CHAT-007 · R-CHAT-005 · R-MSG-
     await waitFor(() => expect(actionOf('세바스찬', '재작성').disabled).toBe(false))
     await waitFor(() => expect(document.activeElement).toBe(actionOf('세바스찬', '재작성')))
     expect(onAuthFailure).not.toHaveBeenCalled()
-    expect(mockedRegenerate.mock.calls).toEqual([[72]])
+    expect(mockedRegenerate.mock.calls).toEqual([[72, 'r1']])
   })
 })
 

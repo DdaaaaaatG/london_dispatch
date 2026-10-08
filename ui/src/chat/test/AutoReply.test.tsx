@@ -47,6 +47,9 @@ vi.mock('@/api/rooms', () => ({
   createRoom: vi.fn(),
   renameRoom: vi.fn(),
   deleteRoom: vi.fn(),
+  setRoomPassword: vi.fn(),
+  clearRoomPassword: vi.fn(),
+  enterRoom: vi.fn(),
 }))
 
 const mockedList = vi.mocked(listMessages)
@@ -75,6 +78,7 @@ const ROOM: RoomSummary = {
   createdAt: new Date(2026, 9, 5, 9, 0).getTime(),
   updatedAt: new Date(2026, 9, 7, 18, 0).getTime(),
   messageCount: 4,
+  locked: false,
 }
 const at = (h: number, m: number): number => new Date(2026, 9, 5, h, m).getTime()
 /** 유저 메시지 기본 authorName = 서버 투영 값(USER_DISPLAY_NAME, api.md §4.3 v0.6) */
@@ -426,7 +430,7 @@ describe('결과 자리 (R-CHAT-014 · R-CHAT-002 · R-MSG-009)', () => {
       within(actionsIn(lastItem())).getByRole('button', { name: '세바스찬 대사 재작성' }),
     )
     await flushPending()
-    expect(mockedRegenerate.mock.calls).toEqual([[106]])
+    expect(mockedRegenerate.mock.calls).toEqual([[106, 'r1']])
     expect(mockedSpeak).toHaveBeenCalledTimes(1)
   })
 })

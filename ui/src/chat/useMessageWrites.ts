@@ -133,13 +133,13 @@ const useSend = (options: UseMessageWritesOptions, gate: Gate, runSpeak: RunSpea
 
 /** F-CH-20: 수정 저장. 실패하면 편집기·입력을 그대로 둔다 */
 const useSaveEdit = (options: UseMessageWritesOptions, gate: Gate) => {
-  const { dispatch, isActive, onFailure } = options
+  const { roomId, dispatch, isActive, onFailure } = options
   const { begin, release } = gate
   return useCallback(
     async (messageId: number, text: string): Promise<boolean> => {
       if (!isMessageTextValid(text)) return false
       if (!begin({ type: 'writeStarted', write: { kind: 'edit', messageId } })) return false
-      const result = await editMessage(messageId, { text })
+      const result = await editMessage(messageId, { text }, roomId)
       release()
       if (!isActive()) return false
       if (!result.ok) {
@@ -151,18 +151,18 @@ const useSaveEdit = (options: UseMessageWritesOptions, gate: Gate) => {
       dispatch({ type: 'writeFinished' })
       return true
     },
-    [begin, release, dispatch, isActive, onFailure],
+    [roomId, begin, release, dispatch, isActive, onFailure],
   )
 }
 
 /** F-CH-23: 삭제. NOT_FOUND 는 "이미 없음 = 목표 상태"라 성공과 같은 흐름이다 */
 const useRemoveMessage = (options: UseMessageWritesOptions, gate: Gate) => {
-  const { dispatch, getState, isActive, onFailure } = options
+  const { roomId, dispatch, getState, isActive, onFailure } = options
   const { begin, release } = gate
   return useCallback(
     async (messageId: number): Promise<RemoveResult> => {
       if (!begin({ type: 'writeStarted', write: { kind: 'delete', messageId } })) return REJECTED
-      const result = await deleteMessage(messageId)
+      const result = await deleteMessage(messageId, roomId)
       release()
       if (!isActive()) return REJECTED
       if (!result.ok && result.error.code !== 'NOT_FOUND') {
@@ -176,16 +176,16 @@ const useRemoveMessage = (options: UseMessageWritesOptions, gate: Gate) => {
       dispatch({ type: 'writeFinished' })
       return { kind: 'removed', isEmptyWithMore: next.messages.length === 0 && next.hasMore }
     },
-    [begin, release, dispatch, getState, isActive, onFailure],
+    [roomId, begin, release, dispatch, getState, isActive, onFailure],
   )
 }
 
 type SpeakFailureDeps = Pick<UseMessageWritesOptions, 'dispatch' | 'onFailure' | 'onRoomGone'>
 
-/** speak 실패: 인증 실패는 말풍선을 남기지 않고 전환, 방 사라짐은 목록 복귀, 그 밖은 실패 말풍선(토스트 없음) */
+/** speak 실패: 인증 실패·ROOM_LOCKED(S6, F-CH-71)는 말풍선을 남기지 않고 전환·입장 재요구(onFailure 가 갈라 처리), 방 사라짐은 목록 복귀, 그 밖은 실패 말풍선(토스트 없음) */
 const settleSpeakFailure = (deps: SpeakFailureDeps, error: ApiError): void => {
   const { dispatch, onFailure, onRoomGone } = deps
-  if (isAuthFailure(error)) {
+  if (isAuthFailure(error) || error.code === 'ROOM_LOCKED') {
     dispatch({ type: 'speakDiscarded' })
     onFailure(error, 'speak')
     return
@@ -254,14 +254,14 @@ const settleRegenerateFailure = (
 
 /** F-CH-34: 재작성(본문 없음). 성공은 같은 id 를 통째로 교체한다. 실패면 원 대사 그대로 */
 const useRegenerate = (options: UseMessageWritesOptions, gate: Gate) => {
-  const { dispatch, getState, isActive, onFailure } = options
+  const { roomId, dispatch, getState, isActive, onFailure } = options
   const { begin, release } = gate
   return useCallback(
     async (messageId: number): Promise<RegenerateResult> => {
       if (!isRegenerateTarget(getState(), messageId)) return REGENERATE_REJECTED
       const start: ChatAction = { type: 'writeStarted', write: { kind: 'regenerate', messageId } }
       if (!begin(start)) return REGENERATE_REJECTED
-      const result = await regenerate(messageId)
+      const result = await regenerate(messageId, roomId)
       release()
       if (!isActive()) return REGENERATE_REJECTED
       if (!result.ok) {
@@ -271,7 +271,7 @@ const useRegenerate = (options: UseMessageWritesOptions, gate: Gate) => {
       dispatch({ type: 'writeFinished' })
       return { kind: 'replaced' }
     },
-    [begin, release, dispatch, getState, isActive, onFailure],
+    [roomId, begin, release, dispatch, getState, isActive, onFailure],
   )
 }
 

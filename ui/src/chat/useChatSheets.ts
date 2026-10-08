@@ -1,26 +1,27 @@
 /**
  * useChatSheets — 설계 chat/design/functions.md §4.2 F-CH-21 · 23 · 24 · 25 · 26 · 27 · 28 · design/actions.md §5 F-CH-46 ~ F-CH-49 · design/memory.md ME §3 F-CH-53 · F-CH-60 (50줄 한계 때문에 ChatScreen 에서 분리)
- * 요구: R-CHAT-001 · R-CHAT-007 · R-CHAT-011 · R-CHAT-012 🔒
+ * 요구: R-CHAT-001 · R-CHAT-007 · R-CHAT-010 · R-CHAT-011 · R-CHAT-012 🔒 · R-LOCK-002 · R-LOCK-006
  * 열린 시트(sheet) 상태와 말풍선 버튼 줄 동작(수정 · 삭제 확인 · 재작성) · ⋯ 방 메뉴 · 이름 변경 · 방 삭제를 조립한다.
  * S3e: 말풍선 메뉴 시트는 없다. 버튼 줄이 startEdit · regenerateFromActions · askDeleteMessage 를 messageActions 로 직접 부른다(참조 안정 — memo 격리).
  * 쓰기 대기 중 · 다른 편집 중 · 방 이름 변경/삭제 중에는 시작하지 않는다(D-10 · D-27, 버튼 줄 잠금과 같은 판정) — 그래서 쓰기는 화면 전체에서 한 번에 하나다.
  * 시트를 연 채 토스트를 띄우지 않는다(D-7): 이름 변경의 비인증 실패만 시트 안 문구로, 그 밖 실패는 시트를 닫은 뒤 토스트로 알린다.
  * S4: 장기기억 시트(kind 'memory')의 상태는 시트 지역(useMemorySheet)이라 여기에는 열기·닫기 콜백만 있다. 저장 성공 토스트도 시트를 닫은 뒤 띄운다.
+ * S6(design/lock.md): ⋯ 「잠금」 → 걸기 / 잠금 시트 / 바꾸기 / 풀기 확인. 시트 전환·성공 뒤 처리는 useLockSheets 가 맡고, 여기서는 실패 갈래(F-CH-80)와 방 삭제 뒤 증명 삭제(F-CH-81)를 더한다.
  */
 import { useCallback, useMemo, useState } from 'react'
-import type { Dispatch, SetStateAction } from 'react'
+import type { Dispatch } from 'react'
 import type { Message, RoomSummary } from '@shared/types'
 import { type ApiError, isAuthFailure } from '@/api'
 import type { ToastTone } from '@/components/ui/Toast'
 import { clearLastRoomId } from '@/components/utils/storage'
 import { type ChatAction, type ChatState, canSpeak, chatReducer } from '@/state/chat'
+import { forgetRoomKey } from '@/state/roomKeys'
 import type { BubbleActionHandlers } from './components/BubbleActions'
 import type { ChatSheet } from './components/ChatSheets'
 import { labels, type WriteAction, writeErrorText } from './labels'
+import { type SetSheet, useLockMenuHandlers, usePasswordResults } from './useLockSheets'
 import type { RegenerateResult, RemoveResult } from './useMessageWrites'
 import { useRoomActions } from './useRoomActions'
-
-type SetSheet = Dispatch<SetStateAction<ChatSheet | null>>
 
 export type UseChatSheetsOptions = {
   room: RoomSummary
@@ -72,25 +73,48 @@ const useRoomMenuHandlers = (
 
 type RoomSheetsOptions = Pick<
   UseChatSheetsOptions,
-  'room' | 'getState' | 'isActive' | 'handleWriteFailure' | 'onBack' | 'onRoomRenamed'
+  | 'room'
+  | 'getState'
+  | 'isActive'
+  | 'handleWriteFailure'
+  | 'showNotice'
+  | 'onBack'
+  | 'onRoomRenamed'
 > & { setSheet: SetSheet }
 
-/** ⋯ 방 메뉴 · 이름 변경 · 방 삭제 확인 (F-CH-24 ~ F-CH-27) */
-const useRoomSheets = (options: RoomSheetsOptions) => {
-  const { room, getState, isActive, handleWriteFailure, onBack, onRoomRenamed, setSheet } = options
-
-  /** 이름 변경의 비인증 실패는 시트 안 문구로, 그 밖에는 시트를 닫고 공통 처리(인증 전환 · 토스트) */
-  const onFailure = useCallback(
+/**
+ * F-CH-80: 방 쪽 실패 갈래. ROOM_LOCKED · 인증 3종은 시트를 닫고 공통 처리(입장 재요구 · 읽기 전용 전환).
+ * 그 밖에는 이름 변경(F-CH-26)과 비밀번호 걸기·바꾸기(E18)만 시트 안 문구로 보이고(입력 유지, mode 유지), 방 삭제·잠금 풀기는 시트를 닫고 토스트(D-50)
+ */
+const useRoomFailure = (
+  setSheet: SetSheet,
+  handleWriteFailure: (error: ApiError, action: WriteAction) => void,
+) =>
+  useCallback(
     (error: ApiError, action: WriteAction): void => {
-      if (action === 'renameRoom' && !isAuthFailure(error)) {
-        setSheet({ kind: 'rename', errorText: writeErrorText(error, action) })
-        return
+      if (error.code !== 'ROOM_LOCKED' && !isAuthFailure(error)) {
+        if (action === 'renameRoom') {
+          setSheet({ kind: 'rename', errorText: writeErrorText(error, action) })
+          return
+        }
+        if (action === 'setRoomPassword') {
+          const errorText = writeErrorText(error, action)
+          setSheet(current => (current?.kind === 'password' ? { ...current, errorText } : current))
+          return
+        }
       }
       setSheet(null)
       handleWriteFailure(error, action)
     },
     [setSheet, handleWriteFailure],
   )
+
+/** ⋯ 방 메뉴 · 이름 변경 · 방 삭제 확인 · (S6) 잠금 (F-CH-24 ~ F-CH-27 · F-CH-74 ~ F-CH-81) */
+const useRoomSheets = (options: RoomSheetsOptions) => {
+  const { room, getState, isActive, handleWriteFailure, showNotice } = options
+  const { onBack, onRoomRenamed, setSheet } = options
+  const onFailure = useRoomFailure(setSheet, handleWriteFailure)
+  const results = usePasswordResults({ setSheet, onRoomRenamed, showNotice })
   const actions = useRoomActions({
     room,
     isActive,
@@ -98,18 +122,33 @@ const useRoomSheets = (options: RoomSheetsOptions) => {
       onRoomRenamed(renamed)
       setSheet(null)
     },
+    // F-CH-81: 삭제(또는 이미 없음) 뒤 그 방의 증명도 지운다
     onDeleted: () => {
+      forgetRoomKey(room.id)
       clearLastRoomId()
       onBack()
     },
+    ...results,
     onFailure,
   })
-  const { isRoomBusy, rename, remove } = actions
+  const { isRoomBusy, rename, remove, setPassword, clearPassword } = actions
   const menu = useRoomMenuHandlers(getState, isRoomBusy, setSheet)
+  const lock = useLockMenuHandlers({ room, getState, isRoomBusy, setSheet })
   const saveRename = useCallback((title: string): void => void rename(title), [rename])
+  const savePassword = useCallback((pw: string): void => void setPassword(pw), [setPassword])
+  const confirmUnlock = useCallback((): void => void clearPassword(), [clearPassword])
   const confirmDeleteRoom = useCallback((): void => void remove(), [remove])
 
-  return { roomBusy: actions.roomBusy, isRoomBusy, ...menu, saveRename, confirmDeleteRoom }
+  return {
+    roomBusy: actions.roomBusy,
+    isRoomBusy,
+    ...menu,
+    ...lock,
+    saveRename,
+    savePassword,
+    confirmUnlock,
+    confirmDeleteRoom,
+  }
 }
 
 type MessageSheetsOptions = Pick<

@@ -45,6 +45,9 @@ vi.mock('@/api/rooms', () => ({
   createRoom: vi.fn(),
   renameRoom: vi.fn(),
   deleteRoom: vi.fn(),
+  setRoomPassword: vi.fn(),
+  clearRoomPassword: vi.fn(),
+  enterRoom: vi.fn(),
 }))
 
 const mockedGet = vi.mocked(getMemory)
@@ -69,6 +72,7 @@ const ROOM: RoomSummary = {
   createdAt: new Date(2026, 9, 5, 9, 0).getTime(),
   updatedAt: new Date(2026, 9, 5, 16, 40).getTime(),
   messageCount: 1,
+  locked: false,
 }
 const PAGE: MessagesPage = {
   messages: [
@@ -210,14 +214,14 @@ afterEach(() => {
 })
 
 describe('⋯ 방 메뉴 「장기기억」 (R-CHAT-001 🔒 · R-CHAT-012 🔒)', () => {
-  it('TC-CH-122: ⋯ → 방 메뉴 항목 4개 순서 이름 변경 · 장기기억 · 방 삭제 · 취소, 누르기 전 getMemory 0회', async () => {
+  it('TC-CH-122: ⋯ → 방 메뉴 항목 5개 순서 이름 변경 · 장기기억 · 잠금 · 방 삭제 · 취소, 누르기 전 getMemory 0회', async () => {
     renderChat()
     const { menu } = await openRoomMenu()
     expect(
       within(menu)
         .getAllByRole('button')
         .map(b => b.textContent),
-    ).toEqual(['이름 변경', '장기기억', '방 삭제', '취소'])
+    ).toEqual(['이름 변경', '장기기억', '잠금', '방 삭제', '취소'])
     expect(screen.queryByRole('dialog', { name: SHEET })).toBeNull()
     await flushPending()
     expect(mockedGet).not.toHaveBeenCalled()

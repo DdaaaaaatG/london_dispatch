@@ -5,6 +5,7 @@
  * S3e: 말풍선 아래 버튼 줄 「수정」·「재작성」·「삭제」(쓰기 가능일 때만, 롱프레스·우클릭 메뉴 대체). 요구 R-CHAT-007 🔒 · design/actions.md
  * S4: ⋯ 방 메뉴 「장기기억」 → 장기기억 시트(조회·편집·저장, 쓰기 가능일 때만). 요구 R-CHAT-012 🔒 · design/memory.md
  * 상태 전이는 ui/src/state/chat.ts 리듀서, 요청·스크롤·시트는 useChatScreen 이 조립한 훅들이 한다. 여기서는 렌더만 한다.
+ * S6: 껍데기 ChatScreen 이 잠금 관문(useRoomLockGate)을 쥔다 — 평소엔 ChatRoomView(옛 본문), ROOM_LOCKED 를 받으면 LockedRoomView(입장 재요구 판). 요구 R-LOCK-004 · 006 · design/lock.md
  * 토큰이 없으면(viewer.canWrite === false) 쓰기 UI(⋯ 메뉴 · 하단 바 · 말풍선 버튼 줄 · 시트 · 인라인 수정)는 렌더하지 않는다(숨김 금지).
  * 화면은 토큰을 읽지도 저장하지도 않는다. 인증 실패는 onAuthFailure 로 App 에 알려 읽기 전용으로 전환된다.
  */
@@ -24,11 +25,13 @@ import type { BubbleActionHandlers } from './components/BubbleActions'
 import { ChatSheets } from './components/ChatSheets'
 import { ChatTopBar } from './components/ChatTopBar'
 import { Composer } from './components/Composer'
+import { LockedRoomView } from './components/LockedRoomView'
 import { MessageList } from './components/MessageList'
 import { ReadOnlyNotice } from './components/ReadOnlyNotice'
 import { errorDetail, labels } from './labels'
 import styles from './styles/ChatScreen.module.css'
 import { useChatScreen } from './useChatScreen'
+import { useRoomLockGate } from './useRoomLockGate'
 
 export type ChatScreenProps = {
   /** rooms 목록에서 고른 방(단건 조회 엔드포인트 없음) */
@@ -39,6 +42,12 @@ export type ChatScreenProps = {
   onAuthFailure: () => void
   /** 이름 변경 응답. App 이 보는 중인 방 정보를 바꾼다 */
   onRoomRenamed: (room: RoomSummary) => void
+}
+
+/** 껍데기가 잠금 관문의 두 콜백을 얹어 넘기는 본문 props(F-CH-68) */
+type ChatRoomViewProps = ChatScreenProps & {
+  onRoomLocked: () => void
+  onRoomOpened: () => void
 }
 
 type HistoryProps = {
@@ -133,6 +142,11 @@ const SheetLayer = ({ room, state, sheets }: SheetLayerProps) =>
       onMemoryLeave={sheets.memoryLeft}
       onAskDeleteRoom={sheets.askDeleteRoom}
       onConfirmDeleteRoom={sheets.confirmDeleteRoom}
+      onAskLock={sheets.openLock}
+      onAskChangePassword={sheets.askChangePassword}
+      onAskUnlock={sheets.askUnlock}
+      onSavePassword={sheets.savePassword}
+      onConfirmUnlock={sheets.confirmUnlock}
     />
   )
 
@@ -158,7 +172,8 @@ const Footer = ({ canWrite, state, onSend, onSpeak }: FooterProps) =>
     <ReadOnlyNotice text={labels.readOnlyNotice} />
   )
 
-export const ChatScreen = (props: ChatScreenProps) => {
+/** 옛 ChatScreen 본문(DOM 불변). 재입장 때는 껍데기가 key={epoch} 로 새로 마운트한다 */
+const ChatRoomView = (props: ChatRoomViewProps) => {
   const { room, viewer } = props
   const screen = useChatScreen(props)
   const { loader, autoScroll, write } = screen
@@ -201,5 +216,20 @@ export const ChatScreen = (props: ChatScreenProps) => {
       />
       {viewer.canWrite && <SheetLayer room={room} state={state} sheets={sheets} />}
     </main>
+  )
+}
+
+/** F-CH-68: 잠금 관문 껍데기. 잠기지 않았으면 대화 본문, ROOM_LOCKED 를 받으면 입장 재요구 판 */
+export const ChatScreen = (props: ChatScreenProps) => {
+  const { room, viewer, onBack, onRoomRenamed } = props
+  const gate = useRoomLockGate({ room, viewer, onBack, onRoomUpdated: onRoomRenamed })
+  if (gate.isLocked) return <LockedRoomView room={room} viewer={viewer} gate={gate} />
+  return (
+    <ChatRoomView
+      key={gate.epoch}
+      {...props}
+      onRoomLocked={gate.onRoomLocked}
+      onRoomOpened={gate.onRoomOpened}
+    />
   )
 }
