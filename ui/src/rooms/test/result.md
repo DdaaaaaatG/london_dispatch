@@ -58,3 +58,14 @@ R-ROOMS-001~005 모두 자동 TC 1건 이상 PASS. R-ROOMS-005(레이아웃)는 
 - rooms 읽기 전용: PASS — 상단 바 머리띠 + 제목 위 라벨 THE PHANTOMHIVE ESTATE, 가로 스크롤 없음(scrollWidth 390=clientWidth).
 - rooms 쓰기: PASS — 버튼 투명 + 1px 직각 선(+ 새 방), 보라·초록 없음.
 - §8 ④ 접근성: PASS — CDP AX 트리 heading 이름이 'ROOMS'뿐(라벨 미포함, document.innerText에도 라벨 없음 = 장식 의사요소).
+
+# S6 방 비밀번호 잠금 — 테스트 결과 / 2026-10-09 00:00~
+실행: vitest ui 937/937 · server 515/515 · shared 149/149 · tsc ui/server/shared exit 0 · eslint ui/src server/src exit 0 · npm run build exit 0 · 스크린샷 Chrome 헤드리스+CDP(390x565) · 토큰 주인 테스트 토큰 사용(값 미기록)
+캡처: doc/300_검증/screenshots/20261009-0000-s6/
+판정: 통과(자동) / 수동 TC-RM-062·MC-RM-10 부분 확인(아래)
+- TC-RM-062 / MC-RM-10 ① 목록 자물쇠 행(rooms-reader-locked-row.png): PASS(자물쇠+제목, 날짜 없음 육안)
+- MC-RM-10 ② 새 방 2줄(rooms-newroom-2line.png): PASS(제목 0/60 + 취소, 비밀번호 0/32 + 만들기, 오른쪽 끝 정렬 육안)
+- MC-RM-10 ③ 입장 시트·틀림 문구(rooms-entry-sheet.png · rooms-entry-wrong.png): PASS('비밀번호가 맞지 않습니다.' 표시). 맞는 비밀번호 -> chat 입장(rooms-entry-ok-chat.png): PASS
+- 미실행: 328px 폭 B2 placeholder 잘림 측정, B 96/목록 425 실측, MC-RM-11~14(실기기·자동채움·재시작·리뷰 grep)
+- 참고: CDP 마우스 클릭으로는 「만들기」 버튼이 POST를 안 보냄(Enter로는 201). vitest 클릭 TC는 통과 — 하네스 한계로 추정, 실브라우저 수동 확인 권장
+- 참고: 서버 DB를 다른 세션(매뉴얼 작성)이 공유해 목록 방들이 바뀜

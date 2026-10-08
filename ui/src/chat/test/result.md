@@ -294,3 +294,14 @@ R-CHAT-012(122~135·137·138) · R-CHAT-001(122) · R-CHAT-008(134·136) · R-CH
 캡처: doc/300_검증/screenshots/20261008-estate/{chat-writer-fix,settings-common-fix}.png
 - chat 아바타: PASS — 세바스찬·시엘 원이 남색 계열 옅은 바탕(--avatar-*-bg) + 은청 테두리로 보임. 적포도·원색 파랑 사라짐. 이미지 4개 로드 성공(naturalWidth 64, 투명)
 - settings 라디오: PASS — 선택 안 된 Flash 라디오가 어두운 원(흰 채움 사라짐). 선택된 Pro는 밝은 점. 그 밖 레이아웃 변화 없음
+
+# S6 방 비밀번호 잠금 — 테스트 결과 / 2026-10-09 00:00~
+실행: vitest ui 937/937 · server 515/515 · shared 149/149 · tsc ui/server/shared exit 0 · eslint ui/src server/src exit 0 · npm run build exit 0 · 스크린샷 Chrome 헤드리스+CDP(390x565) · 토큰 주인 테스트 토큰 사용(값 미기록)
+캡처: doc/300_검증/screenshots/20261009-0000-s6/
+판정: 통과(자동) / 수동 TC-CH-163·MC-CH-23 부분 확인(아래)
+- ⋯ 방 메뉴 5항목(이름 변경·장기기억·잠금·방 삭제·취소) chat-room-menu-5items.png: PASS
+- 잠금 메뉴(잠긴 방: 비밀번호 바꾸기·잠금 풀기·취소) chat-lock-menu.png: PASS
+- 비밀번호 걸기 시트(열린 방, 0/32·취소·잠그기) chat-set-password-sheet.png: PASS
+- 풀기 확인(문구·취소·풀기) chat-unlock-confirm.png: PASS
+- 읽기 전용 입장(열람 전용 안내, 쓰기 UI 없음) rooms-entry-ok-chat.png: PASS
+- 미실행: 잠긴 판(LockedRoomView '잠긴 방입니다', 입장 재요구) 캡처, MC-CH-24~26(낭독·키보드), 실제 풀기 확정 후 상태
