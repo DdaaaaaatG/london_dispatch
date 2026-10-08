@@ -9,6 +9,7 @@
 - **사용자 결정(2026-10-08)**: 운영 Gemini 키는 로컬 키와 **다른 값**을 나중에 전달(배포 때 Secrets 입력). 미선택 안내는 응답 `model: null`일 때만(effectiveKey, R-SET-013 개정).
 - **verify LOW 후속 5건**: SEC-001/SRV-001 `llm/models.ts` 단가표 `Object.hasOwn`·폴백 단가 로그(server-manager) · SRV-002 `env.md` 2.5-flash 잔재(이 세션에서 server-designer 수정) · SRV-003 `messages/generate.ts`·`service.ts` 주석(server-manager) · CR-001 `ui/src/state/settings.ts` 391줄 → 다음 변경 전 분할(ui-debug).
 - 로컬 환경: dev 서버는 내렸다. **포트 5173은 다른 프로젝트(pasfa Vite)가 점유** → 이 PC에서는 `cd ui && npx vite --port 5174 --strictPort`로 띄운다. 로컬 D1에 `character_settings` 행(v3, model pro)이 생겼다(지워도 됨). 테스트 토큰 `.ld-token.local` 재발급됨(12h, 2026-10-08 12:xx KST 만료; 서명은 **JSON 바이트**에 HMAC — base64url 문자열 아님). 브라우저 MCP 미연결 → Chrome 헤드리스 CDP 스크립트(스크래치패드, 저장소 밖). 이 PC Node 22.20.
+- **사용자 결정(2026-10-08 오후)**: SECRET·PHP 덩어리는 **카톡으로 전달**(1회성 링크 절차 폐기 → `doc/handoff/secret-handover.md` 전달 방법 절을 배포 전에 contract-designer가 간소화). 대화창 주소는 workers.dev 기본 이름(질문 제외). 지인 질문은 3개(계정·사이트 주소/www·테마 파일 직접 수정). 사용자용 메모 `doc/사용자_할일.md`(터미널 안 보고도 읽는 용도, 메인 세션이 갱신). 아바타 인장: 지인이 그린 PNG 2개(정사각·투명 권장)를 `ui/public/img/{sebastian,ciel}.png`에 덮어쓰기 → 커밋 → 재배포(코드 변경 0).
 - **S5 2차(배포) 선행 조건**은 아래 §0-1과 같다(지인 답 5 → Cloudflare 초대 → `/deploy`: **0004 `--remote` 먼저** → deploy → 헬스체크 → PHP 덩어리 1회성 링크). 기본 모델이 Pro라 월 상한 도달이 빨라질 수 있음(handoff 명시).
 
 ## 0-1. 2026-10-07 저녁 상태 — S5 1차 완료 (기록)
