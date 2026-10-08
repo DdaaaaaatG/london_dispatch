@@ -132,12 +132,12 @@ App → ChatScreen (index.tsx, S6: 잠금 관문 껍데기)                key={
 ```ts
 // index.tsx
 export type ChatScreenProps = { room; viewer; onBack; onAuthFailure; onRoomRenamed }   // 불변 — App 수정 없음
-type ChatRoomViewProps = ChatScreenProps & { onRoomLocked: () => void }
+type ChatRoomViewProps = ChatScreenProps & { onRoomLocked: () => void; onRoomOpened: () => void }   // onRoomOpened = D-55 카운터 리셋
 export const ChatScreen = (props: ChatScreenProps) => {
   const gate = useRoomLockGate({ room: props.room, viewer: props.viewer, onBack: props.onBack, onRoomUpdated: props.onRoomRenamed })
   return gate.isLocked
     ? <LockedRoomView room={props.room} viewer={props.viewer} gate={gate} />
-    : <ChatRoomView key={gate.epoch} {...props} onRoomLocked={gate.onRoomLocked} />
+    : <ChatRoomView key={gate.epoch} {...props} onRoomLocked={gate.onRoomLocked} onRoomOpened={gate.onRoomOpened} />
 }
 
 // components/LockedRoomView.tsx
@@ -146,7 +146,8 @@ export type LockedRoomViewProps = { room: RoomSummary; viewer: Viewer; gate: Use
 
 - `ChatRoomView` = 지금 `ChatScreen` 본문 그대로 + `useChatScreen(props)`에 `onRoomLocked` 전달(F-CH-69·70). DOM 불변.
 - `LockedRoomView` 렌더: `<main className={styles.root} aria-label={labels.screenAriaLabel(room.title)}>` · `<ChatTopBar room={room} onBack={gate.back} backButtonRef={backButtonRef} />`(`onOpenMenu` 생략 → ⋯ DOM 없음) · `<section className={styles.history}><StateView kind="empty" message={labels.lockedRoom} /></section>` · `{!viewer.canWrite && <ReadOnlyNotice text={labels.readOnlyNotice} />}` · `{gate.sheet && <RoomEntrySheet sheet={gate.sheet} onSubmit={gate.submitPassword} onCancel={gate.cancelLockedEntry} />}`. 스타일은 `styles/ChatScreen.module.css` 재사용(새 클래스 없음).
-- `LockedRoomView` 마운트 `useLayoutEffect([])`: `backButtonRef.current?.focus()`(시트가 뒤에 열리면 BottomSheet가 ‹를 복귀 대상으로 기억).
+- `ChatRoomView` = 지금 본문 + `useChatScreen(props)`에 `onRoomLocked`·`onRoomOpened` 전달. `onRoomOpened`는 `useChatLoader`의 `loadInitial`이 `initialLoadSucceeded`를 dispatch한 직후 1회 부른다(F-CH-70).
+- **포커스 규칙(확정).** `LockedRoomView` 마운트 `useLayoutEffect([])`: **`gate.sheet !== null`이면 아무것도 하지 않는다**(같은 커밋에 열린 입장 시트의 입력 포커스를 유지 — 자식 BottomSheet의 layout effect가 먼저 돌아 입력에 포커스를 준 뒤다). **`gate.sheet === null`일 때만** `backButtonRef.current?.focus()`. 그래서 토큰 없음(④, 같은 커밋에 시트) = 시트 입력 포커스 / 토큰 있음(③ 조용한 시도 중, 시트 없음) = ‹ 포커스 → 시트가 나중에 열리면 BottomSheet가 ‹를 복귀 대상으로 기억하고 입력에 포커스.
 
 ### 1.4 `LockMenuSheet`
 
@@ -191,6 +192,10 @@ export type LockMenuSheetProps = { roomTitle: string; onChangePassword: () => vo
 | `isLocked` | 입장 재요구 판 표시 중 | `boolean` | `false` | `useRoomLockGate` `useState` |
 | `isLockedRef` | 같은 틱의 두 번째 `ROOM_LOCKED` 무시 | `MutableRefObject<boolean>` | `false` | `useRoomLockGate` `useRef` |
 | `epoch` | 재입장 때 `ChatRoomView`를 새로 마운트하는 key | `number` | `0` | `useRoomLockGate` `useState` |
+| `quietReentryCount` | 한 `ROOM_LOCKED` 에피소드 안에서 조용한 시도로 재입장한 연속 횟수(D-55) | `MutableRefObject<number>` | `0` | `useRoomLockGate` `useRef`. 재입장 뒤 첫 정상 첫 로드(`onRoomOpened`)에 0 |
+| `latestRef` | 비동기 콜백이 최신 `room`·`viewer`·`onBack`·`onRoomUpdated`를 읽게 | `MutableRefObject<UseRoomLockGateOptions>` | 첫 options(매 렌더 `useLayoutEffect` 갱신) | `useRoomLockGate` |
+| `latestLockedRef` | `handleWriteFailure`가 최신 `onRoomLocked`를 부르게 | `MutableRefObject<() => void>` | 첫 `onRoomLocked`(매 렌더 `useLayoutEffect` 갱신, `latestRef` 선례) | `useWriteFailure` |
+| `backButtonRef` | 잠긴 판 ‹ 포커스 대상 | `RefObject<HTMLButtonElement>` | `null` | `LockedRoomView` `useRef`(ChatTopBar `backButtonRef`로 전달) |
 | `entry.sheet` | 입장 시트 | `EntrySheet`(rooms §1.22) | `null` | `useRoomEntry` 내부 |
 | `roomBusy` (확장) | 방 쪽 요청 중 | `RoomBusy = 'rename' \| 'delete' \| 'setPassword' \| 'clearPassword' \| null` | `null` | `useRoomActions` `useRoomBusy`(기존 상태 + ref) |
 | `sheet` (확장) | 열린 시트 | `ChatSheet \| null`(LK §1.5 세 종 추가) | `null` | `useChatSheets` |
@@ -203,7 +208,7 @@ export type LockMenuSheetProps = { roomTitle: string; onChangePassword: () => vo
 export type UseRoomLockGateOptions = { room: RoomSummary; viewer: Viewer; onBack: () => void; onRoomUpdated: (room: RoomSummary) => void }
 export type UseRoomLockGateResult = {
   isLocked: boolean; epoch: number; sheet: EntrySheet
-  onRoomLocked: () => void; submitPassword: (password: string) => void
+  onRoomLocked: () => void; onRoomOpened: () => void; submitPassword: (password: string) => void
   cancelLockedEntry: () => void; back: () => void
 }
 ```
@@ -214,14 +219,14 @@ export type UseRoomLockGateResult = {
 
 | # | 시그니처(위치) | 입력 | 출력·상태 변경 | 동작 | 예외·분기 | 요구ID |
 |---|---|---|---|---|---|---|
-| **F-CH-63** | `useRoomLockGate(options): UseRoomLockGateResult` (`useRoomLockGate.ts`) | LK §2 | LK §2 | `const entry = useRoomEntry({ canWrite: viewer.canWrite, onEntered: enterAgain, onRoomGone: leave })`. 아래 F-CH-64~66을 조립. 콜백은 `latestRef`(매 렌더 `useLayoutEffect` 갱신)로 최신 `room`·`onBack`·`onRoomUpdated`를 읽는다 | 50줄 넘으면 F-CH-64·66을 같은 파일 함수로 | R-LOCK-004 · 006 |
-| **F-CH-64** | `onRoomLocked(): void` | — | `isLocked = true` · 증명 삭제 · 판정 | `isLockedRef.current`면 무시 → `isLockedRef = true` → `setIsLocked(true)` → `room.locked === false`면 `onRoomUpdated({ ...room, locked: true })`(서버가 잠김을 알려 줬다 — 메뉴 분기 일치, D-48) → `entry.requestEntry(room, 'locked')`(**증명 삭제는 이 호출이 한다** — `forgetRoomKey` 직접 호출 없음). 같은 커밋에 `ChatRoomView`가 언마운트 → 진행 중 요청·시트·편집·임시 말풍선 폐기(`isActive`), **실패한 쓰기 자동 재시도 없음** | 토스트·읽기 전용 전환 없음(`isAuthFailure` false, api.md §2.8.5) | R-LOCK-006 · 004 · R-CHAT-010 |
-| **F-CH-65** | `enterAgain(): void` (useRoomEntry `onEntered`) | 입장 성공(증명 저장은 useRoomEntry가 마침) | `isLocked = false` · `epoch + 1` | `isLockedRef = false` → `setIsLocked(false)` → `setEpoch(n => n + 1)` → 새 `ChatRoomView` 마운트 = 첫 진입 F-CH-02 그대로(`saveLastRoomId` · ‹ 포커스 · `listMessages`가 새 증명 헤더로) | `entryKey: null`(그사이 잠금 해제)도 같은 경로 | R-LOCK-004 · 005 |
+| **F-CH-63** | `useRoomLockGate(options): UseRoomLockGateResult` (`useRoomLockGate.ts`) | LK §2 | LK §2 | `const entry = useRoomEntry({ canWrite: viewer.canWrite && quietReentryCount.current < QUIET_REENTRY_MAX, onEntered: enterAgain, onRoomGone: leave })`(`QUIET_REENTRY_MAX = 2`, 파일 지역 상수 — D-55. rooms 공용 시그니처 불변: `canWrite` 값만 좁힌다). 반환 매핑: `sheet = entry.sheet` · **`submitPassword = entry.submitPassword`**(그대로 전달) · `onRoomLocked`(F-CH-64) · `onRoomOpened = () => { quietReentryCount.current = 0 }` · `cancelLockedEntry`·`back`(F-CH-66). 콜백은 `latestRef`로 최신 `room`·`viewer`·`onBack`·`onRoomUpdated`를 읽는다 | 50줄 넘으면 F-CH-64·66을 같은 파일 함수로 | R-LOCK-004 · 006 |
+| **F-CH-64** | `onRoomLocked(): void` | — | `isLocked = true` · 증명 삭제 · 판정 | `isLockedRef.current`면 무시 → `isLockedRef = true` → `setIsLocked(true)` → `room.locked === false`면 `onRoomUpdated({ ...room, locked: true })`(서버가 잠김을 알려 줬다 — 메뉴 분기 일치, D-48) → `entry.requestEntry(room, 'locked')`(**증명 삭제는 이 호출이 한다** — `forgetRoomKey` 직접 호출 없음. `quietReentryCount ≥ 2`면 `canWrite`가 false로 들어가 조용한 시도 없이 바로 시트 — D-55). 포커스는 LK §1.3 규칙(시트가 같은 커밋에 열렸으면 ‹ 포커스 생략). 같은 커밋에 `ChatRoomView`가 언마운트 → 진행 중 요청·시트·편집·임시 말풍선 폐기(`isActive`), **실패한 쓰기 자동 재시도 없음** | 토스트·읽기 전용 전환 없음(`isAuthFailure` false, api.md §2.8.5) | R-LOCK-006 · 004 · R-CHAT-010 |
+| **F-CH-65** | `enterAgain(): void` (useRoomEntry `onEntered`) | 입장 성공(증명 저장은 useRoomEntry가 마침) | `isLocked = false` · `epoch + 1` · (조건부) 방 정보 · 카운터 | ① 시트 없이 들어왔으면(`entry.sheet === null`, 조용한 시도 성공) `quietReentryCount.current += 1`, 시트로 들어왔으면 그대로 ② **`getRoomKey(room.id) === null`이면**(= E17 `entryKey: null`, 그사이 잠금이 풀린 방) **`onRoomUpdated({ ...room, locked: false })`**(F-CH-64의 `locked: true`를 되돌림 — D-48) ③ `isLockedRef = false` → `setIsLocked(false)` → `setEpoch(n => n + 1)` → 새 `ChatRoomView` 마운트 = 첫 진입 F-CH-02 그대로(`saveLastRoomId` · ‹ 포커스 · `listMessages`가 새 증명 헤더로) | `entryKey: null`(그사이 잠금 해제)도 같은 경로 | R-LOCK-004 · 005 |
 | **F-CH-66** | `cancelLockedEntry(): void` · `leave(): void` · `back(): void` | 시트 취소·Esc·덮개 / `NOT_FOUND` / ‹ | 목록 | `cancelLockedEntry`: `sheet?.isBusy`면 무시 → `entry.cancelEntry()` → `leave()`. `leave` = `back` = `clearLastRoomId()` → `onBack()` | — | R-LOCK-004 · R-ROOMS-004 |
 | **F-CH-67** | `LockedRoomView(props)` (`components/LockedRoomView.tsx`) | LK §1.3 | 판 렌더 | LK §1.3 | — | R-LOCK-004 · 006 · R-CHAT-001 |
 | **F-CH-68** | `ChatScreen`(껍데기, F-CH-01 개정) · `ChatRoomView` (`index.tsx`) | `ChatScreenProps` | LK §1.3 | 옛 본문 = `ChatRoomView`. 판정 `gate.isLocked` 하나 | — | R-LOCK-006 |
 | **F-CH-69** | `useWriteFailure(onAuthFailure, onRoomLocked)` (F-CH-16 개정) | 실패 | — | `handleWriteFailure` 첫 줄: `error.code === 'ROOM_LOCKED'`면 `latestLockedRef.current()` 후 **return**(토스트 없음, `revokedRef` 불변). 그 밖 불변. `useChatScreen` 옵션에 `onRoomLocked` 추가해 넘긴다 | 모든 쓰기 실패 경로(send · edit · delete · regenerate · rename · deleteRoom · memory · setRoomPassword · clearRoomPassword)가 여기로 모인다(D-45) | R-LOCK-006 · R-CHAT-011 |
-| **F-CH-70** | `useChatLoader(roomId, onRoomLocked)` (F-CH-03·05 개정) | 읽기 실패 | — | `loadInitial`·`loadOlder`: `!result.ok && result.error.code === 'ROOM_LOCKED'`면 `onRoomLocked()` 후 return(`initialLoadFailed`·`olderLoadFailed` dispatch 없음). 그 밖 불변 | 읽기 전용 열람자도 이 경로(E7) | R-LOCK-006 · R-MSG-001 |
+| **F-CH-70** | `useChatLoader(roomId, onRoomLocked)` (F-CH-03·05 개정) | 읽기 실패 | — | `loadInitial`·`loadOlder`: `!result.ok && result.error.code === 'ROOM_LOCKED'`면 `onRoomLocked()` 후 return(`initialLoadFailed`·`olderLoadFailed` dispatch 없음). `loadInitial` 성공이면 `initialLoadSucceeded` dispatch 직후 `onRoomOpened()`(D-55 카운터 리셋 — 시그니처 `useChatLoader(roomId, { onRoomLocked, onRoomOpened })`). 그 밖 불변 | 읽기 전용 열람자도 이 경로(E7) | R-LOCK-006 · R-MSG-001 |
 | **F-CH-71** | `settleSpeakFailure` (F-CH-42 개정, useMessageWrites) | speak 실패 | — | 첫 분기 조건을 `isAuthFailure(error) \|\| error.code === 'ROOM_LOCKED'`로: `speakDiscarded` → `onFailure(error, 'speak')`(실패 말풍선·「재시도」 없음) | 전송 뒤 자동 응답(`'auto'`)도 같다 | R-LOCK-006 · R-CHAT-005 |
 | **F-CH-72** | 메시지 id 래퍼 호출에 `roomId` (F-CH-20·23·34 개정, `useMessageWrites.ts`) | `options.roomId` | 요청 헤더 `X-Room-Key`(래퍼가 `getRoomKey(roomId)`로) | `editMessage(messageId, { text }, roomId)` · `deleteMessage(messageId, roomId)` · `regenerate(messageId, roomId)`. 그 밖 래퍼(`listMessages`·`appendUser`·`speak`·`renameRoom`·`deleteRoom`·`getMemory`·`putMemory`)는 호출 모양 불변(래퍼가 첫 인자 `roomId`로 헤더를 붙인다, api.md §11.18) | 빠뜨리면 tsc 오류 | R-LOCK-006 · R-MSG-004·005·006 |
 | **F-CH-73** | `useMemoryLoad` · `useMemorySave` 떠남 조건 (F-CH-56·57 개정) | E13·E14 실패 | `onLeave(error)` | 조건 `isAuthFailure(e) \|\| e.code === 'NOT_FOUND' \|\| e.code === 'ROOM_LOCKED'`. `memoryLeft`는 불변(`NOT_FOUND` 외 → `handleWriteFailure` → F-CH-69) | — | R-LOCK-006 |
@@ -236,7 +241,7 @@ export type UseRoomLockGateResult = {
 | **F-CH-82** | `LockMenuSheet(props)` | LK §1.4 | 시트 | LK §1.4 | — | R-CHAT-001 · R-LOCK-002 |
 | **F-CH-83** | `RoomMenuSheet` `onLock` · `ChatSheets` 델타 · `SheetLayer` 배선 | LK §1.5 | — | `SheetLayer`가 `onAskLock={sheets.openLock}` · `onAskChangePassword={sheets.askChangePassword}` · `onAskUnlock={sheets.askUnlock}` · `onSavePassword={sheets.savePassword}` · `onConfirmUnlock={sheets.confirmUnlock}`를 넘긴다. `viewer.canWrite && <SheetLayer/>` 불변 | — | R-CHAT-001 · 008 |
 | **F-CH-84** | `useRoomActions` 옵션·반환 확장 | — | — | 옵션 추가 `onPasswordSet` · `onPasswordCleared`. 반환 추가 `setPassword` · `clearPassword`. `RoomBusy` 확장(LK §2) | — | R-LOCK-002 |
-| **F-CH-85** | labels 델타 | — | — | `WriteAction`에 `'setRoomPassword' \| 'clearRoomPassword'`. `validationText('setRoomPassword')` = `` `비밀번호는 ${ROOM_PASSWORD_MIN}~${ROOM_PASSWORD_MAX}자로 입력해 주세요.` ``(api.md §4.20 문구와 같은 글자). `NOT_FOUND`는 기본 방 문구. 새 키는 LK §6 | — | R-CHAT-011 |
+| **F-CH-85** | labels 델타 | — | — | `WriteAction`에 `'setRoomPassword' \| 'clearRoomPassword'`. `validationText('setRoomPassword')` = `` `비밀번호는 ${ROOM_PASSWORD_MIN}~${ROOM_PASSWORD_MAX}자로 입력해 주세요.` ``(api.md §4.20 문구와 같은 글자). `validationText('clearRoomPassword')`는 기존 기본 분기(메시지 문구)를 그대로 둔다 — E19는 본문이 없어 `VALIDATION_ERROR`를 내지 않는다(정상 경로 없음). `NOT_FOUND`는 기본 방 문구. 새 키는 LK §6 | — | R-CHAT-011 |
 
 ---
 
@@ -369,7 +374,7 @@ E7(첫 로드·이전 페이지) · E8~E14 · E5·E6 · E18·E19 응답 ROOM_LOC
 | 걸기·바꾸기 시트 | `role=dialog` 이름 = 제목. 열리면 입력 포커스. Enter = 저장(활성일 때) · Esc = 취소(요청 중 무시). 카운터 `aria-hidden`, 33자 이상 `aria-invalid`. 실패 문구 `role=alert` |
 | 풀기 확인 | `role=alertdialog` 이름 `잠금을 풀까요?` · 첫 포커스 취소 |
 | 포커스 복귀 | 시트가 닫히면 BottomSheet 규칙(⋯). 전환 → ‹(F-CH-29) |
-| 입장 재요구 판 | 마운트 ‹ 포커스. StateView `role=status`가 `잠긴 방입니다`를 읽는다. 입장 시트 `role=dialog` 이름 `비밀번호` · 입력 포커스 · 실패 `role=alert`(rooms a11y S6 행) |
+| 입장 재요구 판 | 마운트 시 **시트가 같은 커밋에 열렸으면(토큰 없음) 시트 입력 포커스 유지, 시트가 없으면(토큰 있음·조용한 시도 중) ‹ 포커스** → 시트가 나중에 열리면 입력 포커스, 닫힘 복귀 대상 ‹(LK §1.3). StateView `role=status`가 `잠긴 방입니다`를 읽는다. 입장 시트 `role=dialog` 이름 `비밀번호` · 입력 포커스 · 실패 `role=alert`(rooms a11y S6 행) |
 | 재입장 | 새 `ChatRoomView` 마운트 → ‹ 포커스(F-CH-02 불변) |
 | 탭 순서(잠긴 판) | ‹ → (시트가 열리면 시트 안 순환) |
 
@@ -406,16 +411,17 @@ E7(첫 로드·이전 페이지) · E8~E14 · E5·E6 · E18·E19 응답 ROOM_LOC
 | D-44 | **잠금 관문 = `ChatScreen` 껍데기 + `ChatRoomView key={epoch}`**. 잠기면 본문을 언마운트하고, 입장 성공이면 epoch를 올려 새로 마운트한다 | 진행 중 요청·임시 말풍선·편집기·시트·쓰기 팻말을 한 번에 버린다(리듀서 액션 추가 없음, 전이표 불변). 재입장이 첫 진입(F-CH-02)과 같은 경로라 새 증명으로 첫 로드·스크롤 복원이 그대로 된다. App·`ChatScreenProps` 불변 |
 | D-45 | `ROOM_LOCKED` 수렴점 = `handleWriteFailure`(쓰기 전부) + `useChatLoader`(읽기 2곳) + `settleSpeakFailure`(말풍선 대신). 토스트·전환 없음 | 인계 메모 "어느 래퍼에서든 → 증명 삭제 → 입장 재요구, 전환 아님, 재시도 없음". 경로마다 처리를 흩지 않는다 |
 | D-46 | 입장 재요구 판에서 ⋯·하단 바 **미렌더 채택**(메인 권고 ⑤), 상단 바 날짜 유지 | 입장 전 메뉴·쓰기는 모두 관문에 걸려 실패만 만든다(구성안 §6 ⑥). R-CHAT-001·004 "토큰 있을 때만 렌더"의 반대 방향 조건이 아니라 추가 조건이라 요구와 충돌 없음 |
-| D-47 | 「잠금 풀기」 항목 = default 톤(메인 권고 ⑥). **확인 버튼은 공용 `ConfirmDialog` 그대로라 danger 모양**(메인 권고 primary와 다름) | `ConfirmDialog` 확인 버튼은 danger 고정(rooms components.md §1.16)이고, 이번 묶음은 공용 정의를 바꾸지 않는다. 풀기는 대화를 누구에게나 여는 조작이라 주의 색이 어긋나지 않는다. primary로 하려면 공용 델타 `confirmVariant?` 1개가 필요(보고) |
-| D-48 | 「잠금」 분기 = App이 보는 `room.locked`. E18·E19 응답과 `ROOM_LOCKED` 수신(locked true)으로 갱신 | 단건 조회 엔드포인트가 없다. 서버가 잠김을 알려 준 순간 표시를 맞추면 재입장 뒤 메뉴가 「걸기」로 잘못 열리지 않는다 |
+| D-47 | 「잠금 풀기」 항목 = default 톤(메인 권고 ⑥). **확인 버튼은 공용 `ConfirmDialog` 그대로 danger 모양 — 메인 승인(2026-10-08), 공용 델타 없음** | `ConfirmDialog` 확인 버튼은 danger 고정(rooms components.md §1.16). 풀기는 대화를 누구에게나 여는 조작이라 주의 색이 어긋나지 않는다 |
+| D-48 | 「잠금」 분기 = App이 보는 `room.locked`. E18·E19 응답 · `ROOM_LOCKED` 수신(`locked: true`, F-CH-64) · **재입장 뒤 `getRoomKey(room.id) === null`(E17 `entryKey: null` = 안 잠긴 방)이면 `locked: false`로 되돌림(F-CH-65)** 으로 갱신. rooms 공용 시그니처는 바꾸지 않는다 | 단건 조회 엔드포인트가 없다. 서버가 알려 준 순간 표시를 맞추면 재입장 뒤 메뉴가 「걸기」/잠금 시트 중 잘못된 쪽으로 열리지 않는다 |
 | D-49 | 바꾸기 판 저장 버튼 `바꾸기` · 입력 이름 `새 비밀번호` · 확인 제목 `잠금을 풀까요?` · 토스트 `비밀번호를 바꿨습니다.`·`잠금을 풀었습니다.` | 요구·구성안에 없는 자리(구성안 §5.2 "제목·저장 버튼 문구만 다르다", ConfirmDialog는 제목 필수). `방을 잠갔습니다.`(s6-02 §6.3)와 같은 꼴 |
 | D-50 | E18 실패 = 이름 변경과 같은 규칙(비인증·비잠김은 시트 안, 입력 유지). E19 실패 = 방 삭제와 같은 규칙(시트 닫고 토스트) | 입력이 있는 시트는 입력 보존(D-7·D-37), 확인 시트는 입력이 없다 |
 | D-51 | 잠금 요청 중 표시는 `RoomBusy` 확장 | ⋯ 비활성·버튼 줄 잠금·메뉴 가드가 그대로 따라온다 |
-| D-52 | 잠긴 판 전환 때 하단 바 입력 중이던 글은 사라진다 | 실패한 쓰기 자동 재시도 없음(인계 메모). 입력 보존을 위해 상태를 들고 있으면 D-44의 일괄 폐기가 깨진다. 매뉴얼에 적는다 |
+| D-52 | 잠긴 판 전환 때 하단 바 입력 중이던 글은 사라진다 | 실패한 쓰기 자동 재시도 없음(인계 메모). 입력 보존을 위해 상태를 들고 있으면 D-44의 일괄 폐기가 깨진다. **매뉴얼 기재로 충분 — 메인 결정(2026-10-08)** |
 | D-53 | 주인이 증명을 잃으면 조용한 시도 동안 `잠긴 방입니다`가 잠깐 보였다 바로 재입장 | 진행 표시를 더하지 않는다(rooms D-L9). 화면은 주인 여부를 모른다 |
 | D-54 | 걸기·바꾸기 시트 카운터 상한 32, placeholder `6자 이상 권장` | rooms D-L1 · D-L2 · 사용자 결정 U6 |
+| D-55 | **조용한 재입장은 한 `ROOM_LOCKED` 에피소드당 연속 2회까지, 3회째는 조용한 시도 없이 입장 시트.** 카운터 `quietReentryCount` 1개: 조용한 시도로 재입장할 때 +1(F-CH-65), 재입장 뒤 첫 정상 첫 로드(`onRoomOpened`, F-CH-70)에 0. 시트로 들어오면 늘지 않는다 | 서버 이상(E17은 200을 주는데 E7이 계속 `ROOM_LOCKED`)일 때 조용한 시도 ↔ 재입장 무한 반복을 막는다. rooms `useRoomEntry`의 `canWrite` 값만 좁혀 공용 시그니처를 건드리지 않는다 |
 
-구성안·메인 권고와 다른 것: D-47(확인 버튼 색). 그 밖은 수용.
+구성안·메인 권고와 다른 것: 없음(D-47은 메인 승인).
 
 ---
 
@@ -423,7 +429,7 @@ E7(첫 로드·이전 페이지) · E8~E14 · E5·E6 · E18·E19 응답 ROOM_LOC
 
 | 후보 | 판단 |
 |---|---|
-| 공용 `ConfirmDialog` `confirmVariant?: 'danger' \| 'primary'` | D-47. 사용처 chat 잠금 풀기 1곳뿐 — 두 화면 재발 아님. 메인 판단 시 rooms components.md §1.16에 정의 |
+| 공용 `ConfirmDialog` `confirmVariant?: 'danger' \| 'primary'` | **채택 안 함**(D-47 메인 승인 — danger 유지). 사용처 1곳 |
 | `LockMenuSheet`·`RoomMenuSheet` 틀 | 같은 화면 2회 — 3회 미만, 추출 안 함 |
 
 ---
@@ -439,3 +445,4 @@ TC-CH-140~163 · 기존 TC 영향표 · 인계(ui-implementer 파일 표 · ui-t
 | 버전 | 일자 | 변경 | 근거 |
 |---|---|---|---|
 | v2.3 | 2026-10-08 | 최초 작성(S6 chat 델타): 레이아웃 4판 · 관문 구조 · LockedRoomView · LockMenuSheet · RoomMenuSheet·ChatSheets 델타 · 상태 · F-CH-63~85 · 파이프라인 4종 · 계약 E18·E19·관문 · 문구 · 접근성 · 읽기 전용 · 저장소 · D-44~54 | 승인 ① 2026-10-08 · s6-03 §3.3 · 구성안 ui-layout-04 §5 · api.md v0.9 |
+| v2.3.1 | 2026-10-08 | 검증 반영: §1.3·§7·F-CH-64 잠긴 판 포커스 규칙(시트 있으면 ‹ 생략) · F-CH-65·D-48 재입장 뒤 증명 없음 → `locked: false` · F-CH-85 `clearRoomPassword` 문구 · §2 `quietReentryCount`·`latestRef`·`latestLockedRef`·`backButtonRef` · F-CH-63 `submitPassword` 매핑·`canWrite` 좁힘 · F-CH-70 `onRoomOpened` · D-55 신설 · D-47·D-52 메인 승인 표기 · §11 | ui-design-checker FAIL(HIGH 1·MEDIUM 2·LOW 5) · 메인 결정 |

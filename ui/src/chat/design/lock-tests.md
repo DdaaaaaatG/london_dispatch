@@ -1,7 +1,7 @@
 # chat 상세 설계 — S6 방 비밀번호 잠금: 예정 TC · 기존 TC 영향 · 인계 (분할 문서, v2.3)
 
 > 본문: `design/lock.md`(절 표기 `LK`). 이 파일 절 표기 `LT`. ui-test-designer가 `test/scenarios.md`로 확정한다. 기대는 3단(화면 · 상태/저장 · api 인자).
-> 공통 픽스처: `room = { id: 'r1', title: '비밀 다과회', createdAt, updatedAt, messageCount, locked }`. `vi.mock('@/api')`에 `setRoomPassword` · `clearRoomPassword` · `enterRoom` 추가. `localStorage`는 jsdom 실물(각 TC 뒤 `clear()` + `resetRoomKeyCache()`).
+> 공통 픽스처: `room = { id: 'r1', title: '비밀 다과회', createdAt, updatedAt, messageCount, locked }`. **`@/api/rooms` 팩토리(`vi.mock('@/api/rooms', …)` 또는 `@/api` 팩토리 안 rooms 래퍼)가 있는 스펙**에 `setRoomPassword` · `clearRoomPassword` · `enterRoom`을 추가한다. `localStorage`는 jsdom 실물(각 TC 뒤 `clear()` + `resetRoomKeyCache()`).
 
 ## 1. 예정 TC (TC-CH-140~163)
 
@@ -17,8 +17,8 @@
 | TC-CH-147 | E18 실패 | `VALIDATION_ERROR` → 시트 안 alert `비밀번호는 4~32자로 입력해 주세요.` · `RATE_LIMITED`+`retryAfterSec: 30` → `…30초 후 다시 시도해 주세요.` · `NETWORK` → `서버에 연결할 수 없습니다.` · `NOT_FOUND` → 방 문구 · 각각 시트·입력값 유지, 버튼 다시 활성, 토스트 없음, 저장소 불변 / `TOKEN_INVALID` → 시트 없음 · `onAuthFailure` 1회 · 전환 문구 토스트 |
 | TC-CH-148 | E19 실패 | `INTERNAL` → 시트 없음 · E 토스트 `ERROR_MESSAGES.INTERNAL` · 증명 유지 / `LEVEL_TOO_LOW` → 전환 |
 | TC-CH-149 | 요청 중 | E18 대기 중: 입력 readOnly · 두 버튼 disabled · Esc·덮개로 안 닫힘 · Enter 연타 → 1회 / E19 대기 중: 두 버튼 disabled · (시트 밖) ⋯ disabled · 말풍선 버튼 disabled |
-| TC-CH-150 | 첫 로드 `ROOM_LOCKED`(읽기 전용) | `listMessages` → `ROOM_LOCKED` → `role=status` `잠긴 방입니다` · 말풍선 `li` 0 · ⋯·textbox·캐릭터 버튼 0 · `role=note` 열람 안내 있음 · `role=dialog` 이름 `비밀번호`(입력 포커스, placeholder 없음, `0/64`) · `enterRoom` 0회 · 상단 바 날짜 있음 · `onAuthFailure` 0회 · 토스트 없음 |
-| TC-CH-151 | 첫 로드 `ROOM_LOCKED`(토큰) | 사전 `ld:roomKeys` = `[["r1","old"]]` → `ROOM_LOCKED` → `ld:roomKeys`에서 r1 제거 → `enterRoom('r1')`(인자 1개) 1회 / 200 `e1.x` → 저장 → `listMessages('r1')` 2번째 호출 → 말풍선 표시 · ‹ 포커스 / 다른 판 `ROOM_LOCKED` → 시트(문구 없음), ⋯·하단 바 0 · `role=note` 0 |
+| TC-CH-150 | 첫 로드 `ROOM_LOCKED`(읽기 전용) | `listMessages` → `ROOM_LOCKED` → `role=status` `잠긴 방입니다` · 말풍선 `li` 0 · ⋯·textbox·캐릭터 버튼 0 · `role=note` 열람 안내 있음 · `role=dialog` 이름 `비밀번호`(placeholder 없음, `0/64`) · **`document.activeElement` = 시트 입력(‹ 아님 — LK §1.3 포커스 규칙)** · `enterRoom` 0회 · 상단 바 날짜 있음 · `onAuthFailure` 0회 · 토스트 없음 |
+| TC-CH-151 | 첫 로드 `ROOM_LOCKED`(토큰) | 사전 `ld:roomKeys` = `[["r1","old"]]` → `ROOM_LOCKED` → `ld:roomKeys`에서 r1 제거 → `enterRoom('r1')`(인자 1개) 1회 · **조용한 시도 대기 중 `document.activeElement` = ‹** / 200 `e1.x` → 저장 → `listMessages('r1')` 2번째 호출 → 말풍선 표시 · ‹ 포커스 / 다른 판 `ROOM_LOCKED` → 시트(문구 없음) · **시트 입력 포커스(BottomSheet가 기억한 복귀 대상 = ‹)** · ⋯·하단 바 0 · `role=note` 0 |
 | TC-CH-152 | 시트 입장 | `pw1234` → 입장 → `enterRoom('r1', 'pw1234')` → 200 → 시트 없음 · `listMessages` 재호출 · 말풍선 표시 · `ld:lastRoomId` = `r1` · 저장소에 `pw1234` 없음 / `ROOM_PASSWORD_WRONG` → alert `비밀번호가 맞지 않습니다.` · 시트 유지 |
 | TC-CH-153 | 취소·사라짐 | 시트 취소·Esc → `onBack` 1회 · `ld:lastRoomId` 없음 · `enterRoom` 추가 0회 / 시트 제출 `NOT_FOUND` → `onBack` 1회 · `ld:lastRoomId` 없음 |
 | TC-CH-154 | 쓰기 중 `ROOM_LOCKED` | 각각 send · editMessage · deleteMessage(확인 뒤) · regenerate · speak(캐릭터) · 자동 응답 speak(`'auto'`) · renameRoom · deleteRoom · getMemory · putMemory: 응답 `ROOM_LOCKED` → 증명 삭제 · `잠긴 방입니다` 판 · 시트·편집기·임시/실패 말풍선 DOM 0 · 토스트 0 · `onAuthFailure` 0 · 같은 래퍼 재호출 0(자동 재시도 없음) |
@@ -33,13 +33,16 @@
 | TC-FLOW-163 | TC-FLOW 읽기 전용 | App(토큰 없음) · 증명 있는 잠긴 방 진입 → `listMessages` `ROOM_LOCKED`(비밀번호 바뀜) → 판 + 시트 → 입장 → 대화 표시 / 취소 → 목록 |
 | (수동) TC-CH-163 | 스크린샷 390×565 | 방 메뉴 5항목 · 잠금 시트 · 걸기 시트(placeholder · 실패 문구 판) · 풀기 확인 · 입장 재요구 판(토큰 있음/없음) — `doc/300_검증/screenshots/{YYYYMMDD-HHMM}/`. `manual-checklist.md` 행 |
 
+| TC-CH-164 | 재입장 뒤 `locked` 복귀(D-48) | `locked: true` 방 · E7 `ROOM_LOCKED` → `onRoomRenamed`에 `locked: true`는 원래 true라 0회 / 토큰 있음 · `enterRoom('r1')` 200 `entryKey: null` → `ld:roomKeys`에 r1 없음 · `onRoomRenamed` 인자 `{ …, locked: false }` 1회 · `listMessages` 재호출 / 200 문자열이면 `locked: false` 호출 0회 |
+| TC-CH-165 | 조용한 재입장 상한(D-55) | 토큰 있음 · `enterRoom` 항상 200 `e1.x` · `listMessages` 항상 `ROOM_LOCKED` → `enterRoom` 정확히 2회 → 3번째 `ROOM_LOCKED`에서 `enterRoom` 호출 없이 시트(`role=dialog` 이름 `비밀번호`) / 대조: 2번째 재입장 뒤 `listMessages` 200이면 카운터 0 → 다음 `ROOM_LOCKED`에서 다시 조용한 시도 1회 |
+
 - 번호: TC-FLOW-163(자동)과 TC-CH-163(수동)은 ui-test-designer가 겹치지 않게 다시 매길 수 있다(예약 범위 140~165).
 
 ## 2. 기존 TC 영향
 
 | 대상 | 변경 | 사유 |
 |---|---|---|
-| chat 스펙 전부의 `vi.mock('@/api')` | `setRoomPassword` · `clearRoomPassword` · `enterRoom` 추가(쓰지 않는 파일도 index 재노출 모킹이면 추가) | `index.tsx`·`useRoomActions`·`useRoomLockGate` import |
+| `@/api/rooms` 팩토리가 있는 chat 스펙(또는 `@/api` 팩토리 안에 rooms 래퍼를 직접 나열한 스펙) | `setRoomPassword` · `clearRoomPassword` · `enterRoom` 추가 — 팩토리에 없으면 import가 `undefined`가 된다 | `index.tsx`·`useRoomActions`·`useRoomLockGate` import |
 | `RoomSummary` 픽스처(ChatScreen · ChatScroll · RoomMenu · MemorySheet · MessageActions · Regenerate · SpeakFlow · AutoReply · AuthTransition · Composer · MessageList · Bubble 테스트) | `locked: false` 추가(공용 픽스처 도우미 권고) | 필수 필드(api.md §5.10.1) |
 | 메시지 id 래퍼 호출 단언(MessageActions · Regenerate · AuthTransition · ChatScreen 테스트 중 `editMessage`·`deleteMessage`·`regenerate` 인자 단언 전부) | 마지막 인자 `'r1'`(방 id) 추가 | F-CH-72 |
 | TC-CH-047(방 메뉴 항목, S4 개정) | 4항목 → 5항목(TC-CH-140이 대체 단언) | R-CHAT-001 S6 개정 |
