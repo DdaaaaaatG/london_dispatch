@@ -9,7 +9,9 @@
 - **v1.1 기준(S6 구축, 방 비밀번호 잠금 — 승인 ② 2026-10-08)**: `ui/src/chat/design.md` **v2.3.2** · `ui/src/chat/design/lock.md` **v2.3.1**(정본, 절 표기 `LK`) · `design/lock-tests.md`(예약 TC-CH-140~165 · 기존 TC 영향 · mock 지침, 절 표기 `LT`) · `design/rtm.md` S6 행 / `ui/src/chat/requirements.md` **v2.2** §1 R-CHAT-001 🔒·R-CHAT-010 개정 · §6.1 R-LOCK-002·004·005·006·007·009 · §6.2 U-CH-16~18 / `doc/200_설계/contract/api.md` **v0.9** §2.8 · §4.19 · §4.20 · §4.21 · §11.18 / 공용 단일 정의 `ui/src/rooms/design/components.md` §1.11·§1.12·§1.17·§1.21~§1.23 · `ui/src/rooms/design/lock.md` F-RM-40~44 · §6.7 · §6.8 · §8.2. **현재 상태: 초안 v1.1(S6 구축, 검증 전)** — 5행의 「상태」 표기보다 이 줄이 우선한다.
 - **S6 공통 전제(추가 — S1~S4 전제는 그대로 유지)**
   - **정본·우선순위**: `design/lock.md`. 기존 TC 영향은 「추적표 — S6 추가분」 「대체·영향 TC (S6)」 표가 정본이다(개정 047 · 122 · 061 · 픽스처·mock·인자 갱신 목록). 이 문서 작성 시점에 **기존 스펙 파일은 고치지 않았다** — 갱신은 ui-implementer 몫(표의 「스펙 변경」 열).
-  - **번호 재배정(LT §1 중복 해소)**: LT의 자동 「TC-FLOW-163」(읽기 전용 App 흐름)과 수동 「TC-CH-163」이 같은 번호다. **TC-CH-163 = 수동**(스크린샷·낭독)으로 두고, 자동 읽기 전용 흐름은 TC-FLOW 이름공간의 **TC-FLOW-CH-22**(U-CH-18 체인 + App 통합 it 2개)로 옮겼다. TC-CH-140~165는 각 번호를 한 번만 쓴다. `design/rtm.md`의 "FLOW-163" 표기는 TC-FLOW-CH-22를 가리킨다.
+  - **번호 재배정(LT §1 중복 해소)**: LT의 자동 「TC-FLOW-163」(읽기 전용 App 흐름)과 수동 「TC-CH-163」이 같은 번호다. **TC-CH-163 = 수동**(스크린샷·낭독)으로 두고, 자동 읽기 전용 흐름은 TC-FLOW 이름공간의 **TC-FLOW-CH-22**(U-CH-18 체인 + App 통합 it 2개)로 옮겼다. TC-CH-140~165는 각 번호를 한 번만 쓴다. `design/rtm.md`의 "FLOW-163" 표기는 TC-FLOW-CH-22를 가리킨다. **v1.1.1(검증 반영)**: 예약 범위 밖 **TC-CH-166 · 167 · 168 · 169**를 신설했다(lock-tests 예약 140~165 확장 — 설계자 알림 대상). 스펙 배치 166 · 167 · 169 → `LockedRoom.test.tsx`, 168 → `RoomLock.test.tsx`.
+  - **설계 개정 반영(F-CH-65 ①)**: 조용한 재입장 판별이 `entry.sheet === null`에서 gate 지역 플래그 `quietAttemptRef`로 바뀌었다(설계자 반영 중). TC-CH-165(c) 기대는 그대로다 — 시트로 들어온 재입장은 세지 않는다.
+  - **TC-FLOW 증분 규약(CF-02, S6 적용)**: S6 TC-FLOW의 「ⓒ·스파이 증분」 줄은 각 Step이 **그 Step에서 새로 생기는** 래퍼·스파이 호출 수만 적는다. 스펙의 누적 단언(예: `listMessages` 2회)은 실제 누적 값 그대로 둔다.
   - **토큰**: 화면 단위는 `viewer` props(`WRITER_VIEWER`·`READ_ONLY_VIEWER`). 저장소 TC-CH-160·App 통합 TC-CH-162만 `initToken('?t=test-token')` → `clearToken()`. TC-FLOW-CH-22는 토큰 없음(App 렌더 전에 `initToken`을 부르지 않는다).
   - **래퍼 모킹**: `@/api/rooms` 팩토리에 `setRoomPassword`·`clearRoomPassword`·`enterRoom`을 더한다(LT §2). `@/api/messages`(`listMessages`·`appendUser`·`editMessage`·`deleteMessage`·`speak`·`regenerate`) · `@/api/memory`(`getMemory`·`putMemory`). `isAuthFailure` 실물. `fetch` 모킹 금지. **기본값**: `listMessages` = ok(픽스처), `setRoomPassword`·`clearRoomPassword`·`enterRoom`·`speak`·`regenerate`·`getMemory`·`putMemory` = **영원히 대기**. 그래서 토큰 있음 + `ROOM_LOCKED`는 TC가 `enterRoom` 응답을 따로 주지 않으면 「조용한 시도 대기 중」(잠긴 판, 시트 없음)에 머문다. 인자 단언은 `mock.calls` 전체. `useRoomEntry`의 판정 동작 자체(TC-RM-065)는 rooms 소유 — chat TC는 chat이 부른 결과(`enterRoom` 호출 여부·인자 · 시트 · 재입장)만 본다(rooms lock.md §13).
   - **하네스**: `room`·`viewer`를 state로 들고 `onRoomRenamed` = spy + `setRoom`(App `replaceRoomInView` 흉내), `onAuthFailure` = spy + `READ_ONLY_VIEWER`. 그래서 E18·E19·`ROOM_LOCKED`의 방 갱신이 다음 메뉴 분기(F-CH-74)에 바로 반영된다.
@@ -821,7 +823,7 @@
 ### TC-CH-122 · (S4) 방 메뉴 항목 순서 · 종류: 자동 · 요구: R-CHAT-001 🔒 · R-CHAT-012 🔒 · R-CHAT-013 🔒 · 설계: ME §0 방 메뉴 그림 · §1.4 `RoomMenuSheet` 델타 · §6 `memory` · §7 레이블 · §8 1행(토큰 있음) · 토큰: 있음
 - Given `WRITER_VIEWER`, 방 `티타임`(r1) 첫 로드 완료
 - When `방 메뉴 열기`
-- Then ⓐ dialog `방 메뉴` 안 button 글자가 정확히 `이름 변경` → `장기기억` → `방 삭제` → `취소`(4개) 순서 · dialog `장기기억` 없음 ⓑ 열린 시트 = 방 메뉴 ⓒ `getMemory`·`putMemory` 0회(항목을 누르기 전에는 조회하지 않는다)
+- Then ⓐ dialog `방 메뉴` 안 button 글자가 정확히 `이름 변경` → `장기기억` → `잠금` → `방 삭제` → `취소`(**5개 — S6 개정 v1.1**, 옛 S4 4개. 순서 정본 TC-CH-140) 순서 · dialog `장기기억` 없음 ⓑ 열린 시트 = 방 메뉴 ⓒ `getMemory`·`putMemory` 0회(항목을 누르기 전에는 조회하지 않는다)
 - 스펙: `ui/src/chat/test/MemorySheet.test.tsx` (쌍: 토큰 없음 TC-CH-136)
 
 ### TC-CH-123 · (S4) 열기 · 조회 중 · 종류: 자동 · 요구: R-CHAT-012 🔒 · R-CHAT-013 🔒 · 설계: ME §0 변형 「조회 중」 · §1.2 · §1.3 `'loading'` 행 · §1.5 `ChatSheet memory` · F-CH-53 · F-CH-55 · F-CH-56 · §4 대기 행 · §6 `memory`·`memoryClose`·`memoryGuide`·`memoryLoading` · §7 시트·포커스(열 때)·상태 알림 · 토큰: 있음
@@ -957,13 +959,13 @@
 - 스펙: `RoomLock.test.tsx`
 
 ### TC-CH-145 · (S6) 비밀번호 바꾸기 성공 · 종류: 자동 · 요구: R-LOCK-002 · R-LOCK-004 · R-CHAT-010 · 설계: LK §0.2 바꾸기 판 · §4.2 · F-CH-75 · F-CH-76 · F-CH-77(`wasLocked` true) · §6.1 `changePasswordTitle`·`changePasswordSave`·`passwordChanged` · D-49 · 토큰: 있음
-- Given `locked: true` 방, 사전 `ld:roomKeys` = `[["r1","e1.o"]]`, `setRoomPassword` → `ok({ room: { …locked: true }, entryKey: 'e1.n' })`
+- Given `locked: true` 방, 사전 `ld:roomKeys` = `[["r1","e1.k"]]`(TC-CH-143 끝 상태와 같은 증명 — FLOW-21 체인), `setRoomPassword` → `ok({ room: { …locked: true }, entryKey: 'e1.n' })`
 - When 잠금 → `비밀번호 바꾸기` → `newpass` → `바꾸기`
-- Then ⓐ 열린 시트 dialog `비밀번호 바꾸기` · 저장 버튼 `바꾸기`(`잠그기` 없음) · placeholder `6자 이상 권장` · `0/32` → 저장 뒤 dialog 없음 · 토스트 `비밀번호를 바꿨습니다.`(success) ⓑ `ld:roomKeys` = `[["r1","e1.n"]]`(r1 쌍 1개, `e1.o` 없음) · 저장소에 `newpass` 없음 · `onRoomRenamed` `[[{ …locked: true }]]` ⓒ `setRoomPassword` `[['r1', 'newpass']]`
+- Then ⓐ 열린 시트 dialog `비밀번호 바꾸기` · 저장 버튼 `바꾸기`(`잠그기` 없음) · placeholder `6자 이상 권장` · `0/32` → 저장 뒤 dialog 없음 · 토스트 `비밀번호를 바꿨습니다.`(success) ⓑ `ld:roomKeys` = `[["r1","e1.n"]]`(r1 쌍 1개, `e1.k` 없음) · 저장소에 `newpass` 없음 · `onRoomRenamed` `[[{ …locked: true }]]` ⓒ `setRoomPassword` `[['r1', 'newpass']]`
 - 스펙: `RoomLock.test.tsx`
 
 ### TC-CH-146 · (S6) 잠금 풀기 확인 · 종류: 자동 · 요구: R-LOCK-002 · R-LOCK-004 · R-CHAT-010 · 설계: LK §0.3 아래 그림 · §1.5 `confirmUnlock` · §4.3 · F-CH-75 · F-CH-78 · F-CH-79 · §6.1 `unlockTitle`·`unlockBody`·`unlockConfirm`·`unlockedNotice` · §7 풀기 확인 · D-47 · D-49 · 토큰: 있음
-- Given `locked: true` 방, 사전 `ld:roomKeys` = `[["r1","e1.k"]]`, (b) `clearRoomPassword` → `ok({ …방, locked: false })`
+- Given `locked: true` 방, 사전 `ld:roomKeys` = `[["r1","e1.n"]]`(TC-CH-145 끝 상태 — FLOW-21 체인), (b) `clearRoomPassword` → `ok({ …방, locked: false })`
 - When (a) 잠금 → `잠금 풀기` → `취소`, 다시 열어 Esc (b) 잠금 → `잠금 풀기` → `풀기`
 - Then ⓐ alertdialog `잠금을 풀까요?` · 글자에 `잠금을 풀면 누구나 이 방 대화를 볼 수 있습니다.` · 첫 포커스 = `취소` · (a) 닫힘 (b) 닫힘 · 토스트 `잠금을 풀었습니다.`(success) ⓑ (a) `ld:roomKeys` 불변 (b) `ld:roomKeys` 키 없음(마지막 쌍 제거 = 키 삭제) · `onRoomRenamed` `[[{ …locked: false }]]` ⓒ (a) `clearRoomPassword` 0회 (b) `[['r1']]` · `setRoomPassword` 0회
 - 스펙: `RoomLock.test.tsx`
@@ -977,13 +979,13 @@
 ### TC-CH-148 · (S6) E19 실패 표시 · 종류: 자동 · 요구: R-LOCK-002 · R-CHAT-011 · R-CHAT-008 · 설계: F-CH-80 ②⑤ · LK §4.3 실패 행 · §6.2 · D-50 · 토큰: 있음 → (b) 없음
 - Given `locked: true` 방, 사전 `[["r1","e1.k"]]`, `clearRoomPassword` → (a) `INTERNAL` (b) `LEVEL_TOO_LOW`
 - When 잠금 → `잠금 풀기` → `풀기`
-- Then ⓐ alertdialog 없음 · (a) 토스트 `ERROR_MESSAGES.INTERNAL` (b) 토스트 `대화 참여 등급이 아니어서 열람 전용으로 바뀌었습니다.` · role=note 열람 안내 · ⋯ 없음 ⓑ `ld:roomKeys` = `[["r1","e1.k"]]` 유지 · `onRoomRenamed` 0회 · `onAuthFailure` (a) 0회 (b) 1회 ⓒ `clearRoomPassword` `[['r1']]`
+- Then ⓐ alertdialog 없음 · (a) 토스트 `ERROR_MESSAGES.INTERNAL`(= `서버 내부 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.`) (b) 토스트 `대화 참여 등급이 아니어서 열람 전용으로 바뀌었습니다.` · role=note 열람 안내 · ⋯ 없음(이 두 단언은 (b)에만) ⓑ `ld:roomKeys` = `[["r1","e1.k"]]` 유지 · `onRoomRenamed` 0회 · `onAuthFailure` (a) 0회 (b) 1회 ⓒ `clearRoomPassword` `[['r1']]`
 - 스펙: `RoomLock.test.tsx`
 
 ### TC-CH-149 · (S6) 요청 중 잠금 · 종류: 자동 · 요구: R-LOCK-002 · R-CHAT-001 🔒 · 설계: LK §2 `roomBusy` 확장 · §1.5 `isBusy` · F-CH-76 · F-CH-78 · F-CH-84 · LK §4.1 셋째 줄 · §4.3 풀기 줄 · D-51 · rooms C §1.17 `isBusy` · 토큰: 있음
 - Given (a) TC-CH-141 시트, `setRoomPassword` deferred (b) `locked: true` 방, 사전 `[["r1","e1.k"]]`, `clearRoomPassword` deferred
 - When (a) `abcd` → `잠그기` → Esc → 덮개 클릭 → 입력에 포커스 후 Enter 2번 → resolve 200 (b) `잠금 풀기` → `풀기` → Esc → 덮개 → resolve 200
-- Then ⓐ (a) 대기 중: 입력 readOnly · `잠그기`·`취소` disabled · 같은 dialog 유지(Esc·덮개 무시) → resolve 뒤 dialog 없음 (b) 대기 중: alertdialog 유지 · `취소`·`풀기` disabled · ⋯ disabled · 말풍선 버튼 줄 버튼 전부 disabled → resolve 뒤 alertdialog 없음 · ⋯·버튼 줄 활성 ⓑ `roomBusy` `'setPassword'` / `'clearPassword'` → null(표시로 관찰) ⓒ (a) `setRoomPassword` 1회(Enter 연타 무시) (b) `clearRoomPassword` 1회
+- Then ⓐ (a) 대기 중: 입력 readOnly · `잠그기`·`취소` disabled · ⋯ disabled · 말풍선 버튼 줄 버튼 전부 disabled · 같은 dialog 유지(Esc·덮개 무시) → resolve 뒤 dialog 없음 (b) 대기 중: alertdialog 유지 · `취소`·`풀기` disabled · ⋯ disabled · 말풍선 버튼 줄 버튼 전부 disabled → resolve 뒤 alertdialog 없음 · ⋯·버튼 줄 활성 ⓑ `roomBusy` `'setPassword'` / `'clearPassword'` → null(표시로 관찰) ⓒ (a) `setRoomPassword` 1회(Enter 연타 무시) (b) `clearRoomPassword` 1회
 - 스펙: `RoomLock.test.tsx`
 
 ### TC-CH-150 · (S6) 첫 로드 ROOM_LOCKED · 읽기 전용 · 종류: 자동 · 요구: R-LOCK-006 · R-LOCK-004 · R-CHAT-001 🔒 · R-CHAT-008 · 설계: LK §0.4(토큰 없음 열) · §1.1 트리 · §1.3 `LockedRoomView` 렌더·**포커스 규칙(시트가 같은 커밋이면 ‹ 포커스 생략)** · F-CH-64 · F-CH-67 · F-CH-68 · F-CH-70 · §4.4 토큰 없음 · §6.1 `lockedRoom` · §7 입장 재요구 판 · §8 · D-46 · rooms F-RM-41 ④(`'locked'`면 가드 전에 증명 삭제) · rooms §8.2 · 토큰: 없음
@@ -995,7 +997,7 @@
 ### TC-CH-151 · (S6) 첫 로드 ROOM_LOCKED · 토큰 · 조용한 시도 · 종류: 자동 · 요구: R-LOCK-006 · R-LOCK-005 · R-LOCK-004 · R-CHAT-010 · 설계: LK §0.4(토큰 있음 열) · §1.3 포커스 규칙 · §2 `backButtonRef`·`epoch` · F-CH-63 · F-CH-64 · F-CH-65 · §4.4 토큰 있음 · §7 재입장 · D-44 · D-46 · D-53 · rooms F-RM-41 ③ · F-RM-42 · 토큰: 있음
 - Given `WRITER_VIEWER`, `locked: true` 방, 사전 `[["r1","old"]]`, `listMessages` 1번째 `ROOM_LOCKED` · 2번째부터 픽스처, `enterRoom` deferred
 - When 렌더 → (a) deferred → `ok({ entryKey: 'e1.x' })` (b) deferred → `ROOM_LOCKED`
-- Then ⓐ 대기 중: 잠긴 판 · dialog 0 · role=note 0 · 포커스 = ‹ / (a) 말풍선 li 3 · `잠긴 방입니다` 없음 · ⋯·`메시지 입력` 다시 있음 · 포커스 = 새 ‹(재입장 = 첫 진입 F-CH-02) (b) dialog `비밀번호` · 시트 안 alert 없음 · 포커스 = 시트 입력 · 잠긴 판 유지 · role=note 0 ⓑ 대기 중 `ld:roomKeys` 없음 / (a) `[["r1","e1.x"]]` · `ld:lastRoomId` = `r1` (b) 없음 ⓒ `enterRoom` `[['r1']]`(인자 1개) · `listMessages` (a) 2회 모두 `'r1'` (b) 1회
+- Then ⓐ 대기 중: 잠긴 판 · dialog 0 · role=note 0 · 포커스 = ‹ / (a) 말풍선 li 3 · `잠긴 방입니다` 없음 · ⋯·`메시지 입력` 다시 있음 · 포커스 = 새 ‹(재입장 = 첫 진입 F-CH-02) (b) dialog `비밀번호` · 시트 안 alert 없음 · 포커스 = 시트 입력 · 잠긴 판 유지 · role=note 0 ⓑ 대기 중 `ld:roomKeys` 없음 / (a) `[["r1","e1.x"]]` · `ld:lastRoomId` = `r1` (b) `ld:roomKeys` 없음(r1 증명 없음) ⓒ `enterRoom` `[['r1']]`(인자 1개) · `listMessages` (a) 2회 모두 `'r1'` (b) 1회
 - 스펙: `LockedRoom.test.tsx`
 
 ### TC-CH-152 · (S6) 입장 시트로 재입장 · 종류: 자동 · 요구: R-LOCK-004 · R-LOCK-007 · R-CHAT-010 · 설계: F-CH-63 `submitPassword = entry.submitPassword` · F-CH-65 · LK §4.4 입장 시트 줄 · §9 · rooms F-RM-43 · §6.8 · §8.2 · 토큰: 없음
@@ -1041,9 +1043,9 @@
 - 스펙: `LockedRoom.test.tsx`
 
 ### TC-CH-159 · (S6) 같은 틱 두 번째 ROOM_LOCKED 무시 · 종류: 자동 · 요구: R-LOCK-006 · 설계: LK §2 `isLockedRef` · F-CH-64 첫 줄 · F-CH-70 · F-CH-71 · 토큰: 있음
-- Given `WRITER_VIEWER`, `locked: true` 방, 스크롤 mock, 첫 페이지 31~60, `appendUser` → 201(id 61), 자동 응답 `speak` deferred, 이전 페이지 `listMessages` deferred
+- Given 하네스, `WRITER_VIEWER`, **`locked: false` 방**(판별력 — 두 번째 `ROOM_LOCKED`가 무시되지 않으면 방 갱신이 2회가 된다), 스크롤 mock, 첫 페이지 31~60, `appendUser` → 201(id 61), 자동 응답 `speak` deferred, 이전 페이지 `listMessages` deferred
 - When 전송 `안녕` → `speak` 대기 확인 → log `scrollTop = 0` + scroll → 이전 페이지 대기 확인 → 한 act 안에서 두 deferred를 `ROOM_LOCKED`로 resolve
-- Then ⓐ `잠긴 방입니다` 1개(판 1개) ⓑ 잠긴 판 상태 1회 진입 ⓒ `enterRoom` `[['r1']]`(1회) · `speak` `[['r1', { character: 'auto' }]]`
+- Then ⓐ `잠긴 방입니다` 1개(판 1개) ⓑ 잠긴 판 상태 1회 진입 · `onRoomRenamed` `[[{ …locked: true }]]`(정확히 1회) ⓒ `enterRoom` `[['r1']]`(1회) · `speak` `[['r1', { character: 'auto' }]]`
 - 스펙: `LockedRoom.test.tsx`
 
 ### TC-CH-160 · (S6) 저장소·비밀값 · 종류: 자동(+ 리뷰 grep은 수동 MC-CH-25) · 요구: R-LOCK-007 · R-LOCK-009 · R-CHAT-010 · R-CHAT-009 🔒 · 설계: LK §2 끝 문단 · §9 · rooms C §1.21 · 토큰: 있음(`initToken('?t=test-token')`)
@@ -1080,6 +1082,30 @@
 - Given `WRITER_VIEWER`, `locked: true` 방 / (a) `listMessages` 항상 `ROOM_LOCKED`, `enterRoom` 항상 `ok('e1.x')` (b) `listMessages` `ROOM_LOCKED` → `ROOM_LOCKED` → 픽스처, `enterRoom` `ok` 2번 뒤 대기, `appendUser` → `ROOM_LOCKED` (c) `listMessages` 항상 `ROOM_LOCKED`, `enterRoom` `ok('e1.x')` → `ROOM_LOCKED` → `ok('e1.y')` → 대기
 - When (a) 렌더 (b) 렌더 → 대화 표시 뒤 `안녕` 전송 (c) 렌더 → 시트가 열리면 `pw1234` → `입장`
 - Then ⓐ (a) dialog `비밀번호`(같은 커밋에 열려 포커스 = 시트 입력) · 잠긴 판 (b) 대화 표시(li 3) → 전송 뒤 잠긴 판 · dialog 0(조용한 시도 대기) (c) 시트 입장 뒤 잠긴 판 · dialog 0(4번째는 조용한 시도) ⓑ (a) 카운터 0→1→2 → 3번째 판정 `canWrite` false (b) 2 → 첫 로드 200에서 0 (c) 1 → 시트 입장으로는 늘지 않음(1 유지) ⓒ (a) `enterRoom` `[['r1'], ['r1']]` · `listMessages` 3회 (b) `enterRoom` `[['r1'], ['r1'], ['r1']]` (c) `enterRoom` `[['r1'], ['r1'], ['r1', 'pw1234'], ['r1']]` · `listMessages` 3회
+- 스펙: `LockedRoom.test.tsx`
+
+### TC-CH-166 · (S6, v1.1.1) 잠긴 판 ‹ — 토큰 있음 · 조용한 시도 대기 중 · 종류: 자동 · 요구: R-LOCK-004 · R-ROOMS-004 · R-CHAT-001 🔒 · 설계: F-CH-66 `back`(= `clearLastRoomId()` → `onBack()`) · LK §1.3(`ChatTopBar onBack={gate.back}`) · §0.4 A 행 · 토큰: 있음
+- Given `WRITER_VIEWER`, `locked: true` 방, `listMessages` 1번째 `ROOM_LOCKED`, `enterRoom` deferred(대기) → 잠긴 판 · dialog 0 · `ld:lastRoomId` = `r1`(첫 마운트가 저장)
+- When ‹(`방 목록으로 돌아가기`) 클릭
+- Then ⓐ 화면 이탈 요청(`onBack` 1회) ⓑ `onBack` 시점에 이미 `ld:lastRoomId` 없음 · 이후도 없음 ⓒ `enterRoom` `[['r1']]`(이 Step 증분 0) · `listMessages` 1회
+- 스펙: `LockedRoom.test.tsx`
+
+### TC-CH-167 · (S6, v1.1.1) 토큰 있음 · 입장 시트로 재입장 · 시트 취소 · 종류: 자동 · 요구: R-LOCK-004 · R-LOCK-006 · R-LOCK-007 · R-CHAT-010 · R-ROOMS-004 · 설계: F-CH-63 `submitPassword` · F-CH-65(시트 입장은 카운터 미계수 — 판별 `quietAttemptRef`) · F-CH-66 `cancelLockedEntry` · LK §0.4 토큰 있음 열(D 미렌더) · §4.4 입장 시트·취소 줄 · §8 3·4행 · rooms F-RM-43 · F-RM-44 · 토큰: 있음
+- Given `WRITER_VIEWER`, `locked: true` 방, `listMessages` 1번째 `ROOM_LOCKED` · 2번째부터 픽스처, `enterRoom` 1번째 `ROOM_LOCKED`(조용한 시도 → 입장 시트, 문구 없음) / (a) 시트가 열린 뒤 2번째 `ok({ entryKey: 'e1.y' })`
+- When (a) `pw1234` → `입장` (b) 시트 `취소`
+- Then ⓐ (a) dialog 없음 · 말풍선 li 3 · `잠긴 방입니다` 없음 · role=note 0 · ⋯·`메시지 입력`·`세바스찬 대사 생성` 복귀 (b) 화면 이탈 요청(`onBack` 1회) ⓑ (a) `ld:roomKeys` = `[["r1","e1.y"]]` · 저장소에 `pw1234` 없음 · `onBack`·`onAuthFailure` 0회 (b) `ld:lastRoomId` 없음 ⓒ (a) `enterRoom` `[['r1'], ['r1', 'pw1234']]`(이 Step 증분 +1 `['r1','pw1234']`) · `listMessages` 2회(증분 +1) (b) `enterRoom` `[['r1']]`(증분 0) · `listMessages` 1회
+- 스펙: `LockedRoom.test.tsx`
+
+### TC-CH-168 · (S6, v1.1.1) 바꾸기 판 실패(시트 유지) · 종류: 자동 · 요구: R-LOCK-002 · R-CHAT-011 · 설계: F-CH-80 ④(열린 password 시트에 `errorText`, **mode 유지**, 입력 유지) · LK §1.5 `PromptSheet key={sheet.mode}` · §4.2 · §6.2 `NETWORK` · D-50 · 토큰: 있음
+- Given `locked: true` 방, 사전 `[["r1","e1.k"]]`, `setRoomPassword` → `NETWORK`
+- When 잠금 → `비밀번호 바꾸기` → `newpass` → `바꾸기`
+- Then ⓐ dialog `비밀번호 바꾸기` 그대로(`비밀번호 걸기`로 바뀌지 않음) · 저장 버튼 `바꾸기` 활성(`잠그기` 없음) · 시트 안 alert `서버에 연결할 수 없습니다.`(화면 전체 alert 1) · 입력값 `newpass` 유지 ⓑ `ld:roomKeys` = `[["r1","e1.k"]]` 유지 · `onRoomRenamed`·`onAuthFailure` 0회 ⓒ `setRoomPassword` `[['r1', 'newpass']]`
+- 스펙: `RoomLock.test.tsx`
+
+### TC-CH-169 · (S6, v1.1.1) 잠긴 뒤 다른 진행 중 요청의 늦은 응답 · 종류: 자동 · 요구: R-LOCK-006 · R-CHAT-011 · R-CHAT-008 · 설계: F-CH-64(같은 커밋에 `ChatRoomView` 언마운트 → 진행 중 요청 폐기 `isActive`) · D-44 · LK §4.4 셋째 줄 · 토큰: 있음
+- Given `WRITER_VIEWER`, `locked: true` 방, 스크롤 mock, 첫 페이지 31~60, `세바스찬 대사 생성` `speak` deferred, 이전 페이지 `listMessages` deferred, `enterRoom` deferred. (전제: 생성 대기 중에도 이전 페이지 읽기는 막히지 않는다 — TC-CH-159와 같은 전제)
+- When 세바스찬 클릭 → `speak` 대기 확인 → log `scrollTop = 0` + scroll → 이전 페이지 `ROOM_LOCKED`(잠긴 판) → 늦은 `speak` 응답 (a) 200 대사 `늦게 도착한 대사` (b) `TOKEN_INVALID` → `enterRoom` `ok('e1.x')`로 재입장
+- Then ⓐ 늦은 응답 뒤: 잠긴 판 그대로 · `늦게 도착한 대사` 없음 · alert 0 / 재입장 뒤: 말풍선 li 3(새 첫 로드 픽스처) · `늦게 도착한 대사` 없음 · `.pending` 0 · alert 0 · ⋯ 있음 · `세바스찬 대사 생성` 활성 ⓑ `onAuthFailure` 0회((b)도 전환 없음 — 폐기된 요청의 응답) ⓒ `speak` 1회(재시도 없음) · `enterRoom` `[['r1']]`
 - 스펙: `LockedRoom.test.tsx`
 
 ## TC-FLOW
@@ -1144,28 +1170,31 @@ S1·S2 행. **ⓒ 호출 횟수는 단계 증분으로 읽는다**: 체인 안�
 - 상태 전달: 110(쓰기 판, 말풍선마다 「수정」「삭제」) → 115 「수정」 → 인라인 편집 → 저장 200(→ 본문 교체, 포커스 = 그 「수정」) → 116 같은 화면의 「삭제」 → 확인 시트 → 취소(→ 포커스 = 「삭제」) → 다시 「삭제」 → 삭제(→ 말풍선·그룹 제거, 포커스 log). 재작성은 마지막 캐릭터 대사가 있는 Given이라 `분기:`로 둔다: 111 「재작성」 표시 → 117 confirm 없이 `regenerate(72)` → 200(→ 같은 자리 교체, 포커스 = 「재작성」). **U-CH-10 폐기(CR-003)**: TC-FLOW-CH-09·15는 이력으로 남기고 S3e 이후 같은 사용자 흐름은 이 체인이 대신한다(FLOW-CH-09의 039·040·041 단계는 폐기·대체). TC-FLOW-CH-05·11의 022 단계는 112로, TC-FLOW-CH-13의 "말풍선 메뉴"는 버튼 줄(110)로 읽는다.
 
 ### TC-FLOW-CH-20 · U-CH-15 장기기억 확인·고치기(S4) · Steps: TC-CH-122 → TC-CH-123 → TC-CH-124 → TC-CH-128 → TC-CH-131 · 분기(조회 결과 — 각자 Given): TC-CH-125 | TC-CH-126 | TC-CH-133(a) | TC-CH-134(b)(c) · 분기(편집 중 — 각자 Given): TC-CH-129 | TC-CH-130 | TC-CH-135 | TC-CH-138 · 분기(저장 결과 — 각자 Given): TC-CH-132 | TC-CH-133(b) | TC-CH-134(a) · 그 밖 분기: TC-CH-127 | TC-CH-137 · 토큰 없음: TC-CH-136 · 시각: TC-CH-139
-- 상태 전달: 122(쓰기 판 ⋯ → 방 메뉴 4항목) → 123 「장기기억」(→ 방 메뉴 닫힘, 시트 마운트, `getMemory('r1')` 대기, 포커스 `닫기`) → 124 그 대기가 요약 있음으로 끝남(→ 값·카운터 `22/4000`·`마지막 갱신`, 포커스 textbox, 저장 비활성) → 128 같은 시트에서 글자를 바꿈(→ 변경 있음, 저장 활성) → 131 저장 200(→ 시트 닫힘, 토스트 `장기기억을 저장했습니다`, ⋯ 포커스). 나머지는 Given이 달라 `분기:`로 둔다: 빈 요약 | 조회 실패·재시도 | 방 사라짐 | 조회 중 인증 실패 / 4000·4001자 | 비우기 저장 | 버림 확인 | 키보드·Tab / 저장 실패(시트 안 문구·입력 보존) | 저장 중 방 사라짐 | 저장 중 인증 실패(전환) / 열 때마다 재조회 | 닫은 뒤 늦은 응답. U-CH-15 "인증 실패면 읽기 전용 전환"의 끝 상태는 134(a)(b)(c) — 같은 화면 읽기 전용, 토큰 비움.
+- 상태 전달: 122(쓰기 판 ⋯ → 방 메뉴 5항목 — S6 개정, 옛 4항목) → 123 「장기기억」(→ 방 메뉴 닫힘, 시트 마운트, `getMemory('r1')` 대기, 포커스 `닫기`) → 124 그 대기가 요약 있음으로 끝남(→ 값·카운터 `22/4000`·`마지막 갱신`, 포커스 textbox, 저장 비활성) → 128 같은 시트에서 글자를 바꿈(→ 변경 있음, 저장 활성) → 131 저장 200(→ 시트 닫힘, 토스트 `장기기억을 저장했습니다`, ⋯ 포커스). 나머지는 Given이 달라 `분기:`로 둔다: 빈 요약 | 조회 실패·재시도 | 방 사라짐 | 조회 중 인증 실패 / 4000·4001자 | 비우기 저장 | 버림 확인 | 키보드·Tab / 저장 실패(시트 안 문구·입력 보존) | 저장 중 방 사라짐 | 저장 중 인증 실패(전환) / 열 때마다 재조회 | 닫은 뒤 늦은 응답. U-CH-15 "인증 실패면 읽기 전용 전환"의 끝 상태는 134(a)(b)(c) — 같은 화면 읽기 전용, 토큰 비움.
 
 ### TC-FLOW-CH-21 · U-CH-16 방 잠그기·비밀번호 바꾸기·잠금 풀기(S6) · Steps: TC-CH-140(a) → TC-CH-141 → TC-CH-142 → TC-CH-143 → TC-CH-144 → TC-CH-145 → TC-CH-146(b) · 분기(실패·대기 — 각자 Given): TC-CH-147 | TC-CH-148 | TC-CH-149 | TC-CH-158 · 그 밖 분기: TC-CH-157 | TC-CH-160 · App 종단: TC-CH-162 · 토큰 없음: TC-CH-140(b) · 시각: TC-CH-163
 - 상태 전달: 140(a)(쓰기 판 ⋯ → 방 메뉴 5항목) → 141 `잠금`(안 잠긴 방 → 걸기 시트, `0/32`, 입력 포커스) → 142 같은 시트에서 4~32 판정(마지막 입력 `abcd` 상당) → 143 `잠그기` 200(→ `ld:roomKeys` `[r1, e1.k]` · 하네스의 방 `locked: true` · 토스트 · ⋯ 포커스) → 144 그 방에서 `잠금`(→ 잠금 시트, 걸기 시트 아님) → 145 `비밀번호 바꾸기` 200(→ 증명 `e1.n`이 덮음 · 토스트) → 146(b) `잠금 풀기` → `풀기` 200(→ 증명 키 삭제 · 방 `locked: false` · 토스트). 실제 App 종단(목록 자물쇠 · 증명 재사용 · `enterRoom` 0회)은 162 한 it에서 확인한다.
+- ⓒ·스파이 증분(Step별, CF-02): 140(a) 모든 래퍼 +0 → 141 +0 → 142 +0 → 143 `setRoomPassword` +1 `['r1','abcd']` · `onRoomRenamed` +1(locked true) · 증명 없음 → `e1.k` → 144 +0 → 145 `setRoomPassword` +1 `['r1','newpass']` · `onRoomRenamed` +1(locked true) · 증명 `e1.k` → `e1.n` → 146(b) `clearRoomPassword` +1 `['r1']` · `onRoomRenamed` +1(locked false) · 증명 `e1.n` → 키 삭제. `enterRoom` 체인 전체 +0. 각 TC 단독 스펙은 자기 Given에서 0부터 세며, 145 사전 증명 `e1.k` · 146 사전 증명 `e1.n`으로 체인 값과 같다.
 
 ### TC-FLOW-CH-22 · U-CH-18 읽기 전용 · 비밀번호 바뀐 방 다시 열람(S6 — 옛 LT 「TC-FLOW-163」) · Steps: (App) 잠긴 행 탭(증명 있음 → `enterRoom` 0회로 진입) → TC-CH-150 → TC-CH-152(a) · 분기(시트 — 각자 Given): TC-CH-152(b) | TC-CH-153(a)(b)(c)(d) | TC-CH-155 · 메뉴 부재: TC-CH-140(b) · 시각: TC-CH-163
 - 상태 전달: App(토큰 없음) · 사전 `ld:roomKeys` `[r1, old]` · 목록 `비밀 다과회, 잠긴 방` 탭(rooms F-RM-41 ② — 증명이 있어 바로 chat) → 150 첫 로드 `ROOM_LOCKED`(→ 증명 삭제 · 잠긴 판 + 입장 시트 같은 커밋 · 시트 입력 포커스 · 열람 안내 · ⋯ 없음) → 152(a) `pw1234` 입장 200(→ 증명 `e1.y` 저장 · 재입장 · 대화 표시 · ⋯ 여전히 없음). 취소 갈래는 153 · App it (b)(→ 방 목록, `ld:lastRoomId` 없음).
+- ⓒ·스파이 증분(Step별, CF-02): 행 탭 `listRooms` +1 · `enterRoom` +0 → 150 `listMessages` +1(`'r1'`) · `enterRoom` +0 · 증명 `old` → 삭제 → 152(a) `enterRoom` +1 `['r1','pw1234']` · `listMessages` +1 · 증명 → `e1.y` / 취소 갈래 `enterRoom` +0 · 목록 복귀. 스펙 누적 단언은 `listMessages` 2회 · `enterRoom` `[['r1','pw1234']]` 그대로.
 - 종류: 자동(App 통합) · 스펙: `LockedRoom.test.tsx` `it('TC-FLOW-CH-22: (a) …')` · `(b) …` · Then 요지 ⓐ 판+시트 → 대화 표시 / 목록 ⓑ `ld:roomKeys` `[["r1","e1.y"]]` · 저장소에 `pw1234` 없음 / `ld:lastRoomId`·`ld:roomKeys` 없음 ⓒ `enterRoom` `[['r1', 'pw1234']]` · `listMessages` 2회 / `enterRoom` 0회
 
-### TC-FLOW-CH-23 · U-CH-17 대화 중 기억 무효 → 다시 입장(S6) · Steps: TC-CH-154 → TC-CH-151 · 분기(조용한 시도 결과 — 각자 Given): TC-CH-151(a) 주인 자동 재입장 | TC-CH-151(b) → TC-CH-152 | TC-CH-153 · 분기(재입장 뒤 표시): TC-CH-161 | TC-CH-164 · 그 밖 분기: TC-CH-155 | TC-CH-158 | TC-CH-159 | TC-CH-165 · 입력 소멸: TC-CH-154(11)
-- 상태 전달: 154(쓰기 응답 `ROOM_LOCKED` → 증명 삭제 · 진행 중 시트·편집기·임시 말풍선 폐기 · 잠긴 판 · 조용한 시도 `enterRoom('r1')` 대기 — **151의 대기 중 상태와 같다**) → 151 그 대기가 (a) 200 문자열로 끝남(→ 증명 저장 · 새 ChatRoomView · 대화 다시 표시 · ‹ 포커스) 또는 (b) `ROOM_LOCKED`(→ 입장 시트, 152·153으로 이어짐). "하던 쓰기는 다시 보내지 않음"은 154 ⓒ(대상 래퍼 1회)와 154(11)(입력 소멸 · speak 1회)가 끝 상태다.
+### TC-FLOW-CH-23 · U-CH-17 대화 중 기억 무효 → 다시 입장(S6, **v1.1.1 토큰 있음 판으로 수정**) · Steps: TC-CH-154 → TC-CH-151 → 분기(조용한 시도 결과): ① TC-CH-151(a) 주인 자동 재입장 ② TC-CH-151(b) → TC-CH-167(a) 시트 입장 성공(토큰 있음) | TC-CH-167(b) 시트 취소(토큰 있음) · 잠긴 판 ‹: TC-CH-166 · 분기(재입장 뒤 표시): TC-CH-161 | TC-CH-164 · 그 밖 분기: TC-CH-155 | TC-CH-158 | TC-CH-159 | TC-CH-165 | TC-CH-169 · 입력 소멸: TC-CH-154(11) · (토큰 없음 대응 분기 TC-CH-152 · 153은 TC-FLOW-CH-22 소속 — 이 체인에 쓰지 않는다)
+- 상태 전달: 154(쓰기 응답 `ROOM_LOCKED` → 증명 삭제 · 진행 중 시트·편집기·임시 말풍선 폐기 · 잠긴 판 · 조용한 시도 `enterRoom('r1')` 대기 — **151의 대기 중 상태와 같다**) → 151 그 대기가 (a) 200 문자열로 끝남(→ 증명 저장 · 새 ChatRoomView · 대화 다시 표시 · ‹ 포커스) 또는 (b) `ROOM_LOCKED`(→ 입장 시트, 문구 없음) → 167(a) `pw1234` 입장 200(→ 증명 `e1.y` · 새 ChatRoomView · role=note 0 · ⋯·하단 바 복귀) 또는 167(b) 취소(→ `ld:lastRoomId` 삭제 · 목록). "하던 쓰기는 다시 보내지 않음"은 154 ⓒ(대상 래퍼 1회)와 154(11)(입력 소멸 · speak 1회)가 끝 상태다.
+- ⓒ·스파이 증분(Step별, CF-02): 154 대상 쓰기 래퍼 +1 · `enterRoom` +1 `['r1']`(조용한 시도) · 증명 `e1.k` → 삭제 → 151(a) `enterRoom` +0 · `listMessages` +1 · 증명 → `e1.x` / 151(b) `enterRoom` +0 · `listMessages` +0 → 167(a) `enterRoom` +1 `['r1','pw1234']` · `listMessages` +1 · 증명 → `e1.y` / 167(b) `enterRoom` +0 · `listMessages` +0 · `onBack` +1. 대상 쓰기 래퍼는 전 Step에서 다시 늘지 않는다(재시도 없음).
 
 ## 추적표 — S6 추가분 (v1.1)
 
-화면 TC는 잠금 UI가 계약 래퍼를 계약 인자로 부르는지(`setRoomPassword(roomId, password)` · `clearRoomPassword(roomId)` · 메시지 id 래퍼 마지막 인자 `roomId`)·부르지 않는지(토큰 없음 · 확인 취소 · 길이 미달 · 요청 중 연타 · 읽기 전용 `enterRoom`), 그리고 `ROOM_LOCKED`가 어느 경로에서 오든 같은 판(증명 삭제 · 잠긴 판 · 토스트·전환·재시도 없음)으로 모이는지를 단언한다. `enterRoom` 판정 자체는 rooms TC-RM-065 소유. 자동 TC 25개(140~162 · 164 · 165) + TC-FLOW-CH-22 App it 2개 · 수동 1개(163).
+화면 TC는 잠금 UI가 계약 래퍼를 계약 인자로 부르는지(`setRoomPassword(roomId, password)` · `clearRoomPassword(roomId)` · 메시지 id 래퍼 마지막 인자 `roomId`)·부르지 않는지(토큰 없음 · 확인 취소 · 길이 미달 · 요청 중 연타 · 읽기 전용 `enterRoom`), 그리고 `ROOM_LOCKED`가 어느 경로에서 오든 같은 판(증명 삭제 · 잠긴 판 · 토스트·전환·재시도 없음)으로 모이는지를 단언한다. `enterRoom` 판정 자체는 rooms TC-RM-065 소유. 자동 TC 29개(140~162 · 164~169, v1.1.1에서 166~169 신설) + TC-FLOW-CH-22 App it 2개 · 수동 1개(163).
 
 ### 대체·영향 TC (S6) — 바뀐 단언의 정본
 
 | 기존 TC | S6 처리 | 바뀐 단언 | 스펙 변경(ui-implementer) |
 |---|---|---|---|
 | TC-CH-047 | **개정** | 방 메뉴 버튼 5개 `이름 변경`·`장기기억`·`잠금`·`방 삭제`·`취소` · ⓒ에 잠금 래퍼 3종 0회. 순서 정본은 TC-CH-140 | `RoomMenu.test.tsx` 193행 순서 배열·it 이름 · `@/api/rooms` 팩토리에 3종 · `ROOM`·`ROOM_CHESS` 픽스처 `locked: false` |
-| TC-CH-122 | **개정**(LT §2 누락분) | 방 메뉴 버튼 정확히 5개(`잠금`이 `장기기억`과 `방 삭제` 사이). 순서 정본은 TC-CH-140 | `MemorySheet.test.tsx` 122 순서 배열 · rooms 팩토리 3종 · 픽스처 `locked: false` |
+| TC-CH-122 | **개정**(LT §2 누락분) | 방 메뉴 버튼 정확히 5개(`잠금`이 `장기기억`과 `방 삭제` 사이). 순서 정본은 TC-CH-140 | `MemorySheet.test.tsx` **213행** it 이름(`항목 4개 …` → `항목 5개 …`) · **220행** 순서 배열 `['이름 변경', '장기기억', '방 삭제', '취소']` → `['이름 변경', '장기기억', '잠금', '방 삭제', '취소']` · rooms 팩토리 3종 · 픽스처 `locked: false`. TC-CH-122 본문·TC-FLOW-CH-20 상태 전달도 5개로 갱신(v1.1.1) |
 | TC-CH-061 · TC-CH-139 | 개정(수동) | 방 메뉴 장면 5항목(약 292px, LK §0.1). 잠금 화면 장면은 TC-CH-163 | `manual-checklist.md` MC-CH-11 · MC-CH-21 ①은 MC-CH-23 ①이 대체 |
 | 메시지 id 래퍼 인자 단언(042~046 · 080~084 · 100 · 115~117 · 120 등 해당 it) | **개정**(의미 불변, 인자 추가) | `editMessage(id, { text })` → `(id, { text }, 'r1')` · `deleteMessage(id)` → `(id, 'r1')` · `regenerate(id)` → `(id, 'r1')`(F-CH-72) | grep 기준 15곳: `MessageActions.test.tsx` 591 · 698 · 712 · 747 · 780 · 827 · 846 / `Regenerate.test.tsx` 242 · 463 · 480 · 493 · 521 / `AuthTransition.test.tsx` 327 · 358 / `AutoReply.test.tsx` 429. `toHaveBeenCalledWith` 형태는 없음(재확인 권고) |
 | `RoomSummary` 픽스처 | 유지(필드 추가) | `locked: false`(api.md §5.10.1 필수) | `messageCount:` grep 11곳/10파일: Composer · MemorySheet · AutoReply · MessageActions · AuthTransition · ChatScroll · ChatScreen · Regenerate · RoomMenu(2) · SpeakFlow. LT §2가 든 MessageList·Bubble에는 `RoomSummary` 픽스처가 없다 |
@@ -1185,16 +1214,16 @@ S1·S2 행. **ⓒ 호출 횟수는 단계 증분으로 읽는다**: 체인 안�
 | 요구ID | TC | 비고 |
 |---|---|---|
 | R-CHAT-001 🔒(S6 개정) | TC-CH-140 · 141 · 144 · 149 · 150 · 158 · 161 · 162 · 163(수동) · 164 · 개정 047 · 122 | 「잠금」 항목 순서 · 토큰 있을 때만 · 잠긴 판 ⋯ 없음 · 메뉴 분기 = 방 `locked` |
-| R-CHAT-010(S6 개정) | TC-CH-143 · 145 · 146 · 151 · 152 · 154 · 157 · 160 · 162 | `ld:roomKeys` 저장·덮어쓰기·삭제(풀기·방 삭제·`ROOM_LOCKED`) · try/catch 경유 · 토큰 아님 |
-| R-LOCK-002 🔒 | TC-CH-140 ~ 149 · 158 · 161 · 162 · 163(수동) | 걸기 · 바꾸기 · 풀기(확인) · 토큰 있을 때만 · 실패 코드별 표시 · 요청 중 잠금 |
-| R-LOCK-004 🔒 | TC-CH-143 · 145 · 146 · 150 · 151 · 152 · 153 · 157 · 162 · 164 · TC-FLOW-CH-22 | 증명 저장·재사용 · 바꾸기·풀기·`ROOM_LOCKED` 뒤 다시 묻기 |
+| R-CHAT-010(S6 개정) | TC-CH-143 · 145 · 146 · 151 · 152 · 154 · 157 · 160 · 162 · 167 | `ld:roomKeys` 저장·덮어쓰기·삭제(풀기·방 삭제·`ROOM_LOCKED`) · 토큰 아님. try/catch(저장소 실패 흡수)는 공용 `roomKeys`·`storage` 몫 — **rooms TC-RM-059(g) 출처**, chat TC는 단언하지 않는다 |
+| R-LOCK-002 🔒 | TC-CH-140 ~ 149 · 158 · 161 · 162 · 163(수동) · 168 | 걸기 · 바꾸기 · 풀기(확인) · 토큰 있을 때만 · 실패 코드별 표시(바꾸기 판 포함) · 요청 중 잠금 |
+| R-LOCK-004 🔒 | TC-CH-143 · 145 · 146 · 150 · 151 · 152 · 153 · 157 · 162 · 164 · 166 · 167 · TC-FLOW-CH-22 | 증명 저장·재사용 · 바꾸기·풀기·`ROOM_LOCKED` 뒤 다시 묻기 · 잠긴 판 ‹·시트 취소 = 목록 |
 | R-LOCK-005 🔒 | TC-CH-151 · 165 | 조용한 시도 200 → 재입장(화면은 주인 판정 없음) · 연속 2회 상한 |
-| R-LOCK-006 🔒 | TC-CH-150 · 151 · 154 · 155 · 156 · 158 · 159 · 161 · 165 · TC-FLOW-CH-22 | E7 첫 로드·이전 페이지 · 쓰기 전부 · E13·E14 · E18·E19 → 입장 재요구 · 메시지 id 래퍼 `roomId` |
+| R-LOCK-006 🔒 | TC-CH-150 · 151 · 154 · 155 · 156 · 158 · 159 · 161 · 165 · 166 · 167 · 169 · TC-FLOW-CH-22 | E7 첫 로드·이전 페이지 · 쓰기 전부 · E13·E14 · E18·E19 → 입장 재요구 · 토큰 있음 시트 입장 · 폐기 요청의 늦은 응답 무시 · 메시지 id 래퍼 `roomId` |
 | R-LOCK-007 🔒 | TC-CH-143 · 145 · 152 · 160 · MC-CH-25(리뷰 grep) | 비밀번호 원문 저장소 0 · 토큰 저장소 0 · 증명 값 로그 0 |
 | R-LOCK-009 🔒 | TC-CH-160(a) · 「대체·영향 TC (S6)」 표(유지 명시 15 · 픽스처 `locked`·mock·`roomId` 인자 외 무수정) | 안 잠긴 방 동작 불변 |
 | R-CHAT-008(U-CH-18 매핑) | TC-CH-140(b) · 147(e) · 148(b) · 150 | 읽기 전용 잠금 메뉴 부재 · 전환 |
-| R-CHAT-011(S6 실패 문구) | TC-CH-147 · 148 · 154 | E18 시트 안 · E19 토스트 · `ROOM_LOCKED`는 문구 없음 |
-| R-ROOMS-004(기록 삭제 시점) | TC-CH-153 · 157 | 입장 취소·방 사라짐 · 방 삭제 |
+| R-CHAT-011(S6 실패 문구) | TC-CH-147 · 148 · 154 · 168 · 169 | E18 시트 안(걸기·바꾸기 판) · E19 토스트 · `ROOM_LOCKED`는 문구 없음 · 폐기 요청의 늦은 실패는 표시 없음 |
+| R-ROOMS-004(기록 삭제 시점) | TC-CH-153 · 157 · 166 · 167(b) | 입장 취소·방 사라짐 · 방 삭제 · 잠긴 판 ‹ · 토큰 있음 시트 취소 |
 | R-MSG-001~006 · R-MEM-001 · R-ROOM-003·004(관문 덧붙임) | TC-CH-154 · 155 · 156 | 화면은 `ROOM_LOCKED` 응답 코드로만 반응 · id 경로 래퍼 `roomId` |
 
 ### 설계 항목 ↔ TC (S6, `design/lock.md`)
@@ -1211,21 +1240,21 @@ S1·S2 행. **ⓒ 호출 횟수는 단계 증분으로 읽는다**: 체인 안�
 | LK §1.5 `RoomMenuSheet.onLock` · `ChatSheet` 3종 · `ChatSheetsProps`(roomBusy 타입·콜백 5) · `renderLockSheet` · PromptSheet `key={sheet.mode}`·입력 유지 | 140 · 141 · 144 · 145 · 146 · 147(입력 유지) · 149 |
 | LK §2 `isLocked` · `isLockedRef` · `epoch` · `quietReentryCount` · `latestRef` · `latestLockedRef` · `backButtonRef` · `entry.sheet` · `roomBusy` 확장 · `sheet` 확장 · 증명 | 150 · 159 · 151·152 · 165 · 161·164 · 154 · 151 · 150·152 · 149 · 141·144·146 · 143·157 |
 | LK §2 비밀번호·토큰이 상태에 없음 | 143 · 152 · 160 |
-| F-CH-63 `useRoomLockGate` · `canWrite` 좁힘 · `submitPassword` 매핑 | 151 · 152 · 165 |
-| F-CH-64 `onRoomLocked`(무시 가드 · `locked: true` 갱신 · `requestEntry(room, 'locked')`) | 150 · 151 · 158(a) · 159 · 161 |
-| F-CH-65 `enterAgain`(카운터 · `locked: false` 복귀 · epoch) | 151(a) · 152(a) · 164 · 165 |
-| F-CH-66 `cancelLockedEntry` · `leave` · `back` | 153 |
+| F-CH-63 `useRoomLockGate` · `canWrite` 좁힘 · `submitPassword` 매핑 | 151 · 152 · 165 · 167(a) |
+| F-CH-64 `onRoomLocked`(무시 가드 · `locked: true` 갱신 · `requestEntry(room, 'locked')` · 같은 커밋 언마운트로 진행 중 요청 폐기) | 150 · 151 · 158(a) · 159 · 161 · 169 |
+| F-CH-65 `enterAgain`(카운터 — 판별 `quietAttemptRef`(설계 개정) · `locked: false` 복귀 · epoch) | 151(a) · 152(a) · 164 · 165 · 167(a) |
+| F-CH-66 `cancelLockedEntry`(`isBusy` 무시) · `leave` · `back` | 153 · 166(`back` — 잠긴 판 ‹) · 167(b)(토큰 있음 취소) |
 | F-CH-67 `LockedRoomView` · F-CH-68 껍데기 | 150 · 151 |
 | F-CH-69 `useWriteFailure` `ROOM_LOCKED` 첫 줄 | 154(1)~(8) · 158 |
 | F-CH-70 `useChatLoader` `loadInitial`·`loadOlder`·`onRoomOpened` | 150 · 151 · 155 · 165(b) |
 | F-CH-71 `settleSpeakFailure` | 154(5)(6) · 159 |
 | F-CH-72 메시지 id 래퍼 `roomId` | 156 · 영향표 15곳 |
 | F-CH-73 `useMemoryLoad`·`useMemorySave` 떠남 조건 | 154(9)(10) |
-| F-CH-74 `openLock`(분기 · 가드) | 141 · 144 · 161 · 164 |
+| F-CH-74 `openLock` 분기 · 가드(`writing !== null` · `isRoomBusy()`) | 분기 141 · 144 · 161 · 164 / 가드 = **비행동**(설계 확정 — 요청 중에는 ⋯가 disabled라 UI로 도달할 수 없다. 대리 단언 149 ⋯ disabled) |
 | F-CH-75 `askChangePassword` · `askUnlock` | 145 · 146 |
 | F-CH-76 `setPassword` · F-CH-77 `onPasswordSet` | 143 · 145 · 149(a) |
 | F-CH-78 `clearPassword` · F-CH-79 `onPasswordCleared` | 146 · 149(b) |
-| F-CH-80 `onFailure` 순서 ①~⑤ | 158 · 147(e)·148(b) · (③ 불변 — TC-CH-049) · 147(a)~(d) · 148(a) |
+| F-CH-80 `onFailure` 순서 ①~⑤ | 158 · 147(e)·148(b) · (③ 불변 — TC-CH-049) · 147(a)~(d) · 168(④ 바꾸기 판 mode·입력 유지) · 148(a) |
 | F-CH-81 방 삭제 증명 삭제 | 157 |
 | F-CH-82 `LockMenuSheet` · F-CH-83 배선 | 144 · 140 · 141 |
 | F-CH-84 `useRoomActions` 확장 | 143 · 146 · 149 |
@@ -1845,3 +1874,4 @@ ui-test-checker S2 판정 FAIL 지적 반영: TC-CH-038 내용 높이 mock을 "�
 | v1.0 | 2026-10-07 | **S4 구축**(장기기억 시트): TC-CH-122~139(자동 17 · 수동 1) · TC-FLOW-CH-20(U-CH-15) · 「S4 공통 전제」 · 「추적표 — S4 추가분」. 개정 2(047 · 061) · 유지 명시 7(003 · 021 · 023 · 015 · 053 · 048~050). 스펙 신규 `MemorySheet`·`state/memory`, 갱신 `AuthTransition`·`RoomMenu`. 확인표 v0.6(MC-CH-21 · 22, MC-CH-11 개정). 상세는 「변경이력 보충 — v1.0」 | S4, design/memory.md v2.1 · requirements.md v2.1 · api.md v0.7 |
 | v1.0.1 | 2026-10-07 | 스펙 타이밍 결함 3건 수정. 기대 결과의 의미는 그대로이고 Given의 응답 시점만 바꿨다. 대상은 TC-CH-133(a)와 TC-CH-134(b)(c)다. 이탈로 끝나는 조회를 이미 resolve된 mock으로 주면 클릭 직후 시트가 닫혀 열기 헬퍼의 시트 질의가 실패했다. 조회를 대기 Promise로 바꾸고, 조회 중 status를 확인한 뒤 act 안에서 resolve한다. 「S4 공통 전제」 대기 줄에 같은 규칙을 추가했다 | 구현 후 ui 실행 결과(741건 중 738 통과, 메인 세션) |
 | v1.1 | 2026-10-08 | **S6 구축**(방 비밀번호 잠금): 머리말 v1.1 기준·「S6 공통 전제」(정본 · 번호 재배정 · 토큰 · 잠금 래퍼 3종 모킹·영원히 대기 기본값 · 하네스 · 저장소 순서 `clear → resetRoomKeyCache → seed` · 질의 · 잠긴 판 공통 단언 · 대기 · 스크롤 · 픽스처 · 스펙 배치). **신규** TC-CH-140~162 · 164 · 165(자동 25) · TC-CH-163(수동 1, `manual-checklist.md` MC-CH-23 · 24 · 25 · 26) · TC-FLOW-CH-21(U-CH-16) · 22(U-CH-18, 옛 LT 「TC-FLOW-163」 — 수동 TC-CH-163과 번호 중복 해소) · 23(U-CH-17). **개정** 047(머리·Given·Then) · 122 · 061 · 139(영향표, LT §2에 122 누락 — 보고). 「추적표 — S6 추가분」(대체·영향 · 요구 · 설계 · 사용자행). 스펙: 신규 `RoomLock.test.tsx` · `LockedRoom.test.tsx`. 기존 스펙은 고치지 않았다 — 갱신 목록(픽스처 `locked` 11곳 · rooms 팩토리 8파일 · 메시지 id 인자 15곳 · 047·122 순서 배열)은 영향표. 변경 대기열 행 없음(구축 모드, CR 아님) | S6, design/lock.md v2.3.1 · lock-tests.md · requirements.md v2.2 · api.md v0.9 · 메인 세션 위임(승인 ② 2026-10-08) |
+| v1.1.1 | 2026-10-08 | S6 검증 반영. **신설**(예약 140~165 밖 — 설계자 알림) TC-CH-166(잠긴 판 ‹, 토큰 있음 · 조용한 시도 대기) · 167(토큰 있음 시트 입장 성공·취소) · 168(바꾸기 판 실패 — mode·입력 유지) · 169(잠긴 뒤 늦은 응답 ok·TOKEN_INVALID 무시, 재입장 판 불간섭). **TC-FLOW-CH-23** 토큰 있음 판으로 수정(151(b) → 167(a)|(b), 152·153은 FLOW-22 소속). S6 TC-FLOW 3건에 「ⓒ·스파이 증분」 줄(CF-02). **모호 해소**: 148 note·⋯ 단언은 (b)만 · 151 ⓑ `ld:roomKeys` 명시 · 148(a) 문구 리터럴 병기. **판별력**: 159 `locked: false` 방에서 시작 · `onRoomRenamed` 정확히 1회. **MINOR**: 122 본문·FLOW-20 5항목 · 영향표 MemorySheet 213·220행 · R-CHAT-010 try/catch 출처 TC-RM-059(g) · F-CH-74 가드 비행동 · 149(a) ⋯·버튼 줄 잠금 · 145·146 사전 증명 `e1.k`·`e1.n`(FLOW-21 체인) · 공통 전제에 F-CH-65 ① `quietAttemptRef` 개정·증분 규약. 스펙: `RoomLock.test.tsx`(168 신설 · 145·146 사전 증명 · 147(e) 인자 단언 · 149(a) 잠금 단언 · 160(a) 잠금 래퍼 0회) · `LockedRoom.test.tsx`(166 · 167(a)(b) · 169(a)(b) 신설 · 159 판별력) | ui-test-checker FAIL(BLOCKER 1 · MAJOR 3 · MINOR 7) · ui-test-conflict-checker FAIL(C1 · C5 · 모호 2 · 159) · 메인 세션 위임 |

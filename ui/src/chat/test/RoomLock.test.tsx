@@ -1,6 +1,6 @@
 /**
  * chat S6 방 비밀번호 잠금 — 메뉴·시트·E18/E19 스펙 초안(TDD Red) — 단일 소스 ui/src/chat/test/scenarios.md v1.1
- * (TC-CH-140 ~ 149 · 156 · 157 · 160 · 162)
+ * (TC-CH-140 ~ 149 · 156 · 157 · 160 · 162 / v1.1.1 신설 168)
  * 설계 정본: ui/src/chat/design/lock.md(LK) v2.3.1 · design/lock-tests.md(LT)
  * 대상: RoomMenuSheet 「잠금」 · LockMenuSheet · PromptSheet(inputType='password' · placeholder) · ConfirmDialog(잠금 풀기)
  *   · useRoomActions setPassword/clearPassword · useRoomSheets onPasswordSet/onPasswordCleared/onFailure/onDeleted
@@ -396,7 +396,8 @@ describe('⋯ 방 메뉴 「잠금」 (R-CHAT-001 S6 개정 · R-LOCK-002)', () 
   })
 
   it('TC-CH-145: 비밀번호 바꾸기 → 바꾸기 판 문구 → 새 증명이 옛 증명을 덮음 · 토스트 「비밀번호를 바꿨습니다.」', async () => {
-    seedKeys([['r1', 'e1.o']])
+    // v1.1.1(MINOR-7): FLOW-21 증명 체인 143 e1.k → 145 e1.n → 146 삭제
+    seedKeys([['r1', 'e1.k']])
     mockedSetPw.mockResolvedValueOnce(ok({ room: LOCKED_ROOM, entryKey: 'e1.n' }))
     const { onRoomRenamed } = renderChat(LOCKED_ROOM)
     const { user, lockMenu } = await openLockMenu()
@@ -420,7 +421,7 @@ describe('⋯ 방 메뉴 「잠금」 (R-CHAT-001 S6 개정 · R-LOCK-002)', () 
   })
 
   it('TC-CH-146: (a) 잠금 풀기 확인 문구·첫 포커스 취소 → 취소·Esc 는 요청 없음', async () => {
-    seedKeys([['r1', 'e1.k']])
+    seedKeys([['r1', 'e1.n']])
     renderChat(LOCKED_ROOM)
     const { user, confirm } = await openUnlockConfirm()
     expect(confirm.textContent).toContain('잠금을 풀면 누구나 이 방 대화를 볼 수 있습니다.')
@@ -433,11 +434,11 @@ describe('⋯ 방 메뉴 「잠금」 (R-CHAT-001 S6 개정 · R-LOCK-002)', () 
     expect(screen.queryByRole('alertdialog')).toBeNull()
     await flushPending()
     expect(mockedClearPw).not.toHaveBeenCalled()
-    expect(roomKeys()).toEqual([['r1', 'e1.k']])
+    expect(roomKeys()).toEqual([['r1', 'e1.n']])
   })
 
   it('TC-CH-146: (b) 풀기 → clearRoomPassword(r1) → 증명 키 삭제 · 방 갱신(locked false) · 토스트 「잠금을 풀었습니다.」', async () => {
-    seedKeys([['r1', 'e1.k']])
+    seedKeys([['r1', 'e1.n']])
     mockedClearPw.mockResolvedValueOnce(ok(OPEN_ROOM))
     const { onRoomRenamed } = renderChat(LOCKED_ROOM)
     const { user, confirm } = await openUnlockConfirm()
@@ -498,7 +499,33 @@ describe('E18 · E19 실패 (R-LOCK-002 · R-CHAT-011)', () => {
     expect(screen.queryByRole('button', { name: MORE })).toBeNull()
     expect(localStorage.getItem(KEYS)).toBeNull()
     expect(onRoomRenamed).not.toHaveBeenCalled()
-    expect(mockedSetPw).toHaveBeenCalledTimes(1)
+    expect(mockedSetPw.mock.calls).toEqual([['r1', 'abcd']])
+  })
+
+  it('TC-CH-168: 바꾸기 NETWORK → 「비밀번호 바꾸기」 시트·「바꾸기」 유지 · 입력 유지 · 시트 안 alert · 증명 불변', async () => {
+    seedKeys([['r1', 'e1.k']])
+    mockedSetPw.mockResolvedValueOnce(fail('NETWORK'))
+    const { onRoomRenamed, onAuthFailure } = renderChat(LOCKED_ROOM)
+    const { user, lockMenu } = await openLockMenu()
+    await user.click(within(lockMenu).getByRole('button', { name: '비밀번호 바꾸기' }))
+    const sheet = screen.getByRole('dialog', { name: '비밀번호 바꾸기' })
+    const input = within(sheet).getByLabelText('새 비밀번호') as HTMLInputElement
+    typePassword(input, 'newpass')
+    await user.click(within(sheet).getByRole('button', { name: '바꾸기' }))
+
+    const alert = await within(sheet).findByRole('alert')
+    expect(alert.textContent).toBe('서버에 연결할 수 없습니다.')
+    expect(screen.getAllByRole('alert')).toHaveLength(1)
+    expect(screen.getByRole('dialog', { name: '비밀번호 바꾸기' })).toBe(sheet)
+    expect(screen.queryByRole('dialog', { name: '비밀번호 걸기' })).toBeNull()
+    const save = within(sheet).getByRole('button', { name: '바꾸기' }) as HTMLButtonElement
+    expect(save.disabled).toBe(false)
+    expect(within(sheet).queryByRole('button', { name: '잠그기' })).toBeNull()
+    expect(input.value).toBe('newpass')
+    expect(roomKeys()).toEqual([['r1', 'e1.k']])
+    expect(onRoomRenamed).not.toHaveBeenCalled()
+    expect(onAuthFailure).not.toHaveBeenCalled()
+    expect(mockedSetPw.mock.calls).toEqual([['r1', 'newpass']])
   })
 
   it('TC-CH-148: (a) 풀기 INTERNAL → 확인 닫힘 · E 토스트 · 증명 유지', async () => {
@@ -544,6 +571,11 @@ describe('E18 · E19 실패 (R-LOCK-002 · R-CHAT-011)', () => {
     expect(input.readOnly).toBe(true)
     expect(save.disabled).toBe(true)
     expect(cancel.disabled).toBe(true)
+    // MINOR-4: roomBusy 'setPassword' → ⋯(isMenuDisabled) · 말풍선 버튼 줄(isActionLocked) 잠금(D-51)
+    expect(moreButton().disabled).toBe(true)
+    const locked = actionButtons()
+    expect(locked.length).toBeGreaterThan(0)
+    for (const b of locked) expect(b.disabled).toBe(true)
     fireEvent.keyDown(sheet, { key: 'Escape' })
     fireEvent.click(sheet.parentElement as HTMLElement)
     expect(screen.getByRole('dialog', { name: '비밀번호 걸기' })).toBe(sheet)
@@ -685,6 +717,7 @@ describe('저장소·비밀값 (R-LOCK-007 · R-LOCK-009 · R-CHAT-009)', () => 
     await flushPending()
     expect(storageKeys()).toEqual([LAST])
     expectNoStoredText('test-token')
+    for (const m of lockMocks) expect(m).not.toHaveBeenCalled()
   })
 
   it('TC-CH-160: (b) 잠그기 뒤 → ld:roomKeys 생김, 비밀번호 원문·토큰 값 없음', async () => {

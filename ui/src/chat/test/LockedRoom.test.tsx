@@ -1,6 +1,6 @@
 /**
  * chat S6 입장 재요구(ROOM_LOCKED) 스펙 초안(TDD Red) — 단일 소스 ui/src/chat/test/scenarios.md v1.1
- * (TC-CH-150 ~ 155 · 158 · 159 · 161 · 164 · 165 · TC-FLOW-CH-22)
+ * (TC-CH-150 ~ 155 · 158 · 159 · 161 · 164 · 165 · TC-FLOW-CH-22 / v1.1.1 신설 166 · 167 · 169)
  * 설계 정본: ui/src/chat/design/lock.md(LK) v2.3.1 — §0.4 판 · §1.3 껍데기·포커스 규칙 · §2 상태 · F-CH-63~73·80 · §4.4 · D-44~55
  * 대상: ChatScreen(껍데기) · ChatRoomView key={epoch} · LockedRoomView · useRoomLockGate · useWriteFailure · useChatLoader
  *   · settleSpeakFailure · useMemorySheet 떠남 조건 · (호출만) useRoomEntry · RoomEntrySheet
@@ -456,6 +456,72 @@ describe('입장 시트 (F-CH-63 submitPassword · F-CH-65 · F-CH-66)', () => {
   })
 })
 
+describe('토큰 있음 잠긴 판 — ‹ · 시트 입장·취소 (F-CH-66 · F-CH-63 · U-CH-17)', () => {
+  /** 토큰 있음: 첫 로드 ROOM_LOCKED → 조용한 시도 ROOM_LOCKED → 입장 시트(문구 없음) */
+  const tokenSheet = async () => {
+    mockedList.mockResolvedValueOnce(fail('ROOM_LOCKED'))
+    mockedEnter.mockResolvedValueOnce(fail('ROOM_LOCKED'))
+    const spies = renderChat(LOCKED_ROOM, WRITER_VIEWER)
+    await screen.findByRole('dialog', { name: '비밀번호' })
+    return spies
+  }
+
+  it('TC-CH-166: 조용한 시도 대기 중 잠긴 판 ‹ → 기록 지움 · onBack 1회', async () => {
+    mockedList.mockResolvedValueOnce(fail('ROOM_LOCKED'))
+    const quiet = deferred<Result<EnterRoomResponse>>()
+    mockedEnter.mockReturnValueOnce(quiet.promise)
+    const { onBack } = renderChat(LOCKED_ROOM, WRITER_VIEWER)
+    await waitFor(() => expect(mockedEnter).toHaveBeenCalledTimes(1))
+    expectLockedView()
+    expect(screen.queryAllByRole('dialog')).toHaveLength(0)
+    expect(localStorage.getItem(LAST)).toBe('r1')
+    let lastAtBack: string | null | undefined
+    onBack.mockImplementation(() => {
+      lastAtBack = localStorage.getItem(LAST)
+    })
+
+    await userEvent.setup().click(back())
+    expect(onBack).toHaveBeenCalledTimes(1)
+    expect(lastAtBack).toBeNull()
+    expect(localStorage.getItem(LAST)).toBeNull()
+    await flushPending()
+    expect(mockedEnter.mock.calls).toEqual([['r1']])
+    expect(mockedList).toHaveBeenCalledTimes(1)
+  })
+
+  it('TC-CH-167: (a) 토큰 있음 · 시트 입장 200 → 열람 안내 없음 · ⋯·하단 바 복귀 · enterRoom(r1, pw) · listMessages +1', async () => {
+    const { onBack, onAuthFailure } = await tokenSheet()
+    // Once 큐는 FIFO — 시트가 열린 뒤에 제출 응답을 넣는다
+    mockedEnter.mockResolvedValueOnce(entered('e1.y'))
+    await submitEntry('pw1234')
+
+    await waitFor(() => expect(items()).toHaveLength(3))
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(lockedStatus()).toBeNull()
+    expect(screen.queryByRole('note')).toBeNull()
+    expect(screen.getByRole('button', { name: MORE })).not.toBeNull()
+    expect(screen.getByRole('textbox', { name: '메시지 입력' })).not.toBeNull()
+    expect(screen.getByRole('button', { name: SEB })).not.toBeNull()
+    expect(roomKeys()).toEqual([['r1', 'e1.y']])
+    for (const v of storageValues()) expect(v.includes('pw1234')).toBe(false)
+    expect(mockedEnter.mock.calls).toEqual([['r1'], ['r1', 'pw1234']])
+    expect(mockedList).toHaveBeenCalledTimes(2)
+    expect(onBack).not.toHaveBeenCalled()
+    expect(onAuthFailure).not.toHaveBeenCalled()
+  })
+
+  it('TC-CH-167: (b) 토큰 있음 · 시트 취소 → 기록 지움 · onBack 1회 · enterRoom 증분 0', async () => {
+    const { onBack } = await tokenSheet()
+    expect(localStorage.getItem(LAST)).toBe('r1')
+    await userEvent.setup().click(within(entrySheet()).getByRole('button', { name: '취소' }))
+    await waitFor(() => expect(onBack).toHaveBeenCalledTimes(1))
+    expect(localStorage.getItem(LAST)).toBeNull()
+    await flushPending()
+    expect(mockedEnter.mock.calls).toEqual([['r1']])
+    expect(mockedList).toHaveBeenCalledTimes(1)
+  })
+})
+
 describe('쓰기 중 ROOM_LOCKED (F-CH-64 · 69 · 71 · 73 · 80 · D-45 · D-52)', () => {
   type Case = {
     readonly name: string
@@ -699,7 +765,8 @@ describe('스크롤 경로 ROOM_LOCKED (F-CH-70 loadOlder · isLockedRef)', () =
     mockedList.mockResolvedValueOnce(ok(LATEST)).mockReturnValueOnce(older.promise)
     mockedAppend.mockResolvedValueOnce(ok({ ...SENT, id: 61 }))
     mockedSpeak.mockReturnValueOnce(auto.promise)
-    renderChat(LOCKED_ROOM, WRITER_VIEWER)
+    // v1.1.1(판별력): 안 잠긴 방으로 시작 — 두 번째 ROOM_LOCKED 가 무시되지 않으면 onRoomRenamed 가 2회가 된다
+    const { onRoomRenamed } = renderChat(OPEN_ROOM, WRITER_VIEWER)
     const log = await screen.findByRole('log')
     await flushPending()
     fireEvent.change(screen.getByRole('textbox', { name: '메시지 입력' }), { target: { value: '안녕' } })
@@ -717,7 +784,59 @@ describe('스크롤 경로 ROOM_LOCKED (F-CH-70 loadOlder · isLockedRef)', () =
     expect(screen.getAllByText(LOCKED_TEXT)).toHaveLength(1)
     expect(mockedEnter.mock.calls).toEqual([['r1']])
     expect(mockedSpeak.mock.calls).toEqual([['r1', { character: 'auto' }]])
+    expect(onRoomRenamed.mock.calls).toEqual([[LOCKED_ROOM]])
   })
+
+  it.each(['ok', 'TOKEN_INVALID'] as const)(
+    'TC-CH-169: 잠긴 뒤 진행 중이던 speak 의 늦은 %s 응답 → 화면 반영·토스트·전환 0 · 재입장 뒤 새 판에도 끼어들지 않음',
+    async late => {
+      const older = deferred<Result<MessagesPage>>()
+      const gen = deferred<Result<Message>>()
+      const quiet = deferred<Result<EnterRoomResponse>>()
+      const LATE_TEXT = '늦게 도착한 대사'
+      mockedList.mockResolvedValueOnce(ok(LATEST)).mockReturnValueOnce(older.promise)
+      mockedSpeak.mockReturnValueOnce(gen.promise)
+      mockedEnter.mockReturnValueOnce(quiet.promise)
+      const { onAuthFailure } = renderChat(LOCKED_ROOM, WRITER_VIEWER)
+      const log = await screen.findByRole('log')
+      await flushPending()
+      await userEvent.setup().click(screen.getByRole('button', { name: SEB }))
+      await waitFor(() => expect(mockedSpeak).toHaveBeenCalledTimes(1))
+      scrollToTop(log)
+      await waitFor(() => expect(mockedList).toHaveBeenCalledTimes(2))
+      await act(async () => {
+        older.resolve(fail('ROOM_LOCKED'))
+      })
+      await waitLocked()
+
+      await act(async () => {
+        gen.resolve(
+          late === 'ok'
+            ? ok(msg({ id: 61, speaker: 'sebastian', text: LATE_TEXT, authorName: null }))
+            : fail('TOKEN_INVALID'),
+        )
+      })
+      await flushPending()
+      expectLockedView()
+      expect(screen.queryByText(LATE_TEXT)).toBeNull()
+      expect(screen.queryAllByRole('alert')).toHaveLength(0)
+      expect(onAuthFailure).not.toHaveBeenCalled()
+
+      await act(async () => {
+        quiet.resolve(entered('e1.x'))
+      })
+      await waitFor(() => expect(items()).toHaveLength(3))
+      await flushPending()
+      expect(screen.queryByText(LATE_TEXT)).toBeNull()
+      expect(document.querySelectorAll('.pending')).toHaveLength(0)
+      expect(screen.queryAllByRole('alert')).toHaveLength(0)
+      expect(screen.getByRole('button', { name: MORE })).not.toBeNull()
+      expect((screen.getByRole('button', { name: SEB }) as HTMLButtonElement).disabled).toBe(false)
+      expect(onAuthFailure).not.toHaveBeenCalled()
+      expect(mockedSpeak).toHaveBeenCalledTimes(1)
+      expect(mockedEnter.mock.calls).toEqual([['r1']])
+    },
+  )
 })
 
 describe('E18 · E19 ROOM_LOCKED (F-CH-80 ①)', () => {
