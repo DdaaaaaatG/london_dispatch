@@ -22,6 +22,11 @@ LLM_PRICE_INPUT_USD_PER_M = "0.3"           # S3f 단가표(server/src/llm/model
 LLM_PRICE_OUTPUT_USD_PER_M = "2.5"          # 단가표에 없는 모델의 폴백 출력+사고 단가(USD/1M 토큰)
 KRW_PER_USD = "1400"                        # S3b 원/달러 환율
 
+# 실행 위치 — 2026-10-08 운영 관찰: 홍콩(HKG) 데이터센터에서 실행되면 Gemini 가 400 FAILED_PRECONDITION(위치 미지원)을 돌려준다.
+# Smart Placement 로 Worker 를 백엔드(Google) 가까운 곳에서 실행시킨다. deploy-20261008-1930.md 비고 참조
+[placement]
+mode = "smart"
+
 # D1 — 스키마는 migrations/*.sql (doc/200_설계/server/db.md §7)
 [[d1_databases]]
 binding = "DB"
