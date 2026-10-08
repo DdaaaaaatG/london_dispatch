@@ -1,7 +1,7 @@
 # rooms 상세 설계 — 예정 TC 목록 (분할 문서)
 
 > 주 문서: `ui/src/rooms/design.md`(RTM §14 — 요구 → 설계 절 → TC 매핑 표는 주 문서에 있다). 이 파일은 주 문서 옛 §14.1(S1~S3c 예정 TC 목록)을 40KB 한계 때문에 v1.8.1에서 **내용 그대로** 옮긴 것이다(chat `design/tc.md` 선례).
-> S6 예정 TC(TC-RM-041~066)는 이 파일 §14.2(v1.8.3에 `design/lock.md` §12에서 옮김).
+> S6 예정 TC(TC-RM-041~067)는 이 파일 §14.2(v1.8.3에 `design/lock.md` §12에서 옮김).
 
 ## 14.1 예정 TC 목록 (ui-test-designer가 시나리오로 확정)
 
@@ -70,7 +70,7 @@
 | TC-RM-056 | 생성 본문·증명 | `''` → `createRoom({ title })`(키 `password` 없음) · `abcd` → `createRoom({ title, password: 'abcd' })` · 응답 `entryKey: 'e1.k'` → `ld:roomKeys`에 `[id, 'e1.k']` · `onOpenRoom` 인자에 `entryKey` 속성 없음 · `entryKey: null` → `ld:roomKeys` 없음 |
 | TC-RM-057 | 취소·실패 | 비밀번호 입력 후 취소/Esc → 다시 열면 두 칸 빈값 · 실패(`INTERNAL`) → 제목·비밀번호 유지 · `VALIDATION_ERROR` 토스트 `방 제목(1~60자)과 비밀번호(4~32자)를 확인해 주세요.` · 인증 실패 전환 → B·비밀번호 DOM 없음 |
 | TC-RM-058 | 자동 진입 | `lastRoomId` = 잠긴 방 + 증명 없음 → 진입 없음 · `ld:lastRoomId` 삭제 · 시트 없음 · `enterRoom` 0회(토큰 있음·없음 각각) / 증명 있음 → 진입 / 안 잠김 → 진입(회귀) |
-| TC-RM-059 | roomKeys 단위 | `parseRoomKeys`: 깨진 JSON·객체·숫자 원소·빈 문자열 원소 → 제외 · 중복 id → 마지막 · `upsert` 51번째에 가장 오래된 것 탈락 · 같은 방 재저장 → 맨 뒤로 · `remove`·`find` · `serialize([])` = `null` · `saveRoomKey('r','')` 무시 · 없는 방 `forgetRoomKey` → `setItem`·`removeItem` 0회 · 마지막 쌍 삭제 → `ld:roomKeys` 키 삭제 · `localStorage` throw → save 후 같은 세션 `getRoomKey` 값 반환 |
+| TC-RM-059 | roomKeys 단위 | `parseRoomKeys`: 깨진 JSON·객체·숫자 원소·빈 문자열 원소·길이 1/3 원소 → 제외 · 중복 id → 마지막 쌍이 이기고 맨 뒤 자리 · `upsert` 51번째에 가장 오래된 것 탈락 · 같은 방 재저장 → 맨 뒤로 · `remove`·`find` · `serialize([])` = `null` · `saveRoomKey('r','')` 무시 · 없는 방 `forgetRoomKey` → `setItem`·`removeItem` 0회 · 마지막 쌍 삭제 → `ld:roomKeys` 키 삭제 · `localStorage` throw → save 후 같은 세션 `getRoomKey` 값 반환 |
 | TC-RM-060 | 저장소 회귀·비노출 | 잠긴 방을 열지 않는 App 흐름(TC-RM-012) 뒤 저장소 키 = `['ld:lastRoomId']` 이하 · 토큰 값 저장소 0건 · (리뷰 grep) `localStorage` 접근은 `storage.ts`뿐, `configureClient` 호출은 `main.tsx`뿐, 비밀번호 변수의 `console.` 출력 0건 |
 | TC-RM-061 | 공용 델타 | TextInput `type='password'` → `<input type="password" autocomplete="new-password">`, 카운터 trim 없음 / 기본 `text`는 기존(trim 카운터, `autocomplete="off"`) 회귀 없음 · PromptSheet `inputType`·`placeholder` 전달, 생략 시 기존 회귀 없음 |
 | TC-RM-062 | 스크린샷(수동) | 390×565: 목록 자물쇠 판 · B 2줄 판(B 96, 목록 425) · 입장 시트 틀림 문구 판 · 328px 패널에서 B2 placeholder 잘림 정도 기록 |
@@ -79,5 +79,8 @@
 | TC-RM-065 | `requestEntry(room, 'locked')` (훅 단위, F-RM-41) | `ld:roomKeys`에 그 방 증명이 있는 상태에서 호출 → `forgetRoomKey(room.id)` 실행(저장소에서 그 쌍 삭제)·①② 건너뜀. 토큰 있음 → `enterRoom(room.id)`(인자 1개) 1회(③ 조용한 시도) / 토큰 없음 → `enterRoom` 0회·시트 열림(④). 가드: 조용한 시도 대기 중이거나 시트가 열린 상태에서 호출 → **증명은 지워지고** 시트·`enterRoom` 추가 없음 |
 | TC-RM-066 | TC-FLOW 잠긴 새 방(U-RM-15) | `initToken('?t=x')` App → 「+ 새 방」 → 제목 + 비밀번호 `abcd` → 만들기 → 응답 `entryKey` 저장 → chat → ‹ 뒤로 → 목록(그 방 잠긴 행) → 같은 행 탭 → `enterRoom` 0회 · 시트 없이 chat(판정 ②) |
 
-- 기존 TC 영향: `RoomSummary` 픽스처 전부에 `locked: false`(공용 픽스처 도우미 권고) · TC-RM-026(제목 Enter = 만들기)은 TC-RM-054로 개정 · TC-RM-019(B 열기)는 비밀번호 칸이 더해질 뿐 기대 유지 · `vi.mock('@/api')` 반환에 `enterRoom` 추가.
+| TC-RM-067 | 시트 열린 채 읽기 전용 전환(lock.md §10) | 토큰 있음 · 시트 열림(입력 `pw1`) 상태에서 다른 쓰기 실패로 `revokeWrite` → 시트 그대로 · 포커스가 시트 안에 남음(h1으로 이동 안 함) · B 영역·비밀번호 칸 DOM 없음 · 시트 입력값 `pw1` 유지 · 입장 → `enterRoom(id, 'pw1')` 1회 정상 · 시트 닫히면 포커스는 BottomSheet 복귀 규칙(탭한 행이 연결돼 있으면 그 행) |
+
+- 기존 TC 영향: `RoomSummary` 픽스처 전부에 `locked: false`(공용 픽스처 도우미 권고) · TC-RM-026(제목 Enter = 만들기)은 TC-RM-054로 개정 · TC-RM-019(B 열기)는 비밀번호 칸이 더해질 뿐 기대 유지 · `vi.mock('@/api/rooms')` 반환에 `enterRoom` 추가 · **TC-RM-010**: `STORAGE_KEYS`에 `roomKeys` 추가로 키가 3종(`lastRoomId`·`scrollOffset`·`roomKeys`)이 된다 — 스펙 `ui/src/state/storage.test.ts`를 chat과 공유하므로 chat TC-CH-025도 영향 · **TC-RM-023**: `VALIDATION_ERROR` 토스트 문구가 `방 제목(1~60자)과 비밀번호(4~32자)를 확인해 주세요.`로 바뀜(lock.md D-L12).
+- TC-RM-060의 저장소 키 기대는 **"S5 키(`ld:lastRoomId`·`ld:scroll:*`)만 있고 `ld:roomKeys`는 없음"**으로 확정한다(위 표의 `['ld:lastRoomId']` 이하 표기를 대체).
 - TC-RM-065는 chat이 부르는 경로지만 훅 소유가 rooms 설계라 **rooms가 소유**한다(chat TC는 호출 여부만 단언).

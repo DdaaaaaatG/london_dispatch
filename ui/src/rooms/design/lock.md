@@ -157,7 +157,7 @@ RoomsScreen (ui/src/rooms/index.tsx)
 
 | # | 시그니처(위치) | 입력 | 출력·상태 변경 | 동작 | 예외·분기 | 요구ID |
 |---|---|---|---|---|---|---|
-| F-RM-30 | `parseRoomKeys(raw: string \| null): readonly RoomKeyEntry[]` (`state/roomKeys.ts`, 순수) | 저장소 원문 | 쌍 배열 | `null`·`''` → `[]`. `JSON.parse`를 try/catch. 배열이 아니면 `[]`. 원소 중 `[string, string]`이고 두 값이 빈 문자열이 아닌 것만 남긴다. 같은 방 id가 여러 번이면 **마지막 것**만. 길이가 50을 넘으면 뒤쪽 50개 | throw 없음 | R-LOCK-004 · R-LOCK-007 |
+| F-RM-30 | `parseRoomKeys(raw: string \| null): readonly RoomKeyEntry[]` (`state/roomKeys.ts`, 순수) | 저장소 원문 | 쌍 배열 | `null`·`''` → `[]`. `JSON.parse`를 try/catch. 배열이 아니면 `[]`. 원소는 **정확히 길이 2인 배열이고 두 값이 모두 빈 문자열이 아닌 string인 것만** 채택한다(길이 1·3 이상·비문자열·빈 문자열은 버림). 같은 방 id가 여러 번이면 **마지막 쌍이 이기고 그 쌍은 맨 뒤(최신) 자리에 둔다**(앞선 쌍은 제거). 길이가 50을 넘으면 뒤쪽 50개 | throw 없음 | R-LOCK-004 · R-LOCK-007 |
 | F-RM-31 | `upsertRoomKey(entries, roomId: string, entryKey: string): readonly RoomKeyEntry[]` (순수) | 배열·방·증명 | 새 배열 | 같은 방 쌍을 빼고 맨 뒤에 `[roomId, entryKey]`를 붙인다. 길이 > `ROOM_KEYS_MAX`(50)면 앞(가장 오래 저장한 것)부터 버린다. 입력 배열을 바꾸지 않는다 | — | R-LOCK-004 |
 | F-RM-32 | `removeRoomKey(entries, roomId): readonly RoomKeyEntry[]` · `findRoomKey(entries, roomId): string \| null` (순수) | — | 새 배열 · 증명 | 해당 방 쌍 제거 / 찾기(없으면 `null`) | — | R-LOCK-004 |
 | F-RM-33 | `serializeRoomKeys(entries): string \| null` (순수) | 배열 | JSON 또는 `null` | 빈 배열이면 `null`(= 저장소 키 삭제), 아니면 `JSON.stringify(entries)` | — | R-LOCK-009(저장소 불변) |
@@ -171,7 +171,7 @@ RoomsScreen (ui/src/rooms/index.tsx)
 | F-RM-40 | `useRoomEntry(options: UseRoomEntryOptions): UseRoomEntryResult` (`components/roomEntry/useRoomEntry.ts`) | `{ canWrite: boolean; onEntered: (room: RoomSummary) => void; onRoomGone: (room: RoomSummary) => void }` | `{ sheet; requestEntry; submitPassword; cancelEntry }` | 판정 ①~④와 시트 상태를 소유한다. 화면은 결과 콜백만 받는다. 콜백은 `latestRef`로 읽는다 | — | R-LOCK-004 · 005 · 006 · R-ROOMS-001 |
 | F-RM-41 | `requestEntry(room: RoomSummary, reason?: 'tap' \| 'locked'): void` (useRoomEntry) | 방, 이유(기본 `'tap'`) | 아래 | **순서 확정: `reason === 'locked'`이면 가드보다 먼저 `forgetRoomKey(room.id)`를 실행한다(증명 무효는 항상 반영), 그다음 가드에 걸리면 시트를 열지 않고 끝낸다.** 가드 = `quietInFlightRef` true 또는 `sheet !== null`이면 무시. `reason === 'tap'`: ① `!room.locked` → `onEntered(room)` ② `getRoomKey(room.id) !== null` → `onEntered(room)`. `reason === 'locked'`(chat이 `ROOM_LOCKED`를 받음): (증명은 위에서 이미 삭제) ①② 건너뜀. 그다음 ③ `canWrite` → `quietEnter(room)` ④ 아니면 `setSheet({ room, isBusy: false, error: null })` | `enterRoom` 호출은 ③에서만(①②④는 api 호출 0회) | R-LOCK-004 · 005 · 006 · R-ROOMS-001 |
 | F-RM-42 | `quietEnter(room): Promise<void>` (useRoomEntry 내부) | 잠긴 방 | 아래 | `quietInFlightRef = true` → `const r = await enterRoom(room.id)`(비밀번호 인자 없음 → 본문 `{}`) → `quietInFlightRef = false` → 언마운트면 종료. 성공: `r.value.entryKey`가 문자열이면 `saveRoomKey(room.id, …)` → `onEntered(room)`(`null`이면 저장 없이 진입). 실패: `ROOM_LOCKED` → 시트(오류 없음) · `NOT_FOUND` → `onRoomGone(room)` · 그 밖(`NETWORK`·`INTERNAL`·`CONFIG_INVALID`·`VALIDATION_ERROR`) → 시트 + `error` | 진행 표시 없음(D-L9). `isAuthFailure` 코드는 E17이 내지 않는다(api.md §2.8.5) — 와도 시트로 간다(읽기 전용 전환 안 함) | R-LOCK-005 |
-| F-RM-43 | `submitPassword(password: string): Promise<void>` (useRoomEntry) | 시트 입력값 | 아래 | `sheet === null`·`sheet.isBusy`·`submitInFlightRef` 또는 `!isEnterPasswordValid(password)`면 종료. `submitInFlightRef = true`, `sheet = { …, isBusy: true, error: null }` → `enterRoom(room.id, password)` → `submitInFlightRef = false` → 언마운트면 종료. 성공: 문자열이면 `saveRoomKey` → `sheet = null` → `onEntered(room)`. `NOT_FOUND` → `sheet = null` → `onRoomGone(room)`. 그 밖 → `sheet = { room, isBusy: false, error }`(입력값은 PromptSheet 로컬이라 유지) | password를 상태·로그에 남기지 않는다(인자로 받아 래퍼에 넘기고 끝) | R-LOCK-004 · R-LOCK-007 · R-LOCK-008 |
+| F-RM-43 | `submitPassword(password: string): void` (useRoomEntry — components.md §1.22와 같다. 본체는 내부 `run(password): Promise<void>`이고 `submitPassword`는 `void run(password)`만 한다) | 시트 입력값 | 아래 | `sheet === null`·`sheet.isBusy`·`submitInFlightRef` 또는 `!isEnterPasswordValid(password)`면 종료. `submitInFlightRef = true`, `sheet = { …, isBusy: true, error: null }` → `enterRoom(room.id, password)` → `submitInFlightRef = false` → 언마운트면 종료. 성공: 문자열이면 `saveRoomKey` → `sheet = null` → `onEntered(room)`. `NOT_FOUND` → `sheet = null` → `onRoomGone(room)`. 그 밖 → `sheet = { room, isBusy: false, error }`(입력값은 PromptSheet 로컬이라 유지) | password를 상태·로그에 남기지 않는다(인자로 받아 래퍼에 넘기고 끝) | R-LOCK-004 · R-LOCK-007 · R-LOCK-008 |
 | F-RM-44 | `cancelEntry(): void` (useRoomEntry) | — | `sheet = null` | 시트 「취소」·Esc·덮개. `sheet.isBusy`면 무시(PromptSheet도 막는다). 포커스는 BottomSheet가 열기 전 요소(탭한 행)로 되돌린다 | — | R-LOCK-004 |
 | F-RM-45 | `enterErrorText(error: ApiError): string` (`components/roomEntry/roomEntryText.ts`) | 실패 | 문구 | §8.2 표 | 서버 `message`는 쓰지 않는다 | R-LOCK-004 · 008 |
 | F-RM-46 | `RoomEntrySheet(props)` (`components/roomEntry/RoomEntrySheet.tsx`) | `{ sheet: NonNullable<EntrySheet>; onSubmit: (password: string) => void; onCancel: () => void }` | PromptSheet 렌더 | components.md §1.22 | — | R-LOCK-004 · 006 |
@@ -264,7 +264,7 @@ RoomsScreen (ui/src/rooms/index.tsx)
 
 - `enterRoom`이 낼 수 있는 코드: `ROOM_LOCKED`(403, 비밀번호 없이) · `ROOM_PASSWORD_WRONG`(403) · `RATE_LIMITED`(429 + `retryAfterSec`) · `NOT_FOUND`(404) · `VALIDATION_ERROR`(400 — 화면이 64자를 먼저 막아 정상 경로 없음) · `CONFIG_INVALID`·`INTERNAL`(500) · 클라이언트 `NETWORK`.
 - `ROOM_LOCKED`·`ROOM_PASSWORD_WRONG`는 `isAuthFailure`가 `false`다 — 읽기 전용 전환 경로(F-RM-12)를 타지 않는다.
-- rooms는 E18·E19·메시지 래퍼를 부르지 않는다(chat 몫). 테스트는 `vi.mock('@/api')`에 `enterRoom`을 더하고 `RoomSummary` 픽스처에 `locked`를 넣는다.
+- rooms는 E18·E19·메시지 래퍼를 부르지 않는다(chat 몫). 테스트는 `vi.mock('@/api/rooms')`(관례)에 `enterRoom`을 더하고 `RoomSummary` 픽스처에 `locked`를 넣는다.
 
 ---
 
@@ -315,7 +315,7 @@ RoomsScreen (ui/src/rooms/index.tsx)
 | 입장 시트 | **동작**(④ — 바로 시트) | 동작(③ 조용한 시도 실패 시) | 토큰과 무관. `canWrite`는 ③/④ 분기에만 쓴다 | R-LOCK-004 · 006 |
 | 조용한 입장 시도(E17 비밀번호 없음) | 하지 않음 | 함 | F-RM-41 ③ | R-LOCK-005 |
 
-- 시트가 열린 채 다른 화면의 쓰기 실패로 읽기 전용 전환이 일어나도 시트는 그대로다(시트는 쓰기 UI가 아니다).
+- 시트가 열린 채 읽기 전용 전환(F-RM-12)이 일어나도 시트는 그대로다(시트는 쓰기 UI가 아니다). **포커스 규칙: 시트가 열려 있으면(`entry.sheet !== null`) F-RM-19의 h1 포커스 이동을 건너뛰고 포커스는 시트 안에 남는다(`aria-modal` 트랩 유지). 시트가 닫힐 때 복귀 대상은 BottomSheet 기존 규칙(열기 전 요소가 `isConnected`면 그 요소, 아니면 이동 없음).** B 영역·비밀번호 칸 DOM은 사라지고, 시트 입력값은 유지되며, 제출하면 `enterRoom(id, pw)`가 정상 호출된다. TC-RM-067.
 
 ---
 
