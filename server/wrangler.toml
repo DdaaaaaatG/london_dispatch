@@ -23,9 +23,11 @@ LLM_PRICE_OUTPUT_USD_PER_M = "2.5"          # 단가표에 없는 모델의 폴�
 KRW_PER_USD = "1400"                        # S3b 원/달러 환율
 
 # 실행 위치 — 2026-10-08 운영 관찰: 홍콩(HKG) 데이터센터에서 실행되면 Gemini 가 400 FAILED_PRECONDITION(위치 미지원)을 돌려준다.
-# Smart Placement 로 Worker 를 백엔드(Google) 가까운 곳에서 실행시킨다. deploy-20261008-1930.md 비고 참조
+# Smart Placement 는 "여러 지역의 꾸준한 트래픽"이 있어야 옮기므로(한국 유저만인 이 서비스엔 부적합, 적용 후에도 local-HKG 유지 관찰) 쓰지 않는다.
+# Placement Hint(2026-01 추가)로 실행 위치를 도쿄(GCP asia-northeast1 ≈ Cloudflare NRT)에 고정한다 — NRT 실행은 201 확인됨. 응답 헤더 cf-placement 가 remote-NRT 이면 적용된 것.
+# mode 와 region 은 동시에 쓸 수 없다. 정적 화면도 이 위치에서 서빙된다(run_worker_first). deploy-20261008-1930.md 비고 참조
 [placement]
-mode = "smart"
+region = "gcp:asia-northeast1"
 
 # D1 — 스키마는 migrations/*.sql (doc/200_설계/server/db.md §7)
 [[d1_databases]]
