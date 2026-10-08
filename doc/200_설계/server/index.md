@@ -1,6 +1,6 @@
 # index(Workers 진입점·공통 기반) 설계
 
-- 상태: S1 확정(구현 동기화) · S2 초안 · S3 초안(§2.3 컨테이너 델타) · S3b 초안(§2.3 meter 배선·§2.4·§5·§6.1 델타) · S3c 구현 완료(§2.3.1 settings 배선·§3.1.2·§5.3·§6.2) · **S3d 구현 완료(2026-10-06, server 343/343, SRV-T-261~281 · §12 배선 변화 없음)** · verify 후속 동기화(2026-10-07 — `/api/*` 보안 헤더 SEC-003: §3·§3.1 ②·②a·SRV-T-291·D-IDX-14, 의존 방향 보충 §3) · **S4 초안(2026-10-07, §13 `Services.memory` 배선·llm thunk 공유·afterSpeak 연결 · `scheduled` 미도입)** · **S3f 설계 초안(2026-10-08, §14 `llm` 공장 비동기화 `() => Promise<Llm>`·모델 해석 순서·`fallbackModelKey` 주입·배포 순서, SRV-T-350~353)** · 최종 갱신: 2026-10-08
+- 상태: S1 확정(구현 동기화) · S2 초안 · S3 초안(§2.3 컨테이너 델타) · S3b 초안(§2.3 meter 배선·§2.4·§5·§6.1 델타) · S3c 구현 완료(§2.3.1 settings 배선·§3.1.2·§5.3·§6.2) · **S3d 구현 완료(2026-10-06, server 343/343, SRV-T-261~281 · §12 배선 변화 없음)** · verify 후속 동기화(2026-10-07 — `/api/*` 보안 헤더 SEC-003: §3·§3.1 ②·②a·SRV-T-291·D-IDX-14, 의존 방향 보충 §3) · **S4 초안(2026-10-07, §13 `Services.memory` 배선·llm thunk 공유·afterSpeak 연결 · `scheduled` 미도입)** · **S3f 설계 초안(2026-10-08, §14 `llm` 공장 비동기화 `() => Promise<Llm>`·모델 해석 순서·`fallbackModelKey` 주입·배포 순서, SRV-T-350~353)** · **S6 설계 초안(2026-10-08, 승인 ① 완료 — §15 `entrySecret` 요청 컨테이너 메모 · rooms deps(`logger`·`entrySecret`·`hitEnterLimit = auth.hitEnterLimit`) · auth config `roomEnterLimitPerMin` · 에러 17종 · 배포 순서 0005 먼저)** · 최종 갱신: 2026-10-08
 - 묶음: S1 = `fetch` 진입·Hono 앱 조립·부트스트랩·보안 헤더·공통 에러 핸들러·로거·`/embed` 서빙·health 서비스·`wrangler.toml`. S2 = 서비스 컨테이너에 `auth`·`config` 주입, `AppEnv.Variables.principal`, 인증 미들웨어의 **라우트 단위** 적용 원칙, `RATE_LIMITED`의 `retryAfterSec` 응답 변환. `scheduled` 진입은 S2에서 **추가하지 않는다**(레이트리밋 정리는 요청 경로에서 — [auth.md](auth.md) D-AUTH-7). S4(요약)에서 필요하면 추가한다.
 - 라우트(`server/src/routes/`)는 contract 소유다. 이 문서는 **라우트를 정의하지 않고**, 라우트가 쓸 타입·서비스·규약만 정한다.
 - 관련 문서: [env.md](env.md), [db.md](db.md), [auth.md](auth.md), [rooms.md](rooms.md), [messages.md](messages.md).
@@ -896,10 +896,99 @@ export const createServices = (deps: ServiceDeps): Services => {
 | D-IDX-19 | 모델을 `generate` 호출마다 넘기지 않고 공장에서 고정 | 02 §2.3 기각안 — 호출마다 넘기면 단가가 다른 자리에서 정해진다 |
 | D-IDX-20 | 설정 GET 응답용 기본 키를 `fallbackModelKey` 값으로 주입 | settings가 `Config`를 받지 않는다(env 단일 진입). settings가 `llm/models.ts`를 import할 필요도 없다 |
 
+## 15. S6 — 입장 증명 키 메모 · rooms 배선 (R-LOCK-004·005·006·008 · R-API-002 🔒 개정 L2 · R-ENV-002 🔒 개정 L15)
+
+- 상태: 초안(2026-10-08, 승인 ① 완료). 근거 `s6-02-전반설계.md` §2·§3·§7·§12, `s6-03-인계패킷.md` §1.1·§1.2.
+- 결론: `ServiceDeps`·`Services`·`AppEnv`·`createServices` 시그니처는 바뀌지 않는다. `createServices` 본문에서 auth를 지역 상수로 먼저 만들고, 입장 증명 키 파생 함수(`entrySecret`)를 요청 컨테이너 수명 동안 메모해 rooms에 넘긴다. `index.ts`·`app.ts`·onError 코드는 바뀌지 않는다(새 코드 2종은 shared `ERROR_STATUS`가 정한다).
+
+### 15.1 `server/src/services.ts` 델타
+
+```ts
+import { createRoomsService, deriveEntrySecret, type RoomsService } from './rooms'
+
+export const createServices = (deps: ServiceDeps): Services => {
+  // … settings · llm · memory 불변
+  const auth = createAuthService({
+    db: deps.db,
+    logger: deps.logger,
+    now: deps.now,
+    config: {
+      tokenSecret: deps.config.tokenSecret,
+      tokenMinLevel: deps.config.tokenMinLevel,
+      rateLimitPerMin: deps.config.rateLimitPerMin,
+      ownerMbIds: deps.config.ownerMbIds,
+      roomEnterLimitPerMin: deps.config.roomEnterLimitPerMin,   // S6
+    },
+  })
+  // S6: 입장 증명 파생 키. 처음 필요할 때 1회 파생해 이 컨테이너(= 요청 1건) 동안 재사용. 모듈 전역 캐시 아님
+  let entrySecretMemo: Promise<CryptoKey> | undefined
+  const entrySecret = (): Promise<CryptoKey> =>
+    (entrySecretMemo ??= deriveEntrySecret(deps.config.tokenSecret))
+  return {
+    auth,
+    rooms: createRoomsService({
+      db: deps.db,
+      now: deps.now,
+      logger: deps.logger,
+      entrySecret,
+      hitEnterLimit: auth.hitEnterLimit,   // 서비스 간 import 없이 함수로 주입
+    }),
+    // … messages · settings · memory · getHealth 불변
+  }
+}
+```
+
+- `let` 1개는 지역 클로저 메모(요청 수명)라 ts-rules `const` 기본의 예외로 둔다. 같은 의미의 `once()` 지역 헬퍼로 써도 된다. 파생 실패(정상 입력에서는 없음)는 그 요청만 500이고 다음 요청은 새 컨테이너라 다시 시도한다.
+- `TOKEN_SECRET` 원값은 `deriveEntrySecret` 인자로만 지나간다. rooms·라우트·로그는 `CryptoKey`만 본다. `Config`를 rooms에 넘기지 않는다.
+- 문서주석 [설정]에 "`tokenSecret` → `deriveEntrySecret`(S6), `roomEnterLimitPerMin` → auth(S6)"를 더한다.
+
+### 15.2 진입점·앱·설정·배포
+
+| 대상 | 변경 |
+|---|---|
+| `server/src/index.ts` · `app.ts` | 없음. 요청 로거는 헤더를 찍지 않으므로 `X-Room-Key`가 로그에 남지 않는다(구현자가 요청 로그 필드에 헤더가 없음을 확인). 같은 출처 요청이라 CORS 설정 변경 없음(02 D-S6-8) |
+| onError (§5) | 변환 코드 불변. §5.2 표에 `ROOM_LOCKED` 403 · `ROOM_PASSWORD_WRONG` 403 추가(R-API-002 17종). E17 429는 기존 `retryAfterSec` 경로(본문·`Retry-After`) |
+| `wrangler.toml` | `[vars]` 1줄([env.md](env.md) §13.3). 바인딩·`[placement]`·`[assets]` 불변 |
+| 마이그레이션 | `0005_room_password.sql`([db.md](db.md) §15.3) |
+| 배포 순서 | `npm run build` → `wrangler d1 migrations apply --remote` → `wrangler deploy`. 반대면 E3부터 500. 되돌리기는 잠긴 방이 열림 — 사용자 확인 후([db.md](db.md) §15.5) |
+
+### 15.3 비동기·비용
+
+- 컨테이너 생성은 여전히 동기(파생은 첫 `entrySecret()` 호출 때 비동기). 잠기지 않은 방만 쓰는 요청은 파생·HMAC 0회.
+- 관문은 라우트 미들웨어라 컨테이너 배선이 아니다. 라우트 등록(E17~E19, ★ 줄)은 contract-implementer 몫([auth.md](auth.md) §14.8).
+
+### 15.4 테스트 (`server/test/app.test.ts`에 추가 — workers pool D1, `parseEnv` 결과 config)
+
+| ID | 조건 | 기대 |
+|---|---|---|
+| SRV-T-401 | `ROOM_ENTER_LIMIT_PER_MIN: '2'`로 만든 컨테이너 → `rooms.createRoom({ title, password: 'abcd' })` → 같은 컨테이너·새 컨테이너에서 `assertEntry` / `enter` 틀린 비밀번호 2회 → 3회째 | 받은 증명이 테스트가 같은 `tokenSecret`으로 따로 `deriveEntrySecret`해 만든 값과 같고 두 컨테이너 모두 통과 / 3회째 `RATE_LIMITED`(config 값이 auth로 전달됨) |
+
+- 기존 영향: SRV-T-161의 `services.auth` 키 정렬 비교에 `hitEnterLimit` 추가. `createServices` 호출부(`app.ts` `bootstrap`, `app.test.ts`)는 무수정(`parseEnv` 결과에 새 필드가 자동으로 들어온다).
+
+### 15.5 요구 추적
+
+| 요구 | 반영 | 테스트 | 상태 |
+|---|---|---|---|
+| R-LOCK-004 🔒 | `entrySecret` 메모 · `deriveEntrySecret(config.tokenSecret)` | SRV-T-401 | 설계 ✅ |
+| R-LOCK-005·006 🔒 | rooms가 주인 판정을 받지 않고 관문이 `isOwnerRequest`로 넘김(배선 불필요 확인) | [auth.md](auth.md) SRV-T-391·392 | 설계 ✅ |
+| R-LOCK-008 | `hitEnterLimit: auth.hitEnterLimit` · `roomEnterLimitPerMin` 전달 | SRV-T-401 | 설계 ✅ |
+| R-API-002 🔒 개정(L2) | §15.2 onError 표 17종 | contract API-T | 설계 ✅ |
+| R-ENV-002 🔒 개정(L15) | auth config 값 전달 | SRV-T-401 | 설계 ✅ |
+
+### 15.6 설계 결정
+
+| ID | 결정 | 대안·근거 |
+|---|---|---|
+| D-IDX-21 | 파생 키는 요청 컨테이너 지역 메모 | 모듈 전역 캐시는 auth.md §3 "CryptoKey 전역 캐시 금지"와 어긋나고 SECRET 교체 시 낡은 키가 남을 수 있다. 요청당 1회 파생 비용은 수 μs |
+| D-IDX-22 | rooms에는 auth 서비스가 아니라 `hitEnterLimit` 함수 하나를 넘긴다 | 서비스 간 import 금지·최소 권한. rooms 테스트가 가짜 함수로 계수를 바꿀 수 있다 |
+
+파급(S6): `createServices` 본문만 바뀐다(auth 지역 상수화, `entrySecret`, rooms deps 3필드, auth config 1필드). 공개 타입 불변. 테스트는 §15.4.
+
 ## 변경 이력
 
 | 날짜 | 내용 |
 |---|---|
+| 2026-10-08 | S6 설계(§15, 승인 ① 완료): `services.ts` — auth 지역 상수화·`config.roomEnterLimitPerMin` 전달, `entrySecret`(요청 컨테이너 지역 메모, `deriveEntrySecret(config.tokenSecret)`), rooms deps `logger`·`entrySecret`·`hitEnterLimit = auth.hitEnterLimit`. `index.ts`·`app.ts`·onError 코드 불변(§5.2 표 17종), `[vars]` 1줄, 배포 순서 0005 먼저·되돌리기 경고. SRV-T-401, D-IDX-21·22 |
 | 2026-10-08 | S3f 설계(§14, 승인 ① 완료): `services.ts` `llm` 공장 `() => Promise<Llm>`(requireLlmApiKey → `settings.loadModelKey` → `resolveLlmModel` → `createLlm`(provider·`modelName`·meter 단가 = 한 해석 결과)), settings에 `fallbackModelKey: modelKeyOf(config.llmModel)` 주입, 배포 순서(0004 먼저 — 아니면 speak 500), 되돌리기 안전. SRV-T-350~353, D-IDX-18~20 |
 | 2026-10-07 | S4 설계(§13): `Services.memory`(`createMemoryService` — `contextMessages`·`memorySummaryThreshold`·공유 `llm` thunk), messages `afterSpeak` = `memory.summarizeIfNeeded`, llm thunk 지역 상수 추출, `index.ts`·`wrangler.toml`·`app.ts`·onError 불변, `scheduled`·`[triggers]` 미도입, 로그 키 5개, SRV-T-327, D-IDX-15~17 |
 | 2026-10-07 | verify 후속 동기화(소스 기준, SEC-003·SRV-006): `/api/*` CSP `'none'` + `secureHeaders` 기본값(§1 R-API-006 행, §3 파일 표·미사용 미들웨어 줄, §3.1 그림·② 행·②a 행, §8 SRV-T-291·수동 curl, §9.1 헤더 행, §10, D-IDX-5 보충·D-IDX-14, 확인 필요 1건, Referrer-Policy 제안 부분 반영). §3 의존 방향을 실물 import로 보충(services→llm·settings·env, messages→llm, settings→db·llm). 공개 API 변경 없음 |

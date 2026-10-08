@@ -1,6 +1,6 @@
 # env 모듈 설계
 
-- 상태: 확정(S1 구현 동기화) · S3b 초안(키 4개 — §2 S3b 델타·§3.1·§6) · S3c 구현 완료(`OWNER_MB_IDS` 1키 — §2 S3c 델타) · verify 후속 동기화(`TOKEN_SECRET` 32자 하한, SEC-001 — §3.1·§5·§6.2·§8·D-ENV-13) · S4 확인(2026-10-07, **변경 없음** — memory가 `contextMessages`·`memorySummaryThreshold`를 값으로 받고 새 키·새 검증 없음, [memory.md](memory.md) §6) · **S3f 설계 초안(2026-10-08, §12 `LLM_MODEL` 기본값 `gemini-3.1-pro-preview`·의미 개정, `LLM_PRICE_*` = 단가표 밖 모델의 폴백, 새 키 0, SRV-T-354)** · 최종 갱신: 2026-10-08
+- 상태: 확정(S1 구현 동기화) · S3b 초안(키 4개 — §2 S3b 델타·§3.1·§6) · S3c 구현 완료(`OWNER_MB_IDS` 1키 — §2 S3c 델타) · verify 후속 동기화(`TOKEN_SECRET` 32자 하한, SEC-001 — §3.1·§5·§6.2·§8·D-ENV-13) · S4 확인(2026-10-07, **변경 없음** — memory가 `contextMessages`·`memorySummaryThreshold`를 값으로 받고 새 키·새 검증 없음, [memory.md](memory.md) §6) · **S3f 설계 초안(2026-10-08, §12 `LLM_MODEL` 기본값 `gemini-3.1-pro-preview`·의미 개정, `LLM_PRICE_*` = 단가표 밖 모델의 폴백, 새 키 0, SRV-T-354)** · **S6 설계 초안(2026-10-08, 승인 ① 완료 — §13 `ROOM_ENTER_LIMIT_PER_MIN` 1키(`[vars]`, 정수 1~60, 기본 5) · `TOKEN_SECRET` 용도에 입장 증명 파생 추가, 새 Secret 0)** · 최종 갱신: 2026-10-08
 - 묶음: S1(저장 + 읽기 전용). 이 문서의 공개 API는 전부 S1에서 구현되었다(`requireLlmApiKey`는 S1에서 만들고 S3 speak가 호출). **S2 변경 없음**: S2가 쓰는 `TOKEN_SECRET`·`TOKEN_MIN_LEVEL`·`RATE_LIMIT_PER_MIN`은 이미 `Config`(`tokenSecret`·`tokenMinLevel`·`rateLimitPerMin`)에 있고, [auth.md](auth.md) §6이 값으로 받는다. **S3 변경 없음**: S3가 쓰는 `llmProvider`·`llmModel`·`llmTimeoutMs`·`contextMessages`와 `requireLlmApiKey`는 이미 구현되어 있다. 컨테이너가 speak·regenerate 시점에만 `requireLlmApiKey`를 부르는 지연 생성 함수로 감싼다([llm.md](llm.md) §3.3, R-ENV-003). `requireLlmApiKey`는 `LLM_PROVIDER=fake`이면 키를 요구하지 않고 `''`을 돌려주며, `FakeProvider`는 그 값을 쓰지 않는다(키 없는 로컬 개발·테스트용). **S3b 변경**: 월 비용 상한(R-LLM-007 🔒) 키 4개 `LLM_MONTHLY_BUDGET_KRW`·`LLM_PRICE_INPUT_USD_PER_M`·`LLM_PRICE_OUTPUT_USD_PER_M`·`KRW_PER_USD`(전부 `[vars]`, 비밀 아님)와 소수 변환기 `decimalVar`를 더한다.
 - 관련 문서: [index.md](index.md)(호출 지점·부트스트랩), [db.md](db.md)(`DB` 바인딩 소비), [auth.md](auth.md)(토큰·레이트리밋 설정 소비), [rooms.md](rooms.md), [messages.md](messages.md).
 
@@ -537,10 +537,81 @@ LLM_PRICE_OUTPUT_USD_PER_M = "2.5"          # 단가표에 없는 모델의 폴�
 | D-ENV-15 | `LLM_PRICE_*`를 지우지 않고 표 밖 폴백으로 남긴다 | 지우면 env 로 표 밖 모델을 쓸 때 단가가 없다. 키를 지우는 것은 R-ENV-002 🔒 키 목록 개정이라 범위 밖 |
 | D-ENV-16 | 모델 키(`'pro'`·`'flash'`) 선택은 env가 아니라 D1(설정 화면) | R-SET-013 🔒. env는 "고르기 전" 값만 맡는다 |
 
+## 13. S6 — `ROOM_ENTER_LIMIT_PER_MIN` 신규 · `TOKEN_SECRET` 용도 추가 (R-ENV-002 🔒 개정 L15 · R-LOCK-004·008)
+
+- 상태: 초안(2026-10-08, 승인 ① 완료 — U7 분당 5회 확정). 근거 `s6-02-전반설계.md` §5·§7, `s6-03-인계패킷.md` §1.1·§1.3.
+- 결론: 비밀 아닌 키 1개를 `[vars]`에 더한다. 새 Secret은 없다 — 입장 증명 키는 `TOKEN_SECRET`에서 용도 문자열로 파생한다(02 D-S6-3). 바인딩 파싱은 여전히 `parseEnv` 한 곳이다.
+
+### 13.1 키 표 델타 (§3.1·§6.1에 행 추가·설명 보충)
+
+| 키 | 타입·검증 | 기본값 | 출처 | 비밀 | 설명 |
+|---|---|---|---|---|---|
+| `ROOM_ENTER_LIMIT_PER_MIN` (신규) | 정수 1~60 | `5` | `wrangler.toml [vars]` | ✕ | 잠긴 방 비밀번호 입장 시도, **방마다** 분당 상한. 주인·비밀번호 없는 요청·안 잠긴 방은 세지 않는다. 쓰는 곳: auth `hitEnterLimit`([auth.md](auth.md) §14.4) |
+| `TOKEN_SECRET` (의미 추가) | 불변(32자 이상) | — | Secrets · `.dev.vars` | ○ | 토큰 HMAC 검증 + **방 입장 증명 파생 키의 재료**(`HMAC(TOKEN_SECRET, 'london_dispatch/room-entry/v1')`, [rooms.md](rooms.md) §12.3.4). 바꾸면 모든 방의 비밀번호 기억이 무효가 되어 열람자에게 다시 묻는다 |
+
+### 13.2 `server/src/env.ts` 델타
+
+```ts
+/** S6. 스키마 기본값과 auth 폴백이 같은 값을 쓰도록 내보낸다(바인딩을 읽지 않는 상수) */
+export const ROOM_ENTER_LIMIT_PER_MIN_DEFAULT = 5
+
+export type Config = {
+  // … 기존 불변
+  /** S6. 방 단위 비밀번호 입장 시도 분당 상한(1~60) */
+  readonly roomEnterLimitPerMin: number
+}
+// ENV_KEYS 에 'ROOM_ENTER_LIMIT_PER_MIN' 추가(17 → 18)
+// 스키마: 기존 RATE_LIMIT_PER_MIN 과 같은 정수 변환 규칙(문자열 → 정수, 범위 1~60, 생략 시 ROOM_ENTER_LIMIT_PER_MIN_DEFAULT)
+```
+
+- 위반(0·61·소수·숫자 아님)은 기존 `ConfigError` 규칙(§3.2)대로 **키 이름만** 담은 한국어 메시지 → 첫 요청 `500 CONFIG_INVALID`. 값은 메시지·로그에 넣지 않는다.
+- 빈 문자열의 처리는 기존 정수 키(`RATE_LIMIT_PER_MIN`)와 같게 한다(규칙을 새로 만들지 않는다).
+
+### 13.3 `server/wrangler.toml [vars]`·`server/.dev.vars.example` 델타 (실값·비밀값 없음)
+
+`wrangler.toml [vars]` — `RATE_LIMIT_PER_MIN` 줄 다음에 1줄:
+
+```toml
+ROOM_ENTER_LIMIT_PER_MIN = "5"          # 잠긴 방 비밀번호 입장 시도, 방마다 분당 상한(1~60). 주인·비밀번호 없는 요청은 세지 않는다
+```
+
+`.dev.vars.example` — 「참고: wrangler.toml [vars] 기본값」 블록의 `RATE_LIMIT_PER_MIN` 줄 다음에 1줄, 「토큰」 블록 `TOKEN_SECRET` 설명 아래에 1줄:
+
+```
+# ROOM_ENTER_LIMIT_PER_MIN=5              잠긴 방 비밀번호 입장 시도, 방마다 분당 상한(1~60). 주인·비밀번호 없는 요청은 세지 않는다
+# 같은 값으로 방 입장 증명(비밀번호를 맞힌 브라우저의 기억)도 만든다. 바꾸면 잠긴 방은 모두 비밀번호를 다시 묻는다
+```
+
+### 13.4 테스트 (`server/test/env.test.ts`에 추가)
+
+| ID | 조건 | 기대 |
+|---|---|---|
+| SRV-T-400 | 키 생략 / `'10'` / `'0'`·`'61'`·`'5.5'`·`'abc'` / `ENV_KEYS` / `.dev.vars.example`·`wrangler.toml` 대조(SRV-T-011 확장) | `roomEnterLimitPerMin === 5`(= `ROOM_ENTER_LIMIT_PER_MIN_DEFAULT`) / `10` / `ConfigError` — 메시지에 `ROOM_ENTER_LIMIT_PER_MIN` 포함·입력값 미포함 / 길이 18 / 두 파일 모두 키 존재, 비밀값 실값 없음 |
+
+- 기존 테스트 영향: SRV-T-001(기본값 구조 비교)에 `roomEnterLimitPerMin: 5`, `ENV_KEYS` 길이 단언(있으면) 18. `Config`를 객체 리터럴로 만드는 테스트 픽스처가 있으면 필드 1개 추가.
+
+### 13.5 요구 추적
+
+| 요구 | 반영 | 테스트 | 상태 |
+|---|---|---|---|
+| R-ENV-002 🔒 개정(L15) | §13.1~13.3 | SRV-T-400 | 설계 ✅ |
+| R-LOCK-008 | 기본 5 · 1~60 | SRV-T-400, [auth.md](auth.md) SRV-T-393·394 | 설계 ✅ |
+| R-LOCK-004 🔒 | `TOKEN_SECRET` 용도 추가(키 불변) | [rooms.md](rooms.md) SRV-T-366 | 설계 ✅ |
+
+### 13.6 설계 결정
+
+| ID | 결정 | 대안·근거 |
+|---|---|---|
+| D-ENV-17 | 기본값 상수 `ROOM_ENTER_LIMIT_PER_MIN_DEFAULT`를 env.ts에서 내보낸다 | auth의 선택 config 폴백이 같은 값을 쓴다(값 두 곳 중복 방지). 상수는 바인딩 읽기가 아니다 |
+| D-ENV-18 | 새 Secret `ROOM_KEY_SECRET`을 만들지 않는다 | 지인의 `wrangler secret put` 작업이 늘지 않는다(02 D-S6-3). 대가(SECRET 교체 = 기억 초기화)는 handoff 1줄(contract-designer) |
+
+파급(S6): `Config`에 필드 1개, `ENV_KEYS` 1개, 상수 export 1개. 호출자는 `server/src/services.ts`(auth config에 값 전달, [index.md](index.md) §15)뿐. `wrangler.toml [vars]` 1줄·`.dev.vars.example` 주석 2줄.
+
 ## 변경 이력
 
 | 날짜 | 내용 |
 |---|---|
+| 2026-10-08 | S6 설계(§13, 승인 ① 완료 — U7): `ROOM_ENTER_LIMIT_PER_MIN`(정수 1~60, 기본 5, `[vars]`) — `Config.roomEnterLimitPerMin`·`ENV_KEYS` 18개·`ROOM_ENTER_LIMIT_PER_MIN_DEFAULT` export, `TOKEN_SECRET` 용도에 입장 증명 파생 추가(새 Secret 0), `wrangler.toml` 1줄·`.dev.vars.example` 주석 2줄 문안, SRV-T-400, D-ENV-17·18 |
 | 2026-10-08 | verify 후속 SRV-002(LOW): 현재 값을 서술하던 `LLM_MODEL` 기본값 잔재를 `gemini-3.1-pro-preview`로 정정 — §3.1 키 표(235행)·§6.1 대조표(331행)·§6.2 `.dev.vars.example` 전사(371행, `LLM_PRICE_*` 두 줄 378·379행 뜻 주석 포함 — 실물과 일치). 이력·이전 값 서술(§12.1 「이전」, §12.4 테스트 영향, 이 표)은 유지 |
 | 2026-10-08 | S3f 설계(§12, 승인 ① 완료 — Q1 Pro): `LLM_MODEL` 기본값 `gemini-2.5-flash` → `gemini-3.1-pro-preview`(뜻 = 고르기 전 기본 모델), `LLM_PRICE_*` 뜻 = 단가표 밖 모델의 폴백(기본값 불변), `wrangler.toml [vars]`·`.dev.vars.example` 3줄 교체 문안, 새 키 0. SRV-T-354, D-ENV-14~16 |
 | 2026-10-07 | S4 확인: env 변경 없음(머리말에 명시). memory 서비스가 기존 `Config.contextMessages`·`Config.memorySummaryThreshold`를 컨테이너에서 값으로 받는다([index.md](index.md) §13.1). 검증 규칙 `MEMORY_SUMMARY_THRESHOLD > CONTEXT_MESSAGES`가 요약 배치 크기 ≥ 1을 보장한다([memory.md](memory.md) §2.1). 요약 상수(배치 100·2만 자·25초·목표 2000자)는 코드 상수라 키를 만들지 않는다 |

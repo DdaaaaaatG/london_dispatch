@@ -1,6 +1,6 @@
 # memory 모듈 설계
 
-- 상태: S4 초안 · **S4 구현 완료(2026-10-07, server 381/381, SRV-T-296~327 — 구현 동기화)** · **R-MEM-001 🔒 개정 동기화(2026-10-07, 빈 요약 저장 = `source_until_id` 0 리셋 "다시요약" — 구현 반영, SRV-T-331~333)** · **S3f 설계 초안(2026-10-08, §12 `llm: () => Promise<Llm>` · 게이트 `await deps.llm()` 한 줄 — 요약 시작 시점에 모델 재해석, 단계 순서 불변, SRV-T-356)** · 최종 갱신: 2026-10-08
+- 상태: S4 초안 · **S4 구현 완료(2026-10-07, server 381/381, SRV-T-296~327 — 구현 동기화)** · **R-MEM-001 🔒 개정 동기화(2026-10-07, 빈 요약 저장 = `source_until_id` 0 리셋 "다시요약" — 구현 반영, SRV-T-331~333)** · **S3f 설계 초안(2026-10-08, §12 `llm: () => Promise<Llm>` · 게이트 `await deps.llm()` 한 줄 — 요약 시작 시점에 모델 재해석, 단계 순서 불변, SRV-T-356)** · **S6 확인(2026-10-08, §13 — 잠긴 방 접근은 라우트 관문이 서비스 호출 전에 판정, 시그니처·코드 불변)** · 최종 갱신: 2026-10-08
 - 묶음: **S4**(장기기억) = R-MEM-001 🔒(조회·편집) · R-MEM-002 🔒(speak 뒤 자동 요약) · R-MEM-003(중복 요약 방지·Cron 대체 결정) · R-LLM-007 🔒(요약 호출도 월 예산 누적·게이트) · R-LLM-003 🔒·R-LLM-006(요약은 데이터 블록) · R-CHAT-012 🔒(화면 — 계약·ui 인계만) · R-DB-001 🔒(`memory` 테이블은 0001에 있음, 마이그레이션 없음).
 - 입력: `doc/100_요구조건/requirements.md`(R-MEM·R-LLM-003/006/007·R-CHAT-012·R-NFR-001), `doc/000_프로젝트_확정사항.md` §5.2·§5.4·§5.5(5단계), `rtm.md` S4 행, [messages.md](messages.md) §2.3·§4.2, [llm.md](llm.md) §2.3·§7.1·§12, [db.md](db.md) §2.3·§3.5·§7, [index.md](index.md) §2.3, [env.md](env.md), 실물 `server/src/{messages/generate.ts, db/{memory,sql,index}.ts, llm/{client,prompt,usage,provider,fake}.ts, services.ts, index.ts, env.ts}`, `shared/src/limits.ts`, `server/migrations/0001_init.sql`.
 - 관련 문서(이 묶음의 델타): [messages.md](messages.md) §13(afterSpeak 훅 본체 연결) · [llm.md](llm.md) §14(요약 프롬프트·`CompleteOptions.budgetMs`) · [db.md](db.md) §13(memory·messages 저장소 확장) · [index.md](index.md) §13(배선·`scheduled` 미도입) · [env.md](env.md)(변경 없음 확인).
@@ -549,10 +549,15 @@ llm: () => Promise<Llm>      // 이전 () => Llm
 |---|---|---|
 | D-MEM-18 | 요약은 speak의 `Llm`을 넘겨받지 않고 자기 시작 때 공장을 다시 부른다 | messages는 memory를 import하지 않는다(afterSpeak 이벤트는 `roomId`만). 다시 부르면 "다음에 시작하는 요약부터 새 모델"이 그대로 성립한다. 비용은 D1 PK 읽기 1회 |
 
+## 13. S6 — 잠긴 방 관문 (R-LOCK-006 🔒 · L7 R-MEM-001 개정)
+
+- **잠긴 방 접근은 라우트 관문(`requireRoomEntry('room')`, [auth.md](auth.md) §14.3)이 서비스 호출 전에 판정한다. memory 서비스 시그니처·코드·테스트는 불변이다.** E13(`get`)·E14(`put`)만 관문을 거치고, speak 뒤 자동 요약(`summarizeIfNeeded`, `waitUntil`)은 관문을 이미 통과한 speak가 일으키므로 따로 판정하지 않는다. 관문 경로 테스트는 contract 라우트 테스트(API-T) 몫이다.
+
 ## 변경 이력
 
 | 날짜 | 내용 |
 |---|---|
+| 2026-10-08 | S6 확인(§13): 잠긴 방 접근은 라우트 관문이 서비스 호출 전에 판정 — `MemoryService`·`MemoryDeps` 시그니처·코드·테스트 불변. 관문 대상 E13·E14, 자동 요약은 판정 없음 |
 | 2026-10-08 | S3f 설계(§12, 승인 ① 완료): `MemoryDeps.llm` `() => Promise<Llm>`, `gate`의 `await deps.llm()` 한 줄(try 밖 — 공장 실패는 `failed/budget`), 요약 시작 시점 모델 재해석, 단계 순서 불변. 기존 테스트 감싸기(45·60·449행). SRV-T-356, D-MEM-18 |
 | 2026-10-07 | 테스트 번호 정정(계약 api.md §14.19 기준): 빈 요약 리셋 라우트 테스트를 API-T-123에서 **API-T-125**(memory_put_empty_resets_source)로 바꿈 — §10 R-MEM-001 행·「contract 인계」 테스트 요청·직전 변경 이력 행. API-T-123은 speak "요약 실패 주입에도 201"(routes-generate)로 유지 |
 | 2026-10-07 | R-MEM-001 🔒 개정 동기화(사용자 지정 "다시요약", 소스 기준): trim 후 빈 요약 저장 시 `source_until_id` 0 리셋 → 다음 speak 뒤 처음부터 재요약(100개씩). §2 `put` 주석·§2.1 값 규칙 행·"빈 요약 리셋" 문단, §4.4 경합 1행, §8.1 SRV-T-332·333, §8.2 SRV-T-331 행, §10 R-MEM-001 테스트, D-MEM-17, 「contract 인계」 E14 길이·200 행·테스트 요청(API-T-125), 「ui 인계 메모」 길이 항목. 공개 API 시그니처 불변 |

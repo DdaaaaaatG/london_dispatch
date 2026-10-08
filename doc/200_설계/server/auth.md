@@ -1,6 +1,6 @@
 # auth 모듈 설계
 
-- 상태: 초안 · S3c 구현 완료(§12 주인 판정) · **S3d 구현 완료(2026-10-06, SRV-T-261~278 · §13 displayName 저장 전용)** · verify 후속 동기화(2026-10-07 — §6 `tokenSecret` 32자·시험 SECRET, §12.4 `ownerMbIds` [설정]) · 최종 갱신: 2026-10-07
+- 상태: 초안 · S3c 구현 완료(§12 주인 판정) · **S3d 구현 완료(2026-10-06, SRV-T-261~278 · §13 displayName 저장 전용)** · verify 후속 동기화(2026-10-07 — §6 `tokenSecret` 32자·시험 SECRET, §12.4 `ownerMbIds` [설정]) · **S6 설계 초안(2026-10-08, 승인 ① 완료 — §14 `optionalToken`·`isOwnerRequest`·`requireRoomEntry`·`hitEnterLimit`, 새 파일 `auth/room-entry.ts`)** · 최종 갱신: 2026-10-08
 - 묶음: S2(토큰 + 쓰기). 이 문서의 공개 API는 전부 S2에서 구현한다.
 - 관련 문서: [env.md](env.md)(`tokenSecret`·`tokenMinLevel`·`rateLimitPerMin`), [db.md](db.md)(`rateLimits` 저장소), [index.md](index.md)(서비스 컨테이너·`AppEnv.Variables.principal`·onError의 `retryAfterSec`), [rooms.md](rooms.md)·[messages.md](messages.md)(쓰기 서비스 — 이 모듈의 미들웨어 뒤에서 호출된다).
 
@@ -610,10 +610,173 @@ export type Principal = {
 |---|---|---|
 | R-AUTH-004 🔒 개정 | §13 · [db.md](db.md) §12 | ✅(설계) |
 
+## 14. S6 — 선택 토큰 · 방 입장 관문 · 입장 시도 상한 (R-LOCK-005·006·008 · R-AUTH-003 🔒 개정 L3)
+
+- 상태: 초안(2026-10-08, 승인 ① 완료). 근거 `s6-02-전반설계.md` §3·§4.2·§5, `s6-03-인계패킷.md` §1.2. **시그니처는 인계 패킷 §1.2 그대로다.**
+- 비유: 경비실(auth)은 출입증(토큰)을 보는 곳이다. S6에서 경비실은 ① 출입증이 있으면 보고 없거나 가짜여도 손님으로 들여보내는 창구(`optionalToken`), ② 잠긴 방 문 앞에서 방 담당(rooms)에게 "이 도장 맞나요?"를 묻는 문지기(`requireRoomEntry`), ③ 방마다 1분에 몇 번 번호를 눌렀는지 세는 계수기(`hitEnterLimit`)를 맡는다. 도장이 맞는지 판정은 rooms 한 곳이다.
+- 결론: 토큰 형식·검증 순서·실패 코드·기존 미들웨어는 바뀌지 않는다. 함수 3개 + 서비스 메서드 1개가 늘고, 관문은 판정을 하지 않고 `services.rooms.assertEntry`에 넘기기만 한다.
+
+### 14.1 공개 API
+
+```ts
+// server/src/auth/middleware.ts
+/** S6(E17 전용). Bearer 가 있으면 authenticate 해 principal 을 넣는다. AppError 코드가
+ *  TOKEN_REQUIRED·TOKEN_INVALID·LEVEL_TOO_LOW 이면 삼키고 익명으로 next(). 그 밖(예: INTERNAL·D1)은 전파 */
+export const optionalToken: MiddlewareHandler<AppEnv>
+
+// server/src/auth/room-entry.ts (신규 — middleware.ts 크기 유지)
+/** S6. c.get('principal') 이 있고 services.auth.isOwner(principal) 이면 true. 부수 효과·D1 없음 */
+export const isOwnerRequest = (c: Context<AppEnv>): boolean
+/** S6. validate('param') 뒤에 둔다. 경로 :id + 헤더 ROOM_KEY_HEADER('X-Room-Key', shared)로 services.rooms.assertEntry → next() */
+export const requireRoomEntry = (kind: 'room' | 'message'): MiddlewareHandler<AppEnv>
+
+// server/src/auth/service.ts
+export type AuthService = {
+  // … 기존 authenticate · hitRateLimit · isOwner · assertOwner 불변
+  /** S6. rate_limits 키 'enter:{roomId}' 의 현재 분 창에 1회 기록. 한도 초과면 warn 'room_enter_limited'{roomId} 후
+   *  AppError RATE_LIMITED(ROOM_ENTER_LIMITED_MESSAGE, { retryAfterSec }) */
+  hitEnterLimit: (roomId: string) => Promise<void>
+}
+export type AuthDeps = {
+  // … 기존 불변
+  config: Pick<Config, 'tokenSecret' | 'tokenMinLevel' | 'rateLimitPerMin'> &
+    Partial<Pick<Config, 'ownerMbIds' | 'roomEnterLimitPerMin'>>   // S6: 없으면 ROOM_ENTER_LIMIT_PER_MIN_DEFAULT(5, env.ts). 컨테이너는 항상 넘긴다
+}
+export const ENTER_LIMIT_KEY_PREFIX = 'enter:'
+export const ROOM_ENTER_LIMITED_MESSAGE = '비밀번호를 너무 자주 입력했습니다. 잠시 후 다시 시도해 주세요.'
+```
+
+- `auth/index.ts`는 `optionalToken`·`isOwnerRequest`·`requireRoomEntry`를 더 재노출한다. 문서주석 [공개 API]·[에러]·[설정]·[테스트]에 S6 항목을 더한다.
+
+### 14.2 `optionalToken`
+
+```ts
+const SWALLOWED: ReadonlySet<ErrorCode> = new Set(['TOKEN_REQUIRED', 'TOKEN_INVALID', 'LEVEL_TOO_LOW'])
+export const optionalToken: MiddlewareHandler<AppEnv> = async (c, next) => {
+  const raw = readBearer(c.req.header('Authorization'))
+  if (raw !== null) {
+    try {
+      c.set('principal', await c.get('services').auth.authenticate(raw))
+    } catch (e) {
+      if (!(e instanceof AppError && SWALLOWED.has(e.code))) throw e
+    }
+  }
+  await next()        // try 밖 — 뒤 단계(서비스)의 에러를 삼키지 않는다
+}
+```
+
+- `Authorization`이 없거나 Bearer 형식이 아니면 익명. 실패 시 `authenticate`가 이미 남기는 warn `auth_rejected{code, reason}`는 그대로(토큰 원문 없음).
+- 레이트리밋을 소모하지 않는다(E17에는 `rateLimitWrites`가 없다 — 토큰이 없을 수 있어 키가 없다). 방 단위 상한은 서비스 안 `hitEnterLimit`이 맡는다.
+
+### 14.3 `isOwnerRequest` · `requireRoomEntry`
+
+```ts
+export const isOwnerRequest = (c: Context<AppEnv>): boolean => {
+  const principal = c.get('principal')
+  return principal !== undefined && c.get('services').auth.isOwner(principal)
+}
+
+export const requireRoomEntry = (kind: 'room' | 'message'): MiddlewareHandler<AppEnv> => async (c, next) => {
+  const id = c.req.param('id')
+  if (id === undefined) throw new AppError('INTERNAL')                      // 배선 오류(:id 없는 경로) — 닫힌 쪽
+  const target: EntryTarget = kind === 'room' ? { kind, roomId: id } : { kind, messageId: Number(id) }
+  if (target.kind === 'message' && !Number.isSafeInteger(target.messageId)) throw new AppError('INTERNAL')   // validate('param') 누락
+  await c.get('services').rooms.assertEntry(target, {
+    entryKey: c.req.header(ROOM_KEY_HEADER) ?? null,
+    isOwner: isOwnerRequest(c),
+  })
+  await next()
+}
+```
+
+- `EntryTarget` 타입은 `../rooms`에서 **type import**만 한다(값 import 없음 — 판정은 컨테이너의 `services.rooms`).
+- 증명은 헤더 하나에서만 읽는다. 쿼리·본문·쿠키는 보지 않는다. 헤더 값을 로그·에러 문구에 쓰지 않는다.
+- E7(토큰 없는 읽기)에는 `requireToken`이 없어 `principal`이 비므로 주인도 증명이 필요하다(02 D-S6-5). 주인은 E17 ③으로 비밀번호 없이 증명을 받는다.
+- 위치 규칙(02 §3.2): `requireToken → rateLimitWrites → validate('param') → ★requireRoomEntry → (validate('query') | bodyLimit → validate('json'))`. 토큰 실패는 관문보다 먼저(401), 잠긴 방의 잘못된 쿼리·본문은 400보다 403 `ROOM_LOCKED`가 먼저다.
+
+### 14.4 `hitEnterLimit`
+
+```ts
+hitEnterLimit: async roomId => {
+  const nowMs = now()
+  const windowStart = windowStartOf(nowMs)
+  const count = await db.rateLimits.hit(`${ENTER_LIMIT_KEY_PREFIX}${roomId}`, windowStart, roomEnterLimitPerMin)
+  if (count === null) {
+    logger.warn('room_enter_limited', { roomId })
+    throw new AppError('RATE_LIMITED', ROOM_ENTER_LIMITED_MESSAGE, { retryAfterSec: retryAfterSecOf(nowMs) })
+  }
+  if (count === FIRST_HIT_COUNT) await purgeOldWindows(windowStart)   // 기존 hitRateLimit 과 같은 청소(모든 키)
+}
+```
+
+- 저장소·SQL은 기존 `db.rateLimits.hit`(조건부 UPSERT 1문장, 원자적) 재사용. 새 테이블·칸 없음. 한도 5면 1~5번째 통과, 6번째 `null` → 429(R-LOCK-008 "6번째 시도 429").
+- 키 공간: 회원 버킷은 `mb_id` 그대로, 입장 버킷은 `enter:` 접두사. 그누보드 `mb_id`는 영숫자·밑줄이라 `:`가 없어 겹치지 않는다(전제 — 토큰 `mb_id` 형식 검증이 `:`를 허용하면 확인 필요).
+- 프로세스 메모리 카운터 없음(인스턴스 여럿). 주인·무비밀번호·안 잠긴 방은 rooms가 부르지 않는다(rooms.md §12.4.1).
+
+### 14.5 에러·로그
+
+| 함수 | 코드 | HTTP | 문구 | 로그 |
+|---|---|---|---|---|
+| `optionalToken` | (삼킴) 3종 / 그 밖 전파 | — | — | 기존 `auth_rejected` |
+| `requireRoomEntry` | `ROOM_LOCKED`(rooms가 던짐) · `INTERNAL`(배선 오류) | 403 · 500 | shared 기본 | 없음(정상 흐름에서도 잦다) |
+| `hitEnterLimit` | `RATE_LIMITED` | 429 | `비밀번호를 너무 자주 입력했습니다. 잠시 후 다시 시도해 주세요.` + `retryAfterSec` | warn `room_enter_limited{roomId}` |
+
+### 14.6 설정(env)
+
+- `config.roomEnterLimitPerMin`(`ROOM_ENTER_LIMIT_PER_MIN`, 정수 1~60, 기본 5, `[vars]`) — [env.md](env.md) §13. `config.tokenSecret`은 auth가 계속 토큰 검증에만 쓰고, 입장 증명 파생은 컨테이너가 같은 값으로 따로 한다([index.md](index.md) §15 — auth는 파생 키를 모른다).
+
+### 14.7 테스트 (`server/test/auth-room-entry.test.ts` 신규 — workers pool D1 · 작은 Hono 앱 + 가짜 `services` · 가짜 시계·수집 로거)
+
+| 테스트ID | 이름 | 입력 | 기대 | 요구 |
+|---|---|---|---|---|
+| SRV-T-390 | `optionalToken_swallows_only_auth_failures` | 헤더 없음 / `Basic x` / 서명 틀린 토큰 / 등급 미달 토큰 / 정상 토큰 / `authenticate`가 `AppError('INTERNAL')` / 뒤 핸들러가 `AppError('NOT_FOUND')` | 익명 200 ×4(principal 없음) / principal 있음 / 500 전파 / 404 전파(삼키지 않음) | R-AUTH-003(L3) · R-LOCK-005 |
+| SRV-T-391 | `isOwnerRequest_cases` | principal 없음 / 주인 / 비주인 / `ownerMbIds` 빈 목록 + 주인 아이디 | false / true / false / false | R-LOCK-005 |
+| SRV-T-392 | `requireRoomEntry_passes_target_and_header` | `'room'` + 헤더 `X-Room-Key: k` + 주인 / `'message'` + `/7` + 헤더 없음 / `assertEntry`가 `ROOM_LOCKED` / `:id` 없는 경로 | 가짜 `assertEntry` 인자 `({kind:'room', roomId}, {entryKey:'k', isOwner:true})` / `({kind:'message', messageId:7}, {entryKey:null, isOwner:false})` / 403·다음 핸들러 미호출 / 500 | R-LOCK-006 |
+| SRV-T-393 | `hitEnterLimit_counts_per_room` | 한도 5, 같은 방 6회 / 다른 방 1회 / 같은 문자열의 `hitRateLimit` / 시계 +60초 | 5회 통과·6번째 `RATE_LIMITED`(문구·`retryAfterSec` ≥ 1)·warn `room_enter_limited{roomId}` / 통과 / 영향 없음 / 회복. D1 행 `mb_id = 'enter:{roomId}'` | R-LOCK-008 |
+| SRV-T-394 | `hitEnterLimit_default_and_purge` | `config.roomEnterLimitPerMin` 생략 / 새 창 첫 기록 | 6번째 429(기본 5) / 이전 창 `enter:` 행도 지워짐 | R-LOCK-008 |
+
+- 기존 auth 테스트(SRV-T-100~120·236~238)는 무수정(새 config 필드는 선택). SRV-T-161류의 `services.auth` 키 정렬 비교가 있으면 `hitEnterLimit`을 더한다([index.md](index.md) §15).
+
+### 14.8 contract 요구 명세
+
+| 라우트 | 미들웨어 순서(★ = `requireRoomEntry`) | 주인 통과 |
+|---|---|---|
+| E5·E6 `PATCH`·`DELETE /api/rooms/:id` | requireToken → rateLimitWrites → validate(param) → ★room → (json) | ○ |
+| E7 `GET /api/rooms/:id/messages` | validate(param) → ★room → validate(query) | ✕(토큰 안 봄) |
+| E8·E9 `POST /api/rooms/:id/user`·`/speak` | requireToken → rateLimitWrites → validate(param) → ★room → validate(json) | ○ |
+| E10·E11·E12 `/api/messages/:id`(·`/regenerate`) | requireToken → rateLimitWrites → validate(param) → ★message → (json) | ○ |
+| E13 `GET /api/rooms/:id/memory` | requireToken → validate(param) → ★room | ○ |
+| E14 `PUT /api/rooms/:id/memory` | requireToken → rateLimitWrites → validate(param) → ★room → bodyLimit → json | ○ |
+| E17 `POST /api/rooms/:id/enter` | optionalToken → validate(param) → bodyLimit(1KiB) → validate(json) → `rooms.enter(id, { password, isOwner: isOwnerRequest(c) })` | (서비스 ③) |
+| E18·E19 `PUT`·`DELETE /api/rooms/:id/password` | requireToken → rateLimitWrites → validate(param) → ★room → (bodyLimit → json) | ○ |
+
+- E1·E2·E3·E4·E15·E16에는 관문이 없다. `isAuthFailure`(ui)는 3코드 그대로 — `ROOM_LOCKED`·`ROOM_PASSWORD_WRONG`은 넣지 않는다.
+
+### 14.9 요구 추적 (S6)
+
+| 요구 | 반영 | 테스트 | 상태 |
+|---|---|---|---|
+| R-AUTH-003 🔒 개정(L3) | §14.2 E17 선택 토큰 · §14.3 E7 증명 | SRV-T-390·392 | 설계 ✅ |
+| R-LOCK-005 🔒 | `isOwnerRequest` | SRV-T-391 | 설계 ✅ |
+| R-LOCK-006 🔒 | `requireRoomEntry` · §14.8 | SRV-T-392(경로 전수는 contract API-T) | 설계 ✅ |
+| R-LOCK-008 | `hitEnterLimit` | SRV-T-393·394 | 설계 ✅ |
+
+### 14.10 설계 결정 (S6)
+
+| ID | 결정 | 대안·근거 |
+|---|---|---|
+| D-AUTH-19 | `optionalToken`은 인증 실패 3코드만 삼킨다 | 전부 삼키면 D1·설정 장애가 "익명"으로 숨는다. `next()`를 try 밖에 두어 서비스 에러도 삼키지 않는다 |
+| D-AUTH-20 | 관문은 판정 없이 `services.rooms.assertEntry` 위임 | 판정 한 곳(02 §3.1). auth가 rooms 값을 import하지 않는다(타입만) |
+| D-AUTH-21 | 입장 상한을 auth의 `rate_limits` 계수기에 얹는다(키 접두사) | 분 창·UPSERT·청소가 이미 있다. 새 테이블은 D1 쓰기만 늘린다 |
+| D-AUTH-22 | 배선 오류(`:id` 없음·숫자 아님)는 `INTERNAL` | 403으로 덮으면 라우트 결함이 "잠긴 방"으로 보여 찾기 어렵다. 어느 쪽이든 통과는 안 시킨다(닫힌 쪽) |
+
+파급(S6): `AuthService`에 `hitEnterLimit` 추가 → `AuthService`를 흉내 내는 테스트 가짜(`server/test/app.test.ts` 키 비교 등)에 추가. `AuthDeps.config`는 선택 필드라 기존 생성 호출 무수정. `auth/base64url.ts`는 `server/src/base64url.ts` 재노출로 바뀐다([rooms.md](rooms.md) D-ROOM-13 — 기존 import 경로 유지). 라우트(contract)는 E5~E14에 ★ 한 줄씩, E17~E19 신규.
+
 ## 변경 이력
 
 | 날짜 | 내용 |
 |---|---|
+| 2026-10-08 | S6 설계(§14, 승인 ① 완료): `optionalToken`(인증 실패 3코드만 삼킴, `next()` try 밖), `auth/room-entry.ts`의 `isOwnerRequest`·`requireRoomEntry(kind)`(판정은 `services.rooms.assertEntry` 위임, 배선 오류 `INTERNAL`), `AuthService.hitEnterLimit`(키 `enter:{roomId}`·상황 문구·warn `room_enter_limited`), `AuthDeps.config.roomEnterLimitPerMin?`, 라우트 관문 순서표, SRV-T-390~394, D-AUTH-19~22. 토큰 형식·기존 미들웨어 불변 |
 | 2026-10-06 | S3d(§13): `Principal.displayName`은 D1 `author_name` 저장 전용으로 명시(응답·프롬프트·로그 미사용). 사용처 표, 전송 1회 = 레이트리밋 2회 메모. 코드·시그니처 변경 없음 |
 | 2026-10-05 | 신규 작성(S2). 교차 벡터 V1~V8 산출(테스트 SECRET) |
 | 2026-10-06 | S3c 설계: §12 주인 판정 — `isOwner`(순수)·`assertOwner`(로그 `owner_denied`·`OWNER_ONLY` 403)·`requireOwner` 미들웨어, `AuthDeps.config.ownerMbIds`(선택, 기본 `[]`), SRV-T-236~238, D-AUTH-15~18 |

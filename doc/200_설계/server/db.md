@@ -1,6 +1,6 @@
 # db 모듈 설계
 
-- 상태: S1 확정(구현 동기화) · S2 초안 · S3 초안(§2.3·§3.5) · S3b 초안(§2.4·§3.6·§7.5) · S3c 구현 완료(§2.5·§3.7·§7.6·§8.1) · **S3d 구현 완료(2026-10-06, SRV-T-261~278 · §12 유저 표시명 투영 — §3.4보다 우선)** · **S4 초안(2026-10-07, §13 memory `getState`·`putSummary`·`advance` · messages `countAfter`·`listAfter` — 마이그레이션 없음)** · **R-MEM-001 🔒 개정 동기화(2026-10-07, 빈 요약 저장 = `source_until_id` 0 리셋 "다시요약" — 구현 반영, SRV-T-331~333)** · **S3f 설계 초안(2026-10-08, §14 마이그레이션 0004 `character_settings.llm_model`·GET 칸 추가·UPSERT 넷째 바인딩 `COALESCE`·`getModel`·배포 순서, SRV-T-347~349)** · 최종 갱신: 2026-10-08
+- 상태: S1 확정(구현 동기화) · S2 초안 · S3 초안(§2.3·§3.5) · S3b 초안(§2.4·§3.6·§7.5) · S3c 구현 완료(§2.5·§3.7·§7.6·§8.1) · **S3d 구현 완료(2026-10-06, SRV-T-261~278 · §12 유저 표시명 투영 — §3.4보다 우선)** · **S4 초안(2026-10-07, §13 memory `getState`·`putSummary`·`advance` · messages `countAfter`·`listAfter` — 마이그레이션 없음)** · **R-MEM-001 🔒 개정 동기화(2026-10-07, 빈 요약 저장 = `source_until_id` 0 리셋 "다시요약" — 구현 반영, SRV-T-331~333)** · **S3f 설계 초안(2026-10-08, §14 마이그레이션 0004 `character_settings.llm_model`·GET 칸 추가·UPSERT 넷째 바인딩 `COALESCE`·`getModel`·배포 순서, SRV-T-347~349)** · **S6 설계 초안(2026-10-08, 승인 ① 완료 — §15 마이그레이션 `0005_room_password.sql`(`rooms.pass_hash`), `locked` 투영, `getEntryState`·`getEntryStateByMessage`·`setPassHash`, `insert` 넷째 바인딩)** · 최종 갱신: 2026-10-08
 - 묶음: S1 = 스키마(4테이블 전부)·마이그레이션 `0001_init.sql`·읽기 함수. S2 = 방 생성·이름 변경·연쇄 삭제, 메시지 추가·수정·삭제, 레이트리밋 카운터(§2.1의 "S2" 표시). S3 = speak 잠금 선점·해제, 메시지 단건 조회, 장기기억 summary 읽기(§2.3 — **마이그레이션 없음**). S4용은 §2.2에 예정 시그니처만. S3b = 월 AI 사용량 누적 `llm_usage`(§2.4 — **마이그레이션 `0002_llm_usage.sql`**, R-LLM-007 🔒).
 - 관련 문서: [env.md](env.md)(`DB` 바인딩), [index.md](index.md)(`createDb` 호출 지점), [rooms.md](rooms.md), [messages.md](messages.md), [auth.md](auth.md)(레이트리밋).
 
@@ -1150,10 +1150,145 @@ ALTER TABLE character_settings ADD COLUMN llm_model TEXT
 | D-DB-33 | `getModel`을 `get`과 별도 SQL로 | 공장(`llm()`)이 요청마다 부른다. 본체 JSON(최대 20만 자)을 읽지 않아 D1 응답이 작다 |
 | D-DB-34 | "유지"를 `COALESCE(excluded.llm_model, character_settings.llm_model)` 한 문장으로 | 읽고-쓰기 2문장은 사이에 다른 저장이 끼면 값이 뒤섞인다. 1문장이면 원자적이다 |
 
+## 15. S6 — `rooms.pass_hash` · 입장 상태 조회 (R-DB-001 🔒 개정 L14 · R-LOCK-001·003·006·007·009)
+
+- 상태: 초안(2026-10-08, 승인 ① 완료). 근거 `s6-02-전반설계.md` §1·§3·§7·§12·§13, `s6-03-인계패킷.md` §1.1·§1.3.
+- 결론: 칸 1개 추가(0005), 목록·요약 SELECT에 `locked` 투영 1줄, 관문·입장용 조회 2종, 설정·해제 batch 1종. `rate_limits`는 그대로 재사용한다. 해시는 db 밖으로 `RoomEntryState`(rooms 전용)로만 나가고 `RoomSummary`에는 없다.
+
+### 15.1 공개 API 델타 (`server/src/db/rooms.ts`·`types.ts`)
+
+```ts
+export type RoomEntryState = { roomId: string; passHash: string | null }
+
+export type RoomsRepo = {
+  // … listSummaries · exists · touchStmt · updateTitle · deleteCascade · acquireSpeakLock · releaseSpeakLock 불변(요약에 locked 추가)
+  /** S6: 넷째 바인딩 pass_hash. 생략(undefined) = NULL — 기존 호출 무수정 */
+  insert: (room: { id: string; title: string; nowMs: number; passHash?: string | null }) => Promise<void>
+  /** S6. 방 PK 1행 → { roomId, passHash }. 방이 없으면 null */
+  getEntryState: (roomId: string) => Promise<RoomEntryState | null>
+  /** S6. 메시지 PK → 방 JOIN 1문장. 메시지가 없으면 null */
+  getEntryStateByMessage: (messageId: number) => Promise<RoomEntryState | null>
+  /** S6. batch[이전 상태 SELECT, UPDATE pass_hash, 요약 SELECT]. 방이 없으면 null. updated_at 은 건드리지 않는다 */
+  setPassHash: (roomId: string, passHash: string | null) => Promise<{ room: RoomSummary; wasLocked: boolean } | null>
+}
+
+// types.ts
+type RoomSummaryRow = { id; title; created_at; updated_at; message_count; locked: number }   // S6: locked 0 | 1
+type RoomEntryRow = { room_id: string; pass_hash: string | null }
+// toRoomSummary: … , locked: row.locked === 1
+```
+
+- `RoomSummary`(shared, contract-implementer가 `locked: boolean` 추가)는 여전히 `@shared/types` 재노출이다. `db/index.ts`는 `RoomEntryState`를 타입 재노출한다.
+
+### 15.2 SQL 상수 (`server/src/db/sql.ts`)
+
+```ts
+export const SQL_ROOMS_LIST_SUMMARIES = `SELECT r.id, r.title, r.created_at, r.updated_at,
+       (SELECT COUNT(*) FROM messages m WHERE m.room_id = r.id) AS message_count,
+       (r.pass_hash IS NOT NULL) AS locked
+FROM rooms r
+ORDER BY r.updated_at DESC, r.id ASC`
+
+export const SQL_ROOMS_SUMMARY_BY_ID = `SELECT r.id, r.title, r.created_at, r.updated_at,
+       (SELECT COUNT(*) FROM messages m WHERE m.room_id = r.id) AS message_count,
+       (r.pass_hash IS NOT NULL) AS locked
+FROM rooms r
+WHERE r.id = ?1`
+
+export const SQL_ROOMS_INSERT =
+  'INSERT INTO rooms (id, title, created_at, updated_at, pass_hash) VALUES (?1, ?2, ?3, ?3, ?4)'
+
+// ---- S6 ----
+export const SQL_ROOMS_ENTRY_STATE = 'SELECT id AS room_id, pass_hash FROM rooms WHERE id = ?1'
+
+export const SQL_ROOMS_ENTRY_STATE_BY_MESSAGE = `SELECT m.room_id AS room_id, r.pass_hash AS pass_hash
+FROM messages m JOIN rooms r ON r.id = m.room_id
+WHERE m.id = ?1`
+
+export const SQL_ROOMS_WAS_LOCKED = 'SELECT (pass_hash IS NOT NULL) AS was_locked FROM rooms WHERE id = ?1'
+
+export const SQL_ROOMS_SET_PASS_HASH = 'UPDATE rooms SET pass_hash = ?1 WHERE id = ?2'
+```
+
+- 바인딩: `insert` → `.bind(id, title, nowMs, passHash ?? null)`. `setPassHash` → `batch([WAS_LOCKED.bind(id), SET_PASS_HASH.bind(passHash, id), SUMMARY_BY_ID.bind(id)])`.
+- 해석: `row = results[2]?.results[0]` 가 `undefined`면 `null`(방 없음 — UPDATE 0행, 행이 생기지 않는다). 아니면 `{ room: toRoomSummary(row), wasLocked: results[0]?.results[0]?.was_locked === 1 }`.
+- `getEntryState`·`getEntryStateByMessage` → `.first<RoomEntryRow>()` → `null` 또는 `{ roomId: row.room_id, passHash: row.pass_hash }`.
+- 파라미터 바인딩만 쓴다(문자열 연결 없음). `SQL_ROOMS_UPDATE_TITLE`·`touch`류는 `pass_hash`를 건드리지 않는다.
+
+### 15.3 마이그레이션 `server/migrations/0005_room_password.sql` (신규 — 전문)
+
+```sql
+-- 0005_room_password.sql — 방 비밀번호 잠금 (R-LOCK-001·007·009 · R-DB-001 개정). 설계 doc/200_설계/server/db.md §15
+-- pass_hash: NULL = 잠기지 않음. 값 = 'pbkdf2-sha256$<반복 수>$<salt>$<유도값>'(server/src/rooms/password.ts). 비밀번호 원문은 어디에도 저장하지 않는다
+-- 기존 방은 NULL(잠기지 않음)로 남는다. 이관 없음. 인덱스 없음(PK 조회뿐)
+-- 되돌리기 경고: 이 마이그레이션 뒤 이전 코드로 되돌리면 이전 코드는 이 칸을 모르므로 잠긴 방이 모두 열린다. DROP COLUMN 금지
+ALTER TABLE rooms ADD COLUMN pass_hash TEXT
+  CHECK (pass_hash IS NULL OR length(pass_hash) BETWEEN 20 AND 200);
+```
+
+- 번호: 0004 다음 0005. `ALTER TABLE … ADD COLUMN`은 `IF NOT EXISTS`가 없어 손으로 재실행하면 실패한다 — `wrangler d1 migrations apply`만 쓴다(0004와 같은 규칙). CHECK는 기존 행(NULL)에 통과한다.
+- 테스트는 `server/test/apply-migrations.ts`가 `migrations/` 전체를 적용하므로 파일 추가만으로 반영된다.
+
+### 15.4 `rate_limits` 재사용 (스키마 변경 없음)
+
+- `mb_id` 칸의 뜻을 "레이트리밋 버킷 키"로 넓힌다: 회원 쓰기 = `mb_id` 그대로, 방 입장 = `enter:{roomId}`(auth `hitEnterLimit`, [auth.md](auth.md) §14.4). 칸 이름은 바꾸지 않는다(마이그레이션 회피). `SQL_RATE_LIMITS_HIT`·`PURGE_BEFORE` 불변 — 청소는 키와 무관하게 이전 창 전체를 지운다.
+
+### 15.5 배포 순서·되돌리기
+
+- **배포**: `npm run build` → `wrangler d1 migrations apply --remote`(0005) → `wrangler deploy`. 반대 순서면 새 코드의 목록·요약 SELECT가 "no such column: pass_hash"로 실패해 **E3부터 500**이다(02 §12).
+- **되돌리기**: 코드만 되돌리고 칸은 남긴다(`DROP COLUMN` 금지). 이전 코드는 `pass_hash`를 모르므로 **잠긴 방이 모두 열린다** — `/deploy` 되돌리기 절차에 경고 1줄, 실행 전 사용자 확인. 다시 새 코드를 올리면 저장된 해시로 잠금이 되살아난다.
+
+### 15.6 비용 (무료 플랜: 일 읽기 500만 행 · 쓰기 10만 행)
+
+| 호출 | 읽기 | 쓰기 |
+|---|---|---|
+| `getEntryState` | 1 | 0 |
+| `getEntryStateByMessage` | 2(메시지 PK + 방 PK) | 0 |
+| `setPassHash` | 1 + 요약(방 1 + 그 방 메시지 COUNT 인덱스 범위) | 1 |
+| `insert`(+`passHash`) | 0 | 1 |
+
+- 관문이 E5~E14·E18·E19마다 1회 붙는다 → 요청당 읽기 1~2행 증가. speak 1회 기준 읽기 +1(02 §14 "D1 PK 조회 1회").
+
+### 15.7 테스트 (`server/test/db.test.ts`에 추가 — workers pool D1)
+
+| ID | 대상 | 조건 | 기대 |
+|---|---|---|---|
+| SRV-T-395 | 0005 | 마이그레이션 적용 D1 | `PRAGMA table_info(rooms)`에 `pass_hash`(TEXT, notnull 0, 기본 NULL). 직접 UPDATE: 길이 19 → CHECK 실패 · 201 → 실패 · 20·200 → 성공 · NULL → 성공. 0005 전에 넣은 방식(칸 생략 INSERT) 행은 NULL |
+| SRV-T-396 | `locked` 투영 | NULL 방 · 해시 방 | `listSummaries`·`updateTitle` 결과 `locked` false/true, 키 집합 = `id,title,createdAt,updatedAt,messageCount,locked`(해시 없음) |
+| SRV-T-397 | 입장 상태 조회 | 없는 방 / 안 잠긴 방 / 잠긴 방 / 없는 메시지 / 잠긴 방의 메시지 | `null` / `{roomId, passHash: null}` / `{roomId, passHash}` / `null` / `{roomId: 그 방, passHash}` |
+| SRV-T-398 | `setPassHash` | 없는 방 / NULL → 해시 / 해시 → 다른 해시 / 해시 → NULL / NULL → NULL. 방 `updated_at` 100, 메시지 2 | `null`(행 생성 없음) / `wasLocked:false, locked:true` / `true, true` / `true, false` / `false, false`. 매번 `updatedAt === 100`, `messageCount 2` |
+| SRV-T-399 | `insert` 넷째 바인딩 | `passHash` 있음 / 생략 | 저장값 그대로 / NULL |
+
+- 기존 테스트 영향: SRV-T-024·025(목록 필드)와 SRV-T-122(`updateTitle` 반환)의 `toEqual`에 `locked: false`. `RoomsRepo`를 `satisfies`로 직접 구현한 가짜는 없다(`app.test.ts` `trap`은 Proxy, 그 밖은 `as unknown as Db` 캐스팅 — S4 파급 문단 기준). `server/test/helpers.ts` `insertRoom`이 칸을 생략하면 NULL이라 무수정.
+
+### 15.8 요구 추적
+
+| 요구 | 반영 | 테스트 | 상태 |
+|---|---|---|---|
+| R-DB-001 🔒 개정(L14) | §15.3 0005 | SRV-T-395 | 설계 ✅ |
+| R-LOCK-001 🔒 | `insert` 넷째 바인딩(1문장 원자) | SRV-T-399 | 설계 ✅ |
+| R-LOCK-003 🔒 | `locked` 투영 | SRV-T-396 | 설계 ✅ |
+| R-LOCK-006 🔒 | `getEntryState`·`ByMessage` | SRV-T-397 | 설계 ✅ |
+| R-LOCK-002·004 🔒 | `setPassHash` | SRV-T-398 | 설계 ✅ |
+| R-LOCK-007 🔒 | 해시만 저장·`RoomSummary` 미노출 | SRV-T-396 | 설계 ✅ |
+| R-LOCK-009 🔒 | NULL 기본·칸 추가만 | SRV-T-395·399 | 설계 ✅ |
+
+### 15.9 설계 결정
+
+| ID | 결정 | 대안·근거 |
+|---|---|---|
+| D-DB-35 | `locked`는 칸이 아니라 SELECT 투영 | 칸을 따로 두면 해시와 어긋날 수 있다 |
+| D-DB-36 | 메시지 대상 조회를 JOIN 1문장으로 | 메시지 → 방 2왕복을 1왕복으로. 메시지가 있으면 방은 FK상 있다 |
+| D-DB-37 | `setPassHash` batch 첫 문장으로 이전 상태를 읽는다 | 로그 `wasLocked`. batch는 한 트랜잭션이라 사이에 다른 쓰기가 끼지 않는다 |
+| D-DB-38 | 입장 상한은 `rate_limits` 재사용(키 접두사) | 새 테이블·마이그레이션 없이 같은 UPSERT·청소를 쓴다(02 §5) |
+
+파급(S6 공개 API 변경): `RoomsRepo`에 3함수 추가, `insert` 인자에 선택 필드 1개, `RoomSummary` 행·도메인에 `locked`. 호출자: `server/src/rooms/service.ts`·`entry.ts`(신규)만. `Db` 필드 증감 없음.
+
 ## 변경 이력
 
 | 날짜 | 내용 |
 |---|---|
+| 2026-10-08 | S6 설계(§15, 승인 ① 완료): 마이그레이션 `0005_room_password.sql`(`ALTER TABLE rooms ADD COLUMN pass_hash TEXT CHECK(NULL 또는 길이 20~200)` — 이관 없음·되돌리기 경고), 목록·요약 SELECT `(r.pass_hash IS NOT NULL) AS locked`, `insert` 넷째 바인딩(선택), `getEntryState`·`getEntryStateByMessage`(JOIN 1문장)·`setPassHash`(batch 3문장·`wasLocked`), `rate_limits.mb_id` = 버킷 키(`enter:{roomId}`) 의미 확장(스키마 불변), 배포 순서(0005 먼저 — 아니면 E3 500)·되돌리기(잠긴 방이 열림), SRV-T-395~399, D-DB-35~38 |
 | 2026-10-08 | S3f 설계(§14, 승인 ① 완료): 마이그레이션 `0004_llm_model.sql`(`ALTER TABLE character_settings ADD COLUMN llm_model TEXT CHECK(NULL 또는 길이 1~20)` — 키만, 목록은 코드 판정), `SQL_CHARACTER_SETTINGS_GET`에 `llm_model`, UPSERT 넷째 바인딩 + `COALESCE(excluded.llm_model, character_settings.llm_model)` + `RETURNING … llm_model`, `SQL_CHARACTER_SETTINGS_MODEL_GET`·`getModel`, 행 타입 3종, 배포 순서(마이그레이션 먼저 — 아니면 speak 500). SRV-T-347~349, D-DB-32~34 |
 | 2026-10-07 | R-MEM-001 🔒 개정 동기화(사용자 지정 "다시요약", 소스 기준 `server/src/db/{sql,memory}.ts`): §13.1 `putSummary` 주석(빈 요약이면 source 0 리셋), §13.2 `SQL_MEMORY_PUT_SUMMARY`를 실물 SQL(`source_until_id = CASE WHEN excluded.summary = '' THEN 0 ELSE memory.source_until_id END`)로 교체·설명 1줄, §13.5 SRV-T-331, §13.6 추적, D-DB-31. 시그니처·마이그레이션 변경 없음 |
 | 2026-10-07 | S4 설계(§13): `MemoryRepo`에 `getState`·`putSummary`·`advance`(조건부 UPSERT 낙관적 잠금), `MessagesRepo`에 `countAfter`(상한 있는 COUNT)·`listAfter`(오름차순), 타입 `MemoryRecord`·`MemorySnapshot`, SQL 상수 5개 전문, 결과 해석, SRV-T-322~325, D-DB-26~29. 마이그레이션 없음(0004 미사용) |

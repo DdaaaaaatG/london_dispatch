@@ -1,6 +1,6 @@
 # messages 모듈 설계
 
-- 상태: S1 확정(구현 동기화) · S2 초안 · S3 초안(§2.3·§4.2·§4.3·§8.2) · S3b 초안(§4.2 예산 게이트·§8.3) · S3c 구현 완료(§4.4·§8.4) · **S3d 구현 완료(2026-10-06, server 343/343, SRV-T-261~281 · §12 speak `'auto'` — 앞 절과 다르면 §12가 우선 · R-LLM-008 개정(이름 지목·선택 15초) 설계 반영)** · verify 후속 동기화(2026-10-07 — §12.2·§12.3 `pick` 반환 구조, §4.4·§8.4 SRV-T-292, §5 S3-R1·§9 S3-R2 문구) · **S4 초안(2026-10-07, §13 afterSpeak 훅 본체 = memory.summarizeIfNeeded · 등록 실패 삼킴 — 시그니처 불변)** · **S3f 설계 초안(2026-10-08, §14 `llm: () => Promise<Llm>` · `await deps.llm()` 한 줄씩 — 판정 순서 불변, SRV-T-355)** · 최종 갱신: 2026-10-08
+- 상태: S1 확정(구현 동기화) · S2 초안 · S3 초안(§2.3·§4.2·§4.3·§8.2) · S3b 초안(§4.2 예산 게이트·§8.3) · S3c 구현 완료(§4.4·§8.4) · **S3d 구현 완료(2026-10-06, server 343/343, SRV-T-261~281 · §12 speak `'auto'` — 앞 절과 다르면 §12가 우선 · R-LLM-008 개정(이름 지목·선택 15초) 설계 반영)** · verify 후속 동기화(2026-10-07 — §12.2·§12.3 `pick` 반환 구조, §4.4·§8.4 SRV-T-292, §5 S3-R1·§9 S3-R2 문구) · **S4 초안(2026-10-07, §13 afterSpeak 훅 본체 = memory.summarizeIfNeeded · 등록 실패 삼킴 — 시그니처 불변)** · **S3f 설계 초안(2026-10-08, §14 `llm: () => Promise<Llm>` · `await deps.llm()` 한 줄씩 — 판정 순서 불변, SRV-T-355)** · **S6 확인(2026-10-08, §15 — 잠긴 방 접근은 라우트 관문이 서비스 호출 전에 판정, 시그니처·코드 불변)** · 최종 갱신: 2026-10-08
 - 묶음: S1 = R-MSG-001(히스토리 페이지). S2 = R-MSG-002(유저 발화·지시 저장) · R-MSG-004(수정) · R-MSG-005(삭제) · R-MSG-008(권한). S3 = R-MSG-003·006·007(speak·regenerate·방당 잠금) · R-ROOM-005(재작성 갱신) · R-NFR-001·003 · R-MEM-002(훅 자리만, S3 no-op). S3b = R-LLM-007 🔒 월 예산 게이트(speak·regenerate 잠금 전 `llm.ensureBudget()` — 사용량 누적은 llm 안, [llm.md](llm.md) §12).
 - 관련 문서: [db.md](db.md)(`messages` 저장소), [rooms.md](rooms.md)(`updated_at` 갱신 규칙), [auth.md](auth.md)(`Principal`·쓰기 미들웨어), [index.md](index.md)(서비스 컨테이너·에러 핸들러), [llm.md](llm.md)(S3 프롬프트·제공사·재시도).
 
@@ -940,10 +940,16 @@ regenerate: (기존 앞단 검증) → await llm() → ensureBudget → 잠금 �
 | D-MSG-31 | `await deps.llm()`을 기존 `deps.llm()` 자리에 그대로 둔다 | 잠금 안으로 옮기면 D1 오류 때 잠금 해제 경로가 늘고 409 판정보다 늦어진다. 앞에 두면 실패가 잠금 전에 닫힌다 |
 | D-MSG-32 | messages는 모델 키를 받지 않는다 | 모델·단가 해석은 공장 한 곳(D-IDX-18). messages가 알면 해석이 두 곳에 갈라진다 |
 
+## 15. S6 — 잠긴 방 관문 (R-LOCK-006 🔒 · L7 R-MSG-001~006 개정)
+
+- **잠긴 방 접근은 라우트 관문(`requireRoomEntry`, [auth.md](auth.md) §14.3)이 서비스 호출 전에 판정한다. messages 서비스 시그니처·코드·테스트는 불변이다.** E7·E8·E9는 `'room'`, E10·E11·E12는 `'message'` 대상이며, 관문을 통과한 요청만 `listMessages`·`addUserMessage`·`speak`·`editMessage`·`deleteMessage`·`regenerate`에 닿는다. 관문 경로 전수 테스트는 contract 라우트 테스트(API-T) 몫이다.
+- speak 진행 중(`speaking_until`)에 잠금 설정·변경·해제가 와도 서로 막지 않는다 — 생성 결과 저장은 방 존재만 본다. 잠금이 바뀐 뒤의 다음 요청부터 새 증명이 필요하다([rooms.md](rooms.md) §12.5).
+
 ## 변경 이력
 
 | 날짜 | 내용 |
 |---|---|
+| 2026-10-08 | S6 확인(§15): 잠긴 방 접근은 라우트 관문이 서비스 호출 전에 판정 — `MessagesService`·`MessagesDeps`·`GenerateDeps` 시그니처·코드·테스트 불변. 관문 대상(E7~E9 room · E10~E12 message), speak 잠금과 비밀번호 잠금은 서로 독립 |
 | 2026-10-08 | S3f 설계(§14, 승인 ① 완료): `MessagesDeps`·`GenerateDeps.llm` `() => Llm` → `() => Promise<Llm>`, `generate.ts` speak·regenerate `await deps.llm()` 두 줄, 판정 순서 불변(공장 실패는 잠금 앞). 기존 테스트 감싸기(65·224·561·707행)·`fallbackModelKey`(754·810행). SRV-T-355, D-MSG-31·32 |
 | 2026-10-07 | S4 설계(§13): `afterSpeak` 훅 본체를 컨테이너가 `memory.summarizeIfNeeded`로 연결(messages는 memory를 import하지 않음), `generate.ts`의 `background.waitUntil` 등록을 try/catch로 감싸 `after_speak_schedule_failed`(warn), 훅 위치(잠금 해제 뒤)·regenerate 훅 없음 유지 확인, SRV-T-326, D-MSG-29·30. `GenerateDeps`·`MessagesDeps`·`MessagesService` 시그니처 불변 |
 | 2026-10-07 | verify 후속 동기화(소스 기준, SRV-001·SRV-003·S3-R1·S3-R2): §12.2 `pick` 반환 구조 문단, §12.3 흐름 ⑤·⑦ 뒤 `return { saved, pick }`, §4.4 실패 문단·§8.4 SRV-T-292(설정 읽기 실패 시 잠금 해제), §5 `character` 위반 행(실물 문구·HTTP 미도달)·S3-R1 메모, §9 메시지 id 10진 규칙(S3-R2), §10.1. 공개 API 변경 없음 |
