@@ -1,6 +1,7 @@
 # API 계약 (api.md)
 
-- 상태: **초안 v0.9** · 최종 갱신 2026-10-08 · 소유 contract-designer
+- 상태: **초안 v0.9.1** · 최종 갱신 2026-10-08 · 소유 contract-designer
+- (v0.9.1) 2026-10-08 밤 글쓰기 등급 10 → **2**(🔒 사용자 결정 · 지인 요청). 갠홈 PHP `RB_CHATBOT_LEVEL` = 서버 `TOKEN_MIN_LEVEL` 운영값 양쪽 2(서버 설정은 메인 반영 cf0dc56, 배포는 S6과 함께). 열람 등급 `RB_CHATBOT_VIEW_LEVEL` 2 그대로 → 등급 2 이상 회원은 모두 토큰을 받아 글쓰기, 관리자(10)는 여기에 주인 권한(설정·S6 잠긴 방 프리패스 — `OWNER_MB_IDS` 판정, 등급 무관)이 더해진다. PHP 3갈래 중 「읽기 전용」 갈래는 지금 값에서 비어 있다. §2.3 6단계 · §2.6 표 · §2.8 권한 행 · §7 행 · §9. 서버 코드·엔드포인트·타입·에러 코드·토큰 형식·`?t=` 불변. 저쪽은 새 완성 파일 1회 덮어쓰기(`RB_CHATBOT_LEVEL` 한 줄).
 - (v0.9) **S6 상세 확정**(구현 전) = 방 비밀번호 잠금. 신규 E17 `POST /api/rooms/:id/enter`(입장, 토큰 선택, §4.19) · E18 `PUT /api/rooms/:id/password`(잠금 설정·변경, §4.20) · E19 `DELETE /api/rooms/:id/password`(잠금 해제, §4.21) · E4 확장(본문 `password?`, 응답 `CreateRoomResponse` = `RoomSummary & { entryKey }`, §4.6) · `RoomSummary.locked`(E3·E4·E5·E18·E19, §4.2) · 방 입장 증명 규약(헤더 `X-Room-Key` 전용·형식 `e1.`·만료 없음·무효 조건 3·화면 `ld:roomKeys` 보관·관문 적용 표·주인 프리패스, §2.8) · 에러 코드 16·17종째 `ROOM_LOCKED`·`ROOM_PASSWORD_WRONG`(둘 다 403, `isAuthFailure` 제외, §3.2) · 방 단위 입장 시도 상한(`ROOM_ENTER_LIMIT_PER_MIN` 기본 5, §6.2) · §5.10 shared 추가분 · §11.18 · §12.8(틀) · §13.8 · §14.22 · §15.16 · 「ui 인계 메모」 S6 · 「contract-implementer 인계 목록」 S6. 엔드포인트 16 → 19 · 에러 코드 15 → 17 · `PATHS` 11 → 13. 토큰 형식·`?t=`·PHP 조각 불변 → **저쪽 재배포 없음**. 분류는 전부 추가(비파괴)이고 E5~E14의 "잠긴 방이면 403"은 의미 추가(기존 방은 모두 잠기지 않음, R-LOCK-009). 입력: `doc/200_설계/architecture/s6-02-전반설계.md` §1~§5·§7·§8·§10·§12, `s6-03-인계패킷.md` §1.2·§2, 사용자 결정 2026-10-08 저녁(🔒 비밀번호 4~32자 · 방마다 분당 5회 · 주인 프리패스 · 비주인 쓰기 권한자는 증명 보유 방만 E18·E19 · 잠긴 방 목록 날짜 숨김은 화면 몫).
 - (v0.8.2) 2026-10-08 저녁 등급 개편(🔒 사용자 결정, 갠홈 등급: 방문자·가입만 1 이하 / 일반 회원 2 / 관리자 10). 글쓰기(토큰 발급) 등급 5 → **10**(갠홈 PHP `RB_CHATBOT_LEVEL` = 서버 `TOKEN_MIN_LEVEL`, 양쪽 10) · 열람 등급 **2**(`RB_CHATBOT_VIEW_LEVEL`, 갠홈 PHP만 앎 — 미만·비로그인은 PHP가 임베드 주소를 비워 iframe을 띄우지 않고 패널 자리표시에 가입 안내). §2.3 검증 6단계 운영값 · §2.6 PHP 분기 · §7 행 · §9. 서버 코드·엔드포인트·타입·에러 코드·토큰 형식·`?t=` 불변. 저쪽은 새 완성 파일 1회 덮어쓰기(조각 + 자리표시 3줄).
 - (v0.8.1) 2026-10-08 운영 배포 반영(§7 운영 주소 행 · §8 전달 방식 메모 · §9). 운영 주소 `https://london-dispatch.pora.workers.dev`(임베드 `…/embed`). 갠홈 전달은 완성 `rosebell-chatbot.php` 1개 카톡 덮어쓰기로 바뀌고(1회성 링크 폐기), Cloudflare 접근은 사용자 직접 로그인. 계약 내용(엔드포인트·타입·에러 코드·토큰 형식·PHP 조각 코드) 변경 없음.
@@ -206,7 +207,7 @@ type TokenPayload = {
 | 3 | **서명**: Web Crypto HMAC-SHA256 계산 후 상수시간 비교(`timingSafeEqual`) | `401 TOKEN_INVALID` |
 | 4 | UTF-8(fatal) → `JSON.parse` → payload 스키마(위 표). 서명 전에는 JSON을 해석하지 않는다 | `401 TOKEN_INVALID` |
 | 5 | **만료**: `nowMs < exp × 1000`일 때만 유효(같으면 만료). 시계 여유 없음 | `401 TOKEN_INVALID` |
-| 6 | **등급**: `level >= TOKEN_MIN_LEVEL`(코드 기본 5, `wrangler.toml [vars]`. (v0.8.2) **운영값 10** — 2026-10-08 저녁 사용자 결정, 갠홈 PHP `RB_CHATBOT_LEVEL`과 같은 값) | `403 LEVEL_TOO_LOW` |
+| 6 | **등급**: `level >= TOKEN_MIN_LEVEL`(코드 기본 5, `wrangler.toml [vars]`. (v0.9.1) **운영값 2** — 2026-10-08 밤 사용자 결정(이전 10, v0.8.2), 갠홈 PHP `RB_CHATBOT_LEVEL`과 같은 값) | `403 LEVEL_TOO_LOW` |
 
 - 응답 문구는 실패 단계와 무관하게 코드별 기본 문구 하나다(§3.2). 어느 단계에서 실패했는지 응답에 싣지 않는다.
 - 만료가 등급보다 먼저다. 만료된 저등급 토큰은 `TOKEN_INVALID`다.
@@ -271,16 +272,16 @@ V7  eyJtYl9pZCI6InRlc3RlcjAxIiwibmljayI6Ilx1ZDE0Y1x1YzJhNFx1ZDEzMCIsImNoX25hbWUi
 - `doc/handoff/token-snippet.php.md`는 **이 절(§2.2·§2.3·§2.5)을 따른다.** 붙일 위치는 `theme/victorian/inc/rosebell-chatbot.php`, iframe src는 `$rb_chatbot_embed_url . '?t=' . $token`이다(R-TOKEN-001).
 - PHP 조각이 지킬 것: 로그인 회원이고 `$member['mb_level'] >= LEVEL`일 때만 발급, `level`은 `(int)` 캐스트, `exp = time() + 43200`, `ch_name` 키는 값이 없어도 `''`로 넣는다, 권장 플래그 `JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES`, base64url 무패딩, 비회원·저등급이면 `?t=` 없이 임베드 주소만.
 - 이 절의 형식·payload 필드·`?t=` 이름을 바꾸면 저쪽 PHP 재적용이 필요한 **파괴 변경**이다(§8·§13).
-- (v0.8.2, 2026-10-08 저녁 🔒 사용자 결정) PHP 조각은 보는 사람 등급으로 **세 갈래**를 나눈다. 비로그인이면 등급 0으로 본다(`$is_member` 비어 있음).
+- (v0.8.2, 2026-10-08 저녁 🔒 사용자 결정) PHP 조각은 보는 사람 등급으로 **세 갈래**를 나눈다. 비로그인이면 등급 0으로 본다(`$is_member` 비어 있음). (v0.9.1) 지금 값은 `RB_CHATBOT_VIEW_LEVEL` = `RB_CHATBOT_LEVEL` = 2라 가운데 갈래는 비어 있다.
 
 | 보는 사람 | PHP 조각 | iframe | 서버가 보는 것 |
 |---|---|---|---|
 | 비로그인 · `mb_level < RB_CHATBOT_VIEW_LEVEL`(2) | `$rb_chatbot_embed_url = ''` + 패널 자리표시 문구를 가입 안내로(`$rb_chatbot_notice_title/body/small`) | 만들지 않는다(테마 JS가 빈 주소면 생략) | 요청 없음 |
-| 2 이상 `RB_CHATBOT_LEVEL`(10) 미만 | 주소만(`?t=` 없음) | 읽기 전용 | 토큰 없는 읽기(§2.1) |
-| 로그인 · `mb_level >= RB_CHATBOT_LEVEL`(10) | 토큰 발급 → `?t=` 부착(조건·형식은 위 bullet 그대로) | 글쓰기 가능 | §2.3 검증, `TOKEN_MIN_LEVEL` 10 |
+| `RB_CHATBOT_VIEW_LEVEL` 이상 `RB_CHATBOT_LEVEL` 미만 | 주소만(`?t=` 없음) | 읽기 전용 | 토큰 없는 읽기(§2.1). (v0.9.1) 지금 값(둘 다 2)에서는 해당 회원 없음 — `LEVEL` > `VIEW_LEVEL`일 때만(예: PHP LEVEL > 서버 값). SECRET을 안 채운 완성 파일이면 2 이상 전원이 이 모습 |
+| 로그인 · `mb_level >= RB_CHATBOT_LEVEL`(2) | 토큰 발급 → `?t=` 부착(조건·형식은 위 bullet 그대로) | 글쓰기 가능(등급 2 이상 전원) | §2.3 검증, `TOKEN_MIN_LEVEL` 2 |
 
 - 열람 등급(`RB_CHATBOT_VIEW_LEVEL`)은 **갠홈 PHP만** 안다. 토큰 payload·서명·`?t=`·서버 설정에 들어가지 않으므로 이 분기는 토큰 형식 변경이 아니다(파괴 변경 아님). 서버 `/embed`·읽기 엔드포인트는 계속 토큰 없이 열린다(§2.1, R-AUTH-003) — 갠홈 패널의 표시 제한이지 서버 접근 통제가 아니다.
-- `RB_CHATBOT_LEVEL`과 `TOKEN_MIN_LEVEL`은 같은 값(10)이어야 한다. 어긋날 때의 결과는 handoff `token-snippet.php.md` §3. 조각 전문·조립 순서(자리표시 3줄 치환 포함)는 같은 문서 §1·§2가 원문이다.
+- `RB_CHATBOT_LEVEL`과 `TOKEN_MIN_LEVEL`은 같은 값(2, v0.9.1)이어야 한다. 어긋날 때의 결과는 handoff `token-snippet.php.md` §3. 조각 전문·조립 순서(자리표시 3줄 치환 포함)는 같은 문서 §1·§2가 원문이다.
 
 ### 2.7 설정 엔드포인트 예외·주인 판정 (S3c 확정 — R-AUTH-003 🔒 개정 · R-SET-001 🔒 · R-SET-004 🔒 · R-SET-010)
 
@@ -368,7 +369,7 @@ V7  eyJtYl9pZCI6InRlc3RlcjAxIiwibmljayI6Ilx1ZDE0Y1x1YzJhNFx1ZDEzMCIsImNoX25hbWUi
 | E7(읽기) | 주인 판정 없음(토큰을 보지 않는다, §2.1). 화면은 토큰이 있으면 잠긴 방을 열기 전에 E17을 비밀번호 없이 먼저 부르고(s6-02 §6.1 ③), 받은 증명으로 E7을 부른다 |
 | 주인 정의 | §2.7과 같다(`mbId ∈ OWNER_MB_IDS`, 등급 통과 토큰). 목록이 비면 프리패스 없음 |
 | 화면 | 주인 여부(E15 탐침 결과)를 이 흐름에 쓰지 않는다. "주인이면 통과"는 서버 한 곳이 판정한다 |
-| 비주인 쓰기 권한자 | 증명을 가진(= 비밀번호를 아는) 잠긴 방만 바꾸거나 풀 수 있다(E18·E19, 사용자 결정 Q4) |
+| 비주인 쓰기 권한자(등급 2 이상 회원) | 증명을 가진(= 비밀번호를 아는) 잠긴 방만 바꾸거나 풀 수 있다(E18·E19, 사용자 결정 Q4) |
 
 #### 2.8.5 E17의 토큰 선택 규칙 (`optionalToken` — R-AUTH-003 개정 L3)
 
@@ -2354,7 +2355,7 @@ export const ROOM_KEY_MAX_LENGTH = 128
 | 로컬 개발 | Vite(5173)가 `/embed/`를 서빙하고 `/api`를 Worker(3000)로 프록시. CSP 확인은 `wrangler dev`·운영에서 | index.md §9.4 |
 | 라우트 금지 | routes는 CSP·`X-Frame-Options`를 다루지 않고 `hono/secure-headers`·`hono/cors`·`hono/logger`를 쓰지 않는다 | index.md §9.1 |
 | `?t=` (S2) | 서버는 읽지 않는다. 화면 `ui/src/state/token.ts`가 시작 시 한 번 읽어 메모리에 둔다(§2.4). 파라미터 이름 `t`는 저쪽 PHP와의 계약이다 | R-API-003 · R-CHAT-009 · R-TOKEN-001 |
-| 갠홈 패널 표시 분기 (v0.8.2) | 갠홈 PHP가 등급으로 정한다(§2.6 표): 비로그인·등급 2 미만 → 임베드 주소를 비워 **iframe 없음** + 패널 자리표시에 가입 안내(「회원 전용」, 문구는 handoff 소유) / 2 이상 10 미만 → `/embed`(읽기 전용) / 10 이상 → `/embed?t=…`. 서버·`/embed`·CSP는 이 분기를 모르고 바뀌지 않는다. `/embed` 주소를 직접 여는 사람은 등급과 무관하게 읽기 전용으로 본다 | 2026-10-08 저녁 사용자 결정 🔒 · R-TOKEN-001 · R-HANDOFF-001·002 |
+| 갠홈 패널 표시 분기 (v0.8.2) | 갠홈 PHP가 등급으로 정한다(§2.6 표): 비로그인·등급 2 미만 → 임베드 주소를 비워 **iframe 없음** + 패널 자리표시에 가입 안내(「회원 전용」, 문구는 handoff 소유) / 2 이상 → `/embed?t=…`(v0.9.1 — 글쓰기 등급 = 열람 등급 = 2라, 토큰 없는 `/embed`(읽기 전용) 갈래는 `LEVEL` > `VIEW_LEVEL`일 때만 쓰인다). 서버·`/embed`·CSP는 이 분기를 모르고 바뀌지 않는다. `/embed` 주소를 직접 여는 사람은 등급과 무관하게 읽기 전용으로 본다 | 2026-10-08 저녁 사용자 결정 🔒 · 밤 개정(글쓰기 2) 🔒 · R-TOKEN-001 · R-HANDOFF-001·002 |
 
 ---
 
@@ -2416,6 +2417,7 @@ export const ROOM_KEY_MAX_LENGTH = 128
 | v0.8.2 | 2026-10-08 | 등급 개편(🔒 사용자 결정, 갠홈 등급 1 이하 / 2 / 10). 글쓰기 등급 5 → 10(PHP `RB_CHATBOT_LEVEL` = 서버 `TOKEN_MIN_LEVEL` 운영값, §2.3 6단계) · PHP 조각 3갈래 분기 신설(`RB_CHATBOT_VIEW_LEVEL` 2 — 미만·비로그인은 주소를 비워 iframe 없음 + 패널 가입 안내, §2.6 · §7). handoff `token-snippet.php.md` §1 조립 순서(자리표시 3줄 치환 추가, 조립 뒤 88줄)·§2 조각 전문(55줄)·§2.1·§3·§6·§7, `embed-guide.md` §1·§4·§5.1·§6(세 등급 확인표), `secret-handover.md` §2, `cloudflare-setup.md` §6·§10. 서버 코드·엔드포인트·타입·에러 코드·토큰 형식(payload·서명·`?t=`)·교차 벡터 불변 | 비파괴(계약 값 변경 — 등급 운영값, 서버 설정만. 토큰 형식 불변) | **예 — 새 완성 파일 1회 덮어쓰기**(조각 + 자리표시 3줄. 토큰 형식 변경이 아니라 등급·열람 분기 때문) |
 | v0.9 | 2026-10-08 | S6 상세 확정(방 비밀번호 잠금, 승인 ① 2026-10-08 저녁 — R-LOCK-001~009 contract 몫 · 개정 L1 R-API-001 16→19 · L2 R-API-002 15→17 · L3 R-AUTH-003 · L4~L6 R-ROOM-001~004 · L7 R-MSG-001~006·R-MEM-001 · L12 R-CHAT-010). §2.8 방 입장 증명(`e1.` 불투명 문자열·헤더 `X-Room-Key` 전용·만료 없음·무효 조건 3·`ld:roomKeys`·토큰 보관 불변)·관문 적용 표·주인 프리패스·E17 `optionalToken`, §2.1 행, §3.1·§3.2 `ROOM_LOCKED`·`ROOM_PASSWORD_WRONG`(403, `isAuthFailure` 제외), §4.0 E17~E19, §4.2 `locked`, §4.3 E7 관문, §4.5 공통 관문·에러 행·권한 보충, §4.6 E4 `password?`·`CreateRoomResponse`, §4.19 E17(판정 7단계)·§4.20 E18·§4.21 E19, §5.10 shared(타입 6·코드 2·경로 2·헤더 상수·길이 상수 4), §6.1 S6 행·§6.2 입장 시도 상한(방 단위·해시 앞·주인 미계수, `ROOM_ENTER_LIMIT_PER_MIN` 기본 5), §8, §10, §11.18, §12.8(틀), §13.8, §14.22, §15.16, 인계 2종 S6. handoff 두 줄(`secret-handover.md` §6 · `cloudflare-setup.md` §6) | 추가(엔드포인트 3·응답 필드 2·선택 본문 필드 1·선택 헤더 1·에러 코드 2·경로 2) + E5~E14 의미 추가(잠긴 방만 403 — 기존 방은 모두 잠기지 않음, R-LOCK-009). HTTP 파괴 0. ui/api 래퍼 3개(`editMessage`·`deleteMessage`·`regenerate`)에 필수 인자 `roomId` 추가 = ui 내부 호출부 수정(§13.8) | **아니오**(PHP 조각·토큰·`?t=`·임베드 주소 불변) |
 | v0.9 구현 | 2026-10-08 | S6 8단계 contract 몫 구현 반영: routes `createRoomBody`·`enterRoomBody`·`setRoomPasswordBody`·`ROOM_PASSWORD_BODY_MAX_BYTES`, E17·E18·E19 라우트, E4 `CreateRoomResponse`, 관문 한 줄(E5~E14), ui/api `getRoomKey`·`roomId` 옵션·`enterRoom`·`setRoomPassword`·`clearRoomPassword`·메시지 id 래퍼 마지막 인자 `roomId`. §12.8 실물 대조 완료. 미해결: server `requireRoomEntry('message')` 비숫자 id 500(§12.8 결함 1건) | 변경 없음(구현 반영). 메시지 id 래퍼 시그니처 변경은 v0.9 파괴로 이미 분류됨 | 아니오 |
+| v0.9.1 | 2026-10-08 | 글쓰기 등급 10 → 2(🔒 사용자 결정 2026-10-08 밤 · 지인 요청). §2.3 6단계 운영값 2(서버 `TOKEN_MIN_LEVEL` 메인 반영 cf0dc56, 배포는 S6과 함께) · §2.6 3갈래 표(가운데 「읽기 전용」 갈래는 지금 값에서 비어 있음 — `LEVEL` > `VIEW_LEVEL`일 때만) · §2.8 비주인 쓰기 권한자 = 등급 2 이상 회원 · §7 패널 분기 행. 열람 등급 `RB_CHATBOT_VIEW_LEVEL` 2 그대로. 주인 권한(설정·S6 프리패스)은 `OWNER_MB_IDS` 판정이라 불변. handoff `token-snippet.php.md` 머리말·머리 표·§1 5번·§2 조각(`RB_CHATBOT_LEVEL` 2)·§2.1·§3·§6·§7, `embed-guide.md` §1·§4·§6, `secret-handover.md` §2 4·7번, `cloudflare-setup.md` §6·§10. 서버 코드·엔드포인트·타입·에러 코드·토큰 형식(payload·서명·`?t=`)·교차 벡터 불변 | 비파괴(운영값 변경 — 서버 설정과 PHP 상수만. 토큰 형식 불변) | **예 — 새 완성 파일 1회 덮어쓰기**(`RB_CHATBOT_LEVEL` 한 줄. 서버 배포와 같은 때) |
 
 ---
 

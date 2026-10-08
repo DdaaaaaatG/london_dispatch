@@ -1,6 +1,6 @@
 # Cloudflare·Google 셋팅 안내
 
-> 실값 없음 · 작성 2026-10-07 · 갱신 2026-10-08(AI 모델 선택) · 갱신 2026-10-08(직접 로그인 방식·셋팅·배포 완료 표시·운영 주소) · 갱신 2026-10-08 저녁(§6 `TOKEN_MIN_LEVEL` 10 · §10 확인 등급) · 소유 contract-designer · 근거 확정사항 §6·§9-8, R-ENV-002 🔒 · R-SET-001 🔒 · R-LLM-007 🔒 · R-LLM-009 🔒 · R-API-006 🔒
+> 실값 없음 · 작성 2026-10-07 · 갱신 2026-10-08(AI 모델 선택) · 갱신 2026-10-08(직접 로그인 방식·셋팅·배포 완료 표시·운영 주소) · 갱신 2026-10-08 저녁(§6 `TOKEN_MIN_LEVEL` 10 · §10 확인 등급) · 갱신 2026-10-08 밤(§6 `TOKEN_MIN_LEVEL` 10 → 2, 지인 요청 · §10 확인 등급) · 소유 contract-designer · 근거 확정사항 §6·§9-8, R-ENV-002 🔒 · R-SET-001 🔒 · R-LLM-007 🔒 · R-LLM-009 🔒 · R-API-006 🔒
 > 이 문서에는 키·비밀번호·계정 아이디·회원 아이디 실값이 없다. `{{…}}`는 자리표시다. 운영 주소(`london-dispatch.pora.workers.dev`)는 비밀값이 아니어서 그대로 적는다.
 > 2026-10-07 사용자 결정: 지인은 개발을 모른다. **지인이 할 일은 최소로, 나머지는 전부 우리가 한다.**
 > 2026-10-08 사용자 결정: 구성원 초대 대신 **사용자가 지인 Cloudflare 계정으로 직접 로그인**(`npx wrangler login`)해 셋팅·배포한다. 구성원 초대는 대안(§1.1)으로 내린다.
@@ -137,7 +137,7 @@ npx wrangler --config server/wrangler.toml secret put OWNER_MB_IDS
 
 | 키 | 지금 값 | 메모 |
 |---|---|---|
-| `TOKEN_MIN_LEVEL` | `10` (2026-10-08 저녁 사용자 결정, 이전 5) | 갠홈 등급: 방문자·가입만 1 이하 / 일반 회원 2 / 관리자 10. 글쓰기는 관리자만. 완성 파일 토큰 조각의 `RB_CHATBOT_LEVEL`과 같은 숫자([token-snippet.php.md](token-snippet.php.md) §3). 열람 등급 2(`RB_CHATBOT_VIEW_LEVEL`)는 갠홈 PHP만 쓰고 서버 설정은 없다 |
+| `TOKEN_MIN_LEVEL` | `2` (2026-10-08 밤 사용자 결정 · 지인 요청. 이전 10 ← 5) | 갠홈 등급: 방문자·가입만 1 이하 / 일반 회원 2 / 관리자 10. 글쓰기는 일반 회원(2) 이상 전원(주인 권한은 등급이 아니라 `OWNER_MB_IDS`로 정해진다). 완성 파일 토큰 조각의 `RB_CHATBOT_LEVEL`과 같은 숫자([token-snippet.php.md](token-snippet.php.md) §3). 열람 등급 2(`RB_CHATBOT_VIEW_LEVEL`)는 갠홈 PHP만 쓰고 서버 설정은 없다 |
 | `LLM_MODEL` | `gemini-3.1-pro-preview` (Pro) | **주인이 설정 화면에서 AI 모델을 고르기 전에 쓰는 기본 모델.** 주인이 「공통」 탭에서 Pro / Flash를 고르면 그 선택이 우선하고, 이 값은 고르기 전에만 쓰인다 |
 | `LLM_PRICE_INPUT_USD_PER_M` | `0.3` | **예비 단가(입력).** Pro·Flash 단가는 서버 안 단가표에 따로 있어 이 값을 쓰지 않는다. 기본 모델을 단가표에 없는 모델로 바꿨을 때만 쓴다 |
 | `LLM_PRICE_OUTPUT_USD_PER_M` | `2.5` | **예비 단가(출력, 사고 토큰 포함).** 위와 같음 |
@@ -215,7 +215,7 @@ https://london-dispatch.pora.workers.dev/embed
 |---|---|---|
 | `https://london-dispatch.pora.workers.dev/api/health` | 정상 응답(상태 200) | 확인 2026-10-08 |
 | 같은 주소의 `/embed` | 방 목록이 보이는 **읽기 전용** 화면(글쓰기·버튼 없음), 응답 헤더 `Content-Security-Policy: frame-ancestors http://london-gossip.my https://london-gossip.my` | 확인 2026-10-08 |
-| 갠홈에서 등급 10(LEVEL, 관리자) 회원으로 대화창 | 글쓰기 칸·캐릭터 버튼이 보이고 한 줄 써진다 | 완성 파일 적용 후 |
+| 갠홈에서 등급 2 이상(LEVEL) 회원으로 대화창 | 글쓰기 칸·캐릭터 버튼이 보이고 한 줄 써진다(관리자는 ⋯ 메뉴 캐릭터 설정도) | 완성 파일 적용 후 |
 | 캐릭터 버튼 | 캐릭터가 한 턴 대답한다 | 완성 파일 적용 후 |
 | 갠홈 주인 계정으로 ⋯ 메뉴 → 캐릭터 설정 | 열린다(주인만) | 완성 파일 적용 후 |
 
