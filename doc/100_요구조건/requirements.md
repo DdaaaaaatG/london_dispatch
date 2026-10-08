@@ -118,7 +118,7 @@
 
 | ID | 🔒 | 요구 | 수용 기준 |
 |---|---|---|---|
-| R-TOKEN-001 | 🔒 | 갠홈 테마 `theme/victorian/inc/rosebell-chatbot.php`에 붙일 PHP 조각: 로그인 회원이고 `$member['mb_level'] >= LEVEL`이면 R-AUTH-001 형식 토큰을 만들어 `$rb_chatbot_embed_url . '?t=' . $token`으로 iframe src를 구성. 아니면 토큰 없이 임베드 주소만. SECRET·LEVEL은 상수 자리. | PHP 조각으로 만든 토큰이 서버 테스트 벡터와 일치. 아보카도 본체·그누보드 코어 수정 없음. |
+| R-TOKEN-001 | 🔒 | 갠홈 테마 `theme/victorian/inc/rosebell-chatbot.php`에 붙일 PHP 조각: 로그인 회원이고 `$member['mb_level'] >= LEVEL`이면 R-AUTH-001 형식 토큰을 만들어 `$rb_chatbot_embed_url . '?t=' . $token`으로 iframe src를 구성. 아니면 토큰 없이 임베드 주소만. SECRET·LEVEL은 상수 자리. | PHP 조각으로 만든 토큰이 서버 테스트 벡터와 일치. 아보카도 본체·그누보드 코어 수정 없음. **(개정 2026-10-08 🔒)** 갠홈 등급 체계 확정: 글쓰기 `LEVEL`=10(=서버 `TOKEN_MIN_LEVEL`), 열람 `VIEW_LEVEL`=2. 등급 2 미만·비로그인이면 임베드 주소를 비우고 패널 자리표시에 「회원 전용」 안내(iframe 미생성, 표시 제한). 조각 전문 `doc/handoff/token-snippet.php.md` §2. |
 | R-HANDOFF-001 | 🔒 | `doc/handoff/embed-guide.md`: https 임베드 주소 입력 위치(`$rb_chatbot_embed_url`), 패널 크기 390×640 전제, `?t=` 전달 방식, 허용 출처. | 문서 존재·실값 없음. |
 | R-HANDOFF-002 | 🔒 | `doc/handoff/token-snippet.php.md`: R-TOKEN-001 조각 전문 + 붙이는 위치 + LEVEL 바꾸는 법. | 문서 존재. |
 | R-HANDOFF-003 | | `doc/handoff/secret-handover.md`: SECRET 생성(32자 이상 랜덤)·전달 경로·양쪽 입력 위치(PHP 상수 / `wrangler secret put TOKEN_SECRET`)·교체 절차. 실값 없음. | 문서 존재. |
