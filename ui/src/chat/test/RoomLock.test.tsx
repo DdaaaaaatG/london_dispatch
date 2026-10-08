@@ -14,6 +14,7 @@
  */
 import { useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { MockInstance } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { USER_DISPLAY_NAME } from '@shared/characters'
@@ -252,7 +253,13 @@ const actionButtons = () =>
 beforeEach(() => {
   for (const m of allMocks) m.mockReset()
   mockedList.mockResolvedValue(ok(PAGE))
-  for (const m of [mockedSetPw, mockedClearPw, mockedEnter, mockedSpeak, mockedRegenerate])
+  for (const m of [
+    mockedSetPw,
+    mockedClearPw,
+    mockedEnter,
+    mockedSpeak,
+    mockedRegenerate,
+  ] as MockInstance[])
     m.mockImplementation(() => never())
   vi.mocked(getMemory).mockImplementation(() => never())
   vi.mocked(putMemory).mockImplementation(() => never())

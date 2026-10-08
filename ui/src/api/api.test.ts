@@ -5,22 +5,17 @@ import type { CreateRoomBody, SpeakBody } from '@shared/types'
 import { request, type ApiError } from './client'
 import {
   appendUser,
-  clearRoomPassword,
   configureClient,
   createRoom,
   deleteMessage,
   deleteRoom,
   editMessage,
-  enterRoom,
   getHealth,
-  getMemory,
   isAuthFailure,
   listMessages,
   listRooms,
-  putMemory,
   regenerate,
   renameRoom,
-  setRoomPassword,
   speak,
 } from './index'
 
