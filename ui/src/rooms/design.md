@@ -13,7 +13,7 @@
 | 묶음 | S1(R-ROOMS-001·003·004·005) 구현 완료 + **S2 상세**: R-ROOMS-002, 참조 R-CHAT-008(새 방 렌더 쌍)·R-CHAT-009(토큰 보관 — 공용 정의가 이 설계에 있다)·R-CHAT-011(생성 실패 안내·전환) |
 | S3c | 상단 바 ⚙ 진입·App 주인 판정(R-SET-009·010). 구성안 `doc/200_설계/architecture/ui-layout-02-settings.md` §7 수용. 설정 화면 본체는 `ui/src/settings/design.md` |
 | 레이아웃 확정 상태 | **확정**(읽기 전용 판 · 토큰 있음 판 · S3c 주인 판). 토큰 있음 판의 토스트 줄 위치는 설계 가정 A-3(구성안 §3 "Toast 두 화면" 근거, 그림에는 없음) |
-| 문서 분할 | 40KB 한계로 분할: `design/components.md`(컴포넌트·공용 요소 단일 정의·스타일) · `design/functions.md`(상태·기능) · `design/a11y.md`(접근성) · `design/pipeline.md`(§6 파이프라인, v1.6.1) · **`design/lock.md`(S6 전체 — 레이아웃·상태·F-RM-30~54·§6.7~§6.11·계약·문구·결정 D-L·예정 TC-RM-041~064, v1.8)** · **`design/tc.md`(옛 §14.1 S1~S3c 예정 TC 목록, v1.8.1)** · **`design/history.md`(옛 §11.3 S1 소급 델타, v1.8.2)**. RTM은 이 문서 §14 |
+| 문서 분할 | 40KB 한계로 분할: `design/components.md`(컴포넌트·공용 요소 단일 정의·스타일) · `design/functions.md`(상태·기능) · `design/a11y.md`(접근성) · `design/pipeline.md`(§6 파이프라인, v1.6.1) · **`design/lock.md`(S6 전체 — 레이아웃·상태·F-RM-30~54·§6.7~§6.11·계약·문구·결정 D-L, v1.8)** · **`design/tc.md`(§14.1 S1~S3c 예정 TC v1.8.1 · §14.2 S6 예정 TC-RM-041~066 v1.8.3)** · **`design/history.md`(옛 §11.3 S1 소급 델타, v1.8.2)**. RTM은 이 문서 §14 |
 | 이 설계가 단일 정의하는 공용 요소 | `ui/src/App.tsx`(화면 분기·viewer) · `ui/src/main.tsx` · `ui/src/state/{viewer,token,limits,writeFailure,roomKeys}.ts`(`roomKeys` S6) · `ui/src/components/roomEntry/*`(S6 지역 공용 — `useRoomEntry`·`RoomEntrySheet`·`roomEntryText`) · `ui/src/components/ui/{TopBar,Button,IconButton,StateView,TextInput,TextArea,Toggle,BottomSheet,ConfirmDialog,PromptSheet,Toast}` · `ui/src/components/hooks/useToast.ts`(`useLongPress`는 **삭제됨(S3e 후작업 2026-10-07)**) · `ui/src/components/utils/{cx,formatDate,storage,errorText}.ts`(`errorText` = 후작업 2026-10-07, §8.2·§8.3). chat 설계는 이 정의를 인용한다 |
 
 비유: 앱은 도서관 열람실이다. 방 목록은 서가 안내판이고, 대화 화면은 펼친 책이다. 안내판은 지난번에 펼쳐 둔 책을 기억해 두었다가(책갈피 = `localStorage`) 다시 오면 그 책을 바로 펼쳐 준다. 출입증(토큰)이 있는 회원은 안내판 옆 「+ 새 방」으로 새 책을 꽂고 곧장 펼친다. 출입증은 주머니(메모리)에만 있고 서랍에는 넣지 않는다.
@@ -28,6 +28,7 @@
 | v1.5.1 | 2026-10-06 | S3b: `toastToneOf`(F-RM-22) warning 조건에 `LLM_BUDGET_EXCEEDED`(429, R-LLM-007) 추가 — functions.md F-RM-22 · §8.3 비고 · TC-RM-029 기대. 사용처는 chat 재작성 토스트(chat design v1.8), rooms 화면 동작 변경 없음 | 메인 세션 승인(chat S3b 공용 변경 요청) |
 | v1.5.2 | 2026-10-07 | **후작업 동기화(동작·문구 변경 없음)**: ① 공용 Button `ariaDescribedBy?: string`(components.md §1.2) ② `NETWORK`·인증 3종 문구를 공용 `ui/src/components/utils/errorText.ts`로(§1 공용 요소 · §8.3 비고 · §13 행 "공용화 완료") ③ 공용 `useLongPress` 삭제(S3e 사용처 0 — §1 · §3.2 · §13 · components.md §1.19) | ui-postprocessor 후작업 · 사용자 승인 |
 | v1.6.2 | 2026-10-06 | **S3c 구현 동기화(CR-001 적용·검증됨, 동작 변경 없음).** 진입 안내 = `useEntryNotice` 훅(functions.md F-RM-29) · App의 설정 진입·이탈 = `useSettingsNav`, 주인 판정 = `useOwner`(F-RM-24~27 동작 같음) · `useNewRoomUi`가 `showToast` 반환 · labels `settingsAriaLabel` = `캐릭터 설정` · View 유니온 실물이 functions.md §1.1과 같음 · ⚙ 실측 44×44 · chat 스펙 격리 권고(functions.md §2 끝) | S3c 구현 보고 · ui 592/592 · OwnerGate 7건 · 캡처 `doc/300_검증/screenshots/20261006-2033/` |
+| v1.8.3 | 2026-10-08 | 검증 MINOR 6 반영: S6 TC → tc.md §14.2, TC-RM-065·066 추가, F-RM-41 순서, RTM R-LOCK-004·009, lock.md D-L1~4·D-L8·§13 | design-checker PASS |
 | v1.8.2 | 2026-10-08 | **40KB 분할**: §11.3 S1 실물 소급 델타(R-1~R-6)를 `design/history.md`로 내용 그대로 옮기고 본문은 제목 + 연결 줄만 | 메인 세션 실측 41,201바이트 |
 | v1.8.1 | 2026-10-08 | **40KB 분할**: §14.1 예정 TC 목록(TC-RM-001~040)을 `design/tc.md`로 내용 그대로 옮기고 본문은 연결 줄만. RTM 표는 그대로 | 메인 세션 실측 48,156바이트 |
 | v1.8 | 2026-10-08 | **S6 방 비밀번호 잠금(구축 설계).** 새 분할 문서 `design/lock.md`. 공용 델타(components.md): storage `ld:roomKeys` 3함수(§1.7) · limits 비밀번호 4함수 trim 없음(§1.11) · TextInput `type`(§1.12) · PromptSheet `inputType`·`placeholder`(§1.17) · 신규 §1.21 `roomKeys` · §1.22~§1.23 `components/roomEntry/`. 로컬: ListRow 잠긴 변형(날짜 DOM 없음) · RoomList · NewRoomRow 2줄(버튼 md). functions.md create `password` · F-RM-08·09·15·17 개정 포인터. a11y.md S6 행. 이 문서 §2.4 · §7 E3·E4·E17·getRoomKey · §8.3 `VALIDATION_ERROR` 문구 개정 · §10 · §13 · §14 S6 행. 계약 인용 api.md v0.9 | S6 승인 ① · 구성안 ui-layout-04 · 메인 결정(§8 주의점 ①~④) |
@@ -342,7 +343,7 @@ contract 변경 요청(설계에 끼워 넣지 않음):
 
 ## 14. RTM (요구 추적 매트릭스)
 
-상태: ✅ = 가리킨 절에 실체 있음. 절 표기: `C` = `design/components.md`, `F` = `design/functions.md`, `A` = `design/a11y.md`, `P` = `design/pipeline.md`(v1.6.1), `L` = `design/lock.md`(S6, v1.8 — 예정 TC-RM-041~064 목록은 L §12). 접두어 없는 `§6.x`도 `design/pipeline.md`의 같은 번호 절이다.
+상태: ✅ = 가리킨 절에 실체 있음. 절 표기: `C` = `design/components.md`, `F` = `design/functions.md`, `A` = `design/a11y.md`, `P` = `design/pipeline.md`(v1.6.1), `L` = `design/lock.md`(S6, v1.8 — 예정 TC-RM-041~066 목록은 `design/tc.md` §14.2). 접두어 없는 `§6.x`도 `design/pipeline.md`의 같은 번호 절이다.
 
 | 요구ID | 설계 절 | api 계약 | 예정 TC | 상태 |
 |---|---|---|---|---|
@@ -357,12 +358,12 @@ contract 변경 요청(설계에 끼워 넣지 않음):
 | R-CHAT-010 (마지막 본 방 · S6 개정 L12: `ld:roomKeys` 증명) | C §1.7 · C §1.21 · F §2 F-RM-08 · L F-RM-30~37 · L §6.11 | api.md §2.8.2 | TC-RM-008 · 010 · 059 · 060 | ✅ |
 | R-LOCK-001 🔒 (화면 몫: 새 방 비밀번호) | L §1.1 · C §1.11 · C §1.12 · C §2.4 · L F-RM-39·49~51·53 · L §6.9 · L §8.1 · §10 | api.md §4.6 · §5.10 | TC-RM-054 · 055 · 056 · 057 · 061 | ✅ |
 | R-LOCK-003 🔒 (잠긴 행 표시) | §2.4 · L §1.2 · L §1.4 · C §2.1·§2.2 · L F-RM-54 · L §8.1 · A(S6 잠긴 행) | api.md §4.2 `locked` | TC-RM-041 · 062 | ✅ |
-| R-LOCK-004 🔒 (증명 기억·재사용) | C §1.21 · C §1.22 · L §3 · L F-RM-30~37·40~47 · L §6.7 · §6.8 · L §8.2 | api.md §2.8 · §4.19 · §11.18 | TC-RM-043 · 044 · 047 · 048 · 049 · 050 · 051 · 052 · 053 · 059 · 063 | ✅ |
+| R-LOCK-004 🔒 (증명 기억·재사용) | C §1.21 · C §1.22 · L §3 · L F-RM-30~37·40~47 · L §6.7 · §6.8 · L §8.2 | api.md §2.8 · §4.19 · §11.18 | TC-RM-043 · 044 · 047 · 048 · 049 · 050 · 051 · 052 · 053 · 059 · 063 · 065(`'locked'` 재판정) · 066(TC-FLOW 잠긴 새 방, U-RM-15) | ✅ |
 | R-LOCK-005 🔒 (주인 — 화면은 조용한 시도만) | L F-RM-41 ③ · F-RM-42 · L §6.7 · L §10 | api.md §2.8.4 · §4.19 ③ | TC-RM-044 · 045 · 064 | ✅ |
 | R-LOCK-006 🔒 (화면 몫: 읽기 전용 열람자도 시트로 증명 받기 · 헤더는 래퍼) | L F-RM-38·41 ④ · L §7 · L §10 · §10 | api.md §2.8.3 · §11.18 `getRoomKey` | TC-RM-046 · 063 | ✅ |
 | R-LOCK-007 🔒 (화면 몫: 원문 미보관 · 증명은 `ld:roomKeys`만 · 토큰 불변) | L §3 끝 · C §1.7 · C §1.21 · L F-RM-35·43·50 · L D-L6·D-L7 | api.md §2.8.1 · §2.8.2 | TC-RM-047 · 056 · 059 · 060 | ✅ |
 | R-LOCK-008 (참조 — 화면은 429 문구 표시만) | L §6.8 · L §8.2 | api.md §4.19 ⑤ · §6.2 | TC-RM-049 | ✅ |
-| R-LOCK-009 🔒 (화면 몫: 기존 방·저장소 불변) | L F-RM-33·36 · L §6.11 · L §12 끝(픽스처) | api.md §4.2(추가만) | TC-RM-042 · 060 + 기존 TC 픽스처 `locked: false` | ✅ |
+| R-LOCK-009 🔒 (화면 몫: 기존 방·저장소 불변) | L F-RM-33·36 · L §6.11 · tc.md §14.2 끝(픽스처) | api.md §4.2(추가만) | TC-RM-042 · 060 + 기존 TC 픽스처 `locked: false` | ✅ 비고: R-LOCK-009 범위 = 서버·마이그레이션·계약 호환(기존 서버/계약 테스트 무수정). UI TC-RM-026 → 054 개정은 R-ROOMS-002 S6 개정에 따른 것으로 범위 밖(제목 Enter 동작은 L D-L3 유지) |
 | R-CHAT-011 (생성 실패·전환 — rooms 쪽) | F §2 F-RM-12·18·19·22 · §6.5 · §8.3 · §10 | api.md §2.4 `isAuthFailure` · §3.4 `retryAfterSec` | TC-RM-023 · 024 | ✅ |
 | R-ROOM-001 🔒 (데이터) | §7 | api.md §4.2 | TC-RM-001(서버 순서 유지) | ✅ |
 | R-ROOM-002 🔒 (데이터) | §7 · C §1.11 | api.md §4.6 | TC-RM-020 · 021 | ✅ |
@@ -370,6 +371,6 @@ contract 변경 요청(설계에 끼워 넣지 않음):
 | R-SET-009 🔒 (S3c — ⚙ 진입 부분) | §2.2.1 · §3.1 · §8.1 `settingsAriaLabel` · §10 ⚙ 행 · C §1.3 `settings` · F §1.1 · F §2 F-RM-01·25·26·28 · P §6.6 | api.md §4.15 | TC-RM-033 · 036 · 039 · 040 | ✅ |
 | R-SET-010 (S3c — 주인 판정) | P §6.6 · §7 E15 판정 행 · §10 ⚙ 행 · F §1.1(isOwner·probeStartedRef·roomsNotice) · F §2 F-RM-24·27·29 | api.md §2.7 · §4.15 | TC-RM-034 · 035 · 037 · 038 | ✅ |
 
-### 14.1 예정 TC 목록 → `design/tc.md`(S1~S3c, TC-RM-001~040) · `design/lock.md` §12(S6, TC-RM-041~064)
+### 14.1 예정 TC 목록 → `design/tc.md`(S1~S3c, TC-RM-001~040) · §14.2(S6, TC-RM-041~066)
 
 40KB 한계로 v1.8.1에 내용 그대로 옮겼다. 위 RTM 표(요구 → 설계 절 → TC)는 이 문서에 남는다.
