@@ -1,12 +1,20 @@
-# 다음 세션 인계 (2026-10-06 갱신 · S3 완료 반영)
+# 다음 세션 인계 (2026-10-08 갱신 · S3f 완료 반영)
 
 - 결정은 `doc/000_프로젝트_확정사항.md`가 단일 소스다. 이 문서는 **지금 상태 · 남은 일 · 결정 대기 · 꼭 지킬 것**만 담는다. 항목을 끝내면 지우고, 새 일은 해당 절에 짧게 추가한다.
 
-## 0-0. 2026-10-07 저녁 상태 — S5 1차 완료 · S3f 승인 ① 대기
+## 0-0. 2026-10-08 상태 — S3f 완료(verify PASS, **미커밋**) · S5 2차 대기
+
+- **S3f(설정 화면 AI 모델 Pro/Flash 선택, 🔒) 완료 2026-10-08**(승인 ① 02:00 · ② 02:20). 증거: vitest **1368/1368**(shared 145·server 439·ui 784) · typecheck·lint·build 0 · verify PASS `doc/300_검증/verify-S3f-20261008-1217.md`(C/H/M 0, LOW 5) · 캡처 `doc/300_검증/screenshots/20261008-1210/`(공통 탭 Pro·Flash dirty·미선택 3장) · 종단 curl E15/E16(pro v0 → flash v1 → 생략 유지 v2 → `turbo` 400 문구 → pro v3 · 무토큰 401 · 로그 `settings_saved{model}`). 산출: 0004 `llm_model` · `server/src/llm/models.ts`(상수표 Pro `gemini-3.1-pro-preview`/Flash `gemini-3.8-flash`, 단가표 $2/$12·$0.75/$3.75) · 비동기 `llm` 공장 · api.md **v0.8** · 공통 탭 `ModelChoice` · 매뉴얼 5.7 · CR-001. env `LLM_MODEL` 기본값 Pro(3곳). **커밋 안 됨 — 사용자 확인 후 `/sync`**(server·contract·ui·docs 분할 권고).
+- **사용자 결정(2026-10-08)**: 운영 Gemini 키는 로컬 키와 **다른 값**을 나중에 전달(배포 때 Secrets 입력). 미선택 안내는 응답 `model: null`일 때만(effectiveKey, R-SET-013 개정).
+- **verify LOW 후속 5건**: SEC-001/SRV-001 `llm/models.ts` 단가표 `Object.hasOwn`·폴백 단가 로그(server-manager) · SRV-002 `env.md` 2.5-flash 잔재(이 세션에서 server-designer 수정) · SRV-003 `messages/generate.ts`·`service.ts` 주석(server-manager) · CR-001 `ui/src/state/settings.ts` 391줄 → 다음 변경 전 분할(ui-debug).
+- 로컬 환경: dev 서버는 내렸다. **포트 5173은 다른 프로젝트(pasfa Vite)가 점유** → 이 PC에서는 `cd ui && npx vite --port 5174 --strictPort`로 띄운다. 로컬 D1에 `character_settings` 행(v3, model pro)이 생겼다(지워도 됨). 테스트 토큰 `.ld-token.local` 재발급됨(12h, 2026-10-08 12:xx KST 만료; 서명은 **JSON 바이트**에 HMAC — base64url 문자열 아님). 브라우저 MCP 미연결 → Chrome 헤드리스 CDP 스크립트(스크래치패드, 저장소 밖). 이 PC Node 22.20.
+- **S5 2차(배포) 선행 조건**은 아래 §0-1과 같다(지인 답 5 → Cloudflare 초대 → `/deploy`: **0004 `--remote` 먼저** → deploy → 헬스체크 → PHP 덩어리 1회성 링크). 기본 모델이 Pro라 월 상한 도달이 빨라질 수 있음(handoff 명시).
+
+## 0-1. 2026-10-07 저녁 상태 — S5 1차 완료 (기록)
 
 - **S5(전달·배포) 1차 완료·커밋(`136a25e`)**: `doc/handoff/` 4문서(embed-guide · token-snippet.php · secret-handover · cloudflare-setup, 실값 0) + 토큰 대조 도구 `npm run token:test -w server -- sign|verify|vectors --secret <32자+>`(`7c84fa7`). 전체 1289/1289.
 - **사용자 결정(2026-10-07)**: 지인 ID 전달됨(실값은 Secrets·.dev.vars·메모리에만) · 등급 5 유지 · **지인은 비개발자** → SECRET은 우리가 생성해 Cloudflare에 입력, 지인은 ① Cloudflare 구성원 초대(Administrator) ② 완성된 PHP 덩어리 붙여넣기(1회성 링크)만 · Cloudflare Free로 시작, 접근은 초대 → `wrangler login`.
-- **S3f(설정 화면에서 Gemini 모델 Pro/Flash 선택, 🔒)**: 횡단 설계 3문서 완료(`doc/200_설계/architecture/s3f-0{1,2,3}-*.md`). **승인 ① 사용자 대기** — 기본값: 미선택 시 Pro · 공통 탭 상단 라디오 + 기존 저장 버튼 · 탭 이름 「공통」 · 설명에 가격 숫자 없음. 가격(Google 2026-10-07): Pro \$2/\$12, Flash \$0.75/\$3.75(2027-01-01부터 \$1.50/\$7.50) per 1M. 승인 뒤: server-designer ∥ contract-designer → ui-designer → checker → 승인 ② → 구현(0004 마이그레이션 포함) → verify → 커밋. 약 2.5시간.
+- **S3f** — 승인 ①·② 2026-10-08 완료, §0-0 참조. (기록) 횡단 설계 3문서 완료(`doc/200_설계/architecture/s3f-0{1,2,3}-*.md`). **승인 ① 사용자 대기** — 기본값: 미선택 시 Pro · 공통 탭 상단 라디오 + 기존 저장 버튼 · 탭 이름 「공통」 · 설명에 가격 숫자 없음. 가격(Google 2026-10-07): Pro \$2/\$12, Flash \$0.75/\$3.75(2027-01-01부터 \$1.50/\$7.50) per 1M. 승인 뒤: server-designer ∥ contract-designer → ui-designer → checker → 승인 ② → 구현(0004 마이그레이션 포함) → verify → 커밋. 약 2.5시간.
 - **S5 2차(배포) 선행 조건**: 지인 답(아래 질문 5) → Cloudflare 초대 수락 → `/deploy`(D1 생성·Secrets 3개 `TOKEN_SECRET`·`LLM_API_KEY`·`OWNER_MB_IDS`·vars 확인·0001~0004 적용·deploy·헬스체크) → 지인에게 임베드 주소 한 줄 + SECRET 채운 PHP 덩어리(1회성 링크) 전달 → 확인표. 운영 Gemini 키가 로컬 키와 같은지 사용자 확인.
 - **지인 질문(최종)**: ① Cloudflare 계정 있나/만들 수 있나 ② 사이트 주소 london-gossip.my 하나뿐인가·www도 쓰나 ③ 대화창 주소 workers.dev 기본 이름 OK? ④ 테마 파일 직접 고쳐 올릴 수 있나 ⑤ 파일 고칠 날·시간(1회성 링크).
 - 테스트 토큰(.ld-token.local)은 만료됨 → `npm run token:test -w server -- sign --secret <.dev.vars의 TOKEN_SECRET> --mb-id owner01 --level 10`로 재발급(TOKEN_SECRET은 32자 이상이어야 서버가 기동).
