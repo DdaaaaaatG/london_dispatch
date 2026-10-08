@@ -1,6 +1,8 @@
 # API 계약 (api.md)
 
-- 상태: **초안 v0.7.1** · 최종 갱신 2026-10-07 · 소유 contract-designer
+- 상태: **초안 v0.8** · 최종 갱신 2026-10-08 · 소유 contract-designer
+- (v0.8) **S3f 상세 확정**(구현 전) = 설정 화면에서 AI 모델(Pro / Flash) 선택. E15·E16 **확장**: 응답 `model: LlmModelKey | null`(지금 실제로 쓰는 모델의 키, 서버 기본 모델이 두 후보 밖이면 `null`, §4.15) · 본문 `model?`(없으면 저장값 유지, `null`·그 밖 값은 `400` `공통 · AI 모델 값이 올바르지 않습니다.`, `settings` 검사 뒤, §4.16) · shared `LlmModelKey`·`LLM_MODEL_KEYS`·`SETTINGS_MODEL_INVALID_MESSAGE`(§5.8.6) · 내보내기 파일 제외(§16.1) · §1.4 · §8 · §10 · §11.17 · §12.7(예정) · §13.7 · §14.21 · §15.15 · 「ui 인계 메모」 S3f · 「contract-implementer 인계 목록」 S3f. 모델명·단가는 계약에 싣지 않는다(server만 안다). 엔드포인트 16개·에러 코드 15종·토큰 형식·PHP 조각 불변이고 분류는 전부 추가(비파괴). 입력: `requirements.md` R-SET-004·005·007·012(2026-10-08 S3f 개정) · R-SET-013 · R-LLM-009(신규), `doc/200_설계/architecture/s3f-02-전반설계.md` §2·§4·§6·§9·§10, `s3f-03-인계패킷.md` §1.2·§2.
+- (v0.7.2) S5 handoff 4문서 작성·보정(§8 · §9). 계약 내용 변경 없음.
 - (v0.7.1) R-MEM-001 🔒 개정(2026-10-07 사용자 지정) 반영: E14 PUT에서 trim 결과가 빈 요약(`''`)이면 서버가 `sourceUntilId`를 0으로 되돌린다(요약 삭제 = 처음부터 재요약). 비어 있지 않은 편집은 기존대로 유지. §4.18 의미·성공·부수 효과·예시·경합, §4.17 설명 1구절, §5.9.1 주석, §10, §11.16 래퍼 주석, §14.19 API-T-125, §15.14(server 변경 요구 1건·확인 필요 3 해소), 「ui 인계 메모」 S4, 인계 목록 S4. §4.13 영향 없음. 엔드포인트·타입 모양·에러 코드 불변.
 - (v0.7) **S4 상세 확정**(구현 전) = 장기기억 보기·편집. `GET /api/rooms/:id/memory`(E13, §4.17) · `PUT /api/rooms/:id/memory`(E14, §4.18). 두 행은 v0.1부터 §4.0 표에 있었으므로 엔드포인트 수는 16개 그대로다. 타입 2개(`MemoryResponse`·`PutMemoryBody`)·경로 1개(`PATHS.roomMemory`, §5.9) · E9 부수 효과 1줄(응답 뒤 자동 요약, §4.12·§4.13) · §6.1 S4 카운트(GET 미카운트·PUT 1회) · 본문 상한 32KiB(§4.18) · §11.16 · §12.6(예정) · §13.6 · §14.19·§14.20 · §15.14 · 「ui 인계 메모」 S4 · 「contract-implementer 인계 목록」 S4. 에러 코드·env·마이그레이션·토큰 형식·handoff 불변. §4.15·§4.16은 S3c E15·E16이 쓰고 있어 절 번호를 바꾸지 않고 §4.17·§4.18에 둔다. 입력: `requirements.md` R-MEM-001~003 · R-CHAT-012 · R-NFR-003, `doc/200_설계/server/memory.md`(2026-10-07 S4 초안) 「contract 인계 요구 명세」·「ui 인계 메모」·§4.4·§11, `db.md` §13, `messages.md` §13, `index.md` §13, `ui/src/chat/design.md` §14.
 - (v0.6) **S3d 상세 확정**(구현 전) = 고정 명칭 「어떠한 의지」 + 전송 시 자동 응답. 새 엔드포인트·에러 코드 0. E9 speak 본문 `character`에 `'auto'` 추가(`SpeakTarget`, §4.13·§5.2) · 유저 메시지 응답 `authorName` = `USER_DISPLAY_NAME`(서버 투영, §2.3·§4.3·§4.9·§4.10·§5.5) · 생성 공통 AI 호출 수·시간 내역(§4.12) · §6.1 S3d 카운트 · §11.15 · §12.5 · §13.5 · §14.17·§14.18 · §15.13 · 「ui 인계 메모」 S3d · 「contract-implementer 인계 목록」 S3d. handoff 불변. 입력: `requirements.md` R-MSG-003·009 · R-AUTH-004 · R-CHAT-002·006·014 · R-LLM-003·008 · R-NFR-001(2026-10-06 S3d 개정), `doc/200_설계/architecture/s3d-02-전반설계.md` §1·§2·§4·§5, `s3d-03-인계패킷.md` §0·§1·§2.
@@ -123,6 +125,7 @@ S4 추가(v0.7):
 | S3c (**v0.5 확정**) | §2.7 설정 엔드포인트 예외·주인 판정, §3.2 15종째 `OWNER_ONLY`, §4.15 E15·§4.16 E16, §5.8 타입·`settings.ts`, §6.1 S3c 카운트, §11.12~§11.14 routes·ui/api, §16 파일 형식·가져오기 매핑. 엔드포인트 2개 추가 |
 | S4 (**v0.7 확정**) | §4.17 E13 · §4.18 E14(본문 32KiB·경합), §4.12·§4.13 E9 응답 뒤 자동 요약 부수 효과, §5.9 타입 2·경로 1, §6.1 S4 카운트, §11.16 routes·ui/api, §12.6 대조표(예정), 「ui 인계 메모」 S4. 엔드포인트 추가 0(§4.0 행 상세화)·에러 코드 0 |
 | S5 | §8 handoff 3종 |
+| S3f (**v0.8 확정**) | §4.15 E15 응답 `model` · §4.16 E16 본문 `model?`·판정 순서·400 문구 1행·부수 효과, §5.8.6 shared 추가분, §16.1 내보내기 제외, §11.17 routes·ui/api, §12.7 대조표(예정), §8 handoff 설정값 안내. 엔드포인트·에러 코드·경로 추가 0 |
 
 ---
 
@@ -904,14 +907,15 @@ AI가 대사를 만드는 두 쓰기다. 주방에 화구가 방마다 하나뿐
 | 토큰 | ○ + 주인(§2.7). 읽기지만 토큰이 필요하다(R-AUTH-003 예외) |
 | 처리 순서 | 부트스트랩(server) → `requireToken` → `requireOwner` → 핸들러 → `services.settings.get()` |
 | 요청 | 경로·쿼리·본문 없음(쿼리가 있어도 무시) |
-| 성공 | `200` · `CharacterSettingsResponse`(§5.8). D1에 저장된 적이 없거나 저장 행이 재검증에 실패하면 **시드**를 준다: `isDefault: true` · `version: 0` · `updatedAt: null` |
-| 응답 필드 | 정확히 `settings` · `version` · `updatedAt` · `isDefault` 넷. `settings`는 키가 전부 있는 정규화 값이다(필드 11개 × 2명 + `world`). 저장자 `mbId`·`updatedBy`·토큰·설정 키·`outputRules`·GUARD_RULES는 싣지 않는다(R-AUTH-006 · R-SET-006 · R-SET-007) |
-| 부수 효과 | 없음(D1 PK 1행 읽기). 응답 캐시 없음 — 화면은 설정 화면을 열 때마다 다시 읽는다 |
+| 성공 | `200` · `CharacterSettingsResponse`(§5.8). D1에 저장된 적이 없거나 저장 행이 재검증에 실패하면 **시드**를 준다: `isDefault: true` · `version: 0` · `updatedAt: null`. (v0.8) 시드일 때도 `model`은 아래 규칙대로 채운다 |
+| 응답 필드 | 정확히 `settings` · `version` · `updatedAt` · `isDefault` · `model` 다섯((v0.8) 넷 → 다섯). `settings`는 키가 전부 있는 정규화 값이다(필드 11개 × 2명 + `world`). 저장자 `mbId`·`updatedBy`·토큰·설정 키·`outputRules`·GUARD_RULES는 싣지 않는다(R-AUTH-006 · R-SET-006 · R-SET-007). (v0.8) 모델명(`gemini-…`)·단가도 싣지 않는다(R-LLM-009 — server만 안다) |
+| `model` (v0.8) | `LlmModelKey \| null`(§5.8.6). 뜻 = **지금 실제로 쓰는 모델의 키**다. ① 주인이 저장한 키가 `'pro'`·`'flash'`면 그 키 ② 저장한 적이 없거나 저장값이 두 키 밖이면 서버 기본 모델(env `LLM_MODEL`)과 이름이 같은 키 ③ 서버 기본 모델이 두 후보 어느 것과도 같지 않으면 `null`. 해석은 server `resolveLlmModel`(R-LLM-009, s3f-02 §2.2)이고 라우트는 그대로 싣는다. 응답만으로는 "저장된 Pro"와 "고른 적 없어 기본값 Pro"를 구분하지 않는다(§15.15 확인 필요 1) |
+| 부수 효과 | 없음(D1 PK 1행 읽기 — (v0.8) 같은 행의 `llm_model` 칸 포함). 응답 캐시 없음 — 화면은 설정 화면을 열 때마다 다시 읽는다 |
 | 레이트리밋 | 없음(읽기). 주인 판정 탐침이 첫 로드마다 1회 오므로 세지 않는다 |
 | 주인 판정 탐침 | 화면 App이 토큰이 있을 때 1회 부른다. `200`만 주인이다(§2.7 · R-SET-010) |
-| server | `services.settings.get(): Promise<CharacterSettingsResponse>`(s3c-03 §1.3, settings.md) |
-| 요구ID | R-SET-004 · R-SET-001 · R-SET-003 · R-SET-010 · R-AUTH-003 · R-AUTH-006 |
-| 테스트 | API-T-091 · 092 · 093 · 094 · 102 · 103 |
+| server | `services.settings.get(): Promise<CharacterSettingsResponse>`(s3c-03 §1.3, settings.md). (v0.8) 시그니처 불변, 응답에 `model`(s3f-03 §1.2) |
+| 요구ID | R-SET-004 · R-SET-001 · R-SET-003 · R-SET-010 · R-AUTH-003 · R-AUTH-006 · (v0.8) R-SET-013 · R-LLM-009 |
+| 테스트 | API-T-091 · 092 · 093 · 094 · 102 · 103 · (v0.8) 094(갱신) · 126 |
 
 에러:
 
@@ -922,7 +926,7 @@ AI가 대사를 만드는 두 쓰기다. 주방에 화구가 방마다 하나뿐
 | `TOKEN_INVALID` | 401 | 기본 문구 | 형식·서명·payload·만료 실패(§2.3) | `requireToken` |
 | `LEVEL_TOO_LOW` | 403 | 기본 문구 | `level < TOKEN_MIN_LEVEL`(주인 ID여도) | `requireToken` |
 | `OWNER_ONLY` | 403 | 기본 문구만 | `mbId ∉ OWNER_MB_IDS` 또는 목록 비어 있음 | `requireOwner` |
-| `INTERNAL` | 500 | 기본 문구 | D1 읽기 실패(테이블 없음 포함). 시드로 대체하지 않는다 | onError |
+| `INTERNAL` | 500 | 기본 문구 | D1 읽기 실패(테이블 없음 포함 — (v0.8) `llm_model` 칸이 없는 경우, 즉 마이그레이션 0004 미적용도 여기). 시드로 대체하지 않는다 | onError |
 
 응답 예(값은 예시 문구이며 실제 시드 내용이 아니다):
 
@@ -961,27 +965,30 @@ AI가 대사를 만드는 두 쓰기다. 주방에 화구가 방마다 하나뿐
   },
   "version": 0,
   "updatedAt": null,
-  "isDefault": true
+  "isDefault": true,
+  "model": "pro"
 }
 ```
+
+(v0.8) `model` 세 판: 저장값 `flash` → `"model": "flash"` · 저장한 적 없고 서버 기본 모델이 Pro → `"model": "pro"`(위 예) · 서버 기본 모델이 두 후보 밖 → `"model": null`.
 
 ### 4.16 `PUT /api/settings/characters` (E16) — 캐릭터 설정 전체 교체 저장 (갠홈 주인 전용)
 
 | 항목 | 값 |
 |---|---|
 | 토큰 | ○ + 주인(§2.7) |
-| 처리 순서 | 부트스트랩 → `requireToken` → `requireOwner` → `rateLimitWrites` → 본문 상한(128KB) → `validate('json', putCharacterSettingsBody, settingsIssueMessage)` → 핸들러 → `services.settings.put(body.settings, getPrincipal(c))` |
-| 본문 | `PutCharacterSettingsBody` = `{ settings: CharacterSettings }`(§5.8), `Content-Type: application/json`. **봉투**(`settings` 바깥)의 모르는 키는 버린다(§4.5 규칙). **`settings` 안은 strict** — 모르는 키·세 번째 캐릭터·빠진 키는 `400`(R-SET-002). 필드 11개는 전부 있어야 한다(선택 필드는 `''`·`[]`로 보낸다) |
-| 의미 | **전체 교체.** 부분 갱신·병합 없음. 낙관적 잠금 없음 — 동시 저장은 마지막 쓰기가 남는다 |
+| 처리 순서 | 부트스트랩 → `requireToken` → `requireOwner` → `rateLimitWrites` → 본문 상한(128KB) → `validate('json', putCharacterSettingsBody, settingsIssueMessage)` → 핸들러 → `services.settings.put(body.settings, getPrincipal(c), body.model)`((v0.8) 셋째 인자) |
+| 본문 | `PutCharacterSettingsBody` = `{ settings: CharacterSettings, model?: LlmModelKey }`(§5.8 · (v0.8) §5.8.6), `Content-Type: application/json`. **봉투**(`settings` 바깥)의 모르는 키는 버린다(§4.5 규칙). **`settings` 안은 strict** — 모르는 키·세 번째 캐릭터·빠진 키는 `400`(R-SET-002). 필드 11개는 전부 있어야 한다(선택 필드는 `''`·`[]`로 보낸다). (v0.8) **`model`은 봉투 키**다(`settings` 안이 아니다). 값은 `'pro'`·`'flash'` 둘 중 하나이거나 **키 자체가 없어야** 한다. 키가 없으면 저장된 모델을 유지한다. `null`·빈 문자열·대소문자가 다른 값(`'Pro'`)·숫자·배열은 `400`이다(고쳐 주지 않는다 — `speak`의 `character`와 같은 방식) |
+| 의미 | **전체 교체.** 부분 갱신·병합 없음. 낙관적 잠금 없음 — 동시 저장은 마지막 쓰기가 남는다. (v0.8) 예외는 `model` 하나다 — 보내면 바꾸고 빼면 유지한다(본체 `settings`는 여전히 전체 교체) |
 | 검증 규칙 | `shared/src/settings.ts`의 `WORLD_FIELD_SPEC`·`CHARACTER_FIELD_SPECS`(§5.8). 글 필드는 앞뒤 trim 뒤 코드 포인트로 세고, 필수 3종(`world`·`persona`·`speech`)은 1자 이상. 목록 필드는 항목마다 trim → 빈 항목 제거 → 개수 상한 → 항목 길이 상한 |
 | 본문 상한 | **131072바이트(128KB, `SETTINGS_BODY_MAX_BYTES`)**. `Content-Length`가 있으면 그 값으로, 없으면 실제로 읽은 바이트로 판정한다. 넘으면 `400 VALIDATION_ERROR`(`413`을 쓰지 않는다). 일반 글(한글·이모지·줄바꿈)로 필드 상한을 모두 채운 본문은 이 값 안에 든다. 제어 문자 이스케이프(`\u00XX`, 1자 = 6바이트)로만 채운 비정상 본문은 넘을 수 있고 그때도 이 `400`이다. 저장 행 CHECK(200000자)는 server 몫(db.md §7.6) |
-| 성공 | `200` · `CharacterSettingsResponse`. `settings` = 서버가 정규화한 값(= `checkCharacterSettings(요청 settings).value`), `version` = 직전 저장 행의 version + 1(처음이면 1), `updatedAt` = 저장 시각(epoch ms), `isDefault: false`. 화면은 이 응답으로 초안과 기준값을 다시 맞춘다 |
-| 부수 효과 | `character_settings` 1행 UPSERT. 다음 speak·regenerate부터 새 값으로 프롬프트를 만든다(캐시 없음, R-SET-003). 이미 진행 중인 생성은 이전 값을 쓴다. 서버 로그 `settings_saved { mbId, version }`만 남고 본문은 남지 않는다(R-SET-012) |
-| 레이트리밋 | 1회 — 쓰기 공용 분당 한도를 나눠 쓴다(§6.1 S3c 행). `401`·`403`(`OWNER_ONLY` 포함)은 세지 않고, 본문 상한·검증 `400`은 센다 |
+| 성공 | `200` · `CharacterSettingsResponse`. `settings` = 서버가 정규화한 값(= `checkCharacterSettings(요청 settings).value`), `version` = 직전 저장 행의 version + 1(처음이면 1), `updatedAt` = 저장 시각(epoch ms), `isDefault: false`, (v0.8) `model` = 저장 뒤 지금 쓰는 모델 키(§4.15 `model` 규칙 — 보냈으면 그 키, 뺐으면 유지된 저장값의 키, 저장값이 없으면 서버 기본 모델의 키 또는 `null`). 화면은 이 응답으로 초안과 기준값을 다시 맞춘다 |
+| 부수 효과 | `character_settings` 1행 UPSERT. 다음 speak·regenerate부터 새 값으로 프롬프트를 만든다(캐시 없음, R-SET-003). 이미 진행 중인 생성은 이전 값을 쓴다. (v0.8) 같은 UPSERT 한 문장이 같은 행의 `llm_model` 칸을 갱신한다(`model`을 빼면 칸 유지). 고른 모델은 **다음에 시작하는** 생성(발화·`'auto'` 화자 선택)·장기기억 자동 요약 호출부터 쓰이고, 진행 중인 호출은 시작 때 읽은 모델로 끝난다(R-SET-013 · R-LLM-009). 모델만 바꿔 저장해도 본체가 같은 값으로 다시 저장되어 `version` +1이고, 시드 상태였다면 `isDefault: false`가 된다. 서버 로그 `settings_saved { mbId, version, model }`((v0.8) `model`은 키)만 남고 본문은 남지 않는다(R-SET-012) |
+| 레이트리밋 | 1회 — 쓰기 공용 분당 한도를 나눠 쓴다(§6.1 S3c 행). `401`·`403`(`OWNER_ONLY` 포함)은 세지 않고, 본문 상한·검증 `400`((v0.8) `model` 위반 포함)은 센다 |
 | version | 단조 증가만 약속한다. 저장 행이 깨져 시드(`version 0`)로 보이던 상태에서 저장하면 1이 아니라 깨진 행의 version + 1일 수 있다. 화면은 표시에만 쓴다 |
-| server | `services.settings.put(settings: CharacterSettings, by: Principal): Promise<CharacterSettingsResponse>`(s3c-03 §1.3) |
-| 요구ID | R-SET-005 · R-SET-002 · R-SET-001 · R-SET-003 · R-SET-012 · R-AUTH-005 · R-AUTH-006 · R-API-004 |
-| 테스트 | API-T-091 · 092 · 093 · 095 ~ 103 |
+| server | `services.settings.put(settings: CharacterSettings, by: Principal, model?: LlmModelKey): Promise<CharacterSettingsResponse>`(s3c-03 §1.3 · (v0.8) s3f-03 §1.2 셋째 인자) |
+| 요구ID | R-SET-005 · R-SET-002 · R-SET-001 · R-SET-003 · R-SET-012 · R-AUTH-005 · R-AUTH-006 · R-API-004 · (v0.8) R-SET-013 · R-LLM-009 |
+| 테스트 | API-T-091 · 092 · 093 · 095 ~ 103 · (v0.8) 127 ~ 130 |
 
 판정 순서(앞 단계에서 실패하면 뒤 단계는 보지 않는다):
 
@@ -992,7 +999,7 @@ AI가 대사를 만드는 두 쓰기다. 주방에 화구가 방마다 하나뿐
 | 3 | 레이트리밋(§6.1) — 여기서 1회 소모 | `429 RATE_LIMITED` |
 | 4 | 본문 크기 | `400 VALIDATION_ERROR` `공통 · 설정 본문은 128KB 이하여야 합니다.` |
 | 5 | 본문 JSON 파싱 | `400 VALIDATION_ERROR` 기본 문구(onError, HTTPException 400) |
-| 6 | 본문 검증 — 통과 여부는 server zod(`characterSettingsSchema`), 문구는 shared `checkCharacterSettings`의 첫 위반 | `400 VALIDATION_ERROR` + 아래 표 문구 |
+| 6 | 본문 검증 — 통과 여부는 routes zod(`putCharacterSettingsBody` = server `characterSettingsSchema` + (v0.8) `model` enum), 문구는 ① shared `checkCharacterSettings`의 첫 위반 ② (v0.8) `settings`가 통과했을 때만 봉투 `model` 위반. **`settings` 검사가 먼저다** | `400 VALIDATION_ERROR` + 아래 표 문구 |
 | 7 | 저장 | `500 INTERNAL`(D1 장애) |
 
 400 문구 규칙(R-SET-005 — **첫 위반 1건**, 형식 `{캐릭터 shortName 또는 공통} · {필드 화면 이름}은(는) …`):
@@ -1012,10 +1019,12 @@ AI가 대사를 만드는 두 쓰기다. 주방에 화구가 방마다 하나뿐
 | 선택 글 필드 상한 초과 | 〃 | `{shortName} · {label}{은/는} {max}자 이하여야 합니다.` 예: `세바스찬 · 외형은 800자 이하여야 합니다.` |
 | 목록 필드 빈 항목 제거 뒤 개수 초과 | 〃 | `{shortName} · {label}{은/는} {maxItems}개 이하여야 합니다.` 예: `시엘 · 샘플 대사는 10개 이하여야 합니다.` |
 | 목록 항목 하나라도 길이 초과 | 〃 | `{shortName} · {label}{은/는} 한 줄에 {itemMax}자 이하여야 합니다.` |
+| (v0.8) 봉투 `model`이 있는데 `'pro'`·`'flash'`가 아님(`null`·`''`·`'Pro'`·숫자·배열 등). `settings`에 위반이 없을 때만 | `['model']`(봉투 — shared 사전 검사 밖, routes `settingsIssueMessage`가 판정) | `공통 · AI 모델 값이 올바르지 않습니다.`(= `SETTINGS_MODEL_INVALID_MESSAGE`) |
 
-- **검사 순서**(첫 위반이 무엇인지): `settings` 객체 → 모르는 키 → `world` → `characters` 객체 → 모르는 캐릭터 → `sebastian` → `ciel`. 캐릭터 안은 객체 → 모르는 키 → 필드를 `CHARACTER_FIELD_KEYS` 순서로(각 필드는 형 → 길이·개수). 문구 단일 소스는 shared `checkCharacterSettings`이고 화면 사전 검사와 서버 `400`이 같은 문장을 낸다.
+- **검사 순서**(첫 위반이 무엇인지): `settings` 객체 → 모르는 키 → `world` → `characters` 객체 → 모르는 캐릭터 → `sebastian` → `ciel` → (v0.8) 봉투 `model`. 캐릭터 안은 객체 → 모르는 키 → 필드를 `CHARACTER_FIELD_KEYS` 순서로(각 필드는 형 → 길이·개수). 문구 단일 소스는 shared `checkCharacterSettings`이고 화면 사전 검사와 서버 `400`이 같은 문장을 낸다.
 - `{은/는}`은 화면 이름 끝 글자의 받침으로 정한다(`settings.ts` `withTopic`). 응답 `error`의 키는 `code`·`message` 둘뿐이다. `path`·`details` 키는 응답에 없다(§3.1). 경로는 화면 사전 검사에서만 쓴다.
 - 모르는 키 문구에 키 이름을 싣지 않는다. 가져오기 파일의 `apiKey` 같은 이름이 응답·화면에 되비치지 않게 한다(§3.1 "키 이름 금지").
+- (v0.8) `model` 문구의 단일 소스는 shared `SETTINGS_MODEL_INVALID_MESSAGE`다. 문구에 입력값을 싣지 않는다. 화면은 라디오로 두 키만 보내므로 `model` 사전 검사를 하지 않는다.
 - zod 판정과 shared 사전 검사가 어긋나 zod만 실패하면 기본 문구 `요청 형식이 올바르지 않습니다.`가 나간다(안전망). 두 판정은 같은 경계값 벡터로 테스트한다(API-T-106·107 + server SRV-T).
 
 에러(§4.15 표에 더함):
@@ -1023,7 +1032,7 @@ AI가 대사를 만드는 두 쓰기다. 주방에 화구가 방마다 하나뿐
 | 코드 | status | message | 조건 |
 |---|---|---|---|
 | `RATE_LIMITED` | 429 | 기본 문구 + `retryAfterSec` + `Retry-After` | 판정 3. 쓰기 공용 분당 한도 |
-| `VALIDATION_ERROR` | 400 | 판정 4·6은 위 문구, 판정 5는 기본 문구 | 본문 상한 · JSON 깨짐 · 형식·필수·길이·개수·모르는 키 |
+| `VALIDATION_ERROR` | 400 | 판정 4·6은 위 문구, 판정 5는 기본 문구 | 본문 상한 · JSON 깨짐 · 형식·필수·길이·개수·모르는 키 · (v0.8) `model` 값 |
 
 요청 예(필드 일부는 지면상 생략했다. 실제 요청은 11필드 × 2명이 모두 있어야 한다):
 
@@ -1034,8 +1043,17 @@ AI가 대사를 만드는 두 쓰기다. 주방에 화구가 방마다 하나뿐
 응답 예(`world` trim, `sampleDialogue` 빈 항목 제거):
 
 ```json
-{ "settings": { "world": "19세기 말 런던.", "characters": { "sebastian": { "sourceMaterial": "흑집사", "age": "", "gender": "남성", "role": "집사", "persona": "완벽한 집사.", "personalityTags": "", "appearance": "", "relationships": "", "speech": "정중한 존댓말.", "sampleDialogue": ["분부대로."], "rules": [] }, "ciel": { "…": "…" } } }, "version": 3, "updatedAt": 1767231000000, "isDefault": false }
+{ "settings": { "world": "19세기 말 런던.", "characters": { "sebastian": { "sourceMaterial": "흑집사", "age": "", "gender": "남성", "role": "집사", "persona": "완벽한 집사.", "personalityTags": "", "appearance": "", "relationships": "", "speech": "정중한 존댓말.", "sampleDialogue": ["분부대로."], "rules": [] }, "ciel": { "…": "…" } } }, "version": 3, "updatedAt": 1767231000000, "isDefault": false, "model": "flash" }
 ```
+
+(v0.8) 모델 키를 함께 보내는 요청(봉투 `model`):
+
+```json
+{ "settings": { "world": "19세기 말 런던.", "characters": { "…": "…" } }, "model": "flash" }
+```
+
+- 위 응답 예처럼 `model` 키가 없는 요청은 저장된 모델(`flash`)을 그대로 두고 응답 `model`도 그 키다.
+- `"model": null`은 `400`이다. 저장된 선택을 지우고 서버 기본값으로 되돌리는 요청은 요구에 없다.
 
 ### 4.17 `GET /api/rooms/:id/memory` (E13) — 장기기억 보기 (S4, v0.7)
 
@@ -1636,6 +1654,7 @@ export type PutCharacterSettingsBody = {
 - `Record<CharacterId, …>`라서 캐릭터가 늘면 tsc가 모든 사용처를 잡는다. 캐릭터 문자열 유니온을 새로 만들지 않는다.
 - 시각은 epoch ms(R-API-004). 없음은 `null`. `version`은 정수.
 - 선택 필드도 키는 필수다(빈 문자열·빈 배열). 없음을 `undefined`·키 생략으로 나타내지 않는다(§5.1).
+- (v0.8) `LlmModelKey`·`CharacterSettingsResponse.model`·`PutCharacterSettingsBody.model?`은 §5.8.6이 이 블록에 더한다.
 
 #### 5.8.2 `shared/src/errors.ts` 추가분 (3곳)
 
@@ -1877,6 +1896,56 @@ export const checkCharacterSettings = (value: unknown): SettingsCheckResult => {
 | 실패 문구 | 기본 문구 | shared `checkCharacterSettings`의 첫 위반 문구(§4.16 표). zod 문구는 쓰지 않는다 |
 | 타입 대조 | `const body: X = c.req.valid('json')` | 같다 — `const body: PutCharacterSettingsBody = c.req.valid('json')`가 zod 출력과 shared 타입을 tsc로 대조한다 |
 
+#### 5.8.6 S3f 추가분 (v0.8 — AI 모델 키, R-SET-004 · R-SET-005 · R-SET-013 · R-LLM-009)
+
+`shared/src/types.ts`:
+
+```ts
+// 추가 — CharacterSettings 다음, CharacterSettingsResponse 앞
+/** AI 모델 키 (S3f, R-SET-013 · R-LLM-009). 실제 모델명·단가는 server llm/models.ts 에만 있다. 목록·순서는 settings.ts LLM_MODEL_KEYS */
+export type LlmModelKey = 'pro' | 'flash'
+
+// CharacterSettingsResponse — isDefault 다음에 필드 1개 추가
+  /** 지금 실제로 쓰는 모델의 키(§4.15). 저장값이 두 키 중 하나면 그 키, 아니면 서버 기본 모델(env LLM_MODEL)과 이름이 같은 키, 그것도 없으면 null */
+  model: LlmModelKey | null
+
+// PutCharacterSettingsBody — settings 다음에 필드 1개 추가
+  /** 고른 모델 키. 키가 없으면 저장값 유지, null·그 밖의 값은 400(§4.16). `| undefined` 는 exactOptionalPropertyTypes 에서 zod .optional() 출력과 맞추기 위한 것이고 JSON 에는 나타나지 않는다 */
+  model?: LlmModelKey | undefined
+```
+
+`shared/src/settings.ts`(`import type`에 `LlmModelKey` 추가):
+
+```ts
+// 추가 — SETTINGS_CHARACTER_IDS 다음
+/** AI 모델 키 목록 — 화면 선택지 순서이자 routes zod enum 값 (R-SET-013 · R-LLM-009). 집합 = LlmModelKey (API-T-131) */
+export const LLM_MODEL_KEYS = ['pro', 'flash'] as const satisfies readonly LlmModelKey[]
+
+/** E16 본문 model 위반 400 문구 (R-SET-005, §4.16). 입력값을 싣지 않는다 */
+export const SETTINGS_MODEL_INVALID_MESSAGE = `${SETTINGS_COMMON_SCOPE} · AI 모델 값이 올바르지 않습니다.`
+```
+
+JSON 예(응답, `settings` 생략 — 세 판):
+
+```json
+{ "settings": { "…": "…" }, "version": 4, "updatedAt": 1767231000000, "isDefault": false, "model": "flash" }
+{ "settings": { "…": "…" }, "version": 0, "updatedAt": null, "isDefault": true, "model": "pro" }
+{ "settings": { "…": "…" }, "version": 0, "updatedAt": null, "isDefault": true, "model": null }
+```
+
+- 둘째 줄은 저장한 적이 없고 서버 기본 모델이 Pro인 판이다. 셋째 줄은 서버 기본 모델이 두 후보 밖인 판이다.
+- `model`은 **본체(`settings`) 밖 봉투**에 있다. `CharacterSettings`·`checkCharacterSettings`·`CHARACTER_FIELD_*`·파일 형식 상수는 바뀌지 않는다. `settings` 안에 `model` 키를 넣으면 기존대로 모르는 키 `400`(`공통 · 알 수 없는 항목이 있습니다.`)이다.
+- `satisfies`는 부분집합만 확인한다. 집합이 정확히 두 키인지는 API-T-131이 본다. 키를 더하거나 빼려면 R-SET-005 🔒 개정이 먼저이고, `LlmModelKey`·`LLM_MODEL_KEYS`·server 상수표(`LLM_MODEL_OPTIONS`)를 함께 바꾼다.
+- 모델명 문자열(`gemini-…`)·단가는 shared에 두지 않는다. 화면이 이름·숫자를 모르게 하는 것이 R-LLM-009의 "키만" 규칙이다.
+- `errors.ts`·`endpoints.ts`·`limits.ts`·`characters.ts`는 **변경 없음**. `PATHS`는 11개 그대로다.
+
+| 쓰는 곳 | 쓰는 방식 |
+|---|---|
+| routes `schemas.ts` | `model: z.enum(LLM_MODEL_KEYS).optional()`, `settingsIssueMessage`의 `model` 문구(§11.17) |
+| ui `api/settings.ts` | `saveCharacterSettings(settings, model?: LlmModelKey)` 인자 타입(§11.17) |
+| ui 설정 화면 | 선택지 순서 = `LLM_MODEL_KEYS`. 화면 이름·설명 문구는 ui `labels.ts`(ui 설계 몫) |
+| server `llm/models.ts` · `settings` | `LLM_MODEL_OPTIONS`의 키 타입 `{ [K in LlmModelKey]: … }`, `loadModelKey` 판정(s3f-03 §1.2) |
+
 ### 5.9 S4 추가분 (v0.7 — 장기기억)
 
 `errors.ts`·`limits.ts`·`characters.ts`·`settings.ts`는 **변경 없음**. 서버 서비스와 화면 카운터가 `MEMORY_SUMMARY_MAX`·`countCodePoints`·`normalizeText`(§5.7)를 그대로 import한다. JSON 예시는 §4.17·§4.18.
@@ -1989,6 +2058,7 @@ export type PutMemoryBody = {
 - (v0.6.1, S5 TODO 추가 — verify-S3c SEC-001) `secret-handover.md`에 "운영 `TOKEN_SECRET`은 32자 이상 랜덤이고 개발(`server/.dev.vars`) 값과 달라야 한다"를 적는다. 주인 설정 쓰기(E16) 권한이 이 비밀값 하나에 걸려 있기 때문이다(`mb_id`는 공개값).
 - (v0.6.1, S5 TODO 추가) 운영 Secrets 목록(`wrangler secret put`)에 `TOKEN_SECRET`·`LLM_API_KEY`와 함께 `OWNER_MB_IDS`를 넣는다. 값은 지인(갠홈 주인) 회원 ID만이며, 비우면 설정 화면(E15·E16)은 전원 `403 OWNER_ONLY`다. 실제 회원 ID는 handoff·이 문서에 쓰지 않는다.
 - (v0.7, S4) **handoff 변경 없음**(토큰·`?t=`·임베드 주소 불변). S5 TODO 1건: 위 AI 비용 상한 안내 단락에 "장기기억 자동 요약 호출(대화가 길어지면 캐릭터 발화 뒤 가끔 1회)도 같은 월 AI 비용에 포함된다"를 한 줄 더한다(R-LLM-007 · R-MEM-002).
+- (v0.8, S3f) handoff 설정값 안내를 고쳤다(쉬운 말, 실값 없음): `cloudflare-setup.md` §6 `LLM_MODEL`(주인이 고르기 전 기본 모델 = Pro)·`LLM_PRICE_*`(단가표에 없는 모델용 예비 단가) 뜻, §0·§7·§10 마이그레이션 0004와 적용 순서 · `secret-handover.md` §5 모델·단가 설명 · `embed-guide.md` §7 운영 메모 1줄(주인이 Pro·Flash를 고름, 비용 차이, 테마 파일 변경 없음). **PHP 조각·토큰 형식·`?t=`·임베드 주소 변경 없음 → 저쪽 재적용 없음.**
 
 ---
 
@@ -2020,6 +2090,8 @@ export type PutMemoryBody = {
 | v0.7.1 구현 | 2026-10-07 | contract 몫 구현 반영: `routes-memory.test.ts` API-T-125(① `''` ② 공백만 → `sourceUntilId` 0 ③ `'a'` → 21 유지), `types.ts` `MemoryResponse.sourceUntilId` 주석 · `ui/src/api/memory.ts` `putMemory` 주석에 "빈 요약이면 0", §12.6 갱신. 라우트·shared 모양 변경 없음 | 구현 반영(계약 변경 없음) | 아니오 |
 | v0.7.2 | 2026-10-07 | S5 handoff 4문서 작성(R-TOKEN-001 🔒 · R-HANDOFF-001 🔒 · R-HANDOFF-002 🔒 · R-HANDOFF-003): `embed-guide.md`(주소 위치·패널 390×640·`?t=`·허용 출처·sandbox·캐시·AI 비용 운영 메모) · `token-snippet.php.md`(조각 전문·위치·LEVEL·교차 벡터 V1·V4·V7·V3·자가 점검) · `secret-handover.md` · `cloudflare-setup.md`. §8 제목·표 2행. PHP 조각은 §2.6 규칙 그대로이고 SECRET 32자 미만이면 발급하지 않는다(서버 하한과 같음, 토큰 형식 무관). 사용자 결정 2026-10-07 반영: `OWNER_MB_IDS` = 지인 회원 ID 1개(실값 미기재) · 모델은 설정 화면 Pro/Flash 선택 예정(설계 중)이라 `LLM_MODEL`·`LLM_PRICE_*`는 폴백 기본값으로 기술 · Cloudflare 접근 방식·플랜은 두 선택지와 권고만(지인 선택) · LEVEL 5 유지. 엔드포인트·타입·에러 코드·토큰 형식 불변 | 추가(문서만) | 아니오(첫 전달 — 저쪽 최초 적용) |
 | v0.7.2 보정 | 2026-10-07 | 사용자 결정(지인은 비개발자): handoff 4종을 "지인 최소·나머지 우리" 기준으로 재정렬. SECRET은 우리가 생성·Cloudflare 입력하고 지인에게는 SECRET을 채운 PHP 덩어리를 1회성 비밀 링크로 전달(지인 직접 생성은 대안 강등, secret-handover §2·§7). Cloudflare는 구성원 초대가 기본·API 토큰은 대안, 플랜 Free로 우리가 시작, D1·Secrets·`[vars]`·마이그레이션·배포는 우리 몫(cloudflare-setup §0~§9). embed-guide 지인 할 일 = 주소 한 줄 교체·덩어리 붙이기·확인표, 캐시는 질문 대신 안내(§5.3). token-snippet 머리에 지인용 요약 3줄, §7 `npm run token:test -w server` 실물 사용법(sign·verify·vectors). §8 cloudflare-setup 행 문구 정정. 토큰 형식·PHP 조각 코드·교차 벡터 불변 | 변경 없음(전달 절차·문서만) | 아니오 |
+| v0.8 | 2026-10-08 | S3f 상세 확정(R-SET-004·005·007·012 S3f 개정 · R-SET-013 · R-LLM-009 신규의 contract 몫, 승인 ① 2026-10-08). E15 응답 `model: LlmModelKey \| null`(지금 쓰는 모델 키, 후보 밖 `null`, 응답 키 4 → 5, §4.15), E16 본문 `model?`(없으면 유지, `null`·그 밖 `400` `공통 · AI 모델 값이 올바르지 않습니다.`, 판정 6 안 `settings` 다음)·부수 효과(같은 행 `llm_model`, 다음에 시작하는 생성·화자 선택·요약부터)·로그 `settings_saved{mbId, version, model}`(§4.16), §5.8.6 `LlmModelKey`·`LLM_MODEL_KEYS`·`SETTINGS_MODEL_INVALID_MESSAGE`·타입 2곳, §16.1·§16.4 내보내기 제외, §1.4 · §8 · §10 · §11.17 · §12.7(예정) · §13.7 · §14.21(API-T-094 갱신 · 126 ~ 131 · API-T-UI-033 · 034) · §15.15 · 인계 2종 S3f. handoff 설정값 안내(`cloudflare-setup.md` · `secret-handover.md` · `embed-guide.md`). 모델명·단가 비노출. 엔드포인트 16·에러 코드 15·경로·토큰 형식·PHP 조각 불변 | 추가(응답 필드 1·선택 본문 필드 1·shared export 3·400 문구 1. 기존 요청은 그대로 통과하고 기존 응답 키·status·문구 불변 — 근거 §13.7) | 아니오(PHP 조각·토큰·`?t=`·임베드 주소 불변) |
+| v0.8 구현 | 2026-10-08 | contract 몫 구현 반영: shared `LlmModelKey` · `LLM_MODEL_KEYS` · `SETTINGS_MODEL_INVALID_MESSAGE`, `schemas.ts` `model` 필드 · `settingsIssueMessage` 순서, `routes/settings.ts` 셋째 인자, `ui/api/settings.ts` `saveCharacterSettings(settings, model?)`, 테스트 API-T-126 ~ 131 · UI-033 · 034, §12.7 갱신. 엔드포인트·에러 코드·토큰 형식 변경 없음 | 구현 반영(계약 변경 없음) | 아니오 |
 
 ---
 
@@ -2114,6 +2186,14 @@ export type PutMemoryBody = {
 | R-CHAT-012 🔒 (contract 몫) | 래퍼 `getMemory`·`putMemory`(`Result`, throw 없음, 둘 다 헤더 부착), 시트 열 때마다 GET·경합·비우기 안내 | §11.16 · 「ui 인계 메모」 S4 | 신규(래퍼) | 추가 | API-T-UI-030 ~ 032, 화면 TC | 계약 확정(S4) |
 | R-API-001 🔒 · R-API-002 🔒 (S4 확인) | 엔드포인트 16개(E13·E14는 v0.1부터 표에 있음)·에러 코드 15종 그대로 | §4.0 · §3.2 | 변경 없음 | — | API-T-040 무수정 · 042(갱신: `PATHS` 11) · 122 | 확인(S4) |
 | R-API-004 (S4) | camelCase · `updatedAt: number \| null` · `sourceUntilId` 정수 | §5.1 · §5.9 | 확장 | 추가 | API-T-114 · 115 · 119 | 확인(S4) |
+| R-SET-013 🔒 (S3f, contract 몫) | E16 본문 `model?`로 저장, 응답 `model`, 다음에 시작하는 생성부터 적용(부수 효과), 모델만 저장해도 `version` +1·`isDefault false`, 키는 `LLM_MODEL_KEYS` | §4.15 · §4.16 · §5.8.6 · §11.17 | 확장 | 추가 | API-T-127 · 128, API-T-UI-033 | 계약 확정(S3f, 구현 전) |
+| R-LLM-009 🔒 (S3f, contract 몫 — 키만 노출) | `LlmModelKey`·`LLM_MODEL_KEYS`, 응답·본문은 키만, 모델명·단가 비노출 | §4.15 · §5.8.6 · §16.4 | 확장 | 추가 | API-T-126 · 131 | 계약 확정(S3f) |
+| R-SET-004 🔒 (S3f 개정) | E15 응답 키 5(`model` = 지금 쓰는 모델 키, 후보 밖 `null`) | §4.15 · §5.8.6 | 확장 | 추가 | API-T-094(갱신) · 126, API-T-UI-034 | 계약 확정(S3f) |
+| R-SET-005 🔒 (S3f 개정) | 본문 `model?`(없으면 유지, `null`·그 밖 `400` `공통 · AI 모델 값이 올바르지 않습니다.`), 판정 `settings` → `model`, 모델 400도 레이트리밋 1회 | §4.16 · §5.8.6 · §11.17 | 확장 | 추가 | API-T-127 ~ 130, API-T-UI-033 · 034 | 계약 확정(S3f) |
+| R-SET-007 🔒 (S3f 개정, contract 몫) | 모델 키는 내보내기 파일에 없고 가져오기로 바뀌지 않음(파일 형식·`formatVersion 1` 불변) | §16.1 · §16.4 | 확장(명시) | 변경 없음 | ui 단위(내보내기 `model` 0건) · API-T-130 ② | 계약 확정(S3f) |
+| R-SET-012 (S3f 개정, contract 몫) | E16 부수 효과의 로그 `settings_saved { mbId, version, model }`(키) | §4.16 | 확장 | 추가(서버 로그) | server SRV-T | 계약 확정(S3f) |
+| R-API-001 🔒 · R-API-002 🔒 (S3f 확인) | 엔드포인트 16개·에러 코드 15종·토큰 형식 그대로 | §4.0 · §3.2 · §2.3 | 변경 없음 | — | API-T-040 · 042 무수정 | 확인(S3f) |
+| R-API-004 (S3f) | `model`은 문자열 리터럴 유니온, 없음 `null` | §5.1 · §5.8.6 | 확장 | 추가 | tsc | 확인(S3f) |
 
 ---
 
@@ -3160,6 +3240,94 @@ export const putMemory = (roomId: string, body: PutMemoryBody): Promise<Result<M
 4. contract-implementer(6단계): `ui/src/api/memory.ts` · `index.ts` + 신규 `ui/src/api/memory.test.ts`(API-T-UI-030 ~ 032).
 5. 증거: 세 워크스페이스 `npx tsc --noEmit` exit 0, `npx vitest run --project shared`·`--project server`·`--project ui ui/src/api` 결과. §12.6을 실물 파일:줄로 다시 채우고 §9에 "v0.7 구현" 행.
 
+### 11.17 S3f routes · ui/api 설계 (v0.8 — 엔드포인트·래퍼 추가 없음)
+
+| 파일 | 변경 | 근거 |
+|---|---|---|
+| `shared/src/types.ts` | `LlmModelKey` 추가, `CharacterSettingsResponse.model`, `PutCharacterSettingsBody.model?` | §5.8.6 |
+| `shared/src/settings.ts` | `LLM_MODEL_KEYS` · `SETTINGS_MODEL_INVALID_MESSAGE` 추가. `checkCharacterSettings`는 손대지 않는다 | §5.8.6 |
+| `server/src/routes/schemas.ts` | `putCharacterSettingsBody`에 `model`, `settingsIssueMessage`가 `settings` 다음에 `model` 문구 | 아래 |
+| `server/src/routes/settings.ts` | PUT 핸들러가 `body.model`을 셋째 인자로 넘긴다. 주석 [요구]·[부수효과] | 아래 |
+| `ui/src/api/settings.ts` | `saveCharacterSettings(settings, model?)` | 아래 |
+| `server/src/routes/{index,validate,rooms,messages,memory,health}.ts` · `ui/src/api/{client,index}.ts` | **변경 없음** | — |
+
+```ts
+// server/src/routes/schemas.ts — import 에 LLM_MODEL_KEYS · SETTINGS_MODEL_INVALID_MESSAGE 추가
+import { checkCharacterSettings, LLM_MODEL_KEYS, SETTINGS_MODEL_INVALID_MESSAGE } from '@shared/settings'
+
+/** E16 본문(PUT 캐릭터 설정). 봉투 모르는 키는 버리고, settings 안은 server 스키마가 strict. model 은 두 키 중 하나 또는 키 없음 — null 불가 (api.md §4.16) */
+export const putCharacterSettingsBody = z.object({
+  settings: characterSettingsSchema,
+  model: z.enum(LLM_MODEL_KEYS).optional(),
+})
+
+/**
+ * E16 400 문구 — 판정은 zod. 문구는 ① settings 의 첫 위반(shared 사전 검사) ② settings 가 통과했을 때만 봉투 model 위반
+ * 둘 다 아니면 undefined → 기본 문구(zod 와 사전 검사가 어긋난 경우의 안전망)
+ */
+export const settingsIssueMessage = (data: unknown): string | undefined => {
+  const envelope: object = typeof data === 'object' && data !== null ? data : {}
+  const checked = checkCharacterSettings('settings' in envelope ? envelope.settings : undefined)
+  if (!checked.ok) return checked.issue.message
+  if (!('model' in envelope)) return undefined
+  const model: unknown = envelope.model
+  return LLM_MODEL_KEYS.some(key => key === model) ? undefined : SETTINGS_MODEL_INVALID_MESSAGE
+}
+```
+
+```ts
+// server/src/routes/settings.ts — PUT 핸들러만 (GET · 미들웨어 · 본문 상한 불변)
+  /// [계약] api.md §4.16 · [요구] R-SET-005 · R-SET-013 · [에러] §4.15 + RATE_LIMITED · VALIDATION_ERROR · [부수효과] D1 1행 UPSERT(본체 + llm_model) · 레이트리밋 1회
+    async c => {
+      const body: PutCharacterSettingsBody = c.req.valid('json')
+      const response: CharacterSettingsResponse = await c
+        .get('services')
+        .settings.put(body.settings, getPrincipal(c), body.model)
+      return c.json(response, 200)
+    },
+```
+
+```ts
+// ui/src/api/settings.ts — saveCharacterSettings 만 (getCharacterSettings 불변 — 응답 타입에 model 이 들어올 뿐)
+import type {
+  CharacterSettings,
+  CharacterSettingsResponse,
+  LlmModelKey,
+  PutCharacterSettingsBody,
+} from '@shared/types'
+
+/**
+ * [계약] api.md §4.16 · [요구] R-SET-005 · R-SET-013 — 전체 교체 저장(200). 응답 settings 가 정규화 값, model 이 지금 쓰는 모델 키
+ * model 을 주면 함께 저장한다. 생략(undefined)하면 본문에 model 키가 없고 서버 저장값이 유지된다
+ */
+export const saveCharacterSettings = (
+  settings: CharacterSettings,
+  model?: LlmModelKey,
+): Promise<Result<CharacterSettingsResponse>> => {
+  const body: PutCharacterSettingsBody = model === undefined ? { settings } : { settings, model }
+  return request<CharacterSettingsResponse>(endpoints.characterSettings(), {
+    method: 'PUT',
+    body,
+    auth: true,
+  })
+}
+```
+
+- `envelope: object` 좁히기와 `'settings' in envelope`라 타입 단언(`as`)이 없다(S3c와 같다). `model`은 지역 상수로 꺼낸 뒤 비교한다(콜백 안 좁히기 손실 방지).
+- `z.enum(LLM_MODEL_KEYS)`는 `'pro'`·`'flash'`만 통과한다. `.optional()`은 키 없음만 통과시키고 `null`은 실패한다. `.nullable()`·`.catch()`·대소문자 정규화를 붙이지 않는다.
+- `const body: PutCharacterSettingsBody = c.req.valid('json')`가 zod 출력(`model?: 'pro' | 'flash' | undefined`)과 shared 타입을 tsc로 대조한다. shared 쪽 `| undefined`가 빠지면 exactOptionalPropertyTypes 때문에 이 줄이 실패한다(§5.8.6 · §15.15 제안 1).
+- 핸들러는 `body.model`의 뜻(유지·교체)을 해석하지 않고 넘긴다. 유지·해석·로그는 server `settings.put`(s3f-03 §1.2) 몫이다. 라우트 줄 수는 S3c와 같다(R-API-007).
+- 래퍼는 `model`을 검사하지 않는다(타입이 두 키만 허용하고 `null`은 컴파일 오류). 서버 `400` 문구는 `error.message` 그대로 돌아온다(§3.4).
+- 래퍼가 `undefined`를 키째 빼는 이유: `JSON.stringify`도 `undefined` 값을 지우지만, "키 없음 = 유지"를 래퍼 코드에서 명시하고 API-T-UI-034가 본문 키 집합을 본다.
+
+구현 순서:
+
+1. contract-implementer(4단계): shared `types.ts`·`settings.ts` + API-T-131. server `llm/models.ts`·`settings` 서비스가 `LlmModelKey`·`LLM_MODEL_KEYS`를 import하므로 먼저다. `CharacterSettingsResponse.model`이 필수 필드가 되는 순간 server `settings` 서비스와 응답 픽스처를 만드는 테스트의 tsc가 깨진다 — 5단계(server)·6단계(contract)·7단계(ui)가 메운다. 4단계 증거는 `npx tsc --noEmit -p shared` · `npx vitest run --project shared`.
+2. server-implementer(5단계): s3f-03 §1.3(0004 · `settings.put` 셋째 인자 · `get` 응답 `model`).
+3. contract-implementer(6단계): `schemas.ts` · `routes/settings.ts` + `server/test/routes-settings.test.ts` API-T-094 갱신 · 126 ~ 130(2 뒤).
+4. contract-implementer(6단계): `ui/src/api/settings.ts` + `ui/src/api/settings.test.ts` 응답 픽스처 `model` 추가 · API-T-UI-033 · 034. 1 뒤면 2·3과 무관하다.
+5. 증거: 세 워크스페이스 `npx tsc --noEmit` exit 0(ui는 7단계 픽스처 갱신 뒤), `npx vitest run --project shared`·`--project server`·`--project ui ui/src/api` 결과. §12.7을 실물 파일:줄로 다시 채우고 §9에 "v0.8 구현" 행.
+
 ---
 
 ## 12. 4자 대조표 (S1)
@@ -3284,6 +3452,23 @@ export const putMemory = (roomId: string, body: PutMemoryBody): Promise<Result<M
 | E9 응답 뒤 자동 요약 | §4.12 · §4.13 | — | `routes/messages.ts` 불변(`background` 그대로) | `speak` 불변 | 예정 |
 | 엔드포인트 16 · 에러 15 불변 | §4.0 · §3.2 | `PATHS` 11 · `ERROR_CODES` 15 | — | — | 예정 |
 
+### 12.7 4자 대조표 (S3f — 구현 완료 2026-10-08, 실물 파일:줄)
+
+| 계약 항목 | api.md | shared | routes | ui/api | 판정 |
+|---|---|---|---|---|---|
+| 모델 키 타입·목록 | §5.8.6 | `types.ts:125` `LlmModelKey = 'pro' \| 'flash'` · `settings.ts:30` `LLM_MODEL_KEYS = ['pro', 'flash'] as const satisfies …` | `schemas.ts:64` `z.enum(LLM_MODEL_KEYS)` | `settings.ts:20` 인자 타입 `LlmModelKey` | ✅ (API-T-131) |
+| E15 응답 `model` | §4.15 · §5.8.6 | `types.ts:138` `model: LlmModelKey \| null`(필수) | `routes/settings.ts:28` `.get` 불변 — `const response: CharacterSettingsResponse`가 tsc 대조 | `getCharacterSettings` 불변 | ✅ (API-T-094 갱신 · 126 · UI-034②) |
+| E16 본문 `model?` | §4.16 · §5.8.6 | `types.ts:145` `model?: LlmModelKey \| undefined` | `schemas.ts:62~65` `putCharacterSettingsBody` → `routes/settings.ts:41` `const body: PutCharacterSettingsBody = c.req.valid('json')` | `ui/api/settings.ts:22` `model === undefined ? { settings } : { settings, model }` | ✅ (API-T-127 · UI-033) |
+| optional 뜻(키 없음 = 유지, `null` = 400) | §4.16 | `?`(`null` 불포함) | `schemas.ts:64` `.optional()`만(`.nullable()` 없음) | 키 생략 · `null`은 컴파일 오류(`@ts-expect-error`) | ✅ (API-T-128 · 129 · UI-033 · 034①) |
+| E16 서비스 호출 | §4.16 | — | `routes/settings.ts:43` `settings.put(body.settings, getPrincipal(c), body.model)` | — | ✅ (API-T-127 · 128) |
+| 400 문구 · 판정 순서 | §4.16 | `settings.ts:33` `SETTINGS_MODEL_INVALID_MESSAGE` = `공통 · AI 모델 값이 올바르지 않습니다.` | `schemas.ts:71~78` `settingsIssueMessage` — `settings` 첫 위반 → `model` 순 | 서버 `message` 그대로(래퍼 미검사) | ✅ (API-T-129 · 130 · UI-034③) |
+| 응답 키 5 · 모델명 비노출 | §4.15 · §16.4 | `src`·`ui/api`·`routes`에 `gemini-` 문자열 0(grep) | API-T-094 키 5 · API-T-126 응답 문자열에 모델명 없음 | — | ✅ |
+| 엔드포인트 16 · 에러 코드 15 · 토큰 형식 불변 | §4.0 · §3.2 · §2.3 | `endpoints.ts`·`errors.ts` 변경 0(`ERROR_CODES` 15) | `routes/index.ts` 변경 0 | `ui/api/index.ts` 변경 0 | ✅ |
+
+요구ID 반영: R-SET-004 ✅ · R-SET-005 ✅ · R-SET-013 ✅ · R-LLM-009(키만) ✅ · R-SET-007(§16.1 명시, 코드 변경 없음) ✅ · R-SET-012(부수 효과 문장, server 몫).
+
+실행 증거(2026-10-08): `npx tsc --noEmit -p shared` exit 0 · `-p server` exit 0 · `-p ui`의 `ui/src/api` 오류 0건(화면 쪽 픽스처·상태는 ui 단계 몫) · `vitest run --project shared` 145/145 · `--project server` 24파일 439/439(routes-settings에 API-T-126 ~ 130 추가, 094 갱신) · `--project ui ui/src/api` 34/34(API-T-UI-033 · 034 추가).
+
 ---
 
 ## 13. 호환성 분류
@@ -3402,6 +3587,22 @@ S1은 처음 만드는 계약이라 **전부 「추가」**다. ui·갠홈 영�
 
 - **파괴 변경 0건.** 기존 엔드포인트·타입·필드·에러 코드·status·문구·레이트리밋 한도는 그대로다.
 - **handoff 변경 없음.** 토큰 payload·서명·`?t=`·임베드 주소가 그대로라 저쪽 PHP 재적용이 없다. S5 비용 안내에 한 줄을 더한다(§8 TODO).
+
+### 13.7 S3f 변경 분류 (v0.8)
+
+| 변경 | 분류 | 영향 받는 곳 | 비고 |
+|---|---|---|---|
+| `CharacterSettingsResponse.model`(E15·E16 응답) | 추가(비파괴) | 배포된 화면 번들은 모르는 키를 무시한다. 타입은 필수 필드라 응답 픽스처를 만드는 코드가 tsc에서 잡힌다: `server/test/routes-settings.test.ts`(API-T-094 키 4 → 5) · `ui/src/api/settings.test.ts` · `ui/src/settings/test/fixtures.ts` · `ui/src/rooms/test/OwnerGate.test.tsx` 등(s3f-02 §8) | 화면 소비는 ui 설계 몫 |
+| `PutCharacterSettingsBody.model?`(E16 본문) | 추가(비파괴) | 기존 호출 `ui/src/settings/useSettingsEditor.ts:122` `saveCharacterSettings(check.value)`는 키를 보내지 않으므로 그대로 통과하고 저장값을 유지한다 | 이전에는 봉투의 모르는 키라 버려졌다. 이제 `model`만 알려진 키라 `null`·그 밖 값이 `400`이다. 그런 본문을 보내는 소비자는 없다(우리 화면 1개, 같은 배포) |
+| E16 `400` 문구 1행 `공통 · AI 모델 값이 올바르지 않습니다.` | 추가 | 없음 | 코드는 `VALIDATION_ERROR` 그대로. 판정 6 안에서 `settings` 다음이라 기존 문구·순서 불변 |
+| E16 부수 효과(같은 행 `llm_model`·모델 적용 시점)·로그 `model` 필드 | 추가(서버 동작) | 응답 형태·status·레이트리밋 불변. 모델만 바꿔 저장해도 `version` +1(기존 "저장 = +1" 규칙 그대로) | — |
+| `LlmModelKey` · `LLM_MODEL_KEYS` · `SETTINGS_MODEL_INVALID_MESSAGE` | 추가 | 없음 | 새 export |
+| `saveCharacterSettings(settings, model?)` | 추가(선택 인자) | 기존 호출부 무수정 컴파일 | — |
+| 내보내기 파일(§16.1) | 변경 없음(명시만) | 없음 | `formatVersion` 1 |
+
+- **파괴 변경 0건.** 엔드포인트 16개·에러 코드 15종·경로(`PATHS` 11)·status·기존 문구·레이트리밋 한도·본문 상한이 그대로다.
+- **handoff: PHP 조각·토큰 형식·`?t=`·임베드 주소 불변 → 저쪽 재적용 없음.** 설정값 안내 문구만 고친다(§8).
+- **배포 순서(server 몫, s3f-02 §12):** D1 마이그레이션 0004를 먼저 적용하고 코드를 배포한다. 거꾸로면 E15·E16과 speak가 `500 INTERNAL`이다(§4.15 에러 표). 코드만 이전 커밋으로 되돌리는 것은 안전하다(칸이 NULL 허용).
 
 ---
 
@@ -3757,6 +3958,32 @@ grep -n "OWNER_ONLY" ui/src/api/client.ts
 
 - `errors.test.ts` API-T-040(15종)은 무수정 통과해야 한다.
 
+### 14.21 S3f — `server/test/routes-settings.test.ts`(API-T-094 갱신 · 126 ~ 130) · `shared/test/settings.test.ts`(API-T-131) · `ui/src/api/settings.test.ts`(API-T-UI-033 · 034)
+
+준비:
+
+- §14.14 준비 그대로. env `LLM_MODEL`은 S3f 기본값(Pro 모델명)을 쓴다. 다른 판은 env 덮어쓰기로 만든다 — Flash 판 `LLM_MODEL: LLM_MODEL_OPTIONS.flash.model`(server `llm/models.ts` import, 모델명을 테스트에 다시 쓰지 않는다) · 후보 밖 판 `LLM_MODEL: 'gemini-2.5-flash'`(env 형식은 통과하고 두 후보와 다른 이름. GET·PUT만 부르므로 제공사 호출 없음).
+- 유효 본문은 `validSettings()`(§14.15). D1 `llm_model` 칸은 server 0004 마이그레이션이 만든다. 저장값 기대는 `SELECT llm_model FROM character_settings`로 직접 본다.
+- `expectContractError`는 그대로(`VALIDATION_ERROR`는 `code`·`message` 두 키).
+
+| 테스트ID | 파일 | 이름 | 입력 | 기대 | 요구 |
+|---|---|---|---|---|---|
+| API-T-094(갱신) | routes-settings | (기존 이름 유지) | 빈 D1, 주인 GET | 키 정확히 `isDefault`·`model`·`settings`·`updatedAt`·`version`(정렬 비교), `model: 'pro'`. 나머지 기대는 그대로 | R-SET-004 |
+| API-T-126 | routes-settings | `settings_get_model_is_effective_key` | 빈 D1에서 ① 기본 env ② Flash 판 env ③ 후보 밖 판 env로 GET ④ ③ 앱에서 `{ settings, model: 'pro' }` PUT 뒤 GET | ① `'pro'` ② `'flash'` ③ `null`(`isDefault true`·`version 0` 그대로) ④ `'pro'`. 네 응답 문자열 어디에도 `LLM_MODEL_OPTIONS.pro.model`·`LLM_MODEL_OPTIONS.flash.model`·`gemini-2.5-flash`가 없다 | R-SET-004 · R-LLM-009 |
+| API-T-127 | routes-settings | `settings_put_saves_model` | 빈 D1 → `{ settings, model: 'flash' }` PUT → GET → `{ settings, model: 'pro' }` PUT | 200 `model: 'flash'`·`version 1`·`isDefault false`(시드에서 모델만 바꿔도 행이 생긴다) / GET `'flash'` / 200 `model: 'pro'`·`version 2`. D1 `llm_model` `'flash'` → `'pro'` | R-SET-005 · R-SET-013 |
+| API-T-128 | routes-settings | `settings_put_without_model_keeps_saved` | ① `flash` 저장 뒤 `{ settings }` PUT(키 없음) ② 새 빈 D1에서 `{ settings }` PUT | ① 200 `model: 'flash'`, `version` +1, D1 `llm_model` `'flash'` 그대로 ② 200 `model: 'pro'`(env 키), D1 `llm_model IS NULL` | R-SET-005 |
+| API-T-129 | routes-settings | `settings_put_rejects_invalid_model` | `flash` 저장 뒤 본문은 유효하고 `model`만 ① `'turbo'` ② `null` ③ `''` ④ `'Pro'` ⑤ `1` ⑥ `['pro']` ⑦ `RATE_LIMIT_PER_MIN: '1'` 앱에서 ① 다음 유효 PUT | ①~⑥ 400 `VALIDATION_ERROR`, message = `SETTINGS_MODEL_INVALID_MESSAGE`(`공통 · AI 모델 값이 올바르지 않습니다.`), 응답 문자열에 `turbo` 없음, 이어서 GET `model 'flash'`·`version` 불변 ⑦ 429 `RATE_LIMITED`(모델 400도 1회 소모) | R-SET-005 · R-AUTH-005 |
+| API-T-130 | routes-settings | `settings_violation_reported_before_model` | ① `world: '   '` + `model: 'turbo'` ② `settings` 안에 `model: 'pro'`(봉투 `model` 없음) ③ 유효 `settings` + `model: 'turbo'` + 봉투 `extra: 1` | ① 400 `공통 · 세계관은 1~2000자여야 합니다.`(모델 문구 아님) ② 400 `공통 · 알 수 없는 항목이 있습니다.`(모델은 본체에 들어가지 못한다) ③ 400 모델 문구(`extra`는 버려지고 판정에 영향 없음). 모두 D1 불변 | R-SET-005 · R-SET-002 · R-SET-007 |
+| API-T-131 | `shared/test/settings.test.ts` | `llm_model_keys_match_contract` | — | `LLM_MODEL_KEYS`가 `['pro', 'flash']`와 순서까지 같다. `SETTINGS_MODEL_INVALID_MESSAGE === '공통 · AI 모델 값이 올바르지 않습니다.'`이고 `SETTINGS_COMMON_SCOPE + ' · '`로 시작한다. `checkCharacterSettings({ ...validSettings(), model: 'pro' })` → `ok: false`·path `[]`·`공통 · 알 수 없는 항목이 있습니다.`. 타입: `const k: LlmModelKey = 'flash'` 통과, `'turbo'` 대입은 `// @ts-expect-error` | R-SET-013 · R-LLM-009 · R-SET-005 |
+| API-T-UI-025(무수정) | `ui/src/api/settings.test.ts` | (기존) | `saveCharacterSettings(settings)` | 본문 키 정확히 `['settings']` — "model 없음" 판의 증거. 응답 픽스처에만 `model` 추가 | R-SET-005 |
+| API-T-UI-033 | `ui/src/api/settings.test.ts` | `save_character_settings_sends_model` | `saveCharacterSettings(settings, 'flash')` | `PUT /api/settings/characters`, `JSON.parse(body)` 키 정확히 `['settings', 'model']`, `model === 'flash'`, `Authorization` 있음. 200 `{ …, model: 'flash' }` → `value.model === 'flash'`. `saveCharacterSettings(settings, null)`은 `// @ts-expect-error` | R-SET-005 · R-SET-013 |
+| API-T-UI-034 | `ui/src/api/settings.test.ts` | `settings_model_passthrough` | ① `saveCharacterSettings(settings, undefined)` ② GET 200 `model: null` ③ PUT 400 `VALIDATION_ERROR` 모델 문구 | ① 본문 문자열에 `"model"` 없음·키 `['settings']` ② `value.model === null`(정규화·기본값 채우기 없음) ③ `ok: false`, `error.message` 그대로, `isAuthFailure` false. throw·reject 없음 | R-SET-004 · R-SET-005 |
+
+- 정상 경로(094·126·127·128·UI-033)보다 에러 입력이 많다(129·130·UI-034만 12건).
+- 모델 적용 시점(저장 뒤 다음 speak URL·단가·요약·자동 전환 금지)과 로그 `settings_saved`의 `model` 키는 server SRV-T가 맡는다(s3f-03 §1.4).
+- API-T-040(15종)·042(`PATHS` 11)·091~093·095~103·105~107·API-T-UI-024·026·027은 응답 기대·픽스처에 `model`을 더하는 것 외에는 무수정 통과해야 한다.
+- 리뷰 grep: `grep -rn "gemini-" shared/src ui/src --include=*.ts --include=*.tsx` 0건(모델명은 server만).
+
 ---
 
 ## 15. server 의존 · 변경 요청 · 확인 필요
@@ -4038,6 +4265,35 @@ server 설계와 어긋나 보이는 점(막지 않음, server-designer에게 �
 2. (server 열린 질문 2 연동) 편집 경합은 마지막 저장 승리이고 `409`가 없다(§4.18 경합 표). 시트를 연 채 자동 요약이 끝난 뒤 저장하면 그 요약을 덮는다. 충돌 감지가 필요하면 R-API-002 개정(16종째 코드)과 `PutMemoryBody`의 기대 버전 필드가 필요하다. 요구로 승격되기 전에는 만들지 않는다.
 3. **(v0.7.1 해소 — 2026-10-07 사용자 결정, R-MEM-001 🔒 개정)** 요약 비우기(`summary: ''`, trim 결과 기준)는 `sourceUntilId`를 0으로 되돌린다. 다음 speak 뒤 방의 처음부터 다시 요약한다. 비어 있지 않은 편집은 유지. 반영 §4.18.
 
+### 15.15 S3f server 의존 · 03과 다르게 정한 점 · 현황 · 확인 필요 (v0.8)
+
+사용하는 server 함수·타입(모두 s3f-03 §1.2 공개 시그니처, **구현 전**):
+
+| 항목 | 시그니처·형태 | 근거 |
+|---|---|---|
+| 설정 읽기 | `services.settings.get(): Promise<CharacterSettingsResponse>` — 응답에 `model`(지금 쓰는 키) | s3f-03 §1.2 · s3f-02 §2.2 |
+| 설정 저장 | `services.settings.put(settings: CharacterSettings, by: Principal, model?: LlmModelKey): Promise<CharacterSettingsResponse>` — `model` 생략 = 저장값 유지(UPSERT `COALESCE`) | s3f-03 §1.2 · s3f-02 §1 |
+| 키 → 모델명 | `LLM_MODEL_OPTIONS`(server `llm/models.ts`) — routes는 부르지 않는다. 라우트 테스트(API-T-126)가 env 덮어쓰기 값으로만 import | s3f-03 §1.2 |
+| 해석·폴백·로그 | `resolveLlmModel` · `modelKeyOf` · `loadModelKey` · `fallbackModelKey` 주입 — routes는 부르지 않는다 | s3f-03 §1.2 |
+| 미들웨어 | `requireToken` · `requireOwner` · `rateLimitWrites`(기존) | auth.md |
+
+server 변경 요구 명세: **없음.** s3f-03 §1.2 시그니처를 그대로 쓴다. 새 에러 코드·env 키는 0이다(마이그레이션 0004는 s3f-03 §1.3 server 몫).
+
+03과 다르게 정한 점(제안 — 막지 않음):
+
+1. `PutCharacterSettingsBody.model`은 `model?: LlmModelKey | undefined`다(s3f-03 §2.2는 `model?: LlmModelKey`). `tsconfig.base.json`에 `exactOptionalPropertyTypes`가 켜져 있고 zod 4 `.optional()` 출력이 `?: T | undefined`라, `const body: PutCharacterSettingsBody = c.req.valid('json')` 대조가 tsc를 통과하려면 필요하다. 선례는 `MessagesQuery`(v0.2.1)다. JSON에는 `undefined`가 없으므로 계약 뜻은 같다. server `put`의 셋째 인자는 매개변수라 그대로 맞는다.
+2. `LLM_MODEL_KEYS`는 `['pro', 'flash'] as const satisfies readonly LlmModelKey[]`(튜플)다. s3f-03 §1.2의 `readonly LlmModelKey[]`보다 좁고 그 자리에 그대로 대입된다. `z.enum`이 리터럴 튜플을 받기 때문이고 `SPEAK_TARGETS`·`SETTINGS_CHARACTER_IDS`와 같은 방식이다.
+3. 로그 `settings_saved`의 `model` 값은 server settings.md §13.5가 "저장 뒤 지금 쓰는 키(응답 `model`과 같은 값, `null` 가능)"로 정했다. 계약은 "키만, 본문 없음"만 요구하므로 어긋남이 없다.
+
+현황 메모(고치지 않음):
+
+1. §12.6 표 뒤에 S4 「예정」 표의 머리 없는 잔여 10줄(`---|---|…`로 시작)이 남아 있다. v0.7 구현 때 표를 바꾸며 남은 것으로 보인다. 계약 내용과는 무관하며, 지울지는 메인 세션이 정한다.
+2. §14.16 제목의 테스트 파일은 `ui/src/api/api.test.ts`지만 실물은 `ui/src/api/settings.test.ts`다(머리 주석이 §14.16을 가리킨다). §14.21은 실물 파일명을 쓴다.
+
+확인 필요:
+
+1. R-SET-013의 "고른 적 없으면 … 화면은 미선택 안내 문구"와 응답 `model`(지금 쓰는 키)의 관계. 서버 기본 모델이 Pro이면 고른 적 없는 상태도 `model: 'pro'`로 와서, 화면은 "저장된 Pro"와 "기본값 Pro"를 구분하지 못한다. 미선택 안내는 `model: null`(서버 기본 모델이 두 후보 밖)일 때만 나온다. 승인 ① 결정("지금 실제로 쓰는 모델의 키")대로 두었다. 둘을 구분해야 하면 요구 승격 뒤 응답에 선택 필드를 더한다(비파괴).
+
 ---
 
 ## 16. 부록 — 캐릭터 설정 파일 형식 · 가져오기 매핑 (S3c — R-SET-007 🔒 · R-SET-008)
@@ -4062,7 +4318,8 @@ server 설계와 어긋나 보이는 점(막지 않음, server-designer에게 �
 | `exportedAt` | 내보낸 시각, ISO 8601 UTC 문자열(`new Date().toISOString()`). 사람이 파일을 열어 읽는 용도다 |
 | `settings` | `CharacterSettings`. 응답 객체를 펼치지 않고 `world` + `SETTINGS_CHARACTER_IDS` 순서 × `CHARACTER_FIELD_KEYS` 순서로 **새로 만든다**(화이트리스트) |
 
-- 최상위 키는 정확히 위 4개다. `version`·`updatedAt`·`isDefault`·`updatedBy`·`mbId`·토큰·설정 키(`LLM_API_KEY` 등)·`outputRules`는 넣지 않는다.
+- 최상위 키는 정확히 위 4개다. `version`·`updatedAt`·`isDefault`·`updatedBy`·`mbId`·토큰·설정 키(`LLM_API_KEY` 등)·`outputRules`·(v0.8) `model`은 넣지 않는다.
+- (v0.8, R-SET-007 🔒 S3f 개정) **모델 키는 파일에 넣지 않고 가져오기로 바뀌지 않는다.** 파일은 캐릭터를 옮기는 원고이고, 모델은 이 갠홈의 비용·속도를 정하는 운영 스위치다. 남이 만든 파일을 가져와서 모델(비용)이 바뀌는 일을 막는다. 화이트리스트가 이미 모르는 키를 쓰지 않으므로 `formatVersion`은 1 그대로이고, 파일에 `model` 키가 있어도 읽지 않는다(§16.3 표 밖 키). 가져오기는 화면의 모델 선택을 바꾸지 않는다(s3f-02 §6).
 - 대상은 **마지막으로 읽거나 저장한 값**(E15·E16 응답의 `settings`)이다. 인증 만료로 저장할 수 없는 상태(stale)일 때만 현재 초안을 내보낸다(R-SET-007 · R-SET-011).
 - 직렬화는 `JSON.stringify(file, null, 2)`, UTF-8, MIME `application/json`. 파일명은 `london-dispatch-characters-YYYYMMDD-HHmm.json`(브라우저 현지 시각)이다.
 - 전달 수단은 둘이고 내용은 같은 문자열이다: Blob 다운로드(`URL.createObjectURL` + `a.download`)와 복사용 읽기 전용 텍스트 영역. iframe `sandbox`가 다운로드를 막아도 복사로 내보낼 수 있다(§8 TODO).
@@ -4134,8 +4391,8 @@ world 고르기: 백업은 `DB.worlds`를 앞에서부터 보고, `characters` �
 
 | 단계 | 규칙 | 확인 |
 |---|---|---|
-| 서버 응답 | E15·E16 응답은 `settings`·`version`·`updatedAt`·`isDefault`뿐이다 | API-T-094 |
-| 내보내기 | 화이트리스트로 새 객체를 만든다. 출력 키 집합 = 최상위 4개 + `world` + 2명 × 11필드 | ui 단위: 키 집합 일치, 출력 문자열에 `apiKey`·`API_KEY`·`SECRET`·`token` 0건 |
+| 서버 응답 | E15·E16 응답은 `settings`·`version`·`updatedAt`·`isDefault`·(v0.8) `model`(키 `'pro'`·`'flash'`·`null`, 모델명 없음)뿐이다 | API-T-094 · 126 |
+| 내보내기 | 화이트리스트로 새 객체를 만든다. 출력 키 집합 = 최상위 4개 + `world` + 2명 × 11필드. (v0.8) `model` 없음 | ui 단위: 키 집합 일치, 출력 문자열에 `apiKey`·`API_KEY`·`SECRET`·`token`·(v0.8) `"model"` 0건 |
 | 가져오기 | 화이트리스트로만 읽는다. `SETTINGS`를 열지 않는다. 파일 내용을 `console`·로그에 남기지 않는다 | ui 단위 벡터 5종(자체 · E.No.S 백업 · world 단독 · 잘못된 형식 · `SETTINGS`에 `apiKey`가 있는 파일 → 초안에 키 0) |
 | 서버 저장 | strict가 모르는 키를 거부한다(마지막 방어). 400 문구에 키 이름을 싣지 않는다 | API-T-096 |
 | 로그 | 설정 본문·필드 값을 남기지 않는다 | server SRV-T(R-SET-012) |
@@ -4217,6 +4474,20 @@ world 고르기: 백업은 `DB.worlds`를 앞에서부터 보고, `characters` �
 
 ---
 
+## 「ui 인계 메모」 (S3f — v0.8, 설정 화면 AI 모델 선택이 계약에서 알아야 할 것만)
+
+| 주제 | 계약 |
+|---|---|
+| 읽기 | `getCharacterSettings()` 응답의 `model: LlmModelKey \| null`. `'pro'`·`'flash'` = 지금 쓰는 모델, `null` = 서버 기본 모델이 두 후보 밖(미선택 판). 저장한 적 없는 Pro와 저장한 Pro는 응답으로 구분되지 않는다(§15.15 확인 필요 1) |
+| 저장 | `saveCharacterSettings(settings, model?)`. 모델을 바꿨을 때만 둘째 인자를 넘긴다. 넘기지 않으면 본문에 키가 없고 서버 저장값이 유지된다. `null`은 넘길 수 없다(타입) |
+| 선택지 | `LLM_MODEL_KEYS` 순서(`pro` → `flash`). 화면 이름·설명은 ui `labels.ts`. 모델명·가격 숫자는 계약에 없다 |
+| 응답 반영 | 저장 성공 응답의 `model`·`version`·`isDefault`로 기준값을 맞춘다. 모델만 바꿔도 `version` +1이고, 시드 상태였으면 `isDefault: false` |
+| 400 | `공통 · AI 모델 값이 올바르지 않습니다.`는 정상 화면에서는 나오지 않는다(라디오가 두 키만 보낸다). 오면 서버 `message`를 그대로 보인다. `settings` 위반이 있으면 그 문구가 먼저 온다 |
+| 내보내기·가져오기 | 파일에 `model`을 넣지 않고, 가져오기가 모델 선택을 바꾸지 않는다(§16.1) |
+| 적용 시점 | 저장 뒤 **다음에 시작하는** 캐릭터 발화·자동 응답의 화자 선택·장기기억 요약부터. 진행 중인 대답은 이전 모델로 끝난다 |
+
+---
+
 ## 「contract-implementer 인계 목록」 (S3b — v0.4.1)
 
 | 순서 | 파일 | 식별자 | 할 일 | 테스트 |
@@ -4278,3 +4549,18 @@ world 고르기: 백업은 `DB.worlds`를 앞에서부터 보고, `characters` �
 | — | `server/src/routes/{rooms,messages,settings,validate}.ts` · `ui/src/api/client.ts` | — | **소스 변경 없음** | 리뷰 diff |
 | 끝 | `doc/200_설계/contract/api.md` | §12.6 · §9 | 구현 후 실물 파일:줄로 대조표를 다시 채우고 §9에 "v0.7 구현" 행 | — |
 | v0.7.1 | `shared/src/types.ts` · `ui/src/api/memory.ts` · `server/test/routes-memory.test.ts` | `MemoryResponse.sourceUntilId` 주석 · `putMemory` 주석 | 빈 요약 예외 문구(§5.9.1 · §11.16). API-T-125 추가 — server 변경(§15.14 v0.7.1) 뒤 | API-T-125 |
+
+---
+
+## 「contract-implementer 인계 목록」 (S3f — v0.8)
+
+| 순서 | 파일 | 식별자 | 할 일 | 테스트 |
+|---|---|---|---|---|
+| 4 | `shared/src/types.ts` | `LlmModelKey` · `CharacterSettingsResponse.model` · `PutCharacterSettingsBody.model?` | §5.8.6 그대로(`model?: LlmModelKey \| undefined`) | tsc |
+| 4 | `shared/src/settings.ts` · `shared/test/settings.test.ts` | `LLM_MODEL_KEYS` · `SETTINGS_MODEL_INVALID_MESSAGE` | §5.8.6(`SETTINGS_CHARACTER_IDS` 다음). `checkCharacterSettings`·벡터 파일 불변 | API-T-131 |
+| 4 | `shared/src/{errors,endpoints,limits,characters}.ts` | — | **변경 없음** | API-T-040 · 042 무수정 |
+| 6 | `server/src/routes/schemas.ts` | `putCharacterSettingsBody` · `settingsIssueMessage` | §11.17 | API-T-129 · 130 |
+| 6 | `server/src/routes/settings.ts` · `server/test/routes-settings.test.ts` | PUT 핸들러 | 셋째 인자 `body.model`(§11.17). server 5단계(`settings.put` 셋째 인자 · 0004) 뒤 | API-T-094(갱신) · 126 ~ 130 |
+| 6 | `ui/src/api/settings.ts` · `ui/src/api/settings.test.ts` | `saveCharacterSettings` | §11.17. 테스트 응답 픽스처에 `model` 추가 | API-T-UI-025(무수정) · 033 · 034 |
+| — | `server/src/routes/{index,validate,rooms,messages,memory,health}.ts` · `ui/src/api/{client,index}.ts` | — | **소스 변경 없음** | 리뷰 diff |
+| 끝 | `doc/200_설계/contract/api.md` | §12.7 · §9 | 구현 후 실물 파일:줄로 대조표를 다시 채우고 §9에 "v0.8 구현" 행 | — |

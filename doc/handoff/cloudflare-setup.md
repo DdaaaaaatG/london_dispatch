@@ -1,6 +1,6 @@
 # Cloudflare·Google 셋팅 안내
 
-> 실값 없음 · 작성 2026-10-07 · 소유 contract-designer · 근거 확정사항 §6·§9-8, R-ENV-002 🔒 · R-SET-001 🔒 · R-LLM-007 🔒 · R-API-006 🔒
+> 실값 없음 · 작성 2026-10-07 · 갱신 2026-10-08(AI 모델 선택) · 소유 contract-designer · 근거 확정사항 §6·§9-8, R-ENV-002 🔒 · R-SET-001 🔒 · R-LLM-007 🔒 · R-LLM-009 🔒 · R-API-006 🔒
 > 이 문서에는 키·비밀번호·계정 아이디·회원 아이디 실값이 없다. `{{…}}`는 자리표시다.
 > 2026-10-07 사용자 결정: 지인은 개발을 모른다. **지인이 할 일은 최소로, 나머지는 전부 우리가 한다.**
 
@@ -27,7 +27,7 @@
 | D1 데이터베이스 만들기 → `wrangler.toml` 반영 | §4 |
 | Secrets 3개 입력(`TOKEN_SECRET`·`LLM_API_KEY`·`OWNER_MB_IDS`) | §5 |
 | 비밀 아닌 설정(`[vars]`) 확인 | §6 |
-| 데이터베이스 표 만들기(마이그레이션 0001~0003) | §7 |
+| 데이터베이스 표 만들기(마이그레이션 0001~0004) | §7 |
 | 배포 → 임베드 주소 줄을 지인에게 보냄 | §8 |
 | 배포 뒤 확인 | §10 |
 
@@ -119,9 +119,9 @@ npx wrangler --config server/wrangler.toml secret put OWNER_MB_IDS
 | 키 | 지금 값 | 메모 |
 |---|---|---|
 | `TOKEN_MIN_LEVEL` | `5` (유지, 2026-10-07 사용자 결정) | 갠홈 등급 1~10. PHP 덩어리의 `RB_CHATBOT_LEVEL`과 같은 숫자([token-snippet.php.md](token-snippet.php.md) §3) |
-| `LLM_MODEL` | `gemini-2.5-flash` | **기본값(폴백).** 운영 중 설정 화면에서 Pro / Flash를 고를 수 있게 될 예정(설계 중). 지금 값은 새 사용자에게 `404`가 나므로 배포 전에 쓸 수 있는 기본값으로 바꾼다 |
-| `LLM_PRICE_INPUT_USD_PER_M` | `0.3` | 기본(폴백) 모델의 입력 단가. 화면 모델 선택이 생기면 그 설계를 따른다 |
-| `LLM_PRICE_OUTPUT_USD_PER_M` | `2.5` | 기본(폴백) 모델의 출력 단가(사고 토큰 포함). 위와 같음 |
+| `LLM_MODEL` | `gemini-3.1-pro-preview` (Pro) | **주인이 설정 화면에서 AI 모델을 고르기 전에 쓰는 기본 모델.** 주인이 「공통」 탭에서 Pro / Flash를 고르면 그 선택이 우선하고, 이 값은 고르기 전에만 쓰인다 |
+| `LLM_PRICE_INPUT_USD_PER_M` | `0.3` | **예비 단가(입력).** Pro·Flash 단가는 서버 안 단가표에 따로 있어 이 값을 쓰지 않는다. 기본 모델을 단가표에 없는 모델로 바꿨을 때만 쓴다 |
+| `LLM_PRICE_OUTPUT_USD_PER_M` | `2.5` | **예비 단가(출력, 사고 토큰 포함).** 위와 같음 |
 | `KRW_PER_USD` | `1400` | 원/달러 환율. 자동 갱신 없음 |
 | `LLM_MONTHLY_BUDGET_KRW` | `100000` | 월 AI 비용 상한(추정, 원) |
 | `ALLOWED_FRAME_ANCESTORS` | `http://london-gossip.my https://london-gossip.my` | 대화창을 넣을 사이트 주소. 다른 주소가 있으면 더한다([embed-guide.md](embed-guide.md) §5.1) |
@@ -142,9 +142,11 @@ npx wrangler --config server/wrangler.toml d1 migrations apply london-dispatch -
 | `0001_init.sql` | 대화방·메시지·장기기억·쓰기 횟수 제한 표 |
 | `0002_llm_usage.sql` | 월 AI 사용액 누적 표 |
 | `0003_character_settings.sql` | 캐릭터 설정 표 |
+| `0004_llm_model.sql` | 캐릭터 설정 표에 「AI 모델」 칸 추가(주인이 고른 Pro / Flash) |
 
 - 파일 번호 순서대로 한 번씩만 적용된다. 이미 적용된 파일은 건너뛴다.
-- 셋 중 하나라도 빠지면 일부 기능이 `500`으로 실패한다(§10 표).
+- 넷 중 하나라도 빠지면 일부 기능이 `500`으로 실패한다(§10 표).
+- **0004는 새 서버 코드를 배포하기 전에 적용한다.** 순서가 바뀌면 설정 화면과 캐릭터 버튼이 `500`이다. `/deploy`가 이 순서를 지킨다.
 
 ---
 
@@ -201,7 +203,7 @@ https://london-dispatch.{{계정-하위주소}}.workers.dev/embed
 | 증상 | 흔한 원인 | 고치는 곳 |
 |---|---|---|
 | 모든 화면·요청이 `500` | `TOKEN_SECRET`이 없거나 32자 미만, 설정 값 형식 오류 | Secrets·`[vars]` |
-| 캐릭터 버튼만 `500` | `0003` 마이그레이션 미적용, 또는 `LLM_API_KEY` 없음 | §7 · §5 |
+| 캐릭터 버튼만 `500` | `0003`·`0004` 마이그레이션 미적용, 또는 `LLM_API_KEY` 없음 | §7 · §5 |
 | 캐릭터 버튼이 AI 응답 실패 안내(서버 `502 LLM_FAILED`) | 기본 모델 이름이 틀렸거나(Google `404`) 키 문제·Google 장애 | §6 `LLM_MODEL` · §5 |
 | 캐릭터 버튼이 "이번 달 AI 사용 한도" | 월 한도 도달(정상 동작) | 다음 달 자동 해제. 늘리려면 `LLM_MONTHLY_BUDGET_KRW` |
 | 설정 화면을 아무도 못 염(전원 `403`) | `OWNER_MB_IDS`가 비었거나 아이디 오타(대소문자) | §5 |

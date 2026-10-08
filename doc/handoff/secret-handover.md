@@ -1,6 +1,6 @@
 # SECRET·비밀값 전달 절차
 
-> 실값 없음 · 작성 2026-10-07 · 소유 contract-designer · 요구 R-HANDOFF-003 · R-ENV-002 🔒 · R-SET-001 🔒 · R-NFR-004 🔒
+> 실값 없음 · 작성 2026-10-07 · 갱신 2026-10-08(AI 모델 선택) · 소유 contract-designer · 요구 R-HANDOFF-003 · R-ENV-002 🔒 · R-SET-001 🔒 · R-NFR-004 🔒
 > **이 문서·채팅·메일·스크린샷·커밋에 실제 SECRET·API 키·회원 아이디를 쓰지 않는다.** 이 문서의 `{{…}}`는 자리표시다.
 > 2026-10-07 사용자 결정: 지인은 개발을 모른다. **SECRET은 우리가 만들고 넣는다.** 지인은 우리가 보낸 PHP 덩어리를 붙여 넣기만 한다.
 
@@ -97,7 +97,7 @@ npx wrangler --config server/wrangler.toml secret put TOKEN_SECRET
 - `OWNER_MB_IDS` 값: **지인 회원 아이디 1개**(2026-10-07 사용자 결정). 닉네임이 아니라 **로그인 아이디**를 대소문자까지 그대로 넣는다(20자 이하). 서버 형식은 쉼표로 최대 5개까지 받지만 지금은 1개만 넣는다.
 - 이 아이디는 이미 전달받았다. Secrets에 입력만 하고 문서·채팅에 다시 쓰지 않는다. 비밀번호는 아니지만 회원 아이디를 저장소에 남기지 않으려고 Secrets에 둔다.
 - 이 세 개 말고 나머지 설정(등급·모델·한도 등)은 비밀이 아니어서 우리가 `server/wrangler.toml`에 적는다([cloudflare-setup.md](cloudflare-setup.md) §6).
-- 그중 모델·단가(`LLM_MODEL`·`LLM_PRICE_*`)는 **기본값(폴백)**이다. 운영 중 캐릭터 설정 화면에서 Pro / Flash를 고를 수 있게 될 예정이다(설계 중). 어느 쪽이든 키는 `LLM_API_KEY` 하나를 쓴다.
+- 그중 `LLM_MODEL`은 **주인이 캐릭터 설정 화면에서 AI 모델(Pro / Flash)을 고르기 전에 쓰는 기본 모델**(Pro)이고, `LLM_PRICE_*`는 **단가표에 없는 모델에만 쓰는 예비 단가**다. 어느 모델이든 키는 `LLM_API_KEY` 하나를 쓴다.
 
 ---
 

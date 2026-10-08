@@ -1,19 +1,22 @@
-/** [계약] api.md §14.15 API-T-105·106·107 · [요구] R-SET-002, R-SET-005, R-SET-007, R-SET-008 */
+/** [계약] api.md §14.15 API-T-105·106·107 · §14.21 API-T-131 · [요구] R-SET-002, R-SET-005, R-SET-007, R-SET-008, R-SET-013, R-LLM-009 */
 import { describe, expect, it } from 'vitest'
 import { CHARACTERS } from '../src/characters'
 import {
   CHARACTER_FIELD_KEYS,
   CHARACTER_FIELD_SPECS,
+  LLM_MODEL_KEYS,
   SETTINGS_BODY_MAX_BYTES,
   SETTINGS_CHARACTER_IDS,
   SETTINGS_COMMON_SCOPE,
   SETTINGS_FILE_FORMAT,
   SETTINGS_FILE_FORMAT_VERSION,
   SETTINGS_IMPORT_MAX_BYTES,
+  SETTINGS_MODEL_INVALID_MESSAGE,
   WORLD_FIELD_SPEC,
   checkCharacterSettings,
   settingsScopeOf,
 } from '../src/settings'
+import type { LlmModelKey } from '../src/types'
 import { SETTINGS_VECTORS, validSettings } from './settings-vectors'
 
 describe('API-T-105 settings_specs_match_contract', () => {
@@ -133,5 +136,32 @@ describe('API-T-107 check_rejects_with_contract_messages', () => {
     if (r.ok) return
     expect(r.issue.message).not.toContain('apiKey')
     expect(r.issue.message).not.toContain('SECRET-VALUE')
+  })
+})
+
+describe('API-T-131 llm_model_keys_match_contract', () => {
+  it('LLM_MODEL_KEYS 는 순서까지 [pro, flash] 이다', () => {
+    expect([...LLM_MODEL_KEYS]).toEqual(['pro', 'flash'])
+  })
+
+  it('model 400 문구가 계약과 정확히 같고 공통 머리말로 시작한다', () => {
+    expect(SETTINGS_MODEL_INVALID_MESSAGE).toBe('공통 · AI 모델 값이 올바르지 않습니다.')
+    expect(SETTINGS_MODEL_INVALID_MESSAGE.startsWith(`${SETTINGS_COMMON_SCOPE} · `)).toBe(true)
+  })
+
+  it('봉투의 model 은 shared 사전 검사 밖이라 알 수 없는 항목으로 거부된다', () => {
+    const r = checkCharacterSettings({ ...validSettings(), model: 'pro' })
+    expect(r.ok).toBe(false)
+    if (r.ok) return
+    expect([...r.issue.path]).toEqual([])
+    expect(r.issue.message).toBe('공통 · 알 수 없는 항목이 있습니다.')
+  })
+
+  it('LlmModelKey 는 두 키만 받는다', () => {
+    const k: LlmModelKey = 'flash'
+    expect(k).toBe('flash')
+    // @ts-expect-error 'turbo' 는 LlmModelKey 가 아니다
+    const bad: LlmModelKey = 'turbo'
+    expect(bad).toBe('turbo')
   })
 })

@@ -1,11 +1,12 @@
 // API-T-091~103 — doc/200_설계/contract/api.md §14.14 (E15·E16: 토큰 → 주인 → 레이트리밋 → 본문 상한 → 검증). 자리표시 ID 만 쓴다
 import { createExecutionContext, env } from 'cloudflare:test'
 import { ERROR_MESSAGES, ERROR_STATUS, type ErrorCode } from '@shared/errors'
-import { checkCharacterSettings } from '@shared/settings'
+import { checkCharacterSettings, SETTINGS_MODEL_INVALID_MESSAGE } from '@shared/settings'
 import type { CharacterSettings, CharacterSettingsResponse } from '@shared/types'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { validSettings } from '../../shared/test/settings-vectors'
 import { createApp } from '../src/app'
+import { LLM_MODEL_OPTIONS } from '../src/llm/models'
 import type { Env } from '../src/env'
 import { apiRoutes } from '../src/routes'
 import { resetDb } from './helpers'
@@ -156,7 +157,13 @@ describe('E15 읽기 · E16 저장', () => {
     expect(res.status).toBe(200)
     const text = await res.text()
     const body = JSON.parse(text) as CharacterSettingsResponse
-    expect(Object.keys(body).sort()).toEqual(['isDefault', 'settings', 'updatedAt', 'version'])
+    expect(Object.keys(body).sort()).toEqual([
+      'isDefault',
+      'model',
+      'settings',
+      'updatedAt',
+      'version',
+    ])
     expect(body).toMatchObject({ isDefault: true, version: 0, updatedAt: null })
     expect(checkCharacterSettings(body.settings).ok).toBe(true)
     expect(Object.keys(body.settings.characters).sort()).toEqual(['ciel', 'sebastian'])
@@ -342,6 +349,109 @@ describe('E15 읽기 · E16 저장', () => {
       const res = await send('PUT', { token: owner, ...opts })
       expect(await expectContractError(res, 'VALIDATION_ERROR')).toBe(BAD_FORM)
     }
+  })
+})
+
+describe('S3f 모델 키 (E15 model · E16 model?)', () => {
+  const MODEL_BAD = SETTINGS_MODEL_INVALID_MESSAGE
+  const stored = async (): Promise<string | null> =>
+    (
+      await env.DB.prepare('SELECT llm_model FROM character_settings').first<{
+        llm_model: string | null
+      }>()
+    )?.llm_model ?? null
+  const getModel = async (e?: Env): Promise<CharacterSettingsResponse> =>
+    (await send('GET', { token: await ownerToken(), ...(e !== undefined && { env: e }) })).json()
+
+  it('API-T-126 settings_get_model_is_effective_key', async () => {
+    const flashEnv = baseEnv({ LLM_MODEL: LLM_MODEL_OPTIONS.flash.model })
+    const otherEnv = baseEnv({ LLM_MODEL: 'gemini-2.5-flash' })
+    const texts: string[] = []
+    const run = async (e?: Env): Promise<CharacterSettingsResponse> => {
+      const res = await send('GET', {
+        token: await ownerToken(),
+        ...(e !== undefined && { env: e }),
+      })
+      const text = await res.text()
+      texts.push(text)
+      return JSON.parse(text) as CharacterSettingsResponse
+    }
+    expect((await run()).model).toBe('pro')
+    expect((await run(flashEnv)).model).toBe('flash')
+    expect(await run(otherEnv)).toMatchObject({ model: null, isDefault: true, version: 0 })
+    expect((await putAs({ settings: validSettings(), model: 'pro' }, otherEnv)).status).toBe(200)
+    expect((await run(otherEnv)).model).toBe('pro')
+    const names = [LLM_MODEL_OPTIONS.pro.model, LLM_MODEL_OPTIONS.flash.model, 'gemini-2.5-flash']
+    for (const text of texts) for (const name of names) expect(text).not.toContain(name)
+  })
+
+  it('API-T-127 settings_put_saves_model', async () => {
+    const first = await putAs({ settings: validSettings(), model: 'flash' })
+    expect(first.status).toBe(200)
+    expect(await first.json()).toMatchObject({ model: 'flash', version: 1, isDefault: false })
+    expect((await getModel()).model).toBe('flash')
+    expect(await stored()).toBe('flash')
+    const second = await putAs({ settings: validSettings(), model: 'pro' })
+    expect(await second.json()).toMatchObject({ model: 'pro', version: 2 })
+    expect(await stored()).toBe('pro')
+  })
+
+  it('API-T-128 settings_put_without_model_keeps_saved', async () => {
+    await putAs({ settings: validSettings(), model: 'flash' })
+    const kept = await (
+      await putAs({ settings: validSettings() })
+    ).json<CharacterSettingsResponse>()
+    expect(kept).toMatchObject({ model: 'flash', version: 2 })
+    expect(await stored()).toBe('flash')
+
+    await resetDb()
+    const fresh = await (
+      await putAs({ settings: validSettings() })
+    ).json<CharacterSettingsResponse>()
+    expect(fresh.model).toBe('pro')
+    expect(await stored()).toBeNull()
+    expect(await rowCount()).toBe(1)
+  })
+
+  it('API-T-129 settings_put_rejects_invalid_model', async () => {
+    await putAs({ settings: validSettings(), model: 'flash' })
+    const bad: unknown[] = ['turbo', null, '', 'Pro', 1, ['pro']]
+    for (const model of bad) {
+      const res = await putAs({ settings: validSettings(), model })
+      const message = await expectContractError(res, 'VALIDATION_ERROR')
+      expect(message, JSON.stringify(model)).toBe(MODEL_BAD)
+      expect(message).not.toContain('turbo')
+    }
+    expect(await getModel()).toMatchObject({ model: 'flash', version: 1 })
+
+    // 모델 400도 레이트리밋 1회 소모
+    const e = baseEnv({ RATE_LIMIT_PER_MIN: '1' })
+    const limited = makeApp(NOW + 120_000)
+    const owner = await ownerToken()
+    const put = (body: unknown) => send('PUT', { token: owner, body, env: e, app: limited })
+    await expectContractError(
+      await put({ settings: validSettings(), model: 'turbo' }),
+      'VALIDATION_ERROR',
+    )
+    await expectContractError(await put({ settings: validSettings() }), 'RATE_LIMITED')
+  })
+
+  it('API-T-130 settings_violation_reported_before_model', async () => {
+    const before = await rowCount()
+    const badWorld = withSettings(s => {
+      s.world = '   '
+    })
+    const first = await putAs({ ...badWorld, model: 'turbo' })
+    expect(await expectContractError(first, 'VALIDATION_ERROR')).toBe(
+      '공통 · 세계관은 1~2000자여야 합니다.',
+    )
+    const inner = await putAs({ settings: { ...validSettings(), model: 'pro' } })
+    expect(await expectContractError(inner, 'VALIDATION_ERROR')).toBe(
+      '공통 · 알 수 없는 항목이 있습니다.',
+    )
+    const extra = await putAs({ settings: validSettings(), model: 'turbo', extra: 1 })
+    expect(await expectContractError(extra, 'VALIDATION_ERROR')).toBe(MODEL_BAD)
+    expect(await rowCount()).toBe(before)
   })
 })
 

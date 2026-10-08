@@ -6,7 +6,7 @@
  */
 import { CHARACTERS } from './characters'
 import { countCodePoints, normalizeText } from './limits'
-import type { CharacterId, CharacterSettingFields, CharacterSettings } from './types'
+import type { CharacterId, CharacterSettingFields, CharacterSettings, LlmModelKey } from './types'
 
 /** 내보내기 파일 식별자 (§16.1) */
 export const SETTINGS_FILE_FORMAT = 'london-dispatch/character-settings'
@@ -25,6 +25,12 @@ export const SETTINGS_COMMON_SCOPE = '공통'
 
 /** 캐릭터 순서 — 검사·파일 직렬화가 이 순서를 쓴다. 집합 = CHARACTERS 의 키 (API-T-105) */
 export const SETTINGS_CHARACTER_IDS = ['sebastian', 'ciel'] as const satisfies readonly CharacterId[]
+
+/** AI 모델 키 목록 — 화면 선택지 순서이자 routes zod enum 값 (api.md §5.8.6 · R-SET-013 · R-LLM-009). 집합 = LlmModelKey (API-T-131) */
+export const LLM_MODEL_KEYS = ['pro', 'flash'] as const satisfies readonly LlmModelKey[]
+
+/** E16 본문 model 위반 400 문구 (api.md §4.16 · R-SET-005). 입력값을 싣지 않는다 */
+export const SETTINGS_MODEL_INVALID_MESSAGE = `${SETTINGS_COMMON_SCOPE} · AI 모델 값이 올바르지 않습니다.`
 
 /** 내보내기 파일 (§16.1). API 페이로드가 아니므로 exportedAt 은 ISO 8601 문자열이다 */
 export type CharacterSettingsFile = {

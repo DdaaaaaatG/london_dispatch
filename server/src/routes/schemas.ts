@@ -1,4 +1,8 @@
-import { checkCharacterSettings } from '@shared/settings'
+import {
+  checkCharacterSettings,
+  LLM_MODEL_KEYS,
+  SETTINGS_MODEL_INVALID_MESSAGE,
+} from '@shared/settings'
 import type { CharacterId, SpeakTarget } from '@shared/types'
 import { z } from 'zod'
 import { characterSettingsSchema } from '../settings'
@@ -51,15 +55,26 @@ const SPEAK_TARGETS = [...CHARACTER_IDS, 'auto'] as const satisfies readonly Spe
 /** POST /api/rooms/:id/speak 본문. 세 값 밖은 400(기본 문구) — 대소문자·공백을 고쳐 주지 않는다 (api.md §4.13) */
 export const speakBody = z.object({ character: z.enum(SPEAK_TARGETS) })
 
-/** E16 본문(PUT 캐릭터 설정). 봉투 모르는 키는 버리고, settings 안은 server 스키마가 strict (api.md §4.16) */
-export const putCharacterSettingsBody = z.object({ settings: characterSettingsSchema })
+/**
+ * E16 본문(PUT 캐릭터 설정). 봉투 모르는 키는 버리고, settings 안은 server 스키마가 strict (api.md §4.16)
+ * model 은 두 키 중 하나 또는 키 없음(= 저장값 유지). null 불가 — R-SET-005 · R-SET-013
+ */
+export const putCharacterSettingsBody = z.object({
+  settings: characterSettingsSchema,
+  model: z.enum(LLM_MODEL_KEYS).optional(),
+})
 
-/** E16 400 문구 — 판정은 zod, 문구는 shared 사전 검사의 첫 위반 1건. 둘이 어긋나면 undefined → 기본 문구 */
+/**
+ * E16 400 문구 — 판정은 zod. 문구는 ① settings 의 첫 위반(shared 사전 검사) ② settings 가 통과했을 때만 봉투 model 위반
+ * 둘 다 아니면 undefined → 기본 문구(zod 와 사전 검사가 어긋난 경우의 안전망)
+ */
 export const settingsIssueMessage = (data: unknown): string | undefined => {
-  const settings =
-    typeof data === 'object' && data !== null && 'settings' in data ? data.settings : undefined
-  const checked = checkCharacterSettings(settings)
-  return checked.ok ? undefined : checked.issue.message
+  const envelope: object = typeof data === 'object' && data !== null ? data : {}
+  const checked = checkCharacterSettings('settings' in envelope ? envelope.settings : undefined)
+  if (!checked.ok) return checked.issue.message
+  if (!('model' in envelope)) return undefined
+  const model: unknown = envelope.model
+  return LLM_MODEL_KEYS.some(key => key === model) ? undefined : SETTINGS_MODEL_INVALID_MESSAGE
 }
 
 /** E16 본문 상한 초과 문구 (api.md §4.16 판정 4) */

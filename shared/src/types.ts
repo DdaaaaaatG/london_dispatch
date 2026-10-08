@@ -121,6 +121,9 @@ export type CharacterSettings = {
   characters: Record<CharacterId, CharacterSettingFields>
 }
 
+/** AI 모델 키 (S3f, R-SET-013 · R-LLM-009). 실제 모델명·단가는 server llm/models.ts 에만 있다. 목록·순서는 settings.ts LLM_MODEL_KEYS */
+export type LlmModelKey = 'pro' | 'flash'
+
 /** GET · PUT /api/settings/characters 응답 (R-SET-004 · R-SET-005). 저장자 mbId 는 싣지 않는다 (R-AUTH-006) */
 export type CharacterSettingsResponse = {
   /** 정규화된 본체(앞뒤 trim · 목록 빈 항목 제거) */
@@ -131,11 +134,15 @@ export type CharacterSettingsResponse = {
   updatedAt: number | null
   /** true = 저장값이 없거나 저장 행이 깨져 시드를 쓰는 중 */
   isDefault: boolean
+  /** 지금 실제로 쓰는 모델의 키(api.md §4.15 · R-SET-004 · R-LLM-009). 저장값이 두 키 중 하나면 그 키, 아니면 서버 기본 모델(env LLM_MODEL)과 이름이 같은 키, 그것도 없으면 null */
+  model: LlmModelKey | null
 }
 
 /** PUT /api/settings/characters 본문 (R-SET-005). settings 안은 strict, 바깥 모르는 키는 버린다 */
 export type PutCharacterSettingsBody = {
   settings: CharacterSettings
+  /** 고른 모델 키(api.md §4.16 · R-SET-013). 키가 없으면 저장값 유지, null·그 밖의 값은 400. `| undefined` 는 exactOptionalPropertyTypes 에서 zod .optional() 출력과 맞추기 위한 것이고 JSON 에는 나타나지 않는다 */
+  model?: LlmModelKey | undefined
 }
 
 /** GET · PUT /api/rooms/:id/memory 응답 (R-MEM-001). 행이 없으면 { summary: '', sourceUntilId: 0, updatedAt: null } */

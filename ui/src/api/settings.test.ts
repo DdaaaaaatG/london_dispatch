@@ -1,4 +1,4 @@
-// API-T-UI-024~027 — doc/200_설계/contract/api.md §14.16 (fetch 모킹은 이 폴더 테스트에서만)
+// API-T-UI-024~027 · 033~034(S3f) — doc/200_설계/contract/api.md §14.16 (fetch 모킹은 이 폴더 테스트에서만)
 import { ERROR_MESSAGES } from '@shared/errors'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { validSettings } from '../../../shared/test/settings-vectors'
@@ -28,6 +28,7 @@ const RESPONSE = {
   version: 3,
   updatedAt: 1_767_231_000_000,
   isDefault: false,
+  model: 'pro',
 }
 const PATH = '/api/settings/characters'
 
@@ -97,5 +98,42 @@ describe('S3c 설정 래퍼', () => {
       expect(firstCall(fn).headers.has('Authorization')).toBe(false)
       expect(result).toEqual({ ok: false, error })
     }
+  })
+
+  it('API-T-UI-033 save_character_settings_sends_model', async () => {
+    const fn = stubFetch(async () => json({ ...RESPONSE, model: 'flash' }))
+    const settings = validSettings()
+    const result = await saveCharacterSettings(settings, 'flash')
+    const { url, init, headers } = firstCall(fn)
+    expect(url).toBe(PATH)
+    expect(init.method).toBe('PUT')
+    expect(headers.get('Authorization')).toBe('Bearer tok')
+    const sent = JSON.parse(String(init.body)) as Record<string, unknown>
+    expect(Object.keys(sent)).toEqual(['settings', 'model'])
+    expect(sent.model).toBe('flash')
+    expect(result.ok && result.value.model).toBe('flash')
+    // @ts-expect-error null 은 LlmModelKey 가 아니다 — 컴파일 오류가 계약
+    void (() => saveCharacterSettings(settings, null))
+  })
+
+  it('API-T-UI-034 settings_model_passthrough', async () => {
+    // 1) model 생략 = 본문에 model 키 없음
+    const fn = stubFetch(async () => json(RESPONSE))
+    await saveCharacterSettings(validSettings(), undefined)
+    const { init } = firstCall(fn)
+    expect(String(init.body)).not.toContain('"model"')
+    expect(Object.keys(JSON.parse(String(init.body)) as object)).toEqual(['settings'])
+
+    // 2) GET 200 model null — 정규화·기본값 채우기 없음
+    stubFetch(async () => json({ ...RESPONSE, model: null }))
+    const got = await getCharacterSettings()
+    expect(got.ok && got.value.model).toBeNull()
+
+    // 3) PUT 400 모델 문구 — 서버 message 그대로
+    const error = { code: 'VALIDATION_ERROR', message: '공통 · AI 모델 값이 올바르지 않습니다.' }
+    stubFetch(async () => json({ error }, 400))
+    const bad = await saveCharacterSettings(validSettings(), 'pro')
+    expect(bad).toEqual({ ok: false, error })
+    if (!bad.ok) expect(isAuthFailure(bad.error)).toBe(false)
   })
 })
