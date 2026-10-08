@@ -13,7 +13,7 @@
 | 묶음 | S1(R-ROOMS-001·003·004·005) 구현 완료 + **S2 상세**: R-ROOMS-002, 참조 R-CHAT-008(새 방 렌더 쌍)·R-CHAT-009(토큰 보관 — 공용 정의가 이 설계에 있다)·R-CHAT-011(생성 실패 안내·전환) |
 | S3c | 상단 바 ⚙ 진입·App 주인 판정(R-SET-009·010). 구성안 `doc/200_설계/architecture/ui-layout-02-settings.md` §7 수용. 설정 화면 본체는 `ui/src/settings/design.md` |
 | 레이아웃 확정 상태 | **확정**(읽기 전용 판 · 토큰 있음 판 · S3c 주인 판). 토큰 있음 판의 토스트 줄 위치는 설계 가정 A-3(구성안 §3 "Toast 두 화면" 근거, 그림에는 없음) |
-| 문서 분할 | 40KB 한계로 분할: `design/components.md`(컴포넌트·공용 요소 단일 정의·스타일) · `design/functions.md`(상태·기능) · `design/a11y.md`(접근성) · `design/pipeline.md`(§6 파이프라인, v1.6.1) · **`design/lock.md`(S6 전체 — 레이아웃·상태·F-RM-30~54·§6.7~§6.11·계약·문구·결정 D-L·예정 TC-RM-041~064, v1.8)** · **`design/tc.md`(옛 §14.1 S1~S3c 예정 TC 목록, v1.8.1)**. RTM은 이 문서 §14 |
+| 문서 분할 | 40KB 한계로 분할: `design/components.md`(컴포넌트·공용 요소 단일 정의·스타일) · `design/functions.md`(상태·기능) · `design/a11y.md`(접근성) · `design/pipeline.md`(§6 파이프라인, v1.6.1) · **`design/lock.md`(S6 전체 — 레이아웃·상태·F-RM-30~54·§6.7~§6.11·계약·문구·결정 D-L·예정 TC-RM-041~064, v1.8)** · **`design/tc.md`(옛 §14.1 S1~S3c 예정 TC 목록, v1.8.1)** · **`design/history.md`(옛 §11.3 S1 소급 델타, v1.8.2)**. RTM은 이 문서 §14 |
 | 이 설계가 단일 정의하는 공용 요소 | `ui/src/App.tsx`(화면 분기·viewer) · `ui/src/main.tsx` · `ui/src/state/{viewer,token,limits,writeFailure,roomKeys}.ts`(`roomKeys` S6) · `ui/src/components/roomEntry/*`(S6 지역 공용 — `useRoomEntry`·`RoomEntrySheet`·`roomEntryText`) · `ui/src/components/ui/{TopBar,Button,IconButton,StateView,TextInput,TextArea,Toggle,BottomSheet,ConfirmDialog,PromptSheet,Toast}` · `ui/src/components/hooks/useToast.ts`(`useLongPress`는 **삭제됨(S3e 후작업 2026-10-07)**) · `ui/src/components/utils/{cx,formatDate,storage,errorText}.ts`(`errorText` = 후작업 2026-10-07, §8.2·§8.3). chat 설계는 이 정의를 인용한다 |
 
 비유: 앱은 도서관 열람실이다. 방 목록은 서가 안내판이고, 대화 화면은 펼친 책이다. 안내판은 지난번에 펼쳐 둔 책을 기억해 두었다가(책갈피 = `localStorage`) 다시 오면 그 책을 바로 펼쳐 준다. 출입증(토큰)이 있는 회원은 안내판 옆 「+ 새 방」으로 새 책을 꽂고 곧장 펼친다. 출입증은 주머니(메모리)에만 있고 서랍에는 넣지 않는다.
@@ -28,6 +28,7 @@
 | v1.5.1 | 2026-10-06 | S3b: `toastToneOf`(F-RM-22) warning 조건에 `LLM_BUDGET_EXCEEDED`(429, R-LLM-007) 추가 — functions.md F-RM-22 · §8.3 비고 · TC-RM-029 기대. 사용처는 chat 재작성 토스트(chat design v1.8), rooms 화면 동작 변경 없음 | 메인 세션 승인(chat S3b 공용 변경 요청) |
 | v1.5.2 | 2026-10-07 | **후작업 동기화(동작·문구 변경 없음)**: ① 공용 Button `ariaDescribedBy?: string`(components.md §1.2) ② `NETWORK`·인증 3종 문구를 공용 `ui/src/components/utils/errorText.ts`로(§1 공용 요소 · §8.3 비고 · §13 행 "공용화 완료") ③ 공용 `useLongPress` 삭제(S3e 사용처 0 — §1 · §3.2 · §13 · components.md §1.19) | ui-postprocessor 후작업 · 사용자 승인 |
 | v1.6.2 | 2026-10-06 | **S3c 구현 동기화(CR-001 적용·검증됨, 동작 변경 없음).** 진입 안내 = `useEntryNotice` 훅(functions.md F-RM-29) · App의 설정 진입·이탈 = `useSettingsNav`, 주인 판정 = `useOwner`(F-RM-24~27 동작 같음) · `useNewRoomUi`가 `showToast` 반환 · labels `settingsAriaLabel` = `캐릭터 설정` · View 유니온 실물이 functions.md §1.1과 같음 · ⚙ 실측 44×44 · chat 스펙 격리 권고(functions.md §2 끝) | S3c 구현 보고 · ui 592/592 · OwnerGate 7건 · 캡처 `doc/300_검증/screenshots/20261006-2033/` |
+| v1.8.2 | 2026-10-08 | **40KB 분할**: §11.3 S1 실물 소급 델타(R-1~R-6)를 `design/history.md`로 내용 그대로 옮기고 본문은 제목 + 연결 줄만 | 메인 세션 실측 41,201바이트 |
 | v1.8.1 | 2026-10-08 | **40KB 분할**: §14.1 예정 TC 목록(TC-RM-001~040)을 `design/tc.md`로 내용 그대로 옮기고 본문은 연결 줄만. RTM 표는 그대로 | 메인 세션 실측 48,156바이트 |
 | v1.8 | 2026-10-08 | **S6 방 비밀번호 잠금(구축 설계).** 새 분할 문서 `design/lock.md`. 공용 델타(components.md): storage `ld:roomKeys` 3함수(§1.7) · limits 비밀번호 4함수 trim 없음(§1.11) · TextInput `type`(§1.12) · PromptSheet `inputType`·`placeholder`(§1.17) · 신규 §1.21 `roomKeys` · §1.22~§1.23 `components/roomEntry/`. 로컬: ListRow 잠긴 변형(날짜 DOM 없음) · RoomList · NewRoomRow 2줄(버튼 md). functions.md create `password` · F-RM-08·09·15·17 개정 포인터. a11y.md S6 행. 이 문서 §2.4 · §7 E3·E4·E17·getRoomKey · §8.3 `VALIDATION_ERROR` 문구 개정 · §10 · §13 · §14 S6 행. 계약 인용 api.md v0.9 | S6 승인 ① · 구성안 ui-layout-04 · 메인 결정(§8 주의점 ①~④) |
 | v1.7 | 2026-10-08 | **시각 보강(CR-002, 보강·CSS만)**: 갠홈 estate 톤. 토큰 전/후 표·컴포넌트 규칙 정본 = `ui/src/chat/design/style.md`(세 화면 공통). components.md §3에 rooms 차이(상단 바 큰 세리프 + 장식 라벨 · 연한 행 구분선 · 선형 버튼 · 비대칭 입력창) · §11.1 포인터. 레이아웃·DOM·문구·상태·계약·RTM 불변, 영향 TC 없음 | 사용자 2026-10-08 "갠홈 디자인에 맞춰야" · 승인 5항목 |
@@ -304,16 +305,9 @@ api.md **v0.3**을 **인용**한다(재정의 아님). **S6부터 v0.9**(§4.2·
 | D-4(결정, S2) | `viewer`는 App 상태 하나다. 쓰기 실패가 `isAuthFailure`면 어느 화면에서든 App이 토큰을 비우고 읽기 전용으로 바꾼다. 안내 토스트는 실패를 받은 화면이 띄운다 | api.md §2.4가 "강등 방식·viewer 계산 위치는 ui 설계" |
 | A-3(가정, S2) | rooms 토스트 줄은 화면 맨 아래 in-flow 28px다. 구성안 §1 그림에는 없고 §3이 Toast를 "두 화면" 공용으로 적었다. chat E 줄(하단 바 바로 위)과 같은 "화면 아래쪽 한 줄" 규칙을 따른다 | 생성 실패 안내 자리가 필요하다. 구조 변경이 아니라 상태 조각 배치로 본다. 다르게 원하면 ui-layout-designer 확인 |
 
-### 11.3 S1 실물 소급 델타 (v1.4)
+### 11.3 S1 실물 소급 델타 (v1.4) → `design/history.md`
 
-| # | 설계 v1.3 | S1 실물(`ui/src/**`) → 설계 반영 |
-|---|---|---|
-| R-1 | 목록 요청·자동 진입을 RoomsScreen이 직접 소유 | `ui/src/rooms/useRoomsLoader.ts`가 `load`·`autoOpenSettledRef`·`isActiveRef`·`latestRef`와 `loadRooms`·`retry`를 소유. RoomsScreen은 조립만(functions.md §1.2) |
-| R-2 | `loadRooms`가 먼저 `setLoad(loading)` | 설정하지 않는다. 마운트 초기값이 loading이고 재시도는 `retry`가 loading을 먼저 건다(F-RM-06·07) |
-| R-3 | 지역 함수 `renderListArea(load)` | 지역 컴포넌트 `ListArea`(components.md §2.3) |
-| R-4 | `selectRoom(room)` 함수 | 없음. `onOpenRoom`을 그대로 `onSelect`로 넘긴다(F-RM-09) |
-| R-5 | `resolveAutoOpen`이 `autoOpenSettledRef`를 직접 확인 | 모듈 함수 `resolveAutoOpen(rooms, handlers)`. "이미 판정함" 검사는 `loadRooms`가 한다. 콜백은 `latestRef`(매 렌더 `useLayoutEffect`)로 읽어 부모 콜백이 바뀌어도 목록을 다시 요청하지 않는다 |
-| R-6 | App 콜백 형태 미지정 · `READ_ONLY_VIEWER` 리터럴 | App 콜백은 `useCallback([])`. `READ_ONLY_VIEWER = Object.freeze({ canWrite: false })` |
+40KB 한계로 v1.8.2에 내용 그대로 옮겼다(R-1~R-6).
 
 ---
 
