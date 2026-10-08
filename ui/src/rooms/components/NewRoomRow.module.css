@@ -1,11 +1,26 @@
-/* B 새 방 입력 행 52px. 입력이 남는 폭을 차지한다 */
+/* B 새 방 입력 2줄 96px(위 8 + 36 + 줄 간격 8 + 36 + 아래 8). 입력이 남는 폭을 차지하고 두 버튼은 같은 최소 폭으로 오른쪽 끝을 맞춘다 */
 .root {
   display: flex;
   flex: none;
-  align-items: center;
+  flex-direction: column;
   gap: var(--space-2);
-  height: 52px;
-  padding: 0 var(--space-4);
+  padding: var(--space-2) var(--space-4);
   background: var(--color-bg);
   border-bottom: 1px solid var(--row-divider);
+}
+
+.line {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* Button 에 className prop 이 없어 자식 선택자로 최소 폭 72 를 준다 */
+.action {
+  display: flex;
+  flex: none;
+}
+
+.action button {
+  min-width: 72px;
 }

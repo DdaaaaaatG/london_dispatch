@@ -10,7 +10,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { ERROR_MESSAGES } from '@shared/errors'
-import type { RoomSummary } from '@shared/types'
+import type { CreateRoomResponse, RoomSummary } from '@shared/types'
 import type { ApiErrorCode, Result } from '@/api'
 import { createRoom, deleteRoom, listRooms, renameRoom } from '@/api/rooms'
 import { RoomsScreen } from '@/rooms'
@@ -21,6 +21,9 @@ vi.mock('@/api/rooms', () => ({
   createRoom: vi.fn(),
   renameRoom: vi.fn(),
   deleteRoom: vi.fn(),
+  enterRoom: vi.fn(),
+  setRoomPassword: vi.fn(),
+  clearRoomPassword: vi.fn(),
 }))
 
 const mockedListRooms = vi.mocked(listRooms)
@@ -33,6 +36,7 @@ const ROOM_CHESS: RoomSummary = {
   createdAt: new Date(2026, 9, 1, 9, 0).getTime(),
   updatedAt: new Date(2026, 9, 3, 21, 5).getTime(),
   messageCount: 4,
+  locked: false,
 }
 const ROOM_TEA: RoomSummary = {
   id: 'r1',
@@ -40,6 +44,7 @@ const ROOM_TEA: RoomSummary = {
   createdAt: new Date(2026, 9, 2, 10, 0).getTime(),
   updatedAt: new Date(2026, 9, 5, 16, 40).getTime(),
   messageCount: 12,
+  locked: false,
 }
 const CREATED: RoomSummary = {
   id: 'r9',
@@ -47,7 +52,10 @@ const CREATED: RoomSummary = {
   createdAt: new Date(2026, 9, 5, 17, 0).getTime(),
   updatedAt: new Date(2026, 9, 5, 17, 0).getTime(),
   messageCount: 0,
+  locked: false,
 }
+/** (S6) createRoom 응답은 CreateRoomResponse(entryKey 포함) — 잠그지 않았으므로 null */
+const CREATED_RESPONSE: CreateRoomResponse = { ...CREATED, entryKey: null }
 const ROOMS: RoomSummary[] = [ROOM_CHESS, ROOM_TEA]
 const ROW_CHESS = '체스 대결, 마지막 갱신 10.03'
 const ROW_TEA = '티타임, 마지막 갱신 10.05'
@@ -186,7 +194,7 @@ describe('RoomsScreen 새 방 입력 행 (R-ROOMS-002 · R-ROOM-002)', () => {
 
 describe('RoomsScreen 방 생성 (R-ROOMS-002 · R-CHAT-011)', () => {
   it('TC-RM-021: 만들기 → createRoom(원문 그대로) 1회 → onOpenRoom(응답) 1회, 목록 재요청 없음', async () => {
-    mockedCreateRoom.mockResolvedValueOnce(ok(CREATED))
+    mockedCreateRoom.mockResolvedValueOnce(ok(CREATED_RESPONSE))
     const { onOpenRoom, onAuthFailure } = renderRooms()
     const { user, input, createButton } = await openRow()
 
@@ -203,7 +211,7 @@ describe('RoomsScreen 방 생성 (R-ROOMS-002 · R-CHAT-011)', () => {
   })
 
   it('TC-RM-022: 대기 중 readOnly·두 버튼 disabled, 클릭·Enter 연타 → createRoom 1회, 응답 뒤 해제', async () => {
-    const pending = deferred<Result<RoomSummary>>()
+    const pending = deferred<Result<CreateRoomResponse>>()
     mockedCreateRoom.mockReturnValueOnce(pending.promise)
     renderRooms()
     const { user, input, createButton, cancelButton } = await openRow()
@@ -228,7 +236,7 @@ describe('RoomsScreen 방 생성 (R-ROOMS-002 · R-CHAT-011)', () => {
   })
 
   it('TC-RM-022: 리렌더 전 같은 틱에 만들기 2회 → createRoom 1회(submitInFlightRef)', async () => {
-    const pending = deferred<Result<RoomSummary>>()
+    const pending = deferred<Result<CreateRoomResponse>>()
     mockedCreateRoom.mockReturnValueOnce(pending.promise)
     renderRooms()
     const { input, createButton } = await openRow()
@@ -241,7 +249,7 @@ describe('RoomsScreen 방 생성 (R-ROOMS-002 · R-CHAT-011)', () => {
     await flushPending()
     expect(mockedCreateRoom).toHaveBeenCalledTimes(1)
     await act(async () => {
-      pending.resolve(ok(CREATED))
+      pending.resolve(ok(CREATED_RESPONSE))
     })
   })
 
@@ -255,7 +263,7 @@ describe('RoomsScreen 방 생성 (R-ROOMS-002 · R-CHAT-011)', () => {
   ] as const)(
     'TC-RM-023: 생성 실패 %s(retryAfterSec=%s) → 토스트 문구·톤, 입력 유지, 2초 뒤 사라짐, 전환 없음',
     async (code, retryAfterSec, text, tone) => {
-      const pending = deferred<Result<RoomSummary>>()
+      const pending = deferred<Result<CreateRoomResponse>>()
       mockedCreateRoom.mockReturnValueOnce(pending.promise)
       const { onAuthFailure, onOpenRoom } = renderRooms()
       const { user, group, input, createButton } = await openRow()
@@ -293,7 +301,7 @@ describe('RoomsScreen 방 생성 (R-ROOMS-002 · R-CHAT-011)', () => {
       expect(mockedCreateRoom.mock.calls[0]).toEqual([{ title: '안개 낀 런던' }])
 
       // 재제출(TK-06): 실패 뒤 같은 입력으로 다시 만들기 → 2회째 같은 인자, 성공이면 onOpenRoom 1회
-      mockedCreateRoom.mockResolvedValueOnce(ok(CREATED))
+      mockedCreateRoom.mockResolvedValueOnce(ok(CREATED_RESPONSE))
       await act(async () => {
         fireEvent.click(createButton)
       })
@@ -367,7 +375,7 @@ describe('RoomsScreen 취소·Esc·Enter (R-ROOMS-002 · a11y)', () => {
     expect(screen.queryByRole('group', { name: NEW_ROOM })).toBeNull()
     expect(document.activeElement).toBe(screen.getByRole('button', { name: NEW_ROOM }))
 
-    const pending = deferred<Result<RoomSummary>>()
+    const pending = deferred<Result<CreateRoomResponse>>()
     mockedCreateRoom.mockReturnValueOnce(pending.promise)
     await user.click(screen.getByRole('button', { name: NEW_ROOM }))
     const again = screen.getByRole('textbox', { name: INPUT }) as HTMLInputElement

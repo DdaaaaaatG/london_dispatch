@@ -15,7 +15,12 @@ import { listRooms } from '@/api/rooms'
 import { RoomsScreen } from '@/rooms'
 import { READ_ONLY_VIEWER } from '@/state/viewer'
 
-vi.mock('@/api/rooms', () => ({ listRooms: vi.fn() }))
+vi.mock('@/api/rooms', () => ({
+  listRooms: vi.fn(),
+  enterRoom: vi.fn(),
+  setRoomPassword: vi.fn(),
+  clearRoomPassword: vi.fn(),
+}))
 
 const mockedListRooms = vi.mocked(listRooms)
 
@@ -27,6 +32,7 @@ const ROOM_CHESS: RoomSummary = {
   createdAt: new Date(2026, 9, 1, 9, 0).getTime(),
   updatedAt: new Date(2026, 9, 3, 21, 5).getTime(),
   messageCount: 4,
+  locked: false,
 }
 const ROOM_TEA: RoomSummary = {
   id: 'r1',
@@ -34,6 +40,7 @@ const ROOM_TEA: RoomSummary = {
   createdAt: new Date(2026, 9, 2, 10, 0).getTime(),
   updatedAt: new Date(2026, 9, 5, 16, 40).getTime(),
   messageCount: 12,
+  locked: false,
 }
 const ROOMS: RoomSummary[] = [ROOM_CHESS, ROOM_TEA]
 const ROW_CHESS = '체스 대결, 마지막 갱신 10.03'

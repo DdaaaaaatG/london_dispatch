@@ -13,7 +13,12 @@ import { listMessages } from '@/api/messages'
 import { listRooms } from '@/api/rooms'
 import { App } from '@/App'
 
-vi.mock('@/api/rooms', () => ({ listRooms: vi.fn() }))
+vi.mock('@/api/rooms', () => ({
+  listRooms: vi.fn(),
+  enterRoom: vi.fn(),
+  setRoomPassword: vi.fn(),
+  clearRoomPassword: vi.fn(),
+}))
 vi.mock('@/api/messages', () => ({ listMessages: vi.fn() }))
 
 const mockedListRooms = vi.mocked(listRooms)
@@ -25,6 +30,7 @@ const ROOM_CHESS: RoomSummary = {
   createdAt: new Date(2026, 9, 1, 9, 0).getTime(),
   updatedAt: new Date(2026, 9, 3, 21, 5).getTime(),
   messageCount: 1,
+  locked: false,
 }
 const ROOM_TEA: RoomSummary = {
   id: 'r1',
@@ -32,6 +38,7 @@ const ROOM_TEA: RoomSummary = {
   createdAt: new Date(2026, 9, 2, 10, 0).getTime(),
   updatedAt: new Date(2026, 9, 5, 16, 40).getTime(),
   messageCount: 1,
+  locked: false,
 }
 const ROOMS: RoomSummary[] = [ROOM_TEA, ROOM_CHESS]
 const ROW_TEA = '티타임, 마지막 갱신 10.05'

@@ -52,10 +52,11 @@ afterEach(() => {
 })
 
 describe('storage 키·왕복 (R-ROOMS-004 · R-CHAT-010 · R-NFR-004)', () => {
-  it('TC-RM-010: 키 이름은 ld:lastRoomId · ld:scroll:{roomId} 뿐이다', () => {
+  it('TC-RM-010: 키 이름은 ld:lastRoomId · ld:roomKeys · ld:scroll:{roomId} 뿐이다(토큰 키 없음)', () => {
     expect(STORAGE_KEYS.lastRoomId).toBe('ld:lastRoomId')
+    expect(STORAGE_KEYS.roomKeys).toBe('ld:roomKeys')
     expect(STORAGE_KEYS.scrollOffset('r1')).toBe('ld:scroll:r1')
-    expect(Object.keys(STORAGE_KEYS).sort()).toEqual(['lastRoomId', 'scrollOffset'])
+    expect(Object.keys(STORAGE_KEYS).sort()).toEqual(['lastRoomId', 'roomKeys', 'scrollOffset'])
   })
 
   it('TC-RM-010: 마지막 본 방 저장 → 읽기 → 삭제 왕복, 빈 문자열은 null', () => {

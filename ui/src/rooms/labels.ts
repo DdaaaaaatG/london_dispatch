@@ -1,9 +1,9 @@
 /**
- * rooms 화면 확정 문구·라벨 — 단일 소스 설계 rooms/design.md §8.1 · §8.2 · §8.3
+ * rooms 화면 확정 문구·라벨 — 단일 소스 설계 rooms/design.md §8.1 · §8.2 · §8.3 · design/lock.md §8.1(S6)
  * JSX·유틸에 한글 문구 리터럴을 직접 쓰지 않는다(aria-label · 오류 문구 포함).
  */
 import { ERROR_MESSAGES } from '@shared/errors'
-import { ROOM_TITLE_MAX } from '@shared/limits'
+import { ROOM_PASSWORD_MAX, ROOM_PASSWORD_MIN, ROOM_TITLE_MAX } from '@shared/limits'
 import type { ApiError, ApiErrorCode } from '@/api'
 import { AUTH_FAILURE_TEXT, NETWORK_TEXT } from '@/components/utils/errorText'
 
@@ -31,6 +31,13 @@ export const labels = {
   // ── S3c (설정 진입) ──
   /** 상단 바 ⚙ IconButton(갠홈 주인만 렌더) */
   settingsAriaLabel: '캐릭터 설정',
+  // ── S6 (lock.md §8.1) ──
+  /** 잠긴 ListRow aria-label — 날짜 없음 */
+  lockedRowAriaLabel: (title: string): string => `${title}, 잠긴 방`,
+  /** B2 비밀번호 입력 aria-label */
+  newRoomPasswordAriaLabel: '새 방 비밀번호',
+  /** B2 비밀번호 입력 placeholder(정하는 곳에만 「6자 이상 권장」) */
+  newRoomPasswordPlaceholder: '비밀번호(선택, 6자 이상 권장)',
 } as const
 
 /** 오류 코드별 상세 문구. 서버 error.message 는 화면에 쓰지 않는다(api.md §3.1) */
@@ -50,7 +57,7 @@ export const writeErrorText = (error: ApiError): string => {
         ? ERROR_MESSAGES.RATE_LIMITED
         : `요청이 너무 많습니다. ${error.retryAfterSec}초 후 다시 시도해 주세요.`
     case 'VALIDATION_ERROR':
-      return `방 제목은 1~${ROOM_TITLE_MAX}자로 입력해 주세요.`
+      return `방 제목(1~${ROOM_TITLE_MAX}자)과 비밀번호(${ROOM_PASSWORD_MIN}~${ROOM_PASSWORD_MAX}자)를 확인해 주세요.`
     case 'NETWORK':
       return NETWORK_TEXT
     default:

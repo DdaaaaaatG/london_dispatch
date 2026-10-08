@@ -22,7 +22,15 @@ import { clearToken, getToken, initToken } from '@/state/token'
 import { READ_ONLY_VIEWER, WRITER_VIEWER } from '@/state/viewer'
 import { SAVED_RESPONSE, deferred, fail, ok } from '@/settings/test/fixtures'
 
-vi.mock('@/api/rooms', () => ({ listRooms: vi.fn(), createRoom: vi.fn(), renameRoom: vi.fn(), deleteRoom: vi.fn() }))
+vi.mock('@/api/rooms', () => ({
+  listRooms: vi.fn(),
+  createRoom: vi.fn(),
+  renameRoom: vi.fn(),
+  deleteRoom: vi.fn(),
+  enterRoom: vi.fn(),
+  setRoomPassword: vi.fn(),
+  clearRoomPassword: vi.fn(),
+}))
 vi.mock('@/api/messages', () => ({ listMessages: vi.fn(), appendUser: vi.fn(), editMessage: vi.fn(), deleteMessage: vi.fn() }))
 vi.mock('@/api/settings', () => ({ getCharacterSettings: vi.fn(), saveCharacterSettings: vi.fn() }))
 
@@ -39,6 +47,7 @@ const ROOM_TEA: RoomSummary = {
   createdAt: new Date(2026, 9, 2, 10, 0).getTime(),
   updatedAt: new Date(2026, 9, 5, 16, 40).getTime(),
   messageCount: 1,
+  locked: false,
 }
 const EMPTY: MessagesPage = { messages: [], hasMore: false }
 const ROW_TEA = '티타임, 마지막 갱신 10.05'

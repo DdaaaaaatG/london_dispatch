@@ -1,11 +1,12 @@
 /**
  * localStorage 단일 접근 지점 — 설계 rooms/design/components.md §1.7 · F-RM-10
- * 요구: R-ROOMS-004 · R-CHAT-010 · R-NFR-004(토큰은 어떤 키로도 저장하지 않는다)
+ * 요구: R-ROOMS-004 · R-CHAT-010 · R-NFR-004(토큰은 어떤 키로도 저장하지 않는다) · R-LOCK-004(S6 입장 증명 원문 — 토큰이 아니다)
  * 비유: 책갈피 서랍. 서랍이 잠겨 있어도(사생활 모드·iframe 저장 차단) 열람은 계속된다. 서랍을 여는 손은 이 파일 하나뿐이다.
  * 모든 함수는 접근 전체를 try/catch 로 감싼다. 읽기 실패·값 없음 = null, 쓰기·삭제 실패 = 조용히 무시(로그 없음).
  */
 export const STORAGE_KEYS = {
   lastRoomId: 'ld:lastRoomId',
+  roomKeys: 'ld:roomKeys',
   scrollOffset: (roomId: string) => `ld:scroll:${roomId}`,
 } as const
 
@@ -54,3 +55,13 @@ export const loadScrollOffset = (roomId: string): number | null => {
 /** 0 이상 정수로 반올림해 저장한다 */
 export const saveScrollOffset = (roomId: string, distanceFromBottom: number): void =>
   write(STORAGE_KEYS.scrollOffset(roomId), String(Math.max(0, Math.round(distanceFromBottom))))
+
+/** (S6) 방 입장 증명 원문 JSON. 해석(파싱·상한·중복)은 state/roomKeys.ts 가 한다. 없거나 빈 문자열이면 null */
+export const loadRoomKeysRaw = (): string | null => {
+  const value = read(STORAGE_KEYS.roomKeys)
+  return value === null || value === '' ? null : value
+}
+
+export const saveRoomKeysRaw = (json: string): void => write(STORAGE_KEYS.roomKeys, json)
+
+export const clearRoomKeysRaw = (): void => remove(STORAGE_KEYS.roomKeys)

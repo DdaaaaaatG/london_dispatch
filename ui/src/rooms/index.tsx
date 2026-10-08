@@ -1,7 +1,8 @@
 /**
  * rooms(방 목록) 화면 — 설계 rooms/design.md §2~§8 · §10 · design/functions.md §1.2 · F-RM-05 · F-RM-09
- * 요구: R-ROOMS-001 · 002 · 003 · 004 · 005 · R-CHAT-008(새 방 렌더 쌍) · R-CHAT-010(마지막 본 방) · R-CHAT-011(생성 실패 안내)
- * 목록 요청·자동 진입 판정은 useRoomsLoader, 새 방 쓰기 UI 는 useNewRoomUi 가 한다. 여기서는 조립과 렌더만 한다.
+ * 요구: R-ROOMS-001 · 002 · 003 · 004 · 005 · R-CHAT-008(새 방 렌더 쌍) · R-CHAT-010(마지막 본 방) · R-CHAT-011(생성 실패 안내) · R-LOCK-001 · 003 · 004 · 005 · 006
+ * 목록 요청·자동 진입 판정은 useRoomsLoader, 새 방 쓰기 UI 는 useNewRoomUi, (S6) 행 탭의 방 접근 판정·입장 시트는 useRoomEntry 가 한다. 여기서는 조립과 렌더만 한다.
+ * (S6) 입장 시트는 쓰기 UI 가 아니라 토큰과 무관하게 렌더한다(읽기 전용도 비밀번호를 넣으면 읽을 수 있다).
  * 토큰이 없으면(viewer.canWrite === false) 쓰기 UI(「+ 새 방」 · 입력 행)를 렌더하지 않는다(숨김 금지).
  * 화면은 토큰을 읽지도 저장하지도 않는다. 인증 실패는 onAuthFailure 로 App 에 알려 읽기 전용으로 전환된다.
  * S3c: 갠홈 주인(isOwner)이면 상단 바 「+ 새 방」 왼쪽에 ⚙(설정 진입)를 렌더한다 — 토큰 없음·비주인·판정 실패면 DOM 에 없다(숨김 금지).
@@ -15,6 +16,8 @@ import { StateView } from '@/components/ui/StateView'
 import { Toast } from '@/components/ui/Toast'
 import type { ToastProps } from '@/components/ui/Toast'
 import { TopBar } from '@/components/ui/TopBar'
+import { RoomEntrySheet, useRoomEntry } from '@/components/roomEntry'
+import type { UseRoomEntryResult } from '@/components/roomEntry'
 import type { Viewer } from '@/state/viewer'
 import { NewRoomRow } from './components/NewRoomRow'
 import { RoomList } from './components/RoomList'
@@ -102,12 +105,59 @@ const NewRoomSection = ({ newRoom }: { newRoom: NewRoomUi }) =>
     <NewRoomRow
       title={newRoom.create.title}
       onChangeTitle={newRoom.changeTitle}
+      password={newRoom.create.password}
+      onChangePassword={newRoom.changePassword}
       onSubmit={newRoom.submitCreate}
       onCancel={newRoom.cancelCreate}
       isSubmitting={newRoom.create.isSubmitting}
       inputRef={newRoom.titleInputRef}
     />
   )
+
+/** 입장 시트(S6). 쓰기 UI 가 아니라서 토큰과 무관하게 렌더한다 — 시트가 닫혀 있으면 아무것도 그리지 않는다 */
+const EntryLayer = ({ entry }: { entry: UseRoomEntryResult }) =>
+  entry.sheet !== null && (
+    <RoomEntrySheet
+      sheet={entry.sheet}
+      onSubmit={entry.submitPassword}
+      onCancel={entry.cancelEntry}
+    />
+  )
+
+type RoomsStateOptions = Pick<
+  RoomsScreenProps,
+  'viewer' | 'autoOpenRoomId' | 'onOpenRoom' | 'onAutoOpenSettled' | 'onAuthFailure'
+>
+
+/**
+ * 목록 요청 · 방 접근 판정(S6) · 새 방 UI 를 묶는다(RoomsScreen 50줄 한계).
+ * 호출 순서가 의존 순서다: 목록(retry 가 필요) → 방 접근 판정 → 새 방 UI(입장 시트 열림을 받는다).
+ */
+const useRoomsScreen = (options: RoomsStateOptions) => {
+  const { viewer, autoOpenRoomId, onOpenRoom, onAutoOpenSettled, onAuthFailure } = options
+  const { load, loadRooms, retry } = useRoomsLoader({
+    autoOpenRoomId,
+    onOpenRoom,
+    onAutoOpenSettled,
+  })
+  // F-RM-47: 행 선택은 방 접근 판정을 거친다. 방이 사라졌으면(NOT_FOUND) 목록을 다시 받는다(F-RM-48)
+  const entry = useRoomEntry({
+    canWrite: viewer.canWrite,
+    onEntered: onOpenRoom,
+    onRoomGone: retry,
+  })
+  const titleRef = useRef<HTMLHeadingElement>(null)
+  const isEntrySheetOpen = entry.sheet !== null
+  const newRoom = useNewRoomUi({ viewer, titleRef, onOpenRoom, onAuthFailure, isEntrySheetOpen })
+
+  // F-RM-05: 마운트 시 h1 포커스 → 목록 요청
+  useEffect(() => {
+    titleRef.current?.focus()
+    void loadRooms()
+  }, [loadRooms])
+
+  return { load, retry, entry, newRoom, titleRef }
+}
 
 export const RoomsScreen = ({
   viewer,
@@ -120,21 +170,15 @@ export const RoomsScreen = ({
   entryNotice,
   onEntryNoticeShown,
 }: RoomsScreenProps) => {
-  const { load, loadRooms, retry } = useRoomsLoader({
+  const { load, retry, entry, newRoom, titleRef } = useRoomsScreen({
+    viewer,
     autoOpenRoomId,
     onOpenRoom,
     onAutoOpenSettled,
+    onAuthFailure,
   })
-  const titleRef = useRef<HTMLHeadingElement>(null)
-  const newRoom = useNewRoomUi({ viewer, titleRef, onOpenRoom, onAuthFailure })
   const { toast } = newRoom
   useEntryNotice({ entryNotice, onEntryNoticeShown, showToast: newRoom.showToast })
-
-  // F-RM-05: 마운트 시 h1 포커스 → 목록 요청
-  useEffect(() => {
-    titleRef.current?.focus()
-    void loadRooms()
-  }, [loadRooms])
 
   return (
     <main className={styles.root} aria-label={labels.screenAriaLabel}>
@@ -149,9 +193,10 @@ export const RoomsScreen = ({
       />
       {viewer.canWrite && <NewRoomSection newRoom={newRoom} />}
       <section className={styles.list}>
-        {/* F-RM-09: 행 선택 = onOpenRoom(그 RoomSummary) */}
-        <ListArea load={load} onRetry={retry} onSelect={onOpenRoom} />
+        {/* F-RM-09 · F-RM-47: 행 선택 = 방 접근 판정(entry.requestEntry) */}
+        <ListArea load={load} onRetry={retry} onSelect={entry.requestEntry} />
       </section>
+      <EntryLayer entry={entry} />
       {toast && <Toast key={toast.id} message={toast.message} tone={toast.tone} />}
     </main>
   )

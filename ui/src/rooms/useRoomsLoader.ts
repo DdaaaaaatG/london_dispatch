@@ -1,13 +1,15 @@
 /**
- * useRoomsLoader — 설계 rooms/design/functions.md §1.2 · F-RM-06 ~ F-RM-08 (함수 50줄 한계 때문에 RoomsScreen 에서 분리)
- * 요구: R-ROOMS-001 · 003 · 004 · R-CHAT-010
+ * useRoomsLoader — 설계 rooms/design/functions.md §1.2 · F-RM-06 ~ F-RM-08 · design/lock.md F-RM-52 (함수 50줄 한계 때문에 RoomsScreen 에서 분리)
+ * 요구: R-ROOMS-001 · 003 · 004 · R-CHAT-010 · R-LOCK-004
  * 목록 요청 상태(load) · 자동 진입 판정(마운트당 한 번) · 언마운트 뒤 응답 무시를 소유한다.
  * 자동 진입 판정은 목록 응답이 성공한 시점에만 한다(방 정보는 목록으로만 얻는다, 단건 조회 없음).
+ * (S6) 대상이 잠긴 방이고 저장된 입장 증명이 없으면 진입하지 않고 기록을 지운 채 목록에 머문다 — 시트도 열지 않고 enterRoom 도 부르지 않는다(토큰 무관).
  */
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { RoomSummary } from '@shared/types'
 import { type ApiError, listRooms } from '@/api'
 import { clearLastRoomId } from '@/components/utils/storage'
+import { getRoomKey } from '@/state/roomKeys'
 
 export type RoomsLoad =
   | { phase: 'loading' }
@@ -35,7 +37,8 @@ const resolveAutoOpen = (rooms: readonly RoomSummary[], handlers: AutoOpenHandle
     return
   }
   const target = rooms.find(room => room.id === autoOpenRoomId)
-  if (target === undefined) {
+  // 목록에 없거나(F-RM-08) 잠겼는데 증명이 없으면(F-RM-52, D-L11) 기록을 지우고 목록에 머문다
+  if (target === undefined || (target.locked && getRoomKey(target.id) === null)) {
     clearLastRoomId()
     onAutoOpenSettled()
     return

@@ -25,6 +25,9 @@ vi.mock('@/api/rooms', () => ({
   createRoom: vi.fn(),
   renameRoom: vi.fn(),
   deleteRoom: vi.fn(),
+  enterRoom: vi.fn(),
+  setRoomPassword: vi.fn(),
+  clearRoomPassword: vi.fn(),
 }))
 vi.mock('@/api/messages', () => ({
   listMessages: vi.fn(),
@@ -46,6 +49,7 @@ const ROOM_TEA: RoomSummary = {
   createdAt: new Date(2026, 9, 2, 10, 0).getTime(),
   updatedAt: new Date(2026, 9, 5, 16, 40).getTime(),
   messageCount: 1,
+  locked: false,
 }
 const CREATED: RoomSummary = {
   id: 'r9',
@@ -53,6 +57,7 @@ const CREATED: RoomSummary = {
   createdAt: new Date(2026, 9, 5, 17, 0).getTime(),
   updatedAt: new Date(2026, 9, 5, 17, 0).getTime(),
   messageCount: 0,
+  locked: false,
 }
 const EMPTY: MessagesPage = { messages: [], hasMore: false }
 const ROW_TEA = '티타임, 마지막 갱신 10.05'
@@ -132,7 +137,7 @@ describe('App 토큰 흐름 (R-ROOMS-002 · R-CHAT-008 · R-CHAT-009)', () => {
   )
 
   it('TC-RM-021: (App) 생성 성공 → 응답 방의 chat, ld:lastRoomId = 응답 id, listMessages(r9)', async () => {
-    mockedCreateRoom.mockResolvedValueOnce(ok(CREATED))
+    mockedCreateRoom.mockResolvedValueOnce(ok({ ...CREATED, entryKey: null }))
     initToken(`?t=${TOKEN}`)
     render(<App />)
     const user = userEvent.setup()
