@@ -9,7 +9,7 @@ compatibility_flags = ["nodejs_compat"]
 
 # 비밀 아닌 설정 — 값은 env.ts 기본값과 같다(문자열로 적고 parseEnv 가 숫자로 변환)
 [vars]
-TOKEN_MIN_LEVEL = "5"
+TOKEN_MIN_LEVEL = "10"                       # 2026-10-08 사용자 결정: 갠홈 관리자(10)만 글쓰기. 열람은 등급 2 이상(갠홈 PHP가 분기), PHP RB_CHATBOT_LEVEL과 같은 값
 LLM_PROVIDER = "google"
 LLM_MODEL = "gemini-3.1-pro-preview"        # S3f 주인이 설정 화면에서 모델을 고르기 전 기본 모델(R-ENV-002)
 LLM_TIMEOUT_MS = "60000"
