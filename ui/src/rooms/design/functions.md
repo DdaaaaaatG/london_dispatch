@@ -33,12 +33,13 @@
 | `isActiveRef` | 언마운트 뒤 도착한 응답 무시 | `MutableRefObject<boolean>` | `false` → 활성 effect(`useEffect`)가 마운트 시 `true`, cleanup `false` | `useRoomsLoader` 내부 |
 | `latestRef` | 부모 콜백(`autoOpenRoomId`·`onOpenRoom`·`onAutoOpenSettled`) 최신 값 | `MutableRefObject<AutoOpenHandlers>` | 첫 handlers, 매 렌더 `useLayoutEffect`로 갱신 | `useRoomsLoader` 내부 |
 | `titleRef` | 마운트·전환 시 포커스 대상(h1) | `RefObject<HTMLHeadingElement>` | `null` | RoomsScreen `useRef` |
-| `create` (S2) | 새 방 입력 행 상태 | `{ isOpen: boolean; title: string; isSubmitting: boolean }` | `{ isOpen: false, title: '', isSubmitting: false }` | `useCreateRoom`(`ui/src/rooms/useCreateRoom.ts`) 내부 `useState` |
+| `create` (S2 · **S6 `password` 추가**) | 새 방 입력 행 상태 | `{ isOpen: boolean; title: string; password: string; isSubmitting: boolean }` | `{ isOpen: false, title: '', password: '', isSubmitting: false }` | `useCreateRoom`(`ui/src/rooms/useCreateRoom.ts`) 내부 `useState` |
 | `submitInFlightRef` (S2) | 같은 틱 연타(Enter·클릭) 중복 제출 방지 | `MutableRefObject<boolean>` | `false` | `useCreateRoom` 내부 |
 | `toast` (S2) | 실패 안내 | `ToastState` | `null` | `useToast()`(공용 훅) |
 | `newRoomButtonRef` · `titleInputRef` (S2) | 「+ 새 방」 포커스 복귀 · 입력 포커스 | `RefObject<HTMLButtonElement>` · `RefObject<HTMLInputElement>` | `null` | RoomsScreen `useRef` |
 
 - `RoomsLoad`·`AutoOpenHandlers`·`UseRoomsLoaderResult` 타입은 `useRoomsLoader.ts`에서 export한다(S1 실물 소급, v1.4).
+- **(S6)** RoomsScreen은 `const entry = useRoomEntry({ canWrite: viewer.canWrite, onEntered: onOpenRoom, onRoomGone: retry })`를 더 부르고 `entry.sheet && <RoomEntrySheet sheet={entry.sheet} onSubmit={entry.submitPassword} onCancel={entry.cancelEntry} />`를 렌더한다. 입장 시트 상태(`sheet`·`quietInFlightRef`·`submitInFlightRef`)와 증명 캐시는 `design/lock.md` §3.
 - 토큰 값은 화면이 모른다. `viewer.canWrite`만 본다.
 
 ---
@@ -82,7 +83,8 @@
 - (v1.6.2 실측) chat 스펙 3개(AuthTransition·RoomMenu·SpeakFlow)는 판정 래퍼 mock 없이 통과한다. 실물 래퍼가 throw하지 않고 실패를 조용히 비주인으로 끝내기 때문이다. 다만 완전 격리는 아니다. 격리용 mock 2줄 추가를 보강 모드 CR 후보로 둔다(rooms scenarios 대기열 Q-02, 소유 ui-test-designer).
 - (v1.6.2 실물) App은 설정 진입·이탈(F-RM-25·26, `roomsNotice`)을 지역 훅 `useSettingsNav`로, 주인 판정(F-RM-24·27, `isOwner`·`probeStartedRef`)을 지역 훅 `useOwner`로 나눴다. `openSettings`는 `useCallback([setView, settleAutoOpen])`이고 `settleAutoOpen()`으로 자동 진입 id를 비운다. `useNewRoomUi`는 `showToast`도 반환한다(F-RM-29 입력).
 
-- `useCreateRoom(options: { onCreated: (room: RoomSummary) => void; onFailure: (error: ApiError) => void }) => { create, openCreate, cancelCreate, changeTitle, submitCreate, resetCreate }`. 활성 플래그는 `useRoomsLoader`와 같은 방식(`useEffect` 마운트 true·cleanup false)으로 훅 안에 둔다. 최신 콜백은 ref로 읽는다.
+- **(S6 개정 — 상세 `design/lock.md` §4)** F-RM-08 `resolveAutoOpen`: 대상이 잠긴 방이고 저장된 증명이 없으면 기록 삭제 후 목록(F-RM-52). F-RM-09 행 선택: `onSelect = entry.requestEntry`(F-RM-47). F-RM-15·19: 초기값에 `password: ''`(F-RM-51). F-RM-17 `submitCreate`: 비밀번호 가드·본문·증명 저장(F-RM-50). 신규 `changePassword`(F-RM-49). `useNewRoomUi`는 `changePassword`를 더 반환하고 `NewRoomSection`이 `password`·`onChangePassword`를 넘긴다. S6 함수 F-RM-30~54는 lock.md에만 있다.
+- `useCreateRoom(options: { onCreated: (room: RoomSummary) => void; onFailure: (error: ApiError) => void }) => { create, openCreate, cancelCreate, changeTitle, changePassword /* S6 */, submitCreate, resetCreate }`. 활성 플래그는 `useRoomsLoader`와 같은 방식(`useEffect` 마운트 true·cleanup false)으로 훅 안에 둔다. 최신 콜백은 ref로 읽는다.
 - 함수 50줄·파일 400줄 한계를 지킨다. RoomsScreen은 조립·렌더만 하고 요청은 두 훅이 한다.
 
 ---

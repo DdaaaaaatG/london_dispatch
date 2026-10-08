@@ -6,14 +6,15 @@
 |---|---|
 | 화면 | rooms · 폴더 `ui/src/rooms/` |
 | 목적 | 방(에피소드) 목록을 최신순으로 보여 주고, 행을 누르면 그 방의 대화 화면으로 보낸다. 패널을 다시 열면 마지막에 본 방으로 바로 들어간다. 등급 통과 회원은 「+ 새 방」으로 방을 만들고 바로 그 방에 들어간다 |
-| 요구 | `ui/src/rooms/requirements.md` v1.4(확정) |
+| 요구 | `ui/src/rooms/requirements.md` **v1.7**(확정, S6 개정·R-LOCK 반영) |
+| S6 | 방 비밀번호 잠금(R-LOCK-001·003·004·005·006·007·008·009, R-ROOMS-001·002·004 개정). 구성안 `doc/200_설계/architecture/ui-layout-04-room-lock.md` §2~§4 수용(메인 결정 Q1 채택안 B). 계약 api.md **v0.9** §2.8·§4.2·§4.6·§4.19·§5.10·§11.18. 상세 전부 `design/lock.md` |
 | 구성안 | `doc/200_설계/architecture/ui-layout-01-rooms-chat.md` §1(패턴 L1) — **수용, 구조 변경 없음** |
 | 계약 | `doc/200_설계/contract/api.md` **v0.3** §2.4(토큰 보관·전환) · §4.2(`listRooms`) · §4.6(`createRoom`) · §11.6 — 확정 |
 | 묶음 | S1(R-ROOMS-001·003·004·005) 구현 완료 + **S2 상세**: R-ROOMS-002, 참조 R-CHAT-008(새 방 렌더 쌍)·R-CHAT-009(토큰 보관 — 공용 정의가 이 설계에 있다)·R-CHAT-011(생성 실패 안내·전환) |
 | S3c | 상단 바 ⚙ 진입·App 주인 판정(R-SET-009·010). 구성안 `doc/200_설계/architecture/ui-layout-02-settings.md` §7 수용. 설정 화면 본체는 `ui/src/settings/design.md` |
 | 레이아웃 확정 상태 | **확정**(읽기 전용 판 · 토큰 있음 판 · S3c 주인 판). 토큰 있음 판의 토스트 줄 위치는 설계 가정 A-3(구성안 §3 "Toast 두 화면" 근거, 그림에는 없음) |
-| 문서 분할 | 40KB 한계로 분할: `design/components.md`(컴포넌트·공용 요소 단일 정의·스타일) · `design/functions.md`(상태·기능) · `design/a11y.md`(접근성) · `design/pipeline.md`(§6 파이프라인, v1.6.1). RTM은 이 문서 §14 |
-| 이 설계가 단일 정의하는 공용 요소 | `ui/src/App.tsx`(화면 분기·viewer) · `ui/src/main.tsx` · `ui/src/state/{viewer,token,limits,writeFailure}.ts` · `ui/src/components/ui/{TopBar,Button,IconButton,StateView,TextInput,TextArea,Toggle,BottomSheet,ConfirmDialog,PromptSheet,Toast}` · `ui/src/components/hooks/useToast.ts`(`useLongPress`는 **삭제됨(S3e 후작업 2026-10-07)**) · `ui/src/components/utils/{cx,formatDate,storage,errorText}.ts`(`errorText` = 후작업 2026-10-07, §8.2·§8.3). chat 설계는 이 정의를 인용한다 |
+| 문서 분할 | 40KB 한계로 분할: `design/components.md`(컴포넌트·공용 요소 단일 정의·스타일) · `design/functions.md`(상태·기능) · `design/a11y.md`(접근성) · `design/pipeline.md`(§6 파이프라인, v1.6.1) · **`design/lock.md`(S6 전체 — 레이아웃·상태·F-RM-30~54·§6.7~§6.11·계약·문구·결정 D-L·예정 TC-RM-041~064, v1.8)**. RTM은 이 문서 §14 |
+| 이 설계가 단일 정의하는 공용 요소 | `ui/src/App.tsx`(화면 분기·viewer) · `ui/src/main.tsx` · `ui/src/state/{viewer,token,limits,writeFailure,roomKeys}.ts`(`roomKeys` S6) · `ui/src/components/roomEntry/*`(S6 지역 공용 — `useRoomEntry`·`RoomEntrySheet`·`roomEntryText`) · `ui/src/components/ui/{TopBar,Button,IconButton,StateView,TextInput,TextArea,Toggle,BottomSheet,ConfirmDialog,PromptSheet,Toast}` · `ui/src/components/hooks/useToast.ts`(`useLongPress`는 **삭제됨(S3e 후작업 2026-10-07)**) · `ui/src/components/utils/{cx,formatDate,storage,errorText}.ts`(`errorText` = 후작업 2026-10-07, §8.2·§8.3). chat 설계는 이 정의를 인용한다 |
 
 비유: 앱은 도서관 열람실이다. 방 목록은 서가 안내판이고, 대화 화면은 펼친 책이다. 안내판은 지난번에 펼쳐 둔 책을 기억해 두었다가(책갈피 = `localStorage`) 다시 오면 그 책을 바로 펼쳐 준다. 출입증(토큰)이 있는 회원은 안내판 옆 「+ 새 방」으로 새 책을 꽂고 곧장 펼친다. 출입증은 주머니(메모리)에만 있고 서랍에는 넣지 않는다.
 
@@ -27,6 +28,7 @@
 | v1.5.1 | 2026-10-06 | S3b: `toastToneOf`(F-RM-22) warning 조건에 `LLM_BUDGET_EXCEEDED`(429, R-LLM-007) 추가 — functions.md F-RM-22 · §8.3 비고 · TC-RM-029 기대. 사용처는 chat 재작성 토스트(chat design v1.8), rooms 화면 동작 변경 없음 | 메인 세션 승인(chat S3b 공용 변경 요청) |
 | v1.5.2 | 2026-10-07 | **후작업 동기화(동작·문구 변경 없음)**: ① 공용 Button `ariaDescribedBy?: string`(components.md §1.2) ② `NETWORK`·인증 3종 문구를 공용 `ui/src/components/utils/errorText.ts`로(§1 공용 요소 · §8.3 비고 · §13 행 "공용화 완료") ③ 공용 `useLongPress` 삭제(S3e 사용처 0 — §1 · §3.2 · §13 · components.md §1.19) | ui-postprocessor 후작업 · 사용자 승인 |
 | v1.6.2 | 2026-10-06 | **S3c 구현 동기화(CR-001 적용·검증됨, 동작 변경 없음).** 진입 안내 = `useEntryNotice` 훅(functions.md F-RM-29) · App의 설정 진입·이탈 = `useSettingsNav`, 주인 판정 = `useOwner`(F-RM-24~27 동작 같음) · `useNewRoomUi`가 `showToast` 반환 · labels `settingsAriaLabel` = `캐릭터 설정` · View 유니온 실물이 functions.md §1.1과 같음 · ⚙ 실측 44×44 · chat 스펙 격리 권고(functions.md §2 끝) | S3c 구현 보고 · ui 592/592 · OwnerGate 7건 · 캡처 `doc/300_검증/screenshots/20261006-2033/` |
+| v1.8 | 2026-10-08 | **S6 방 비밀번호 잠금(구축 설계).** 새 분할 문서 `design/lock.md`. 공용 델타(components.md): storage `ld:roomKeys` 3함수(§1.7) · limits 비밀번호 4함수 trim 없음(§1.11) · TextInput `type`(§1.12) · PromptSheet `inputType`·`placeholder`(§1.17) · 신규 §1.21 `roomKeys` · §1.22~§1.23 `components/roomEntry/`. 로컬: ListRow 잠긴 변형(날짜 DOM 없음) · RoomList · NewRoomRow 2줄(버튼 md). functions.md create `password` · F-RM-08·09·15·17 개정 포인터. a11y.md S6 행. 이 문서 §2.4 · §7 E3·E4·E17·getRoomKey · §8.3 `VALIDATION_ERROR` 문구 개정 · §10 · §13 · §14 S6 행. 계약 인용 api.md v0.9 | S6 승인 ① · 구성안 ui-layout-04 · 메인 결정(§8 주의점 ①~④) |
 | v1.7 | 2026-10-08 | **시각 보강(CR-002, 보강·CSS만)**: 갠홈 estate 톤. 토큰 전/후 표·컴포넌트 규칙 정본 = `ui/src/chat/design/style.md`(세 화면 공통). components.md §3에 rooms 차이(상단 바 큰 세리프 + 장식 라벨 · 연한 행 구분선 · 선형 버튼 · 비대칭 입력창) · §11.1 포인터. 레이아웃·DOM·문구·상태·계약·RTM 불변, 영향 TC 없음 | 사용자 2026-10-08 "갠홈 디자인에 맞춰야" · 승인 5항목 |
 
 ---
@@ -107,6 +109,10 @@ C 상태 변형(판정 순서 error → loading → data → empty):
 - 폭 ≥ 480: 콘텐츠 최대 폭 480 중앙. 폭 ≤ 360: 변화 없음(구성안 §4의 날짜 생략은 chat 상단 바 대상).
 - 가로 스크롤 금지. 긴 제목은 한 줄 말줄임. B 행 입력은 `flex: 1; min-width: 0`.
 
+### 2.4 S6 판 [확정 — 구성안 ui-layout-04 §2~§4] → `design/lock.md` §1
+
+B가 2줄(96px, 목록 425px)로 바뀐다(위 §2.2 그림·§2.3 B 52px 행은 S6에서 대체). 잠긴 행 = 자물쇠 + 제목, 날짜 DOM 없음. 입장 시트 = PromptSheet(password, n/64). 읽기 전용 판의 A·B 규칙은 불변.
+
 ---
 
 ## 3. 컴포넌트 설계
@@ -160,34 +166,36 @@ ui/src/main.tsx                     global.css · initToken(location.search) · 
 
 - 화면 코드(`index.tsx`)는 표준 HTML 원소를 직접 쓰지 않는다. `<button>`·`<input>`은 공용 ui·`ListRow` 안에만 있다. `<main>`·`<section>`·`<ul>`·`<li>`·`<h1>`은 시맨틱 컨테이너로 허용.
 - Props·시그니처 전문: `design/components.md`.
+- (S6) 추가·변경 분류(공용 델타 TextInput·PromptSheet · 상태 모듈 `roomKeys` · 지역 공용 `components/roomEntry/` · 로컬 ListRow 잠긴 변형·NewRoomRow 2줄)와 트리 델타는 `design/lock.md` §2. 입장 시트는 새 컴포넌트를 만들지 않고 PromptSheet를 감싼 `RoomEntrySheet`로 쓴다.
 
 ---
 
 ## 4. 상태 → `design/functions.md` §1
 
-요약: App `view`(초기 `{ screen: 'rooms' }`) · `autoOpenRoomId`(초기 `loadLastRoomId()`) · **`viewer`(S2, 초기 `viewerFromToken(getToken())`, `revokeWrite`로 한 방향 전환)**. RoomsScreen `useRoomsLoader`(`load` 초기 loading, `autoOpenSettledRef`, `isActiveRef`, `latestRef`) · `titleRef` · **S2** `useCreateRoom`(`create = { isOpen: false, title: '', isSubmitting: false }`, `submitInFlightRef`) · `useToast`(`toast = null`) · `newRoomButtonRef`·`titleInputRef`. 토큰 값은 `ui/src/state/token.ts` 메모리 슬롯에만 있다.
+요약: App `view`(초기 `{ screen: 'rooms' }`) · `autoOpenRoomId`(초기 `loadLastRoomId()`) · **`viewer`(S2, 초기 `viewerFromToken(getToken())`, `revokeWrite`로 한 방향 전환)**. RoomsScreen `useRoomsLoader`(`load` 초기 loading, `autoOpenSettledRef`, `isActiveRef`, `latestRef`) · `titleRef` · **S2** `useCreateRoom`(`create = { isOpen: false, title: '', isSubmitting: false }`, `submitInFlightRef`) · `useToast`(`toast = null`) · `newRoomButtonRef`·`titleInputRef`. 토큰 값은 `ui/src/state/token.ts` 메모리 슬롯에만 있다. **S6**: `create.password`(초기 `''`) · `useRoomEntry` `sheet`(초기 `null`)·`quietInFlightRef`·`submitInFlightRef` · `roomKeys` 캐시(초기 `null`, 첫 접근 때 `ld:roomKeys` 1회 읽음) — `design/lock.md` §3.
 
 ## 5. 기능 명세 → `design/functions.md` §2
 
-F-RM-01 `App` · 02 `openRoom` · 03 `backToRooms` · 04 `settleAutoOpen` · 05 `RoomsScreen` · 06 `loadRooms` · 07 `retry` · 08 `resolveAutoOpen` · 09 행 선택 · 10 `storage.*` · 11 `formatDate`. **S2**: 12 `revokeWrite` · 13 `replaceRoomInView` · 14 `openCreate` · 15 `cancelCreate` · 16 `changeTitle` · 17 `submitCreate` · 18 `handleCreateFailure` · 19 전환 effect · 20 `token.ts` · 21 `viewerFromToken` · 22 `toastToneOf` · 23 `countChars`·`isRoomTitleValid`. **S3c**: 24 주인 판정 effect(revokeWrite 금지) · 25 `openSettings` · 26 `leaveSettings` · 27 `loseOwner` · 28 ⚙ 렌더 · 29 진입 안내 effect.
+F-RM-01 `App` · 02 `openRoom` · 03 `backToRooms` · 04 `settleAutoOpen` · 05 `RoomsScreen` · 06 `loadRooms` · 07 `retry` · 08 `resolveAutoOpen` · 09 행 선택 · 10 `storage.*` · 11 `formatDate`. **S2**: 12 `revokeWrite` · 13 `replaceRoomInView` · 14 `openCreate` · 15 `cancelCreate` · 16 `changeTitle` · 17 `submitCreate` · 18 `handleCreateFailure` · 19 전환 effect · 20 `token.ts` · 21 `viewerFromToken` · 22 `toastToneOf` · 23 `countChars`·`isRoomTitleValid`. **S3c**: 24 주인 판정 effect(revokeWrite 금지) · 25 `openSettings` · 26 `leaveSettings` · 27 `loseOwner` · 28 ⚙ 렌더 · 29 진입 안내 effect. **S6**(`design/lock.md` §4): 30~37 `roomKeys`(parse·upsert·remove/find·serialize·get·save·forget·reset) · 38 `main.tsx` getter 주입 · 39 비밀번호 한도 함수 · 40~44 `useRoomEntry`(requestEntry 판정 ①~④·quietEnter·submitPassword·cancelEntry) · 45 `enterErrorText` · 46 `RoomEntrySheet` · 47 행 선택 개정 · 48 `onRoomGone` · 49 `changePassword` · 50 `submitCreate` 개정 · 51 취소·리셋 · 52 `resolveAutoOpen` 개정 · 53 B1 Enter · 54 잠긴 행 매핑.
 ---
 
 ## 6. 파이프라인 → `design/pipeline.md`
 
-§6.1 첫 진입 · §6.2 재방문 자동 진입 · §6.3 저장된 방 사라짐 · §6.4 오류 · §6.5 방 생성(S2) · §6.6 주인 판정·설정 진입(S3c). 절 번호는 그 파일에서 그대로 쓴다(v1.6.1 분할). 파괴 조작·confirm 대상 없음.
+§6.1 첫 진입 · §6.2 재방문 자동 진입 · §6.3 저장된 방 사라짐 · §6.4 오류 · §6.5 방 생성(S2) · §6.6 주인 판정·설정 진입(S3c). 절 번호는 그 파일에서 그대로 쓴다(v1.6.1 분할). **S6** §6.7 잠긴 행 탭 판정 · §6.8 입장 시트 제출(코드별) · §6.9 새 방 + 비밀번호 · §6.10 자동 진입 · §6.11 저장소 실패는 `design/lock.md` §6. 파괴 조작·confirm 대상 없음(잠금 해제·방 삭제는 chat).
 
 ---
 
 ## 7. contract 계약 사용표
 
-api.md **v0.3**을 **인용**한다(재정의 아님).
+api.md **v0.3**을 **인용**한다(재정의 아님). **S6부터 v0.9**(§4.2·§4.6·§4.19·§11.18) — S6 상세 표는 `design/lock.md` §7.
 
 | 엔드포인트 | 요청 | 응답 타입(`shared/src/types.ts`) | 래퍼(`@/api`) | 호출 위치 | 토큰 헤더 | 실패 시 표시 |
 |---|---|---|---|---|---|---|
-| `GET /api/rooms` (api.md §4.2, E3) | 없음 | `RoomSummary[]` = `{ id: string; title: string; createdAt: number; updatedAt: number; messageCount: number }[]` | `listRooms(): Promise<Result<RoomSummary[]>>` | F-RM-06 `loadRooms` | 불필요(래퍼가 붙이지 않음, api.md §2.1) | StateView error, 상세 §8.2 |
-| `POST /api/rooms` (api.md §4.6, E4) — S2 | `CreateRoomBody = { title: string }`(입력 원문, trim은 서버) | `201` `RoomSummary`(`title` trim됨, `messageCount: 0`) | `createRoom(body: CreateRoomBody): Promise<Result<RoomSummary>>` | F-RM-17 `submitCreate` | **필요** — 래퍼가 `getToken()`으로 `Authorization: Bearer` 부착(api.md §2.2·§11.6). 화면은 헤더를 만들지 않는다 | 토스트 §8.3. 인증 실패면 전환(F-RM-12) |
+| `GET /api/rooms` (api.md §4.2, E3) | 없음 | `RoomSummary[]` = `{ id: string; title: string; createdAt: number; updatedAt: number; messageCount: number; locked: boolean }[]`(`locked` S6) | `listRooms(): Promise<Result<RoomSummary[]>>` | F-RM-06 `loadRooms` | 불필요(래퍼가 붙이지 않음, api.md §2.1) | StateView error, 상세 §8.2 |
+| `POST /api/rooms` (api.md §4.6, E4) — S2 · S6 확장 | `CreateRoomBody = { title: string; password?: string }`(입력 원문, trim은 서버. S6: 비밀번호 빈칸이면 키 없음) | `201` `CreateRoomResponse = RoomSummary & { entryKey: string \| null }`(S6) | `createRoom(body: CreateRoomBody): Promise<Result<CreateRoomResponse>>` | F-RM-17 → S6 F-RM-50 `submitCreate`(증명 저장) | **필요** — 래퍼가 `getToken()`으로 `Authorization: Bearer` 부착(api.md §2.2·§11.6). 화면은 헤더를 만들지 않는다 | 토스트 §8.3. 인증 실패면 전환(F-RM-12) |
 | `GET /api/settings/characters` (api.md v0.5 §4.15, E15) — S3c 주인 판정 | 없음 | `CharacterSettingsResponse`(**본문 버림**) | `getCharacterSettings(): Promise<Result<CharacterSettingsResponse>>` | App F-RM-24(첫 렌더 뒤 1회, 토큰 있을 때만) | **필요**(래퍼 `auth: true`) | **표시 없음.** `ok`면 `isOwner = true`, 그 밖 모든 코드는 무시(R-SET-010 · api.md §2.7) |
-| (엔드포인트 아님) 토큰 getter 주입 | `configureClient({ getToken })` | `ClientConfig = { getToken: () => string \| null }` | `configureClient` · `isAuthFailure(error): boolean` | `main.tsx` 1회 · F-RM-18 | — | — |
+| `POST /api/rooms/:id/enter` (api.md §4.19, E17) — S6 | `EnterRoomBody = { password?: string }`(래퍼가 인자 없으면 `{}`) | `200` `EnterRoomResponse = { entryKey: string \| null }` | `enterRoom(roomId: string, password?: string): Promise<Result<EnterRoomResponse>>` | lock.md F-RM-42(조용한 시도) · F-RM-43(시트) | 래퍼 `auth: true`(있으면 붙음, 실패는 익명 — 401·`LEVEL_TOO_LOW` 없음) | 시트 문구 lock.md §8.2 · `ROOM_LOCKED` → 시트 · `NOT_FOUND` → 목록 다시 받기 |
+| (엔드포인트 아님) 토큰·증명 getter 주입 | `configureClient({ getToken, getRoomKey })`(S6 `getRoomKey`) | `ClientConfig = { getToken: () => string \| null; getRoomKey?: (roomId: string) => string \| null }` | `configureClient` · `isAuthFailure(error): boolean`(새 코드 2종은 `false`) | `main.tsx` 1회 · F-RM-18 | — | — |
 
 - `Result<T> = { ok: true; value: T } | { ok: false; error: ApiError }`, `ApiError = { code: ApiErrorCode; message: string; retryAfterSec?: number }`, `ApiErrorCode = ErrorCode | 'NETWORK'`(api.md §11.6). 래퍼는 throw하지 않으므로 화면에 `try/catch`가 없다.
 - `createRoom`이 낼 수 있는 코드: 공통(api.md §4.5) `CONFIG_INVALID`·`TOKEN_REQUIRED`·`TOKEN_INVALID`·`LEVEL_TOO_LOW`·`RATE_LIMITED`(+`retryAfterSec`)·`VALIDATION_ERROR`·`INTERNAL` + 클라이언트 `NETWORK`. 화면이 1~60자를 먼저 막으므로 `VALIDATION_ERROR`는 정상 경로에서 나오지 않는다.
@@ -217,6 +225,11 @@ api.md **v0.3**을 **인용**한다(재정의 아님).
 | `cancel` (S2) | `취소` | B 행 |
 | `create` (S2) | `만들기` | B 행 |
 | `settingsAriaLabel` (S3c) | `캐릭터 설정` | 상단 바 ⚙ IconButton `aria-label`(글자 없음) |
+| `lockedRowAriaLabel(title)` (S6) | `` `${title}, 잠긴 방` `` | 잠긴 ListRow `aria-label`(날짜 없음) |
+| `newRoomPasswordAriaLabel` (S6) | `새 방 비밀번호` | B2 입력 |
+| `newRoomPasswordPlaceholder` (S6) | `비밀번호(선택, 6자 이상 권장)` | B2 입력 placeholder |
+
+- (S6) 입장 시트 문구(제목 `비밀번호`·입력 `방 비밀번호`·`입장`·`취소`·코드별 문구)는 rooms·chat 공용 단일 소스 `ui/src/components/roomEntry/roomEntryText.ts` — 표는 `design/lock.md` §8.2.
 
 ### 8.2 오류 상세 `errorDetail(code: ApiErrorCode): string` (목록 로드)
 
@@ -234,7 +247,7 @@ api.md **v0.3**을 **인용**한다(재정의 아님).
 | `LEVEL_TOO_LOW` | `대화 참여 등급이 아니어서 열람 전용으로 바뀌었습니다.` | warning |
 | `RATE_LIMITED` + `retryAfterSec` 있음 | `` `요청이 너무 많습니다. ${retryAfterSec}초 후 다시 시도해 주세요.` `` | warning |
 | `RATE_LIMITED` + 없음 | `ERROR_MESSAGES.RATE_LIMITED` | warning |
-| `VALIDATION_ERROR` | `방 제목은 1~60자로 입력해 주세요.` | danger |
+| `VALIDATION_ERROR` | ~~`방 제목은 1~60자로 입력해 주세요.`~~ → **(S6) `방 제목(1~60자)과 비밀번호(4~32자)를 확인해 주세요.`**(lock.md D-L12 — 서버가 제목·비밀번호 어느 위반이든 같은 코드) | danger |
 | `NETWORK` | `서버에 연결할 수 없습니다.` | danger |
 | 그 밖 | `ERROR_MESSAGES[code]` | danger |
 
@@ -247,7 +260,7 @@ api.md **v0.3**을 **인용**한다(재정의 아님).
 
 ## 9. 접근성 → `design/a11y.md`
 
-요약: `<main aria-label="방 목록">`, 마운트 시 h1 포커스, 행은 `button`(Enter·Space), 로딩·빈 `role=status`, 오류·토스트 `role=alert`, `<time dateTime>`. (S2) 「+ 새 방」 이름 `새 방 만들기`, B 행 `role=group`, Enter 만들기·Esc 취소, 전환 시 h1 포커스.
+요약: `<main aria-label="방 목록">`, 마운트 시 h1 포커스, 행은 `button`(Enter·Space), 로딩·빈 `role=status`, 오류·토스트 `role=alert`, `<time dateTime>`. (S2) 「+ 새 방」 이름 `새 방 만들기`, B 행 `role=group`, Enter 만들기·Esc 취소, 전환 시 h1 포커스. (S6) 잠긴 행 이름 `{제목}, 잠긴 방`·자물쇠 `aria-hidden` · B 포커스 제목 → 취소 → 비밀번호 → 만들기, 제목 Enter = 비밀번호로 · 입장 시트 dialog·입력 포커스·실패 `role=alert`·닫히면 행으로 복귀.
 
 ---
 
@@ -263,6 +276,9 @@ api.md **v0.3**을 **인용**한다(재정의 아님).
 | 방 목록·진입·상태·자동 진입 | 렌더 | 렌더 | 토큰과 무관 | R-ROOMS-001 · 003 · 004 |
 | ⚙ 설정 진입(A 오른쪽, 「+ 새 방」 왼쪽) — S3c | **미렌더**(판정 요청도 없음) | **주인일 때만 렌더**. 비주인·판정 실패면 미렌더(「+ 새 방」은 렌더 유지) | `viewer.canWrite && isOwner && <IconButton icon='settings'/>`(F-RM-28) | R-SET-009 · R-SET-010 |
 | 대신 보여 줄 안내 | 없음 | — | rooms에는 열람 안내 줄이 없다(구성안 §1). 안내는 chat D 영역 | — |
+| (S6) B2 비밀번호 칸·「만들기」 | **미렌더**(B 전체 없음) | B 열렸을 때만 | B 규칙 그대로 | R-ROOMS-002 · R-LOCK-001 |
+| (S6) 잠긴 행(자물쇠 · 날짜 DOM 없음) | 렌더 | 렌더 | 토큰과 무관 | R-LOCK-003 |
+| (S6) 입장 시트 | **동작**(탭 즉시 시트, 요청 없음) | 동작(조용한 `enterRoom(id)` 실패 시) | `viewer.canWrite`는 판정 ③/④ 분기에만 쓴다(lock.md §10) | R-LOCK-004 · 005 · 006 |
 
 - 전환(F-RM-12): 쓰기 결과가 `isAuthFailure`면 `clearToken()` + `viewer = READ_ONLY_VIEWER`. 같은 렌더에서 「+ 새 방」·B가 DOM에서 빠지고 h1로 포커스한다(F-RM-19). 되돌리기는 새로 고침뿐이다.
 - TC는 읽기 전용에서 `queryByRole('button', { name: '새 방 만들기' })`·`queryByRole('textbox')`가 `null`, 토큰 있음에서 같은 버튼이 있음을 **쌍으로** 단언한다(TC-RM-011 · 018).
@@ -322,25 +338,36 @@ contract 변경 요청(설계에 끼워 넣지 않음):
 | TopBar · Button · IconButton · StateView | 처음부터 공용 | 두 화면이 S1에서 이미 함께 쓴다 | 공용 |
 | TextInput · Toast · useToast (S2) | 처음부터 공용 | 두 화면이 S2에서 함께 쓴다(rooms B·토스트, chat 이름 변경·E 줄) | 공용 신규 |
 | TextArea · Toggle · BottomSheet · ConfirmDialog · PromptSheet · ~~useLongPress~~(삭제됨, S3e 후작업 2026-10-07) (S2) | 공용 | 지금은 chat만 쓰지만 구성안 §3이 공용으로 배치했고 문구 없이 동작하는 비종속 부품이다 | 공용 신규(구성안 수용) |
+| (S6) `useRoomEntry` · `RoomEntrySheet` · `roomEntryText` | **지역 공용 `ui/src/components/roomEntry/`** | rooms 행 탭·chat 입장 재요구 두 화면 재발 · 같은 판정·같은 문구(중복 금지) | 처음부터 두 화면 공용. 문구를 품어 `components/ui`에는 두지 않는다(lock.md D-L8) |
+| (S6) `roomKeys` · limits 비밀번호 함수 | `ui/src/state/` | 두 화면 + `main.tsx` | 상태 모듈(공용) |
+| (S6) `LockGlyph` | ListRow 파일 안 지역 | 한 화면·한 컴포넌트 | 승격 안 함 |
 | 쓰기 실패 문구 `writeErrorText`의 인증·`NETWORK` 행 | **공용 `ui/src/components/utils/errorText.ts`**(`NETWORK_TEXT`·`AUTH_FAILURE_TEXT`) | 세 화면 재발 · 화면 비종속 | **공용화 완료(후작업 2026-10-07, 사용자 승인).** rooms·chat·settings `labels.ts`가 import한다. 레이트리밋 행은 화면별 `labels.ts`에 남는다 |
 
 ---
 
 ## 14. RTM (요구 추적 매트릭스)
 
-상태: ✅ = 가리킨 절에 실체 있음. 절 표기: `C` = `design/components.md`, `F` = `design/functions.md`, `A` = `design/a11y.md`, `P` = `design/pipeline.md`(v1.6.1). 접두어 없는 `§6.x`도 `design/pipeline.md`의 같은 번호 절이다.
+상태: ✅ = 가리킨 절에 실체 있음. 절 표기: `C` = `design/components.md`, `F` = `design/functions.md`, `A` = `design/a11y.md`, `P` = `design/pipeline.md`(v1.6.1), `L` = `design/lock.md`(S6, v1.8 — 예정 TC-RM-041~064 목록은 L §12). 접두어 없는 `§6.x`도 `design/pipeline.md`의 같은 번호 절이다.
 
 | 요구ID | 설계 절 | api 계약 | 예정 TC | 상태 |
 |---|---|---|---|---|
-| R-ROOMS-001 🔒 | §2.1 · C §2.1~§2.3 · F §2 F-RM-01·02·05·06·09·11 · §6.1 | api.md §4.2 `listRooms` | TC-RM-001 · 002 · 003 · 013 · 016 | ✅ |
-| R-ROOMS-002 🔒 | §2.2 · §3.1 · C §1.11·§1.12·§2.4 · F §2 F-RM-05·14~18·23 · §6.5 · §8.1·§8.3 · §10 · A | api.md §4.6 `createRoom` · §2.2 | TC-RM-011 · 018 · 019 · 020 · 021 · 022 · 023 · 025 · 026 · 027 · 029 · 032 | ✅ |
+| R-ROOMS-001 🔒 (S6 개정: 잠긴 방 제목+자물쇠, 날짜 숨김, 탭 → 증명 없으면 시트) | §2.1 · §2.4 · C §2.1~§2.3 · F §2 F-RM-01·02·05·06·09·11 · §6.1 · L §1.4 · L F-RM-41·47·54 · L §6.7 | api.md §4.2 `listRooms`(`locked`) · §4.19 | TC-RM-001 · 002 · 003 · 013 · 016 · 041 · 042 · 043 · 046 | ✅ |
+| R-ROOMS-002 🔒 (S6 개정: 비밀번호 칸) | §2.2 · §2.4 · §3.1 · C §1.11·§1.12·§2.4 · F §2 F-RM-05·14~18·23 · §6.5 · §8.1·§8.3 · §10 · A · L §1.1 · L F-RM-39·49~51·53 · L §6.9 | api.md §4.6 `createRoom` · §2.2 | TC-RM-011 · 018 · 019 · 020 · 021 · 022 · 023 · 025 · 026(→054 개정) · 027 · 029 · 032 · 054 · 055 · 057 | ✅ |
 | R-ROOMS-003 | §2.1 상태 변형 · C §1.4 · F §2 F-RM-06·07 · §6.4 · §8 | api.md §3.3·§3.4 | TC-RM-004 · 005 · 006 · 007 | ✅ |
-| R-ROOMS-004 (확인 필요) | C §1.7 · F §1.1 · F §2 F-RM-02·03·04·08 · §6.2·§6.3 · §11.2 | — (localStorage) | TC-RM-008 · 009 · 010 · 012 · 014 · 021(새 방 진입 시 기록) | ✅ |
+| R-ROOMS-004 (확인 필요 · S6 개정: 잠긴 방 + 증명 없음 = 자동 진입 안 함) | C §1.7 · F §1.1 · F §2 F-RM-02·03·04·08 · §6.2·§6.3 · §11.2 · L F-RM-52 · L §6.10 · L D-L11 | — (localStorage) | TC-RM-008 · 009 · 010 · 012 · 014 · 021(새 방 진입 시 기록) · 058 | ✅ |
 | R-ROOMS-005 🔒 | §2.3 · C §3 · C §1.20 · A | — | TC-RM-015 · 031(수동·스크린샷 2종) · 017 | ✅ |
 | R-CHAT-008 🔒 (새 방 부분) | §10 · C §1.8 | — | TC-RM-011 · 018 · 024 | ✅ |
 | R-CHAT-009 🔒 (토큰 보관 — 공용 정의) | C §1.10 · F §1.1 · F §2 F-RM-12·20 · §7 · §10 | api.md §2.4 · §11.6 `configureClient` | TC-RM-024 · 027 · 028 · 030(리뷰 grep) | ✅ |
 | R-API-003 🔒 (참조) | R-CHAT-009 행으로 닫힘(헤더 부착은 래퍼, 화면은 메모리 보관만) | api.md §2.2 · §2.4 | R-CHAT-009와 같음 | ✅ |
-| R-CHAT-010 (마지막 본 방) | C §1.7 · F §2 F-RM-08 | — | TC-RM-008 · 010 | ✅ |
+| R-CHAT-010 (마지막 본 방 · S6 개정 L12: `ld:roomKeys` 증명) | C §1.7 · C §1.21 · F §2 F-RM-08 · L F-RM-30~37 · L §6.11 | api.md §2.8.2 | TC-RM-008 · 010 · 059 · 060 | ✅ |
+| R-LOCK-001 🔒 (화면 몫: 새 방 비밀번호) | L §1.1 · C §1.11 · C §1.12 · C §2.4 · L F-RM-39·49~51·53 · L §6.9 · L §8.1 · §10 | api.md §4.6 · §5.10 | TC-RM-054 · 055 · 056 · 057 · 061 | ✅ |
+| R-LOCK-003 🔒 (잠긴 행 표시) | §2.4 · L §1.2 · L §1.4 · C §2.1·§2.2 · L F-RM-54 · L §8.1 · A(S6 잠긴 행) | api.md §4.2 `locked` | TC-RM-041 · 062 | ✅ |
+| R-LOCK-004 🔒 (증명 기억·재사용) | C §1.21 · C §1.22 · L §3 · L F-RM-30~37·40~47 · L §6.7 · §6.8 · L §8.2 | api.md §2.8 · §4.19 · §11.18 | TC-RM-043 · 044 · 047 · 048 · 049 · 050 · 051 · 052 · 053 · 059 · 063 | ✅ |
+| R-LOCK-005 🔒 (주인 — 화면은 조용한 시도만) | L F-RM-41 ③ · F-RM-42 · L §6.7 · L §10 | api.md §2.8.4 · §4.19 ③ | TC-RM-044 · 045 · 064 | ✅ |
+| R-LOCK-006 🔒 (화면 몫: 읽기 전용 열람자도 시트로 증명 받기 · 헤더는 래퍼) | L F-RM-38·41 ④ · L §7 · L §10 · §10 | api.md §2.8.3 · §11.18 `getRoomKey` | TC-RM-046 · 063 | ✅ |
+| R-LOCK-007 🔒 (화면 몫: 원문 미보관 · 증명은 `ld:roomKeys`만 · 토큰 불변) | L §3 끝 · C §1.7 · C §1.21 · L F-RM-35·43·50 · L D-L6·D-L7 | api.md §2.8.1 · §2.8.2 | TC-RM-047 · 056 · 059 · 060 | ✅ |
+| R-LOCK-008 (참조 — 화면은 429 문구 표시만) | L §6.8 · L §8.2 | api.md §4.19 ⑤ · §6.2 | TC-RM-049 | ✅ |
+| R-LOCK-009 🔒 (화면 몫: 기존 방·저장소 불변) | L F-RM-33·36 · L §6.11 · L §12 끝(픽스처) | api.md §4.2(추가만) | TC-RM-042 · 060 + 기존 TC 픽스처 `locked: false` | ✅ |
 | R-CHAT-011 (생성 실패·전환 — rooms 쪽) | F §2 F-RM-12·18·19·22 · §6.5 · §8.3 · §10 | api.md §2.4 `isAuthFailure` · §3.4 `retryAfterSec` | TC-RM-023 · 024 | ✅ |
 | R-ROOM-001 🔒 (데이터) | §7 | api.md §4.2 | TC-RM-001(서버 순서 유지) | ✅ |
 | R-ROOM-002 🔒 (데이터) | §7 · C §1.11 | api.md §4.6 | TC-RM-020 · 021 | ✅ |

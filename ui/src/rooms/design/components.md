@@ -112,6 +112,12 @@ export const saveScrollOffset = (roomId: string, distanceFromBottom: number): vo
 - 모든 함수는 `window.localStorage` 접근 전체를 `try/catch`로 감싼다. 읽기 실패·값 없음 → `null`. 쓰기·삭제 실패 → 조용히 무시.
 - `loadLastRoomId`: 빈 문자열이면 `null`. `loadScrollOffset`: 0 이상 유한수가 아니면 `null`. `saveScrollOffset`: `Math.max(0, Math.round(d))`를 문자열로.
 - **토큰은 어떤 키로도 저장하지 않는다**(R-API-003·R-CHAT-009). S2에서도 키를 늘리지 않는다. 토큰은 §1.10 메모리 슬롯에만 있다.
+- **(S6) 입장 증명 키 추가** — `STORAGE_KEYS.roomKeys = 'ld:roomKeys'`와 원문 3함수. 해석(JSON·상한·중복)은 §1.21 `roomKeys`가 하고 여기는 문자열만 읽고 쓴다. 증명은 토큰이 아니다(api.md §2.8.2, R-CHAT-009 🔒 불변).
+  ```ts
+  export const loadRoomKeysRaw = (): string | null      // read('ld:roomKeys'), 빈 문자열이면 null
+  export const saveRoomKeysRaw = (json: string): void    // write
+  export const clearRoomKeysRaw = (): void               // remove
+  ```
 - 다른 파일에서 `localStorage`·`sessionStorage`를 직접 쓰지 않는다(리뷰 grep 대상).
 
 ### 1.8 viewer (`ui/src/state/viewer.ts`)
@@ -157,6 +163,14 @@ export const isMessageTextValid = (value: string): boolean // 1 ≤ countChars �
 ```
 - 이모지 1개 = 1자. `maxLength` 속성은 쓰지 않는다(UTF-16 단위라 어긋나고, 붙여넣기를 말없이 자른다).
 - 한도 숫자는 계약 값이다. shared 상수가 생기면 재노출한다(주 문서 §12 CR-C-2).
+- **(S6) 비밀번호 — trim 없음**(R-LOCK-001). 상수는 `@shared/limits`(api.md §5.10.4)에서 import한다(이 파일에 숫자를 다시 쓰지 않는다).
+  ```ts
+  import { ROOM_PASSWORD_MIN, ROOM_PASSWORD_MAX, ROOM_ENTER_PASSWORD_MAX } from '@shared/limits'   // 4 · 32 · 64
+  export const countPasswordChars = (value: string): number         // Array.from(value).length — trim 없이 코드 포인트
+  export const isRoomPasswordSettable = (value: string): boolean    // 4 ≤ n ≤ 32 (chat 잠금 설정·변경)
+  export const isRoomPasswordValid = (value: string): boolean       // value === '' || isRoomPasswordSettable(value) (새 방 — 빈칸 = 잠그지 않음)
+  export const isEnterPasswordValid = (value: string): boolean      // 1 ≤ n ≤ 64 (입장 시트)
+  ```
 
 ### 1.12 TextInput (`ui/src/components/ui/TextInput/`) — S2
 
@@ -176,6 +190,11 @@ export type TextInputProps = {
 - 렌더: `<div class=wrap>` 안에 `<input type="text" aria-label autoComplete="off">` + 카운터 `<span aria-hidden="true">`(xs `tabular-nums`). 한도 초과면 카운터 클래스 `over`(`--color-danger`)·`<input aria-invalid="true">`.
 - 높이 36, 배경 `--input-bg`, 글자 `--input-fg`, 테두리 1px `--input-border`, placeholder `--input-placeholder`, 반경 `--radius-md`.
 - IME 판정: `event.nativeEvent.isComposing === true` 또는 `event.keyCode === 229`이면 Enter를 무시한다.
+- **(S6 델타) `type?: 'text' | 'password'`**(기본 `'text'` — 지금 동작 그대로). `'password'`면:
+  - `<input type="password" autoComplete="new-password" autoCapitalize="off" spellCheck={false}>`(브라우저 저장 비밀번호 자동 채움·저장 제안 차단 — 갠홈 로그인 비밀번호와 섞이지 않게, lock.md D-L6)
+  - 카운터·`over` 판정 수 = `countPasswordChars(value)`(**trim 없음**, §1.11). `'text'`는 기존대로 `countChars`(trim 후)
+  - 그 밖(높이·Enter·Esc·IME·readOnly·aria-invalid)은 같다. 보기 토글 없음(요구 없음)
+  - 사용처: rooms B2 · 입장 시트(PromptSheet 경유) · chat 잠금 설정·변경 시트
 
 ### 1.13 TextArea (`ui/src/components/ui/TextArea/`) — S2
 
@@ -279,6 +298,12 @@ export type PromptSheetProps = {
 - 로컬 상태 `value`(초기 `initialValue`). 렌더: `BottomSheet ariaLabel={title} onClose={onCancel} isDismissDisabled={isBusy} initialFocusRef={inputRef}` 안에 h2 · `TextInput maxChars onEnter={submit} isReadOnly={isBusy}` · (errorText) · 버튼 줄(취소 lg secondary, 저장 lg primary `isDisabled = isBusy || !canSave(value)`). 약 180px.
 - `submit`: `!isBusy && canSave(value)`일 때만 `onSave(value)`. 마운트 시 입력에 포커스, 커서 끝.
 - 사용처: chat 방 이름 변경 하나. 공용 근거는 구성안 §3 "공용 후보"와 비종속성(주 문서 §13).
+- **(S6 델타) props 2개 추가**(둘 다 선택 — 생략하면 지금과 같다):
+  ```ts
+  inputType?: 'text' | 'password'   // 기본 'text'. 내부 TextInput 의 type 으로 그대로 전달(§1.12)
+  placeholder?: string              // 내부 TextInput 의 placeholder 로 그대로 전달. 문구는 호출 쪽 labels
+  ```
+  - 사용처 추가: rooms·chat 입장 시트(`inputType='password'`, placeholder 없음, `maxChars` 64) · chat 「비밀번호 걸기」·「비밀번호 바꾸기」(`inputType='password'`, placeholder 「6자 이상 권장」 계열 — chat labels, `maxChars` 32). 근거 lock.md D-L1·D-L2.
 
 ### 1.18 Toast + useToast — S2
 
@@ -313,6 +338,68 @@ export const useToast = (): UseToastResult
 | `--sheet-bg` · `--sheet-radius` · `--sheet-shadow` | `var(--color-bg-elevated)` · `var(--radius-lg) var(--radius-lg) 0 0` · `0 -12px 24px rgba(4, 10, 20, .45)` |
 | `--z-sheet` | `10` |
 
+### 1.21 roomKeys (`ui/src/state/roomKeys.ts`) — S6, R-LOCK-004 · R-LOCK-007
+
+비유: 방마다 받은 도장을 적는 수첩. 서랍(저장소)이 잠겨 있어도 이번에 열어 둔 수첩(메모리)으로 계속 쓴다. 출입증(토큰)은 이 수첩에 적지 않는다.
+
+```ts
+export const ROOM_KEYS_MAX = 50
+export type RoomKeyEntry = readonly [roomId: string, entryKey: string]
+// 순수
+export const parseRoomKeys = (raw: string | null): readonly RoomKeyEntry[]
+export const upsertRoomKey = (entries: readonly RoomKeyEntry[], roomId: string, entryKey: string): readonly RoomKeyEntry[]
+export const removeRoomKey = (entries: readonly RoomKeyEntry[], roomId: string): readonly RoomKeyEntry[]
+export const findRoomKey = (entries: readonly RoomKeyEntry[], roomId: string): string | null
+export const serializeRoomKeys = (entries: readonly RoomKeyEntry[]): string | null   // 빈 배열 = null(키 삭제)
+// 메모리 슬롯 + storage(§1.7) 경유
+export const getRoomKey = (roomId: string): string | null      // main.tsx 가 configureClient({ getToken, getRoomKey }) 로 넘긴다
+export const saveRoomKey = (roomId: string, entryKey: string): void
+export const forgetRoomKey = (roomId: string): void
+export const resetRoomKeyCache = (): void                      // 테스트 정리 전용
+```
+- 동작 상세: `design/lock.md` F-RM-30~37. 저장 형식은 `[roomId, entryKey]` 쌍 배열 JSON, 순서 = 저장한 순서(오래된 것이 앞), 상한 50.
+- 캐시는 첫 접근 때 1회 저장소를 읽고, 이후 읽기는 캐시만 본다. 쓰기는 캐시 → 저장소 순(저장소 실패는 storage가 삼킨다).
+- 증명은 불투명 문자열이다. 해석·형식 검사·로그 출력 금지(api.md §2.8.1). 비밀번호·토큰은 이 모듈에 들어오지 않는다.
+
+### 1.22 roomEntry 묶음 (`ui/src/components/roomEntry/`) — S6, 지역 공용(rooms·chat)
+
+`components/ui`가 아니다(문구를 품는다, §1.9). 위치 결정 근거는 `design/lock.md` D-L8. 폴더: `useRoomEntry.ts` · `RoomEntrySheet.tsx` · `roomEntryText.ts` · `index.ts`(named 재노출) · 각 테스트.
+
+```ts
+// useRoomEntry.ts
+export type EntrySheet = { room: RoomSummary; isBusy: boolean; error: ApiError | null } | null
+export type UseRoomEntryOptions = {
+  canWrite: boolean                               // viewer.canWrite — ③ 조용한 시도 여부에만 쓴다
+  onEntered: (room: RoomSummary) => void          // 들어가도 된다(rooms: onOpenRoom · chat: 첫 로드 다시)
+  onRoomGone: (room: RoomSummary) => void         // 방이 없어졌다(NOT_FOUND)
+}
+export type UseRoomEntryResult = {
+  sheet: EntrySheet
+  requestEntry: (room: RoomSummary, reason?: 'tap' | 'locked') => void   // 'locked' = ROOM_LOCKED 수신(증명 삭제 후 ③④)
+  submitPassword: (password: string) => void      // 내부에서 Promise 를 void 로 버린다
+  cancelEntry: () => void
+}
+export const useRoomEntry = (options: UseRoomEntryOptions): UseRoomEntryResult
+
+// RoomEntrySheet.tsx
+export type RoomEntrySheetProps = {
+  sheet: NonNullable<EntrySheet>
+  onSubmit: (password: string) => void
+  onCancel: () => void
+}
+export const RoomEntrySheet = (props: RoomEntrySheetProps): JSX.Element
+```
+- `RoomEntrySheet` 렌더: `<PromptSheet key={sheet.room.id} title={ROOM_ENTRY_TEXT.title} inputAriaLabel={ROOM_ENTRY_TEXT.inputAriaLabel} initialValue="" maxChars={ROOM_ENTER_PASSWORD_MAX} canSave={isEnterPasswordValid} saveLabel={ROOM_ENTRY_TEXT.submit} cancelLabel={ROOM_ENTRY_TEXT.cancel} onSave={onSubmit} onCancel={onCancel} isBusy={sheet.isBusy} errorText={sheet.error === null ? null : enterErrorText(sheet.error)} inputType="password" />`. placeholder 없음.
+- `useRoomEntry`는 `@/api`의 `enterRoom`과 §1.21 `getRoomKey`·`saveRoomKey`·`forgetRoomKey`만 부른다. 판정 상세 `design/lock.md` F-RM-40~44 · §6.7 · §6.8.
+
+### 1.23 roomEntryText (`ui/src/components/roomEntry/roomEntryText.ts`) — S6
+
+```ts
+export const ROOM_ENTRY_TEXT = { title: '비밀번호', inputAriaLabel: '방 비밀번호', submit: '입장', cancel: '취소' } as const
+export const enterErrorText = (error: ApiError): string   // 표: design/lock.md §8.2
+```
+- `NETWORK` 문구는 `components/utils/errorText.ts`의 `NETWORK_TEXT`를 import한다(문장 중복 금지). 그 밖 코드는 `ERROR_MESSAGES[code]`.
+
 ---
 
 ## 2. rooms 로컬 컴포넌트
@@ -331,6 +418,16 @@ export type ListRowProps = {
 - 렌더: `<button type="button" aria-label={ariaLabel}>` 한 개가 행 전체(56px). 안: 제목(md serif, 한 줄 말줄임) + `<time dateTime>`(xs muted, 오른쪽).
 - hover·active `--row-hover-bg`, 아래 1px `--row-divider`. Tab 포커스, Enter·Space → `onSelect`.
 - 롱프레스 메뉴 없음(구성안 §5 미채택 확정). S2에서도 없다.
+- **(S6) 잠긴 변형 — props를 판별 유니온으로 바꾼다**(기존 호출은 `isLocked`를 생략해도 그대로 컴파일된다):
+  ```ts
+  type ListRowBase = { title: string; ariaLabel: string; onSelect: () => void }
+  export type ListRowProps =
+    | (ListRowBase & { isLocked?: false; dateText: string; dateTime: string })   // 안 잠김(지금 그대로)
+    | (ListRowBase & { isLocked: true })                                          // 잠김: 날짜 props 자체가 없다
+  ```
+  - 잠김 렌더: `<button aria-label={ariaLabel}>` 안에 `<span class=titleGroup>`(flex 1, `gap: var(--space-2)`, `min-width: 0`) = `<LockGlyph />` + 제목(한 줄 말줄임). **`<time>`을 만들지 않는다**(숨김 CSS 금지, U8).
+  - `LockGlyph`: 같은 파일 지역 컴포넌트. `<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true" focusable="false">`(자물쇠 몸통 사각형 + 고리 경로, `fill`/`stroke` = `currentColor`), 색 `--color-fg-muted`, `flex: none`. 이모지 금지. 공용 승격 안 함(IconButton 아이콘 목록과 무관).
+  - 폭·말줄임: `design/lock.md` §1.4.
 
 ### 2.2 RoomList (`ui/src/rooms/components/RoomList.tsx`)
 
@@ -342,6 +439,7 @@ export type RoomListProps = {
 ```
 - 렌더: `<ul>`(aria-label 없음) → `<li key={room.id}><ListRow …/></li>`. 순서는 받은 배열 그대로(api.md §4.2).
 - `dateText = formatMonthDay(room.updatedAt)`, `dateTime = toIsoDate(room.updatedAt)`.
+- **(S6)** `room.locked`면 `<ListRow isLocked title={room.title} ariaLabel={labels.lockedRowAriaLabel(room.title)} onSelect />` — 날짜를 계산하지도 넘기지도 않는다(lock.md F-RM-54). `onSelect`는 RoomsScreen이 넘긴 `entry.requestEntry`(F-RM-47).
 
 ### 2.3 ListArea (`ui/src/rooms/index.tsx` 안 지역 컴포넌트) — S1 실물 소급(v1.4)
 
@@ -367,6 +465,24 @@ export type NewRoomRowProps = {
   2. `Button size='sm' variant='secondary' isDisabled={isSubmitting} onClick={onCancel}` → `labels.cancel`
   3. `Button size='sm' variant='primary' isDisabled={isSubmitting || !isRoomTitleValid(title)} onClick={onSubmit}` → `labels.create`
 - `onSubmit`을 Enter로 불러도 유효성·중복은 F-RM-17이 다시 막는다.
+- **(S6) 2줄 판으로 바꾼다**(구성안 ui-layout-04 §2, lock.md §1.1). 위 S2 한 줄 렌더를 대체한다.
+  ```ts
+  export type NewRoomRowProps = {
+    title: string
+    onChangeTitle: (value: string) => void
+    password: string                              // S6
+    onChangePassword: (value: string) => void     // S6
+    onSubmit: () => void
+    onCancel: () => void
+    isSubmitting: boolean
+    inputRef: Ref<HTMLInputElement>               // 제목 입력(불변)
+  }
+  ```
+  - 루트 `<div role="group" aria-label={labels.newRoomGroupAriaLabel}>` = 세로 flex(padding `--space-2` `--space-4`, 줄 간격 `--space-2`, 아래 1px `--row-divider`), 높이 96. 줄 2개는 각각 `<div class=line>`(가로 flex, `gap: var(--space-2)`, `align-items: center`). 버튼 슬롯 `<div class=action>`의 자식 `button`에 `min-width: 72px`(로컬 CSS 자식 선택자 — Button에 className prop이 없다).
+  - B1: `TextInput`(제목, 위 S2 props 그대로, 단 **`onEnter={() => passwordInputRef.current?.focus()}`**) · `Button size='md' variant='secondary' isDisabled={isSubmitting} onClick={onCancel}` → `labels.cancel`
+  - B2: `TextInput type='password' value={password} onChange={onChangePassword} ariaLabel={labels.newRoomPasswordAriaLabel} placeholder={labels.newRoomPasswordPlaceholder} maxChars={ROOM_PASSWORD_MAX} inputRef={passwordInputRef} onEnter={onSubmit} onEscape={onCancel} isReadOnly={isSubmitting}` · `Button size='md' variant='primary' isDisabled={isSubmitting || !isRoomTitleValid(title) || !isRoomPasswordValid(password)} onClick={onSubmit}` → `labels.create`
+  - `passwordInputRef`는 컴포넌트 내부 `useRef`. DOM 순서 = 제목 → 취소 → 비밀번호 → 만들기(포커스 순서와 같다).
+  - 버튼 크기는 S2의 `sm`에서 `md`(36)로 바뀐다 — 입력 높이 36과 맞추는 구성안 §2.1 폭 예산 기준.
 
 ---
 
