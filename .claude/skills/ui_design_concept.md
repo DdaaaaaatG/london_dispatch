@@ -15,7 +15,7 @@
 | 클래스 조합 | `cx()` (`@/components/utils/cx`) |
 | 아이콘 | 인라인 SVG(stroke 1.25, 저쪽 헤더 아이콘과 같은 선 굵기). 아이콘 라이브러리는 승인 후 |
 | 폰트 | `Noto Serif KR`(Google Fonts, `index.html` `<link>`) + 시스템 sans 폴백 |
-| 테마 | **다크 단일**(저쪽 패널이 남색 반투명이라 라이트 없음). `data-theme` 없음 |
+| 테마 | **다크 단일**(저쪽 패널이 남색 반투명이라 라이트 없음). `data-theme` 없음. 2026-10-08부터 갠홈 estate 톤(1px 선·직각·비대칭 모서리·대문자 라벨) — §3 |
 | 환경 | 폭 390px 패널 안 iframe. 배경은 저쪽 패널과 이어지는 남색 |
 
 ## 2. 화면별 원칙
@@ -28,29 +28,47 @@
 
 ## 3. 색상 시스템 (CSS 변수)
 
-### 기본 토큰
+### 기본 토큰 (2026-10-08 갠홈 estate 톤 — 정본은 `ui/src/chat/design/style.md` §2, 실물은 `ui/src/styles/global.css`)
 ```css
 :root {
-  --color-bg: #0b1828;            --color-bg-elevated: #102339;    --color-bg-sunken: #081220;
-  --color-overlay: rgba(4, 10, 20, .6);                             /* 시트 뒤 덮개 */
-  --color-fg: #e6edf6;            --color-fg-muted: #9fb2c9;       --color-fg-disabled: #5d6f86;
-  --color-border: rgba(153, 185, 221, .22);   --color-border-strong: rgba(180, 205, 235, .45);
-  --color-primary: #b4cdeb;       --color-primary-fg: #0b1828;     --color-primary-hover: #cfe0f4;
-  --color-accent: #c3d2e7;        /* 제목·소제목 */
-  --color-success: #7fc8a3;       --color-warning: #d9b86a;        --color-danger: #d97b73;
-  --color-info: #8ab4ff;
-  --color-focus: #b4cdeb;
+  color-scheme: dark;
+  --color-bg: #0b1828;            --color-bg-elevated: #112337;    --color-bg-sunken: #050d18;
+  --color-overlay: rgba(5, 7, 13, .72);                             /* 시트 뒤 덮개 */
+  --color-fg: #d9e3f2;            --color-fg-muted: #8492aa;       --color-fg-disabled: #4a5872;
+  --color-border: rgba(114, 155, 208, .32);
+  --color-line-faint: rgba(168, 176, 192, .14);   --color-line-bright: rgba(171, 198, 230, .55);
+  --color-border-strong: var(--color-line-bright);
+  --color-primary: #aebfd8;       --color-primary-fg: #0b1828;     --color-primary-hover: #d9e3f2;
+  --color-accent: #c4cfdf;        /* 제목·소제목 */
+  --color-success: #aebfd8;       --color-warning: #bcae8c;        --color-danger: #b97a6e;   /* 계열 밖 색은 황동·적갈 2개뿐, 채도 낮게 */
+  --color-info: #729bd0;          --color-focus: #b4cdeb;
 
-  /* 화자별 말풍선 */
-  --bubble-ciel-bg: #16304d;      --bubble-ciel-fg: #e6edf6;       --bubble-ciel-accent: #6f9ad1;
-  --bubble-sebastian-bg: #2a1f33; --bubble-sebastian-fg: #efe6f2;  --bubble-sebastian-accent: #a98bc4;
-  --bubble-user-fg: #9fb2c9;      --bubble-ooc-fg: #7f93ab;        /* OOC는 배경 없음·중앙 한 줄. 유저 발화는 중앙 말풍선(배경 있음) */
-  --bubble-pending-fg: #7f93ab;   --bubble-error-border: #d97b73;
+  /* 화자별 말풍선 — 채운 바탕이 아니라 1px 선 + 옅은 바탕. 모서리는 비대칭 */
+  --bubble-ciel-bg: rgba(114, 155, 208, .12);      --bubble-ciel-border: rgba(114, 155, 208, .6);     --bubble-ciel-accent: #729bd0;
+  --bubble-sebastian-bg: rgba(174, 191, 216, .07); --bubble-sebastian-border: rgba(174, 191, 216, .45); --bubble-sebastian-accent: #aebfd8;
+  --bubble-user-bg: transparent;  --bubble-user-border: transparent;  --bubble-user-text: var(--color-fg-muted);  /* 유저·OOC는 선 없이 글자색만 */
+  --avatar-ciel-bg: rgba(114, 155, 208, .24);      --avatar-sebastian-bg: rgba(174, 191, 216, .16);   /* 인장 이미지가 들어갈 자리의 바탕 */
+  --radius-bubble: 10px 2px 10px 2px;  --radius-bubble-mirror: 2px 10px 2px 10px;   /* 오른쪽(시엘)은 거울 */
+
+  /* 버튼 — 채움 없음. 투명 + 1px 선, 직각. 주 버튼은 선만 밝게 */
+  --btn-bg: transparent;  --btn-fg: var(--color-fg);  --btn-border: var(--color-line-bright);  --btn-border-primary: var(--color-primary);
+  --btn-hover-bg: rgba(114, 155, 208, .10);  --btn-danger-hover-bg: rgba(185, 122, 110, .10);  --btn-busy-opacity: .4;
+  --glow: drop-shadow(0 0 5px rgba(166, 202, 241, .55));
+
+  /* 상단 바 머리띠 · 장식 라벨(THE PHANTOMHIVE ESTATE, ::before 장식 — 접근성 이름에 넣지 않는다) */
+  --topbar-band: linear-gradient(90deg, rgba(88, 122, 166, .17), transparent);
+  --label-size: 7px;  --label-tracking: .22em;  --label-color: #91a9c7;
+
+  /* 반경 — 둥근 모서리 없음. 입력·패널만 비대칭 */
+  --radius-sm: 0;  --radius-md: 0;  --radius-lg: 0;  --radius-field: 7px 1px 7px 1px;  --radius-panel: 16px 0 0 0;
 }
 ```
 
-- 시엘 = 푸른 남색 계열, 세바스찬 = 자줏빛 어두운 계열. 두 말풍선 모두 바탕(`--color-bg`)과 대비가 낮지 않게(경계선 1px `--color-border` 병행).
-- 저쪽 테마 색을 그대로 복사하지 않는다 — 톤만 맞춘다. 저쪽 CSS 변수(`--rb-*`)는 iframe 안에서 보이지 않는다.
+- 갠홈(london-gossip.my, Rosebell "estate" 테마) 실측값에서 옮겼다(2026-10-08, 참조 `doc/300_검증/screenshots/20261008-design-ref/`). **남색 한 계열**만 쓴다. 보라·초록·원색 파랑 금지.
+- 시엘 = 강청색 선(`#729bd0`), 세바스찬 = 은청색 선(`#aebfd8`). 구분은 선 색·좌우 위치·이름으로 한다. 아바타 원은 자리만 두고(나중에 지인이 그린 인장 이미지, `ui/public/img/{sebastian,ciel}.png` 같은 경로로 교체) 지금은 투명 PNG + 팔레트 바탕.
+- 저쪽 CSS 변수(`--rb-*`)는 iframe 안에서 보이지 않으므로 값을 옮겨 적는다. 저쪽 패널 CSS 원문은 갠홈 `head.php`(패널 테두리 `1px solid rgba(171,198,230,.55)`, 모서리 `20px 0 20px 0`, 머리띠·라벨 규격).
+- 버튼에 채움·알약형·큰 둥근 모서리를 쓰지 않는다. 아이콘 버튼은 선 없음, 말풍선 액션 버튼(수정·삭제·재작성)은 글자형(ghost).
+- 새 메시지 배지만 불투명 바탕 허용(히스토리 위에 떠 글자가 겹치기 때문).
 
 ### 컴포넌트별 변수
 | 접두사 | 용도 |
@@ -73,7 +91,8 @@
 
 ```css
 font-family: 'Noto Serif KR', 'Nanum Myeongjo', serif;          /* 제목·말풍선 본문 */
---font-ui: 'Malgun Gothic', '맑은 고딕', 'Segoe UI', system-ui, sans-serif;   /* 버튼·메타·입력 */
+--font-ui: Pretendard, 'Malgun Gothic', '맑은 고딕', 'Segoe UI', system-ui, sans-serif;   /* 버튼·메타·입력. Pretendard는 로드하지 않음(기기에 있을 때만) */
+--font-display: 'Times New Roman', 'Noto Serif KR', serif;  --text-display: 22px;   /* 화면 제목(ROOMS·캐릭터 설정) — 저쪽 Saol Display의 폴백, 자간 .05em */
 ```
 - 말풍선·방 제목은 serif, 버튼·시각·입력창·오류 문구는 `--font-ui`. 섞어 쓰되 한 요소 안에서는 하나.
 

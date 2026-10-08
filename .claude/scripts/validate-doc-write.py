@@ -8,9 +8,9 @@
 
 허용
 - `doc/` 아래 전부(.md/.json/.png 등 — 요구·설계·계약·handoff·검증)
-- 화면 폴더 문서: `ui/src/{rooms|chat}/(requirements|design|manual).md`, `ui/src/{rooms|chat}/design/*.md`
-- 화면 테스트: `ui/src/{rooms|chat}/test/**` (scenarios.md · *.test.tsx · manual-checklist.md · change-requests.md)
-- 매뉴얼 이미지: `ui/src/{rooms|chat}/manual/img/**`
+- 화면 폴더 문서: `ui/src/{rooms|chat|settings}/(requirements|design|manual).md`, `ui/src/{rooms|chat|settings}/design/*.md`
+- 화면 테스트: `ui/src/{rooms|chat|settings}/test/**` (scenarios.md · *.test.tsx · manual-checklist.md · change-requests.md)
+- 매뉴얼 이미지: `ui/src/{rooms|chat|settings}/manual/img/**`
 - 컴포넌트 설계: `ui/src/components/ui/{Name}/COMPONENT.md`
 - `.claude/reports/` 아래
 
@@ -31,7 +31,7 @@ try:
 except Exception:
     pass
 
-SCREENS = "(rooms|chat)"
+SCREENS = "(rooms|chat|settings)"  # settings: S3c 캐릭터 설정 화면(2026-10-08 사용자 승인, 메인 세션 적용)
 
 
 def _file_path(raw: str) -> str:
@@ -96,7 +96,7 @@ def main() -> None:
 
     if not path:
         _block("문서 작성자: 쓰기 대상 경로를 확인할 수 없어 차단합니다. "
-               "허용 범위는 doc/ · ui/src/{rooms|chat}/ 문서·test/ · COMPONENT.md · .claude/reports/ 입니다.")
+               "허용 범위는 doc/ · ui/src/{rooms|chat|settings}/ 문서·test/ · COMPONENT.md · .claude/reports/ 입니다.")
 
     if _is_allowed(path):
         sys.exit(0)
