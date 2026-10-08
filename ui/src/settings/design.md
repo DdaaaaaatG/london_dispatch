@@ -5,11 +5,12 @@
 | 항목 | 값 |
 |---|---|
 | 화면 | settings · 폴더 `ui/src/settings/` (3번째 화면, 갠홈 주인 전용) |
-| 목적 | 갠홈 주인이 공통 세계관과 두 캐릭터(세바스찬·시엘)의 설정을 탭 3개로 고쳐 저장하고, 설정을 파일로 내보내거나 가져온다. 저장하면 다음 대사부터 반영된다 |
-| 요구 | `ui/src/settings/requirements.md` v1.0.3(확정) — 상세 R-SET-007~011, 영향 R-ROOMS-002·005 · R-CHAT-011 · R-NFR-004 |
+| 목적 | 갠홈 주인이 AI 모델(Pro·Flash)·공통 세계관과 두 캐릭터(세바스찬·시엘)의 설정을 탭 3개로 고쳐 저장하고, 설정을 파일로 내보내거나 가져온다. 저장하면 다음 대사부터 반영된다 |
+| 요구 | `ui/src/settings/requirements.md` **v1.1**(확정) — 상세 R-SET-007~011 · **R-SET-013(S3f)**, 영향 R-ROOMS-002·005 · R-CHAT-011 · R-NFR-004 |
 | 구성안 | `doc/200_설계/architecture/ui-layout-02-settings.md` — **수용**(M1 변형 + S1 시트 4종, rooms L1 ⚙). 구성안 미해결 질문 1~3은 메인 세션 결정으로 닫음(§11) |
-| 계약 | `doc/200_설계/contract/api.md` **v0.5** §2.7 · §3.2(`OWNER_ONLY`) · §4.15 E15 · §4.16 E16 · §5.8 · §11.13 · §16 · 「ui 인계 메모」 S3c — 확정(contract 구현 대기) |
-| 묶음 | S3c (보강 모드). rooms 델타는 `ui/src/rooms/design.md` v1.6 · CR-001 |
+| 계약 | `doc/200_설계/contract/api.md` **v0.8** §2.7 · §3.2(`OWNER_ONLY`) · §4.15 E15 · §4.16 E16 · §5.8(S3f 추가분 §5.8.6) · §11.13 · §11.17(S3f) · §16(S3f §16.1 모델 키 없음) · 「ui 인계 메모」 S3c — 확정 |
+| 묶음 | S3c (보강 모드). rooms 델타는 `ui/src/rooms/design.md` v1.6 · CR-001 · **S3f (보강 모드, settings CR-001)** — 「공통」 탭 맨 위 AI 모델 선택. 근거 `doc/200_설계/architecture/s3f-02-전반설계.md` §5·§6 · `s3f-03-인계패킷.md` §3. 레이아웃은 02 §5.1 확정안을 수용(ui-layout-designer 단계 생략) |
+| S3f 계약 | api.md v0.8 §4.15 · §4.16 · §5.8.6 · §11.17 · §16.1: E15 응답 `model: LlmModelKey \| null` · E16 본문 `model?` · `saveCharacterSettings(settings, model?)`(§7) |
 | 레이아웃 확정 상태 | **확정**(ready · loading · error · stale · 시트 4종 · rooms ⚙) |
 | 문서 분할 | `design/components.md`(트리·Props·스타일) · `design/state.md`(상태·순수 함수·리듀서·파일 형식 함수) · `design/functions.md`(F-ST·파이프라인) · `design/a11y.md`. 문구는 `requirements.md` §5. RTM은 이 문서 §14 |
 | 공용 요소 | 단일 정의는 `ui/src/rooms/design/components.md` §1. S3c 공용 델타 2건(IconButton `settings`, ToastTone `success`)도 거기 적었다 |
@@ -25,6 +26,8 @@
 | v1.2 | 2026-10-06 | 재검증 반영: 가져오기 규칙 정본 = api.md §16.2·§16.3 문구. S-15를 `checkPatchedSettings`(덮기 + `checkCharacterSettings`)로 재정의, 필수 빈 값도 거부, 화면 조립 거부 문구 폐기 · "값 있음" = 키 있음·`undefined`·`null` 아님, E.No.S trim 뒤 빈 값 = 없음 · `importFailureText(ImportFailure)` 호출 통일 · RTM·state.md §2.4에 S-15. TC-ST-026·035·041 기대 갱신 | ui-design-checker 재검증 FAIL(HIGH-A·B · LOW 1·2) · 메인 세션 결정 |
 | v1.2.1 | 2026-10-06 | **구현 동기화(동작·문구 변경 없음).** 실물 분해 ReadyBody·SheetLayer·`useSettingsUi`·`useImportForm`·`state/settingsCandidate.ts`, 훅 반환·props·시트 실측 높이 반영(C §1·§2·§5 · S 머리말·§1 · F §1 · A §1). 시나리오 가정 Q1~Q7 확정(C §5.3). §7 mock 표기 `@/api/settings` · §14 R-SET-010 TC 합집합. TC-ST-024·026·029·035 기대 변경과 039·040·041 신규가 §14에 들어 있음을 확인 | S3c 구현 보고 · scenarios.md v0.1 Q1~Q7 · result.md(ui 592/592) · 캡처 `doc/300_검증/screenshots/20261006-2033/` |
 | v1.2.2 | 2026-10-07 | **후작업 동기화(동작·문구 변경 없음)**: `NETWORK`·인증 3코드 문구를 공용 `errorText.ts`에서 import(§8 비고 · §13 행 "공용화 완료"). `ui/src/state/settingsCandidate.ts` 주석 정정은 문서 영향 없음(확인) | ui-postprocessor 후작업 · 사용자 승인 |
+| v1.3 | 2026-10-08 | **S3f · CR-001 (설계, 소스 미반영).** 「공통」 탭 맨 위 AI 모델 선택: §2.1 탭 이름 「공통」 · §2.3 공통 탭 ASCII 2판(선택·미선택) · §2.2 dirty·saving 행 · §7 `model` 응답·`saveCharacterSettings` 둘째 인자 · §10 비고 · §11 D-ST-1 개정, D-ST-12~15 신규 · §13 ModelChoice 후보 · §14 RTM R-SET-013 행·개정 요구 행, TC-ST-042~053 예약, TC-ST-003·005·009·030·031 기대 갱신. 분할 문서: C §1·§2·§3.4·§3.11·§4 · S §1·§2.1·§2.2(S-16·S-17)·§2.3(T-11)·§2.6 · F F-ST-09·13·18·22 · A §1·§2·§3·§4 | S3f 승인 ①(2026-10-08) · s3f-02 §5·§6 · s3f-03 §3.1 · requirements.md v1.1 |
+| v1.3.1 | 2026-10-08 | 검증 반영: 계약 인용 api.md v0.8(§4.15·§4.16·§5.8.6·§11.17·§16.1)로 갱신, "반영 대기" 삭제(§1·§7·§14) · §12 차이 4를 "요구 개정으로 일치"로 닫고 `modelSource` 제안 철회 · D-ST-14 근거·RTM R-SET-013 상태 갱신 · §2.3 선택 판 캡션(기준값 pro / 초안 flash) · §14.1 TC-ST-005·009·030 기대 갱신 문구 · RTM R-CHAT-009 행 추가(S3c부터 누락) · C §5.1 SheetLayer 행 S3f 무수정 표시 | ui-design-checker FAIL(HIGH 1 · MEDIUM 2 · LOW 3) · 상위 R-SET-013 개정(requirements.md v1.1.1) |
 
 ---
 
@@ -38,7 +41,7 @@
 +----------------------------------------------+
 | <  캐릭터 설정                           ... |  A 44
 +----------------------------------------------+
-|  공통 세계관    [ 세바스찬 ! ]     시엘      |  B 40  (role=tablist, 선택 = 아래 2px)
+|     공통       [ 세바스찬 ! ]     시엘      |  B 40  (role=tablist, 선택 = 아래 2px. v1.3 탭 이름 「공통」)
 +----------------------------------------------+
 | 기본 정보                                    |  C flex 445 (스크롤)
 | 원작·장르                                    |
@@ -65,27 +68,78 @@
 | loading | A(‹만) + StateView `설정을 불러오는 중` 521 | 구성안 §6 |
 | error | A(‹만) + StateView `설정을 불러오지 못했습니다` + 상세 + 「다시 시도」 | 구성안 §6 |
 | clean | D `v3 저장됨 10.06 14:20` / `기본값 사용 중`, 두 버튼 비활성 | 구성안 §3 |
-| dirty | D `저장하지 않은 변경 있음`(warning), 되돌리기 활성, 저장은 사전 검사 통과 시 | 구성안 §3 |
-| saving | D `저장 중...`, ‹·⋯·되돌리기·저장 비활성, 입력 readOnly | 구성안 §3 + §4 D-ST-3 |
+| dirty | D `저장하지 않은 변경 있음`(warning), 되돌리기 활성, 저장은 사전 검사 통과 시. (v1.3) dirty = 본체 dirty **또는** 모델 선택이 기준값과 다름(state.md S-16 `hasUnsavedChanges`) — 모델만 바꿔도 이 판 | 구성안 §3 · R-SET-013 |
+| saving | D `저장 중...`, ‹·⋯·되돌리기·저장 비활성, 입력 readOnly. (v1.3) 모델 라디오 2개 `disabled` | 구성안 §3 + §4 D-ST-3 · R-SET-013 |
 | stale | F 안내 줄 40 + D `인증 만료`(danger), 저장·되돌리기 비활성, ⋯ 유지(① 가져오기 비활성) | 구성안 §6 + 메인 세션 결정 |
 | 토스트 | D 바로 위 E 28, C가 28 줄어든다 | 구성안 §1-2 |
 | 시트 ①~④ | 구성안 §5(약 188 · 280 · 324/360 · 148px). 실측 ② 약 268 · ③ 약 262(C §5.4) | 구성안 §5 · TC-ST-037 |
 
 세로 배분 표는 `design/components.md` §4.
 
+### 2.3 ready · 「공통」 탭 (S3f) [확정 — s3f-02 §5.1 수용]
+
+선택 판(기준값 `base.model = 'pro'`, 초안 `modelDraft = 'flash'` — Pro에서 Flash로 바꾼 직후 dirty):
+
+```
++----------------------------------------------+
+| <  캐릭터 설정                           ... |  A 44
++----------------------------------------------+
+|   [ 공통 ]        세바스찬           시엘    |  B 40  선택 탭 「공통」
++----------------------------------------------+
+| AI 모델                                      |  C 445 스크롤 — ModelChoice <fieldset>, <legend> 20
+| ( ) Pro     더 정교하지만 느리고 비용이 큼   |  라디오 행 44 (이름 base fg · 설명 sm muted)
+| (o) Flash   빠르고 비용이 적음               |  라디오 행 44
+| 저장하면 다음 대답부터 이 모델을 씁니다.     |  안내 20 (sm muted)
+| -------------------------------------------- |  아래 여백 16 + 1px --color-border + 위 여백 16
+| 세계관 *                                     |  FormField 라벨 20
+| +------------------------------------------+ |
+| | 19세기 말 런던. 팬텀하이브 저택과 …      | |  TextArea maxRows 9 (최대 196px, C §4.1 계산)
+| |                                   27/2000| |
+| +------------------------------------------+ |
++----------------------------------------------+
+| 저장하지 않은 변경 있음     [되돌리기] [저장] |  D 36 — 모델만 바꿔도 dirty(warning)
++----------------------------------------------+
+```
+
+미선택 판(`modelDraft = null`, 응답 `model: null`, clean):
+
+```
++----------------------------------------------+
+| <  캐릭터 설정                           ... |  A 44
++----------------------------------------------+
+|   [ 공통 ]        세바스찬           시엘    |  B 40
++----------------------------------------------+
+| AI 모델                                      |  C
+| ( ) Pro     더 정교하지만 느리고 비용이 큼   |  두 칸 모두 비어 있다
+| ( ) Flash   빠르고 비용이 적음               |
+| 아직 고르지 않았습니다. 지금은 서버 기본 모델을 씁니다. |  안내(sm muted, 390px에서 한 줄 — 넘치면 줄바꿈 허용, 말줄임 금지)
+| -------------------------------------------- |
+| 세계관 *                                     |
+| +------------------------------------------+ |
+| | …                                        | |
+| +------------------------------------------+ |
++----------------------------------------------+
+| 기본값 사용 중               [되돌리기] [저장] |  D 36 — 두 버튼 비활성
++----------------------------------------------+
+```
+
+- 미선택 판은 응답 `model`이 `null`일 때만 나온다(D-ST-14). 하나를 고르면 안내가 선택 판 문구로 바뀌고, 「되돌리기」로 다시 미선택 판이 된다.
+- 저장 중(saving): 두 라디오 `disabled`, 나머지는 §2.2 saving 행과 같다. stale: 라디오는 다른 입력처럼 고를 수 있다(초안 보존 규칙). 저장·되돌리기는 §2.2 stale 행대로 비활성이다.
+- 세바스찬·시엘 탭 판은 §2.1 그대로다(모델 묶음은 「공통」 탭에만 있다).
+
 ---
 
 ## 3. 컴포넌트 → `design/components.md`
 
-요약: SettingsScreen(조립) · 공용 TopBar·IconButton(back·more)·StateView·TextInput·TextArea·Button·BottomSheet·SheetItem·ConfirmDialog·Toast · 로컬 **Tabs · FormField · FilePicker · StaleNotice**(승격 후보는 앞 셋) · 로컬 ReadyBody·SheetLayer·WorldForm·CharacterForm·StatusBar·FileMenuSheet·ExportSheet·ImportSheet · 훅 `useSettingsEditor`·`useSettingsUi`·`useImportForm` · 유틸 `download.ts`. 실물 파일 목록은 C §5.1.
+요약: SettingsScreen(조립) · 공용 TopBar·IconButton(back·more)·StateView·TextInput·TextArea·Button·BottomSheet·SheetItem·ConfirmDialog·Toast · 로컬 **Tabs · FormField · FilePicker · StaleNotice**(승격 후보는 앞 셋) · 로컬 ReadyBody·SheetLayer·WorldForm·CharacterForm·StatusBar·FileMenuSheet·ExportSheet·ImportSheet · (S3f) 로컬 **ModelChoice**(C §3.11, 승격 후보) · 훅 `useSettingsEditor`·`useSettingsUi`·`useImportForm` · 유틸 `download.ts`. 실물 파일 목록은 C §5.1.
 
 ## 4. 상태 → `design/state.md`
 
-요약: `SettingsState`(loading · error · ready{base, draft, isSaving, isStale}) 리듀서(T-01~T-10)는 `ui/src/state/settings.ts`. 초안 = 목록 필드를 "한 줄에 하나" 문자열로 든 `SettingsDraft`. dirty = 정규화 비교(S-06). 저장 활성 = dirty && 사전 검사 통과 && !saving && !stale(S-11). 화면 로컬 `activeTab`(초기 `'world'`) · `sheet`(초기 `'none'`)는 `useSettingsUi`, `toast`는 `useToast`. 파일 형식 함수 `toExportFile`·`serializeExportFile`·`exportFileName`·`parseImportFile`은 `ui/src/state/settingsFile.ts`, 후보 분류(SF-07~10)는 `ui/src/state/settingsCandidate.ts`. 토큰은 화면 상태에 없다. `isOwner`는 App 상태(rooms).
+요약: `SettingsState`(loading · error · ready{base, draft, modelDraft, isSaving, isStale}) 리듀서(T-01~T-11)는 `ui/src/state/settings.ts`. (S3f) `modelDraft: LlmModelKey | null`은 `SettingsDraft` 밖에 둔다(D-ST-12). 미저장 변경 = `hasUnsavedChanges`(S-16, 본체 dirty 또는 모델 다름)이고 저장·되돌리기·하단 줄·이탈 확인이 이것을 쓴다. 초안 = 목록 필드를 "한 줄에 하나" 문자열로 든 `SettingsDraft`. dirty = 정규화 비교(S-06). 저장 활성 = dirty && 사전 검사 통과 && !saving && !stale(S-11). 화면 로컬 `activeTab`(초기 `'world'`) · `sheet`(초기 `'none'`)는 `useSettingsUi`, `toast`는 `useToast`. 파일 형식 함수 `toExportFile`·`serializeExportFile`·`exportFileName`·`parseImportFile`은 `ui/src/state/settingsFile.ts`, 후보 분류(SF-07~10)는 `ui/src/state/settingsCandidate.ts`. 토큰은 화면 상태에 없다. `isOwner`는 App 상태(rooms).
 
 ## 5. 기능 명세 → `design/functions.md`
 
-F-ST-01 SettingsScreen · 02 useSettingsEditor · 03 loadSettings · 04 retryLoad · 05 handleLoadFailure · 06 selectTab · 07 change* · 08 파생 값 · 09 saveSettings · 10 handleSaveFailure · 11 revertDraft · 12 openFileMenu/closeSheet · 13 openExport · 14 downloadExport · 15 pickFile · 16 changePaste · 17 submitImport · 18 requestBack · 19 confirmLeave/cancelLeave · 20 statusText · 21 문구 함수. rooms 쪽 F-RM-24~29(주인 판정·⚙·진입·이탈 안내)는 `ui/src/rooms/design/functions.md`.
+F-ST-01 SettingsScreen · 02 useSettingsEditor · 03 loadSettings · 04 retryLoad · 05 handleLoadFailure · 06 selectTab · 07 change* · 08 파생 값 · 09 saveSettings · 10 handleSaveFailure · 11 revertDraft · 12 openFileMenu/closeSheet · 13 openExport · 14 downloadExport · 15 pickFile · 16 changePaste · 17 submitImport · 18 requestBack · 19 confirmLeave/cancelLeave · 20 statusText · 21 문구 함수 · 22 changeModel(S3f). rooms 쪽 F-RM-24~29(주인 판정·⚙·진입·이탈 안내)는 `ui/src/rooms/design/functions.md`.
 
 ## 6. 파이프라인 → `design/functions.md` §3
 
@@ -95,13 +149,13 @@ F-ST-01 SettingsScreen · 02 useSettingsEditor · 03 loadSettings · 04 retryLoa
 
 ## 7. contract 계약 사용표
 
-api.md **v0.5**를 **인용**한다(재정의 아님).
+api.md **v0.8**을 **인용**한다(재정의 아님). S3f 해당 절은 §4.15 · §4.16 · §5.8.6 · §11.17 · §16.1이다.
 
 | 엔드포인트 | 요청 | 응답 타입 | 래퍼(`@/api`) | 호출 위치 | 토큰 헤더 | 실패 시 표시 |
 |---|---|---|---|---|---|---|
 | `GET /api/settings/characters` (E15, §4.15) — 주인 판정 | 없음 | `CharacterSettingsResponse`(본문 버림) | `getCharacterSettings(): Promise<Result<CharacterSettingsResponse>>` | App 판정 effect(rooms F-RM-24) | **필요** — 래퍼가 `auth: true`로 부착 | **없음**. 어떤 코드든 `isOwner = false`로 두고 조용히 끝(revokeWrite·토스트 없음, R-SET-010) |
-| 같은 E15 — 설정 열기 | 없음 | `CharacterSettingsResponse` = `{ settings: CharacterSettings; version: number; updatedAt: number \| null; isDefault: boolean }` | 같음 | F-ST-03 | 필요 | F-ST-05: `OWNER_ONLY` → rooms+안내 · 인증 3코드 → 전환+rooms+안내 · 그 밖 StateView error |
-| `PUT /api/settings/characters` (E16, §4.16) | `PutCharacterSettingsBody = { settings: CharacterSettings }` — `precheckDraft(draft).value`(정규화·검사 통과 값) | `200 CharacterSettingsResponse`(정규화 값, `version` +1, `isDefault: false`) | `saveCharacterSettings(settings): Promise<Result<CharacterSettingsResponse>>` | F-ST-09 | 필요 | F-ST-10: requirements.md §5.7 |
+| 같은 E15 — 설정 열기 | 없음 | `CharacterSettingsResponse` = `{ settings: CharacterSettings; version: number; updatedAt: number \| null; isDefault: boolean; model: LlmModelKey \| null }` — (S3f) `model` = 지금 실제로 쓰는 모델 키, 두 후보 밖이면 `null`. 모델명은 오지 않는다 | 같음 | F-ST-03 → T-02 `modelDraft = response.model` | 필요 | F-ST-05: `OWNER_ONLY` → rooms+안내 · 인증 3코드 → 전환+rooms+안내 · 그 밖 StateView error |
+| `PUT /api/settings/characters` (E16, §4.16) | `PutCharacterSettingsBody = { settings: CharacterSettings; model?: LlmModelKey }` — `settings` = `precheckDraft(draft).value`(정규화·검사 통과 값). (S3f) `model` = `modelToSave(state)`(S-17): 모델이 기준값과 다를 때만 `modelDraft`, 같으면 `undefined` → 래퍼가 본문에 키를 넣지 않는다(서버 저장값 유지) | `200 CharacterSettingsResponse`(정규화 값, `version` +1, `isDefault: false`, `model` = 저장 뒤 키). 모델만 바꾼 저장도 같다(D-ST-13) | `saveCharacterSettings(settings: CharacterSettings, model?: LlmModelKey): Promise<Result<CharacterSettingsResponse>>` | F-ST-09 | 필요 | F-ST-10: requirements.md §5.7. `model` 위반 400(`공통 · AI 모델 값이 올바르지 않습니다.`)은 화면이 두 키만 보내므로 정상 경로에서 나오지 않는다. 나오면 기존 `VALIDATION_ERROR` 행 그대로(토스트 danger, 서버 message) |
 | (엔드포인트 아님) 인증 실패 판정 | — | `isAuthFailure(error): boolean` — `OWNER_ONLY` false | `isAuthFailure` | F-ST-05 · F-ST-10 | — | — |
 
 에러 코드 처리(E15·E16이 낼 수 있는 서버 코드 8종 + 클라이언트 `NETWORK` — 아래 표 행 그대로):
@@ -117,22 +171,24 @@ api.md **v0.5**를 **인용**한다(재정의 아님).
 | `NETWORK` | — | 조용히 비주인 | error 판 + 재시도 | 토스트 danger |
 
 - `@shared/settings` 사용: `CHARACTER_FIELD_SPECS`·`CHARACTER_FIELD_KEYS`·`WORLD_FIELD_SPEC`(라벨·상한·필수) · `SETTINGS_CHARACTER_IDS` · `checkCharacterSettings`(사전 검사·가져오기 병합 뒤 검사) · `SETTINGS_FILE_FORMAT`·`SETTINGS_FILE_FORMAT_VERSION`·`SETTINGS_IMPORT_MAX_BYTES` · 타입 `CharacterSettingsFile`·`SettingsIssue`. `settingsScopeOf`는 화면이 직접 부르지 않는다(사전 검사 문구 안에 이미 들어 있다).
+- (S3f) `@shared/types`: `LlmModelKey`. `@shared/settings`: `LLM_MODEL_KEYS`(`['pro', 'flash']`, 라디오 순서·렌더 목록). `SETTINGS_MODEL_INVALID_MESSAGE`는 화면이 쓰지 않는다(서버 400 문구). 모델 키를 화면이 모델명으로 바꾸지 않는다(R-LLM-009 "화면·응답은 키만").
 - `@shared/limits`: `countCodePoints`·`normalizeText`. `@shared/characters`: `CHARACTERS[id].shortName`(E.No.S 캐릭터 찾기·탭 이름 대조).
 - 래퍼는 throw하지 않는다. 화면에 `try/catch` 없음(예외: `download.ts`의 DOM 호출).
 - 테스트는 `vi.mock('@/api/settings')`로 두 래퍼만 모킹한다(barrel 전체를 모킹하지 않는다 — `isAuthFailure`·`configureClient` 실물 사용). `fetch`를 모킹하지 않는다.
-- 미확정 계약 없음.
+- 미확정 계약 없음. (S3f) `model` 두 줄의 정본은 api.md v0.8 §4.15 · §4.16 · §5.8.6 · §11.17이다. 구현 순서상 contract-implementer가 `shared`·`ui/src/api/settings.ts`를 먼저 바꾼 뒤 ui-implementer가 시작한다(s3f-03 §0 4→7).
+- (S3f) 테스트 픽스처: `CharacterSettingsResponse`에 `model`이 필수라 `ui/src/settings/test/fixtures.ts`·`rooms/test/OwnerGate.test.tsx` 등의 응답 리터럴에 `model`을 더한다(s3f-02 §8 ui 행). 저장 단언은 `saveCharacterSettings` 모킹의 **호출 인자**(둘째 인자 `'flash'` 또는 `undefined`)로 한다. 본문 JSON에 키가 없는지는 `ui/src/api` 테스트(contract) 몫이다.
 
 ---
 
 ## 8. 확정 문구·라벨 → `requirements.md` §5
 
-`ui/src/settings/labels.ts`가 §5의 키를 그대로 가진다. 필드 라벨은 shared spec의 `label`(세계관 필드 `세계관`, 탭 이름은 `공통 세계관`). 하단 줄 사전 검사·저장 400 문구는 `checkCharacterSettings`의 첫 위반 문장을 그대로 쓴다(화면과 서버가 같은 문장). 가져오기 `invalid`도 같은 함수의 문장이다(마지막 저장값 위에 후보만 덮어 검사하므로 위반은 늘 후보 필드, requirements.md §5.5).
+`ui/src/settings/labels.ts`가 §5의 키를 그대로 가진다. 필드 라벨은 shared spec의 `label`(세계관 필드 `세계관`, 탭 이름은 v1.3부터 `공통`). (S3f) 모델 묶음 문구 6개(`modelLegend`·`modelOption.{pro,flash}.{name,description}`·`modelNoteSelected`·`modelNoteUnset`)도 `labels.ts`에 둔다(requirements.md §5.1). 하단 줄 사전 검사·저장 400 문구는 `checkCharacterSettings`의 첫 위반 문장을 그대로 쓴다(화면과 서버가 같은 문장). 가져오기 `invalid`도 같은 함수의 문장이다(마지막 저장값 위에 후보만 덮어 검사하므로 위반은 늘 후보 필드, requirements.md §5.5).
 
 - **(후작업 2026-10-07) 공용 `errorText` 사용.** `NETWORK` 문구(`서버에 연결할 수 없습니다.`)와 인증 3코드 문구는 `ui/src/components/utils/errorText.ts`의 `NETWORK_TEXT`·`AUTH_FAILURE_TEXT`를 `labels.ts`가 import해 쓴다(rooms·chat과 같은 단일 정의). 문장은 바뀌지 않았다. 그 밖 문구는 `labels.ts`에 남는다.
 
 ## 9. 접근성 → `design/a11y.md`
 
-요약: `<main aria-label="캐릭터 설정">`, 마운트 h1 포커스, tablist·tab·tabpanel(←/→/Home/End, 로빙 tabindex), 탭 `!` 접근성 이름 접미사, 하단 줄 `aria-live=polite`, 토스트·stale·③ 오류 `role=alert`, 시트 포커스 트랩·복귀(공용 BottomSheet), ConfirmDialog 첫 포커스 취소.
+요약: `<main aria-label="캐릭터 설정">`, 마운트 h1 포커스, tablist·tab·tabpanel(←/→/Home/End, 로빙 tabindex), 탭 `!` 접근성 이름 접미사, 하단 줄 `aria-live=polite`, 토스트·stale·③ 오류 `role=alert`, 시트 포커스 트랩·복귀(공용 BottomSheet), ConfirmDialog 첫 포커스 취소. (S3f) 모델 묶음 = 네이티브 `<fieldset>`(이름 = `<legend>` 「AI 모델」, 설명 = 안내 줄) + 라디오 2개(이름 `Pro`·`Flash`, 설명 `aria-describedby`), 방향키 이동은 브라우저 기본, 저장 중 `disabled`.
 
 ---
 
@@ -148,6 +204,7 @@ api.md **v0.5**를 **인용**한다(재정의 아님).
 | 설정 화면 안 읽기 전용 판 | — | — | 없음. 저장 중 인증 실패만 **stale 판**(초안·입력 유지, 저장·되돌리기·가져오기 비활성, 내보내기 허용) | 리듀서 `isStale` | R-SET-011 |
 
 - 주인이 앱 안에서 쓰기 권한을 잃으면(어느 화면이든 `revokeWrite`) `viewer.canWrite = false`라 ⚙도 사라진다(TC-RM-038).
+- (S3f) 모델 선택(ModelChoice)은 설정 화면 안에만 있다. 비회원·등급 미달·비주인에게는 설정 화면 진입 경로가 없으므로 모델 라디오도 DOM에 없다. 위 표의 분기는 바뀌지 않는다(기존 TC-RM-033~035·TC-ST-017·019로 확인). rooms·chat 화면에는 모델 표시가 없다(요구 없음).
 - 설정 화면은 토큰을 읽지 않는다. 헤더는 래퍼가 `getToken()`으로 붙인다(R-CHAT-009). 내보내기 파일에 토큰·비밀값·`version`·`updatedAt`·`isDefault`가 없다(SF-01 화이트리스트, R-SET-007 · R-NFR-004).
 
 ---
@@ -156,7 +213,7 @@ api.md **v0.5**를 **인용**한다(재정의 아님).
 
 | # | 내용 | 근거 |
 |---|---|---|
-| D-ST-1 | 처음 탭 = 공통 세계관. 탭 순서 공통 세계관·세바스찬·시엘 | 메인 세션 결정(구성안 미해결 3) |
+| D-ST-1 | 처음 탭 = 공통(v1.3 이전 이름 「공통 세계관」). 탭 순서 공통·세바스찬·시엘. 탭 id `'world'`는 그대로 | 메인 세션 결정(구성안 미해결 3) · (S3f) R-SET-009 개정 Q3 |
 | D-ST-2 | stale에서 되돌리기·가져오기 비활성, 내보내기(초안)만 허용 | 메인 세션 결정(구성안 미해결 1) |
 | D-ST-3 | 하단 줄 36px, 버튼 md | 메인 세션 결정(구성안 미해결 2) |
 | D-ST-4 | 저장 400은 토스트만 하고 탭을 옮기지 않는다 | 서버 응답에 path가 없다(api.md §4.16). 사전 검사를 통과해야 저장이 눌리므로 정상 경로에서는 나오지 않고, 나와도 서버 문구 앞머리(`시엘 · …`)가 위치를 말한다 |
@@ -166,6 +223,10 @@ api.md **v0.5**를 **인용**한다(재정의 아님).
 | D-ST-8 | 저장 중 인증 실패에는 토스트를 띄우지 않는다 | F 안내 줄(`role=alert`)과 D "인증 만료"가 같은 내용을 말한다. 중복 alert 방지 |
 | D-ST-9 | 가져오기는 파일 또는 붙여넣기 중 하나만(나중 입력이 앞 입력을 지운다) | 어느 것을 불러올지 모호하지 않게 |
 | D-ST-11 | 가져오기 검사 = 마지막 저장값 위에 후보만 덮어 `checkCharacterSettings`(state.md S-15 `checkPatchedSettings`, 상한 전용 별도 검사 없음). 형·필수·상한·개수 위반이면 전체 거부(자체 형식 `world: ''`·`speech: ''`도 거부)·문구는 그 함수의 첫 위반 message 그대로·자르지 않음·초안 불변. 화면이 문장을 조립하지 않는다. 통과하면 후보 위치의 정규화 값만 초안에 덮는다. 초안 전체 검사는 저장 활성 조건에서만. 후보 0개면 초안 불변 + `가져올 항목이 없습니다.`(warning) | api.md v0.5 보정 2 §16.2(메인 세션 결정 2026-10-06, R-SET-008). 후보 밖 초안 문제로 가져오기가 막히지 않게 한다 |
+| D-ST-12 | (S3f) 모델 선택 초안은 `ReadyState.modelDraft: LlmModelKey \| null`이다. `SettingsDraft`(본체 초안)에 넣지 않는다. 기준값은 `base.model`. 미저장 변경 = 본체 dirty 또는 `modelDraft !== base.model`(S-16) | s3f-02 §5.2. 내보내기(SF-01)·가져오기(SF-05·T-06)는 `CharacterSettings`·`SettingsDraft`만 다루므로 모델을 구조적으로 볼 수 없다(R-SET-007 개정). 값 비교가 `===` 한 번이라 정규화가 필요 없다 |
+| D-ST-13 | (S3f) 모델만 바꿔 저장해도 서버는 version +1, 시드 상태면 `isDefault: false`를 돌려준다. 화면은 응답을 그대로 기준값으로 삼으므로 하단 줄이 `기본값 사용 중` → `v1 저장됨 …`으로 바뀐다. 화면 쪽 특별 처리 없음 | s3f-02 §14 결정 D-F1 · R-SET-013. 매뉴얼에 적을 사항(ui-manual-writer) |
+| D-ST-14 | (S3f) 「미선택 판」 = 응답 `model === null`(따라서 `modelDraft === null`)일 때다. 화면은 "고른 적 없음"과 "고른 값"을 따로 알 수 없다 — 응답 `model`은 지금 쓰는 키(effectiveKey)라서, 고른 적이 없어도 서버 기본 모델이 Pro·Flash 중 하나면 그 라디오가 선택된 판으로 보인다 | s3f-02 §2.2 effectiveKey · api.md v0.8 §4.15. 상위 R-SET-013 개정 문안("`model: null`일 때만 미선택 안내, 저장된 Pro와 기본값 Pro는 구분하지 않는다", 사용자 승인 ① 2026-10-08)과 일치 — §12 차이 4는 요구 개정으로 닫힘 |
+| D-ST-15 | (S3f) ② 내보내기 안내 `저장하지 않은 변경은 포함되지 않습니다.`는 **본체 dirty**(`isDraftDirty`)일 때만 띄운다. 모델만 바뀐 상태에서는 띄우지 않는다 | 모델은 파일에 들어가지 않으므로(R-SET-007 개정) 모델만 다른 상태의 파일은 저장값과 같다. 안내가 사실과 어긋나지 않게 한다 |
 | D-ST-10 | 필드 안내 줄은 화면 문구(짧은 문장), 하단 줄·400·가져오기 거부는 `checkCharacterSettings` 문장 | 필드 옆에서는 필드 이름 반복이 불필요하고, 하단 줄은 다른 탭의 오류도 가리켜야 한다. 두 판정은 같은 spec이라 어긋나지 않는다(state.md S-08 불변식) |
 
 | # | 한계 |
@@ -186,6 +247,8 @@ api.md **v0.5**를 **인용**한다(재정의 아님).
 | 계약 보정으로 일치(2026-10-06) | api.md §16 "무시한 항목" 계수 정의가 이 설계와 달랐다 | 분류 3종(후보·무시·없음)을 후보 만들기(SF-07·09) 한 곳에서. 무시 = 값은 있으나 형이 달라 못 씀(1건씩, appearance 출처 4개 각각, 배열에 문자열 아닌 항목이면 그 출처 1건). 없음(키 없음·null·E.No.S 출처 없는 필드·대응 캐릭터 없음·trim 뒤 빈 값)은 세지 않는다. 후보 검사는 마지막 저장값 + 후보 → `checkCharacterSettings` | api.md v0.5 보정 2 §16.2·§16.3과 같은 문구. ui-design-checker HIGH-1 · 메인 세션 결정 |
 | 공용 변경 2건째 | 메인 세션 지시는 공용 변경 1건(IconButton) | **ToastTone에 `'success'` 추가 — 승인(2026-10-06)** | 메인 세션 결정의 "저장 성공 토스트"와 가져오기 요약 토스트를 warning·danger 톤으로 띄우면 상태 색 규칙(ui_design_concept §3: 정상·저장됨 = success)에 어긋난다. 메인 세션 승인(R-SET-009 범위). 미채택 대안: 저장 성공은 D 문구 변화만, 가져오기 요약은 warning 톤 |
 | 구현 동기화(v1.2.1) | 설계 v1.2의 파일 구성·훅 반환·시트 높이 | 실물 기준으로 맞춤. 델타 A(분해)·B(가정 7건)·C(실측)는 C §5 표 | TSX 400줄·함수 50줄 한계로 나눈 결과다. 동작·문구 변경 없음(ui 592/592) |
+| 차이 4 (S3f) — **요구 개정으로 일치(2026-10-08)** | 옛 R-SET-013 전사 "고른 적 없으면 서버 기본값을 쓰고 화면은 미선택 안내 문구" | 미선택 판은 응답 `model: null`일 때만(D-ST-14). 서버 기본값(Q1 = Pro 모델)이 후보 안이면 고른 적이 없어도 Pro가 선택된 판 + `저장하면 다음 대답부터 이 모델을 씁니다.` | 메인 세션이 상위 R-SET-013을 이 동작으로 개정(사용자 승인 ① 2026-10-08, requirements.md v1.1.1). 계약 변경 없음. `modelSource` 제안은 철회 |
+| 문구 확정 (S3f) | 02 §5.1 초안 문구 | 초안 그대로 확정(requirements.md §5.1). 미선택 안내는 390px·sm 12px에서 약 310px로 콘텐츠 폭 358px 안 한 줄에 들어간다(C §4.1) | 사용자 결정 Q4(말로만, 가격 숫자 없음) |
 
 ---
 
@@ -196,6 +259,7 @@ api.md **v0.5**를 **인용**한다(재정의 아님).
 | Tabs | settings 로컬 | 두 번째 화면에서 탭이 필요할 때 | 후보 표시만(구성안 §8, 승격은 후작업) |
 | FormField | settings 로컬 | 라벨+입력+안내 묶음이 다른 화면에 생길 때 | 후보 |
 | FilePicker | settings 로컬 | 파일 입력이 다른 화면에 생길 때 | 후보 |
+| ModelChoice(라디오 묶음) | settings 로컬(S3f) | 라디오 선택이 다른 화면에 생길 때. 공용 라디오 컴포넌트가 없어 네이티브 원소를 로컬에서 쓴다 | 후보 표시만(s3f-02 §5.1 "공용 승격은 후작업 후보") |
 | 탭 폼 편집형 · 내보내기/가져오기 시트 쌍 | 패턴 | 구성안 §12 풀 저장 후보 | ui-manager 사용자 확인 몫 |
 | 인증 3코드 안내 문구 · `NETWORK` 문구 | **공용 `ui/src/components/utils/errorText.ts`** | 세 화면 재발 | **공용화 완료(후작업 2026-10-07, 사용자 승인)** — rooms design.md §13 행과 같음 |
 
@@ -207,18 +271,20 @@ api.md **v0.5**를 **인용**한다(재정의 아님).
 
 | 요구ID | 설계 절 | api 계약 | 예정 TC | 상태 |
 |---|---|---|---|---|
-| R-SET-007 🔒 | §10 · C §3.8·§3.10 · S §2.2 S-13 · S §3.2 SF-01~03 · F F-ST-13·14 · F §3.4 · Rq §5.4·§5.6 | api.md §16.1 · §16.4 | TC-ST-022 · 023 · 034 · 037 · 038 | ✅ |
+| R-SET-013 🔒 (S3f 신규) | §2.2 dirty·saving · §2.3 · §7(E15 `model` · E16 둘째 인자) · §10 비고 · §11 D-ST-12~15 · C §3.4·§3.11·§4.1 · S §1 · S §2.1 · S §2.2 S-11·S-12·S-14·S-16·S-17 · S §2.3 T-02·T-05·T-06·T-08·T-11 · S §2.6 · F F-ST-09·13·18·22 · F §3.3·§3.5 · A §1·§2·§3·§4 · Rq §5.1 | api.md v0.8 §4.15 · §4.16 · §5.8.6 · §11.17 | TC-ST-042 ~ 053 | ✅ (D-ST-14 = 개정 요구 문안과 일치) |
+| R-SET-007 🔒 (S3f 개정) | §10 · C §3.8·§3.10 · S §2.2 S-13 · S §2.6 불변식 · S §3.2 SF-01~03 · F F-ST-13·14 · F §3.4 · Rq §5.4·§5.6 · §11 D-ST-12·15 | api.md v0.8 §16.1(모델 키 없음) · §16.4 | TC-ST-022 · 023 · 034 · 037 · 038 · **049 · 050** | ✅ |
 | R-SET-008 | C §3.7·§3.9 · S §3 확정 규칙(분류 3종) · S §3.1·§3.2 SF-04~10 · S §2.2 S-15 · S §3.3 V-1~V-6 · S §2.3 T-06 · F F-ST-15~17 · Rq §5.5·§5.6 | api.md §16.2 · §16.3 · §16.4 | TC-ST-024 · 025 · 026 · 027 · 035 · 039 · 041 | ✅ |
-| R-SET-009 🔒 | §2 · §6 · §10 · C 전부 · S §1·§2 · F F-ST-01~04·06~08·11·18~20 · A · Rq §5.1~§5.4 · RM F-RM-25·26·28 | api.md §4.15 · §4.16 | TC-ST-001~012 · 020 · 021 · 028~031 · 037 · 040 · TC-RM-036 · 039 · 040 | ✅ |
+| R-SET-009 🔒 (S3f 개정) | §2 · §2.3 · §6 · §10 · §11 D-ST-1 · C 전부 · S §1·§2 · F F-ST-01~04·06~08·11·18~20·22 · A · Rq §5.1~§5.4 · RM F-RM-25·26·28 | api.md §4.15 · §4.16 | TC-ST-001~012(003·005·009 기대 갱신: 탭 이름 `공통`, 009는 `공통, 확인할 항목 있음`) · 020 · 021 · 028~031(030·031 기대 갱신: 탭 `공통`) · 037 · 040 · **042 · 046 · 052 · 053** · TC-RM-036 · 039 · 040 | ✅ |
 | R-SET-010 | §7(판정 행) · §10 · F F-ST-05 · RM F-RM-24·27·28 | api.md §2.7 · §4.15 | TC-ST-017 · 019 · TC-RM-033 · 034 · 035 · 037 · 038(settings·rooms RTM 합집합) | ✅ |
 | R-SET-011 | §2.2 stale · §10 · C §3.6 · S §2.3 T-10 · S-12·S-13 · F F-ST-10 · F §3.3 | api.md 「ui 인계 메모」 S3c | TC-ST-016 · 023 | ✅ |
 | R-SET-002 🔒 (참조 — 화면 사전 검사) | C §3.4 · S §2.2 S-07·S-08 · F F-ST-07·08 | api.md §5.8.4 | TC-ST-008 · 009 · 032 | ✅ |
-| R-SET-005 🔒 (참조 — 저장·400 문구) | §7 · F F-ST-09·10 · Rq §5.7 | api.md §4.16 | TC-ST-011 · 013 · 014 · 015 | ✅ |
+| R-SET-005 🔒 (참조 — 저장·400 문구, S3f 개정 `model?`) | §7 · F F-ST-09·10 · S S-17 · Rq §5.7 | api.md v0.8 §4.16 · §5.8.6 | TC-ST-011 · 013 · 014 · 015 · **043 · 044 · 048** | ✅ |
 | R-SET-001 🔒 (참조 — OWNER_ONLY) | §7 · F F-ST-05·10 | api.md §2.7 · §3.2 | TC-ST-017 · 019 · TC-RM-037 | ✅ |
-| R-SET-004 🔒 (참조 — E15) | §7 · F F-ST-03 | api.md §4.15 | TC-ST-001 · 002 · 003 | ✅ |
+| R-SET-004 🔒 (참조 — E15, S3f 개정 `model`) | §7 · F F-ST-03 · S T-02 | api.md v0.8 §4.15 · §5.8.6 | TC-ST-001 · 002 · 003 · **042** | ✅ |
 | R-SET-003 · 006 · 012 (참조) | §7(isDefault·version 표시) · C(outputRules 필드 없음) · S §3(파일 내용 로그 없음) | api.md §4.15 · §16.4 | TC-ST-021 · 031 · 036 | ✅ |
 | R-ROOMS-002 🔒 (영향 — 상단 바) | §10 · RM §2.2 · F-RM-28 | — | TC-RM-033 · 034 · 035 | ✅ |
 | R-ROOMS-005 🔒 (영향 — 390px) | §2 · C §4 · A §5 | — | TC-ST-037 · TC-RM-040 | ✅ |
+| R-CHAT-009 🔒 (영향 — 토큰은 메모리에만, 화면은 읽지도 저장하지도 않음) | §10 비고(헤더는 래퍼가 `getToken()`으로) · S §1(토큰은 화면 상태에 없음) · F §2 비고(토큰 접근 없음) | api.md §2.4 | TC-ST-036 | ✅ |
 | R-CHAT-011 (영향 — 전환 규칙 불변) | §7 · §10 · F F-ST-05·10 · Rq §5.7 · RM F-RM-24 | api.md §2.4 · §3.2 | TC-ST-014 · 016 · 018 · TC-RM-034 | ✅ |
 | R-NFR-004 🔒 (영향 — 번들·파일 비밀값 0) | §10 · S §3.2 SF-01 · C §3.10(로그 없음) | api.md §16.4 | TC-ST-034 · 035 · 036 | ✅ |
 
@@ -228,13 +294,13 @@ api.md **v0.5**를 **인용**한다(재정의 아님).
 |---|---|---|
 | TC-ST-001 | 로딩 | GET 대기 중 `role=status` `설정을 불러오는 중`, tablist·⋯·저장 버튼 DOM 없음, ‹ 있음 |
 | TC-ST-002 | 오류 + 다시 시도 | `NETWORK` → `role=alert` 제목·`서버에 연결할 수 없습니다.`·「다시 시도」 → GET 2회째 → ready |
-| TC-ST-003 | 처음 진입 | GET 1회(화면 마운트마다), 선택 탭 `공통 세계관`, `세계관, 필수` textbox 값 = 응답 world, h1 포커스 |
+| TC-ST-003 | 처음 진입 | GET 1회(화면 마운트마다), 선택 탭 `공통`(v1.3 기대 갱신, 이전 `공통 세계관`), `세계관, 필수` textbox 값 = 응답 world, h1 포커스 |
 | TC-ST-004 | 탭 전환 초안 유지 | 세바스찬 말투 수정 → 시엘 → 세바스찬 → 값 유지, dirty 유지 |
-| TC-ST-005 | 탭 키보드 | →·← 순환, Home·End, `aria-selected`·`tabIndex` 로빙, 패널 `aria-labelledby` 갱신 |
+| TC-ST-005 | 탭 키보드 | →·← 순환, Home·End, `aria-selected`·`tabIndex` 로빙, 패널 `aria-labelledby` 갱신 · (v1.3 기대 갱신) 시작 포커스 탭 이름 `공통`(이전 `공통 세계관`) |
 | TC-ST-006 | 필드 11개 | 라벨·순서 = `CHARACTER_FIELD_KEYS`·spec label, 필수 3종 `*`·`, 필수`, 나이·성별 같은 줄, outputRules 필드 없음 |
 | TC-ST-007 | 목록 필드 | `['a','b']` → TextArea `a\nb` · `' x \n\n y '` 입력 → 줄 카운터 `2/10줄` · 저장 본문 `['x','y']` |
 | TC-ST-008 | 상한 초과 | 말투 801자 → 카운터 over·`aria-invalid`·안내 `800자 이하로 줄여 주세요.`·탭 `!`(이름 `, 확인할 항목 있음`)·저장 disabled·D = `세바스찬 · 말투는 1~800자여야 합니다.` · 샘플 대사 11줄 → `10줄 이하로…` · 201자 줄 → `n번째 줄이 200자를 넘습니다.` |
-| TC-ST-009 | 필수 빈 칸 | 세계관 공백만 → `필수 항목입니다.`·D `공통 · 세계관은 1~2000자여야 합니다.`·저장 disabled |
+| TC-ST-009 | 필수 빈 칸 | 세계관 공백만 → `필수 항목입니다.`·D `공통 · 세계관은 1~2000자여야 합니다.`·저장 disabled · (v1.3 기대 갱신) 탭 접근성 이름 `공통, 확인할 항목 있음`(이전 `공통 세계관, 확인할 항목 있음`) |
 | TC-ST-010 | dirty | 수정 → D `저장하지 않은 변경 있음`·되돌리기 enabled · 앞뒤 공백만 추가 → dirty 아님 |
 | TC-ST-011 | 저장 성공 | `saveCharacterSettings` 1회(정규화 값) → D `v4 저장됨 MM.DD HH:mm`·dirty 해제·토스트 success `저장했습니다. 다음 대사부터 반영됩니다.`·초안 = 응답 settings |
 | TC-ST-012 | 저장 중 | 대기 중 입력 readOnly·‹·⋯·되돌리기·저장 disabled·D `저장 중...` · 저장 연타 → 호출 1회 |
@@ -255,8 +321,8 @@ api.md **v0.5**를 **인용**한다(재정의 아님).
 | TC-ST-027 | 가져오기 입력 규칙 | 둘 다 비면 불러오기 disabled · 파일 선택 → 붙여넣기 비움 · 붙여넣기 → 파일 이름 `선택한 파일 없음` |
 | TC-ST-028 | 미저장 이탈 | clean ‹ → `onLeave()` 즉시 · dirty ‹ → ④(취소 포커스) → 취소 머묾 / 나가기 → `onLeave()` · stale+dirty도 ④ |
 | TC-ST-029 | 시트 포커스 | ⋯ → ① 첫 항목 포커스 · Esc → 닫힘·⋯ 포커스 · ① → ② → 닫기 → ⋯ 포커스 · ③ 취소 → ⋯ 포커스 · ④ 취소 → ‹ 포커스 · Tab 순환 |
-| TC-ST-030 | 역할·이름 | main 이름, h1 포커스, tablist·tab·tabpanel, D `aria-live=polite` |
-| TC-ST-031 | 라벨 단일 소스 | 필드 라벨 = spec label, 세계관 라벨 `세계관`, 탭 `공통 세계관`, 캐릭터 탭 = `CHARACTERS[id].shortName` |
+| TC-ST-030 | 역할·이름 | main 이름, h1 포커스, tablist·tab·tabpanel, D `aria-live=polite` · (v1.3 기대 갱신) Tab 순서 `설정 파일 메뉴` → `공통` 탭 → (모델 라디오 `Pro`·`Flash` 중 정지 1회, TC-ST-052) → `세계관, 필수` |
+| TC-ST-031 | 라벨 단일 소스 | 필드 라벨 = spec label, 세계관 라벨 `세계관`, 탭 `공통`(v1.3 기대 갱신), 캐릭터 탭 = `CHARACTERS[id].shortName` |
 | TC-ST-032 | state/settings.ts 단위 | S-01~S-15 · 리듀서 T-01~T-10(무시 조합 포함) · S-08 ⇔ S-07 불변식 경계 벡터. **S-15 직접 단위 확인 포함** — 벡터는 state.md §3.3 V-4(`ciel.speech` 801자 → `ok: false`, `시엘 · 말투는 1~800자여야 합니다.`)·V-6(`base` 통과 값 + world만 → `ok: true`) 재사용, `base` 객체 불변 확인 |
 | TC-ST-033 | download.ts 단위 | 성공 true·revoke 호출 · Blob 생성 예외 → false |
 | TC-ST-034 | toExportFile | 최상위 키 = 4개, settings 키 = world + 2×11, 순서, 입력에 `apiKey`·`version`을 섞어도 출력 0 · 직렬화 문자열 `apiKey\|API_KEY\|SECRET\|token` 0건 · 파일명 0 채움 |
@@ -267,3 +333,20 @@ api.md **v0.5**를 **인용**한다(재정의 아님).
 | TC-ST-036 | 리뷰 grep | `ui/src/settings`·`state/settings*.ts`에 `fetch(`·`localStorage`·`sessionStorage`·`document.cookie`·`getToken`·`console.` 0건 · `ui/dist` 비밀값 grep 0건 |
 | TC-ST-037 | 스크린샷(수동) | 390×565: 세 탭 · ①②③④ 시트 · stale · loading/error. 가로 스크롤 없음, A44·B40·D36 |
 | TC-ST-038 | 실제 iframe 파일 저장(수동, S5 이후) | 갠홈 패널 안 「파일로 저장」 동작 여부. 막히면 복사 경로 확인 |
+
+### 14.2 S3f 예약 TC (TC-ST-042 ~ 053, 요구 R-SET-013 · CR-001)
+
+| TC | 내용 | 기대(요지) |
+|---|---|---|
+| TC-ST-042 | 모델 세 판 렌더 | 「공통」 탭에 `group` 이름 `AI 모델`, 라디오 `Pro`·`Flash` 순서(`LLM_MODEL_KEYS`), 각 설명이 `aria-describedby`로 읽힘 · 응답 `model: 'pro'` → Pro checked·안내 `저장하면 다음 대답부터 이 모델을 씁니다.` · `'flash'` → Flash checked·같은 안내 · `null` → 둘 다 unchecked·안내 `아직 고르지 않았습니다. 지금은 서버 기본 모델을 씁니다.` · 세 판 모두 D clean(되돌리기·저장 disabled). 모델 묶음이 세계관 입력보다 DOM 앞 |
+| TC-ST-043 | 모델 선택 → 저장 | `'pro'` 판에서 Flash 클릭 → D `저장하지 않은 변경 있음`·되돌리기 enabled·저장 enabled → 저장 → `saveCharacterSettings` 1회, 인자 `(정규화 settings, 'flash')` → 응답 `model: 'flash'` → D `v{n} 저장됨 …`·Flash checked·dirty 해제·토스트 success `저장했습니다. 다음 대사부터 반영됩니다.` |
+| TC-ST-044 | 본체만 저장 | 모델은 그대로 두고 세계관만 고쳐 저장 → `saveCharacterSettings` 둘째 인자 `undefined` · `null` 판에서 본체만 저장해도 `undefined` · 모델과 본체를 둘 다 바꾸면 둘째 인자 = 고른 키. (본문 JSON에 `model` 키가 없는지는 `ui/src/api` 테스트 몫) |
+| TC-ST-045 | 되돌리기 | `'pro'` → Flash → 되돌리기 → Pro checked·clean · `null` → Pro → 되돌리기 → 둘 다 unchecked·미선택 안내 · 본체와 모델을 함께 바꾼 뒤 되돌리기 → 둘 다 기준값 |
+| TC-ST-046 | 모델만 바꾸고 이탈 | Flash 선택 → ‹ → ④ 확인 시트 → 취소 머묾(Flash 유지) / 나가기 → `onLeave()` · Pro → Flash → Pro(기준값과 같음) → clean → ‹ → `onLeave()` 즉시 |
+| TC-ST-047 | 저장 중·stale 라디오 | 저장 대기 중 두 라디오 `disabled` · 응답 뒤 다시 enabled · stale(저장 401) → 라디오 enabled·고르면 D는 `인증 만료` 유지·저장 disabled · 저장 중 `modelChanged`가 와도 상태 불변(리듀서) |
+| TC-ST-048 | 모델만 저장 · 기본값 판 해제 | 응답 `isDefault: true`·`version: 0`·`model: 'pro'` → D `기본값 사용 중` → Flash → 저장 → 응답 `isDefault: false`·`version: 1`·`model: 'flash'` → D `v1 저장됨 …`(D-ST-13, 화면 특별 처리 없음) |
+| TC-ST-049 | 내보내기에 모델 없음 | Flash로 바꾼(모델만 dirty) 상태에서 ⋯ → 내보내기 → ② 텍스트에 `model`·`pro`·`flash` 문자열 0건 · ② 안내 없음(D-ST-15) · 본체도 바꾸면 안내 `저장하지 않은 변경은 포함되지 않습니다.` · stale 내보내기(초안)에도 `model` 0건 |
+| TC-ST-050 | 가져오기는 모델 불변 | Flash 선택(dirty) → 자체 형식 파일(최상위·`settings` 안에 `model: 'pro'`를 섞음) 가져오기 → 세계관 등 후보만 반영·Flash checked 유지·`modelDraft` 불변 · `model` 키는 화이트리스트 밖이라 무시 계수에도 안 잡힘(`ignoredCount` 변화 0) |
+| TC-ST-051 | state 단위(S3f) | T-02·T-08 `modelDraft = response.model` · T-11 `modelChanged`(ready·!isSaving, stale에서도 반영, 같은 값이면 같은 참조) · T-05 `reverted` → `base.model` · T-06 `imported`·T-09 `saveFailed`·T-10 `staleEntered` → `modelDraft` 유지 · S-16 `hasUnsavedChanges` 4조합(본체·모델 각각 같음/다름) · S-11·S-12·S-14가 모델만 dirty에서 저장·되돌리기 true·`dirty` · S-17 `modelToSave` = 다를 때만 키, 같으면 `undefined` · `toExportFile` 입력 타입에 모델이 없음(타입 확인) |
+| TC-ST-052 | 접근성·키보드 | Tab 순서: … 선택 탭 → (선택된 라디오, 미선택이면 첫 라디오) → 세계관 → 되돌리기 → 저장 · `fieldset` 이름 `AI 모델`·설명 = 안내 문구 · 라디오 이름 `Pro`·`Flash`(설명 문장이 이름에 섞이지 않음). 방향키 이동은 jsdom이 구현하지 않으므로 TC-ST-053(실브라우저)에서 확인 |
+| TC-ST-053 | 스크린샷(수동, 390×565) | 「공통」 탭 선택 판 · 미선택 판 · 저장 중 판. 가로 스크롤 없음 · 라디오 행 높이 44 이상 · 미선택 안내 한 줄 · 세계관 TextArea 최대 9줄(196px)에서 C 안에 라벨·카운터가 보임 · 실브라우저에서 ↑/↓ 키로 Pro↔Flash 이동·선택 → D dirty. 캡처 `doc/300_검증/screenshots/{YYYYMMDD-HHMM}/` |

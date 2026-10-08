@@ -64,6 +64,7 @@ const ready = (over: Partial<ReadyState> = {}): ReadyState => ({
   phase: 'ready',
   base: SAVED_RESPONSE,
   draft: baseDraft(),
+  modelDraft: SAVED_RESPONSE.model, // (S3f) 'pro' = 기준값과 같음 → 모델 변경 없음
   isSaving: false,
   isStale: false,
   ...over,
@@ -258,7 +259,14 @@ describe('TC-ST-032: 리듀서 T-01~T-10 (불변 · 무시 조합)', () => {
     expect(settingsReducer(err, { type: 'loadStarted' })).toEqual({ phase: 'loading' })
     expect(settingsReducer(deepFreeze(ready()), { type: 'loadStarted' })).toEqual({ phase: 'loading' })
     const loaded = settingsReducer(INITIAL_SETTINGS_STATE, { type: 'loadSucceeded', response: SAVED_RESPONSE })
-    expect(loaded).toEqual({ phase: 'ready', base: SAVED_RESPONSE, draft: baseDraft(), isSaving: false, isStale: false })
+    expect(loaded).toEqual({
+      phase: 'ready',
+      base: SAVED_RESPONSE,
+      draft: baseDraft(),
+      modelDraft: 'pro',
+      isSaving: false,
+      isStale: false,
+    })
     const error = { code: 'INTERNAL', message: 'x' } as const
     expect(settingsReducer(INITIAL_SETTINGS_STATE, { type: 'loadFailed', error })).toEqual({ phase: 'error', error })
   })
@@ -308,9 +316,16 @@ describe('TC-ST-032: 리듀서 T-01~T-10 (불변 · 무시 조합)', () => {
     expect(settingsReducer(staleReady, { type: 'saveStarted' })).toBe(staleReady)
 
     const savedSettings = withCharField(BASE_SETTINGS, 'sebastian', 'speech', '바뀐 말투')
-    const response = { settings: savedSettings, version: 4, updatedAt: SAVED_AT + 60000, isDefault: false }
+    const response = { settings: savedSettings, version: 4, updatedAt: SAVED_AT + 60000, isDefault: false, model: 'pro' as const }
     const succeeded = settingsReducer(deepFreeze(started), { type: 'saveSucceeded', response })
-    expect(succeeded).toEqual({ phase: 'ready', base: response, draft: draftFromSettings(savedSettings), isSaving: false, isStale: false })
+    expect(succeeded).toEqual({
+      phase: 'ready',
+      base: response,
+      draft: draftFromSettings(savedSettings),
+      modelDraft: 'pro',
+      isSaving: false,
+      isStale: false,
+    })
     const notSaving = deepFreeze(ready())
     expect(settingsReducer(notSaving, { type: 'saveSucceeded', response })).toBe(notSaving)
 

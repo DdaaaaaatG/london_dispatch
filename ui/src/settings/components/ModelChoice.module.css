@@ -1,0 +1,69 @@
+/* 「공통」 탭 맨 위 AI 모델 묶음(C 안 169px: legend 24 + 행 44×2 + 안내 24 + 아래 패딩 16 · 선 1 · 바깥 여백 16). 브라우저 기본 fieldset 모양을 지운다 */
+.root {
+  min-width: 0;
+  margin: 0 0 var(--space-4);
+  padding: 0 0 var(--space-4);
+  border: 0;
+  border-bottom: 1px solid var(--color-border);
+  font-family: var(--font-ui);
+}
+
+/* FormField 라벨과 같은 모양. 필수 표시 없음 */
+.legend {
+  margin: 0 0 var(--space-1);
+  padding: 0;
+  color: var(--color-fg-muted);
+  font-size: var(--text-sm);
+  line-height: 20px;
+}
+
+/* 행 전체가 label 이라 설명 글자를 눌러도 선택된다(터치 44 이상) */
+.option {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 44px;
+  cursor: pointer;
+}
+
+.radio {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  margin: 0;
+  accent-color: var(--color-primary);
+}
+
+.radio:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.name {
+  flex-shrink: 0;
+  width: 48px;
+  color: var(--color-fg);
+  font-size: var(--text-base);
+}
+
+/* 줄바꿈 허용(말줄임 없음) */
+.description {
+  flex: 1;
+  min-width: 0;
+  color: var(--color-fg-muted);
+  font-size: var(--text-sm);
+}
+
+/* 저장 중: disabled 속성과 함께 행 전체를 흐리게 */
+.disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+/* 줄바꿈 허용(말줄임 금지) */
+.note {
+  margin: var(--space-1) 0 0;
+  color: var(--color-fg-muted);
+  font-size: var(--text-sm);
+  line-height: 20px;
+}

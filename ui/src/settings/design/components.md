@@ -3,7 +3,7 @@
 > 주 문서: `ui/src/settings/design.md`(RTM 포함). 이 파일은 주 문서 §3의 상세다.
 > 공용 요소(TopBar·Button·IconButton·StateView·TextInput·TextArea·BottomSheet·SheetItem·ConfirmDialog·Toast·useToast·cx·formatDate)의 **단일 정의는 `ui/src/rooms/design/components.md` §1**이다. 이 파일은 인용만 한다. S3c 공용 델타 2건(IconButton `settings` · ToastTone `success`)도 거기 적었다.
 > export 규칙: named export만(rooms components.md 머리말). Props 타입은 `export type {Name}Props`.
-> 표준 HTML 원소: 화면 코드(`index.tsx`·폼 조립 컴포넌트)는 `<main>`·`<section>`·`<div>`·`<h1>`·`<h2>`·`<p>`·`<span>`만 쓴다. `<button>`·`<input>`·`<textarea>`·`<a>`는 공용 ui와 로컬 `Tabs`·`FilePicker`, 유틸 `download.ts` 안에만 있다.
+> 표준 HTML 원소: 화면 코드(`index.tsx`·폼 조립 컴포넌트)는 `<main>`·`<section>`·`<div>`·`<h1>`·`<h2>`·`<p>`·`<span>`만 쓴다. `<button>`·`<input>`·`<textarea>`·`<a>`는 공용 ui와 로컬 `Tabs`·`FilePicker`, 유틸 `download.ts` 안에만 있다. (v1.3 S3f) 로컬 `ModelChoice` 안에서만 `<fieldset>`·`<legend>`·`<label>`·`<input type="radio">`를 쓴다(공용 라디오 컴포넌트가 없다, s3f-02 §5.1).
 
 ---
 
@@ -21,7 +21,7 @@ App (ui/src/App.tsx)                              view.screen === 'settings' (ro
    │   └─ 'ready'   → ReadyBody [로컬]                 파생 값 useMemo([state]) (F-ST-08)
    │        ├─ Tabs [로컬]                             B 40px (F-ST-06)
    │        ├─ FormPanel (ReadyBody 지역) <section role=tabpanel>  C flex · activeTab 바뀌면 scrollTop 0
-   │        │   ├─ 'world'   → WorldForm [로컬]
+   │        │   ├─ 'world'   → ModelChoice [로컬, S3f] (위) + WorldForm [로컬] (아래)   §3.11 · §4.1
    │        │   └─ 캐릭터   → CharacterForm [로컬] key={activeTab}
    │        │        └─ TextField | ListField (지역) → FormField [로컬] × 11 (묶음 소제목 3) → TextInput | TextArea [공용]
    │        ├─ toast && Toast [공용]                    E 28px (key={toast.id})
@@ -52,6 +52,7 @@ App (ui/src/App.tsx)                              view.screen === 'settings' (ro
 | Tabs | `ui/src/settings/components/Tabs.tsx` | ④ 로컬 · **공용 승격 후보** | 구성안 §8(승격은 후작업) |
 | FormField | `ui/src/settings/components/FormField.tsx` | ④ 로컬 · 승격 후보 | TextInput·TextArea에 보이는 라벨·안내 줄이 없다 |
 | FilePicker | `ui/src/settings/components/FilePicker.tsx` | ④ 로컬 · 승격 후보 | 공용 파일 입력 없음 |
+| ModelChoice (S3f) | `ui/src/settings/components/ModelChoice.tsx` · `ModelChoice.module.css` (신규) | ④ 로컬 · 승격 후보 | 공용 라디오 묶음 없음(component-catalog에 radio 없음). 네이티브 원소로 방향키 이동을 기본 제공받는다 |
 | StaleNotice | `ui/src/settings/components/StaleNotice.tsx` | ④ 로컬 | chat 열람 안내 줄과 같은 틀(chat 로컬이라 재사용 불가) |
 | WorldForm · CharacterForm · StatusBar · FileMenuSheet · ExportSheet · ImportSheet | `ui/src/settings/components/` | ④ 로컬 | 화면 전용 |
 | `downloadText` | `ui/src/settings/download.ts` | 로컬 유틸(DOM 부수 효과) | 상태 모듈을 순수하게 두려고 분리 |
@@ -123,7 +124,7 @@ export type CharacterFormProps = {
 }
 ```
 
-WorldForm: FormField(`label = WORLD_FIELD_SPEC.label`('세계관'), required) 안 `TextArea maxChars={2000} counterMode="always" maxRows={16} ariaLabel={requiredAria('세계관')}`. 구성안 §1 "C 높이를 채움"은 `maxRows` 16(약 C 445px − 라벨·카운터)과 폼 영역 flex로 근사한다.
+WorldForm: FormField(`label = WORLD_FIELD_SPEC.label`('세계관'), required) 안 `TextArea maxChars={2000} counterMode="always" maxRows={9} ariaLabel={requiredAria('세계관')}`. 구성안 §1 "C 높이를 채움"은 `maxRows`와 폼 영역 flex로 근사한다. **(v1.3 S3f) `WORLD_MAX_ROWS` 16 → 9** — 같은 탭 위에 ModelChoice(169px)가 들어가서다. 계산은 §4.1. 최소 높이 76px(3줄, `.area textarea`)는 그대로다. Props는 바뀌지 않는다(모델은 WorldForm이 아니라 ReadyBody가 ModelChoice에 넘긴다).
 
 CharacterForm: `CHARACTER_FIELD_KEYS` 순서로 FormField 11개, 묶음 소제목 `<h2>` 3개.
 
@@ -226,6 +227,64 @@ export const downloadText = (text: string, fileName: string, mime = 'application
 - `try`: `blob = new Blob([text], { type: mime })` → `url = URL.createObjectURL(blob)` → `a = document.createElement('a')`, `a.href = url`, `a.download = fileName`, `a.rel = 'noopener'` → `document.body.appendChild(a)` → `a.click()` → `a.remove()` → `setTimeout(() => URL.revokeObjectURL(url), 0)` → `true`. `catch` → `false`. 로그 없음.
 - sandbox가 다운로드를 조용히 막으면 감지할 수 없다. 복사용 텍스트가 대체 경로다(수동 확인 TC-ST-038).
 
+### 3.11 ModelChoice (S3f, 「공통」 탭 맨 위)
+
+```ts
+import type { LlmModelKey } from '@shared/types'
+
+export type ModelChoiceProps = {
+  value: LlmModelKey | null           // state.modelDraft. null = 미선택 판(두 라디오 모두 unchecked)
+  isReadOnly: boolean                 // state.isSaving → 두 라디오 disabled (stale에서는 false — 다른 입력과 같다)
+  onChange: (value: LlmModelKey) => void   // dispatch({ type: 'modelChanged', value }) (F-ST-22)
+}
+```
+
+렌더(위에서 아래):
+
+```
+<fieldset class=root aria-describedby="settings-model-note">
+  <legend class=legend>{labels.modelLegend}</legend>                         「AI 모델」
+  LLM_MODEL_KEYS.map(key =>                                                  순서 pro → flash
+    <label class={cx(option, isReadOnly && disabled)} key={key}>              행 전체가 클릭 영역
+      <input type="radio" class=radio name="settings-model" value={key}
+             checked={value === key} disabled={isReadOnly}
+             aria-label={labels.modelOption[key].name}                     이름 = 「Pro」·「Flash」만
+             aria-describedby={`settings-model-${key}-desc`}
+             onChange={() => onChange(key)} />
+      <span class=name aria-hidden="true">{labels.modelOption[key].name}</span>
+      <span class=description id={`settings-model-${key}-desc`}>{labels.modelOption[key].description}</span>
+    </label>)
+  <p class=note id="settings-model-note">{value === null ? labels.modelNoteUnset : labels.modelNoteSelected}</p>
+</fieldset>
+```
+
+- 라디오 이름은 `aria-label`로 고정한다. `<label>`이 설명까지 감싸므로 그대로 두면 설명 문장이 이름에 섞인다. 보이는 이름 `<span>`은 `aria-hidden`이다(이중 읽기 방지). 설명은 `aria-describedby`로 읽힌다.
+- `checked`는 제어 값이다. `value === null`이면 둘 다 `false`. `onChange`는 그 라디오가 새로 선택될 때만 온다(같은 라디오 재클릭은 이벤트 없음).
+- `name="settings-model"` 하나로 묶어 브라우저 기본 방향키 이동(↑↓←→, 이동 = 선택)을 쓴다. 키 처리 코드를 쓰지 않는다.
+- id는 화면에 한 벌뿐이라 고정 문자열이다(탭 id `settings-tab-*` 관례와 같다).
+- 문구는 모두 `labels.ts`(requirements.md §5.1). 모델명(`gemini-…`)·가격 숫자는 화면에 없다(R-SET-013 · R-LLM-009).
+
+스타일(`ModelChoice.module.css`, Rosebell 토큰):
+
+| 클래스 | 값 |
+|---|---|
+| `.root` | 브라우저 기본 fieldset 스타일 제거: `margin:0; min-width:0; border:0; padding:0 0 var(--space-4); border-bottom:1px solid var(--color-border); margin-bottom:var(--space-4)` |
+| `.legend` | `padding:0; margin:0 0 var(--space-1); line-height:20px; font-family:var(--font-ui); font-size:var(--text-sm); color:var(--color-fg-muted)`(FormField 라벨과 같은 모양). 필수 표시 없음 |
+| `.option` | `display:flex; align-items:center; gap:var(--space-2); min-height:44px; cursor:pointer`(터치 44 이상) |
+| `.radio` | `width:20px; height:20px; margin:0; flex-shrink:0; accent-color:var(--color-primary)`. `:focus-visible { outline:2px solid var(--color-focus); outline-offset:2px }` |
+| `.name` | `width:48px; flex-shrink:0; font-size:var(--text-base); color:var(--color-fg)` |
+| `.description` | `min-width:0; flex:1; font-size:var(--text-sm); color:var(--color-fg-muted)` — 줄바꿈 허용(말줄임 없음) |
+| `.disabled` | `cursor:default; opacity:0.5`(isReadOnly일 때 행 전체) |
+| `.note` | `margin:var(--space-1) 0 0; line-height:20px; font-size:var(--text-sm); color:var(--color-fg-muted)` — 줄바꿈 허용 |
+
+ReadyBody 연결(실물 §5.1 `ReadyBodyProps`에 추가):
+
+```ts
+onChangeModel: (value: LlmModelKey) => void   // index.tsx: value => dispatch({ type: 'modelChanged', value })
+```
+- FormPanel의 `Pick`에 `onChangeModel`을 더한다. `activeTab === 'world'`일 때 `<ModelChoice value={state.modelDraft} isReadOnly={state.isSaving} onChange={onChangeModel} />` 다음에 `<WorldForm …/>`(두 형제, 감싸는 원소는 기존 WorldForm 바깥 그대로). 캐릭터 탭에는 렌더하지 않는다.
+- 파일 크기: ModelChoice 약 50줄, ReadyBody +6줄 안팎. 400줄·함수 50줄 한계 안.
+
 ---
 
 ## 4. 스타일 (CSS Modules · `ui_design_concept.md` 토큰)
@@ -253,6 +312,35 @@ export const downloadText = (text: string, fileName: string, mime = 'application
 | stale + 토스트 | 44 | 40 | 377 | 28 | 40 | 36 |
 | loading · error | 44 | — | 521(StateView) | — | — | — |
 
+### 4.1 「공통」 탭 C 안 세로 배분과 세계관 `maxRows` (v1.3 S3f)
+
+**결론: `maxRows` 16 → 9 (TextArea 최대 196px).** 아래는 CSS 값으로 계산한 수치다. 화면 실측은 구현 뒤 TC-ST-053 스크린샷으로 확인한다(이 단계는 문서만 쓰므로 브라우저 측정을 하지 않았다).
+
+입력값(실물 CSS): C 폼 영역 패딩 위아래 `--space-4` 16씩(`ReadyBody.module.css .panel`) · TextArea 높이 = `20 × 줄 + 16`(line-height 20, 패딩 8×2, `box-sizing: border-box`라 테두리는 높이 안, `TextArea.tsx fitHeight`) · FormField 라벨 줄 20 · 필드 안내 줄 = 위 4 + 약 16(xs 11px) = 20.
+
+| 묶음 | 높이(px) |
+|---|---|
+| legend 20 + 아래 4 | 24 |
+| 라디오 행 44 × 2 | 88 |
+| 안내 줄 위 4 + 20 | 24 |
+| fieldset 아래 패딩 16 + 구분선 1 + 아래 바깥 여백 16 | 33 |
+| **ModelChoice 합계** | **169** |
+| 세계관 라벨 줄 | 20 |
+| 세계관 TextArea(9줄) | 196 |
+| 필드 안내 줄(필수 빈 칸·상한 초과일 때만) | 20 |
+
+| 판(C 높이 → 안쪽 = C − 32) | 쓸 수 있는 높이 | 사용(안내 줄 없음 / 있음) | 결과 |
+|---|---|---|---|
+| ready (445 → 413) | 413 | 385 / 405 | 둘 다 스크롤 없음(남는 28 / 8) |
+| ready + 토스트 (417 → 385) | 385 | 385 / 405 | 안내 없음은 딱 맞음, 안내 있으면 20 스크롤 |
+| stale (405 → 373) | 373 | 385 / 405 | 12 / 32 스크롤 |
+| stale + 토스트 (377 → 345) | 345 | 385 / 405 | 40 / 60 스크롤 |
+
+- 기준은 "ready 판에서 안내 줄까지 스크롤 없이 보인다"이다: `169 + 20 + (20N + 16) + 20 ≤ 413` → `N ≤ 9.4` → **9**. 10줄이면 안내 줄이 있을 때 12px 넘친다.
+- 토스트·stale 판은 기존 캐릭터 탭처럼 C가 스크롤한다(`overflow-y:auto`). 맨 위로 스크롤한 상태에서 모델 묶음이 늘 먼저 보인다(F-ST-06 탭 전환 시 `scrollTop = 0`).
+- 세계관이 9줄보다 길면 TextArea 안에서 스크롤한다(공용 동작). 높이 ≤ 480 화면에서는 공용 규칙대로 1줄 고정이다(바뀌지 않음).
+- 문구 폭: 라디오 행 = 20 + 8 + 48 + 8 + 설명(Pro 약 180px) ≈ 264 ≤ 콘텐츠 폭 358(390 − 좌우 16×2). 미선택 안내 `아직 고르지 않았습니다. 지금은 서버 기본 모델을 씁니다.`는 한글 23자 × 12px + 공백·마침표 ≈ 310px로 한 줄이다. 글꼴 대체로 두 줄이 되면 +20px이고, ready 판 안내 줄 없음 기준 405 ≤ 413이라 여전히 스크롤 없다.
+
 ---
 
 ## 5. 구현 실물 동기화 (v1.2.1, 2026-10-06)
@@ -265,7 +353,7 @@ S3c 구현·테스트가 끝난 뒤 실물에 맞춘 절이다. 동작·문구�
 |---|---|---|
 | `ui/src/settings/index.tsx` | SettingsScreen + 지역 `SettingsTopBar`·`SettingsBody`·`createSheetResults`. 175줄(TSX 최대) | 조립만 하는 것은 같다 |
 | `components/ReadyBody.tsx` | `ReadyBodyProps = { state: ReadyState; activeTab: SettingsTab; toast: ToastState; saveButtonRef: Ref<HTMLButtonElement>; onSelectTab; onChangeWorld(value); onChangeField(id, key, value); onRevert; onSave }`. 파생 값(S-09·11·12·14) `useMemo([state])`. 지역 FormPanel이 `useLayoutEffect([activeTab])`로 `scrollTop = 0`. 탭 DOM id 접두사 `'settings'`(Tabs의 `tabDomId`·`panelDomId` export) | 신규 분해. F-ST-06·08 위치 |
-| `components/SheetLayer.tsx` | `SheetLayerProps = { sheet: SettingsSheet; state: ReadyState; onClose; onExport; onImport; onImported; onDownloadFailed; onConfirmLeave }`. ② 안내 `exportNoteOf(state)` = stale → `'stale'`, dirty → `'dirty'`, 그 밖 `null` | 신규 분해 |
+| `components/SheetLayer.tsx` | `SheetLayerProps = { sheet: SettingsSheet; state: ReadyState; onClose; onExport; onImport; onImported; onDownloadFailed; onConfirmLeave }`. ② 안내 `exportNoteOf(state)` = stale → `'stale'`, dirty → `'dirty'`, 그 밖 `null`. 여기 dirty는 본체 dirty(`isDraftDirty`)다 — **S3f 무수정**(모델만 바뀐 상태는 안내 없음, design.md D-ST-15) | 신규 분해 |
 | `useSettingsUi.ts` | `useSettingsUi({ state, focusTargetRef, onLeave })` → `{ titleRef, saveButtonRef, fileMenuButtonRef, backButtonRef, activeTab, selectTab, sheet, openFileMenu, openExport, openImport, closeSheet, requestBack, confirmLeave }`. `SettingsSheet` 타입을 export. 내부 `useSaveFocus`(layout effect, 저장 뒤 포커스)·`useSheetFocusReturn`(시트 닫힘 2차 복귀) | 신규. 설계의 "SettingsScreen useState·useRef·layout effect"를 이 훅이 갖는다 |
 | `useImportForm.ts` | `useImportForm({ base, onImported })` → `{ form: ImportForm, canSubmit, pickFile, changePaste, submit }`. 늦은 읽기 무시 = `isActiveRef`(마운트) + `inputIdRef`(입력이 바뀔 때마다 1 증가) | 신규. 설계의 ImportSheet `useState`·`readerActiveRef`를 대체 |
 | `useSettingsEditor.ts` | 반환에 `loadSettings`·`focusTargetRef` 추가(functions.md §1) | 반환 2개 추가 |

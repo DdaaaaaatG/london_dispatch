@@ -126,7 +126,7 @@ describe('열기 · 로드 (R-SET-004 · R-SET-009)', () => {
     expect(onLeave).not.toHaveBeenCalled()
   })
 
-  it('TC-ST-003: 처음 진입 — GET 1회, 선택 탭 공통 세계관, 세계관 값 = 응답 world, h1 포커스, D = vN 저장됨', async () => {
+  it('TC-ST-003: 처음 진입 — GET 1회, 선택 탭 「공통」(v1.3), 세계관 값 = 응답 world, h1 포커스, D = vN 저장됨', async () => {
     await renderReady()
     const worldTab = screen.getByRole('tab', { name: T.tabWorld })
     expect(worldTab.getAttribute('aria-selected')).toBe('true')
@@ -378,7 +378,7 @@ describe('이탈 (R-SET-009)', () => {
 })
 
 describe('접근성 · 라벨 단일 소스 (R-SET-009 · R-ROOMS-005)', () => {
-  it('TC-ST-030: main 이름·h1·tablist·tabpanel·D aria-live · Tab 순서 ‹ → ⋯ → 선택 탭 → 첫 필드', async () => {
+  it('TC-ST-030: main 이름·h1·tablist·tabpanel·D aria-live · Tab 순서 ‹ → ⋯ → 「공통」 탭 → 모델 라디오(정지 1회) → 세계관', async () => {
     await renderReady()
     expect(screen.getByRole('main', { name: T.screenTitle })).not.toBeNull()
     const h1 = screen.getByRole('heading', { level: 1, name: T.screenTitle })
@@ -393,6 +393,9 @@ describe('접근성 · 라벨 단일 소스 (R-SET-009 · R-ROOMS-005)', () => {
     expect(document.activeElement).toBe(button(T.fileMenu))
     await user.tab()
     expect(document.activeElement).toBe(screen.getByRole('tab', { name: T.tabWorld }))
+    await user.tab()
+    // (v1.3 S3f) SAVED_RESPONSE.model = 'pro' → 선택된 라디오 Pro 에 1회 정지(TC-ST-052)
+    expect(document.activeElement).toBe(screen.getByRole('radio', { name: T.modelPro }))
     await user.tab()
     expect(document.activeElement).toBe(textbox('세계관, 필수'))
   })

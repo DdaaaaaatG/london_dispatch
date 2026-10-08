@@ -60,6 +60,16 @@ const fieldCountOf = (r: ImportResult): number => {
   return fields + (s.patch.world === undefined ? 0 : 1)
 }
 
+describe('TC-ST-050: (단위) 가져오기 파일 안 model 키 — 화이트리스트 밖 (R-SET-007 개정 · state.md §2.6 M-2)', () => {
+  it('TC-ST-050: 자체 형식 최상위·settings 안 model: \'pro\' → patch = world 만, ignoredCount 0, 결과에 model 0건', () => {
+    const r = success(parse({ ...selfFile({ world: '가져온 세계', model: 'pro' }), model: 'pro' }))
+    expect(r.patch.world).toBe('가져온 세계')
+    expect(fieldCountOf(r)).toBe(1)
+    expect(r.ignoredCount).toBe(0)
+    expect(JSON.stringify(r)).not.toMatch(/model/)
+  })
+})
+
 describe('TC-ST-034: 내보내기 SF-01~SF-04 (R-SET-007 · R-NFR-004)', () => {
   const NOW = new Date(2026, 9, 6, 9, 5)
 
@@ -287,6 +297,7 @@ describe('TC-ST-035: 보정 벡터 V-4 · V-5 · V-6 (api.md §16.3)', () => {
       phase: 'ready',
       base: SAVED_RESPONSE,
       draft: { world: draft.world, characters: { ...draft.characters, sebastian: { ...draft.characters.sebastian, appearance: chars(801) } } },
+      modelDraft: SAVED_RESPONSE.model, // (S3f) ReadyState 필수 필드
       isSaving: false,
       isStale: false,
     }

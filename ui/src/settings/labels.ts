@@ -104,11 +104,19 @@ export const labels = {
   fileMenuAriaLabel: '설정 파일 메뉴',
   tabListAriaLabel: '설정 묶음',
   tabLabel: {
-    world: '공통 세계관',
+    world: '공통',
     sebastian: CHARACTERS.sebastian.shortName,
     ciel: CHARACTERS.ciel.shortName,
   },
   tabIssueSuffix: ', 확인할 항목 있음',
+  // (S3f) 「공통」 탭 맨 위 AI 모델 묶음(§5.1). 모델명·가격 숫자는 화면에 없다(R-SET-013 · R-LLM-009)
+  modelLegend: 'AI 모델',
+  modelOption: {
+    pro: { name: 'Pro', description: '더 정교하지만 느리고 비용이 큼' },
+    flash: { name: 'Flash', description: '빠르고 비용이 적음' },
+  },
+  modelNoteSelected: '저장하면 다음 대답부터 이 모델을 씁니다.',
+  modelNoteUnset: '아직 고르지 않았습니다. 지금은 서버 기본 모델을 씁니다.',
   groupBasic: '기본 정보',
   groupPersona: '인물',
   groupSpeech: '말투·규칙',

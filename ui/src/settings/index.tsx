@@ -1,8 +1,8 @@
 /**
  * settings(캐릭터 설정) 화면 — 설계 settings/design.md §2~§10 · design/components.md · design/functions.md F-ST-01 ~ F-ST-21
- * 요구: R-SET-007 · 008 · 009 · 010 · 011(참조 R-SET-001 ~ 006) · R-ROOMS-005 · R-NFR-004
+ * 요구: R-SET-007 · 008 · 009 · 010 · 011 · 013(참조 R-SET-001 ~ 006) · R-ROOMS-005 · R-NFR-004
  * 갠홈 주인 전용 3번째 화면. 진입 경로는 rooms ⚙ 뿐이다(토큰 없음·비주인은 진입 경로가 없다 — 이 화면은 읽기 전용 판이 없다).
- * 설정은 들어올 때마다 다시 읽고(F-ST-03), 공통 세계관·세바스찬·시엘 탭 3개로 초안을 고쳐 「저장」으로 서버에 맡긴다. 파일 내보내기·가져오기는 ⋯ 시트다.
+ * 설정은 들어올 때마다 다시 읽고(F-ST-03), 공통·세바스찬·시엘 탭 3개로 초안을 고쳐 「저장」으로 서버에 맡긴다. 「공통」 탭 맨 위에 AI 모델 선택(S3f)이 있다. 파일 내보내기·가져오기는 ⋯ 시트다.
  * 요청·전이는 useSettingsEditor + state/settings 리듀서, 탭·시트·포커스는 useSettingsUi 가 한다. 여기서는 조립과 렌더만 한다.
  * 화면은 토큰을 읽지도 저장하지도 않는다(Authorization 헤더는 @/api 래퍼가 붙인다). 인증 실패는 onAuthFailure 로 App 에 알린다.
  */
@@ -127,6 +127,7 @@ const SettingsBody = ({ state, ui, toast, dispatch, onSave, onRetry }: BodyProps
       onChangeField={(id, key, value) =>
         dispatch({ type: 'characterFieldChanged', id, key, value })
       }
+      onChangeModel={value => dispatch({ type: 'modelChanged', value })}
       onRevert={() => dispatch({ type: 'reverted' })}
       onSave={onSave}
     />

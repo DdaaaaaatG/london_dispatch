@@ -1,13 +1,13 @@
 /**
  * useSettingsUi — 설계 settings/design/state.md §1(화면 로컬 상태) · functions.md F-ST-06 · F-ST-12 · F-ST-18 · F-ST-19 · a11y.md §2.5 · §2.6
- * 요구: R-SET-009 · R-SET-007 · R-SET-008
+ * 요구: R-SET-009 · R-SET-007 · R-SET-008 · R-SET-013
  * 보이는 탭(activeTab, 처음 world) · 열린 시트(sheet, 처음 none) · 포커스 대상 ref 와 포커스 이동 effect 를 소유한다. 초안·요청은 모른다.
  * 탭 기억·시트 기억은 하지 않는다(요구 없음). 저장소·토큰을 읽지 않는다.
  */
 import { useLayoutEffect, useRef, useState } from 'react'
 import type { RefObject } from 'react'
 import type { ToastProps } from '@/components/ui/Toast'
-import { isDraftDirty } from '@/state/settings'
+import { hasUnsavedChanges } from '@/state/settings'
 import type { SettingsState, SettingsTab } from '@/state/settings'
 import type { FocusTarget } from './useSettingsEditor'
 
@@ -77,10 +77,10 @@ export const useSettingsUi = ({ state, focusTargetRef, onLeave }: UseSettingsUiO
   useSaveFocus(state, focusTargetRef, refs)
   useSheetFocusReturn(sheet, refs)
 
-  /** F-ST-18: 저장하지 않은 변경이 있으면(stale 포함) ④ 확인, 없으면 바로 나간다 */
+  /** F-ST-18: 저장하지 않은 변경이 있으면(모델만 바뀐 경우·stale 포함, S-16) ④ 확인, 없으면 바로 나간다 */
   const requestBack = (): void => {
-    const isDirty = state.phase === 'ready' && isDraftDirty(state.draft, state.base.settings)
-    if (isDirty) setSheet('leave')
+    const hasChanges = state.phase === 'ready' && hasUnsavedChanges(state)
+    if (hasChanges) setSheet('leave')
     else onLeave()
   }
 

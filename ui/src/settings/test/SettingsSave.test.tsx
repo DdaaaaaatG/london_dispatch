@@ -8,7 +8,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import type { CharacterSettings, CharacterSettingsResponse } from '@shared/types'
+import type { CharacterSettings, CharacterSettingsResponse, LlmModelKey } from '@shared/types'
 import { ERROR_MESSAGES } from '@shared/errors'
 import type { ApiErrorCode, Result } from '@/api'
 import { getCharacterSettings, saveCharacterSettings } from '@/api/settings'
@@ -30,12 +30,24 @@ const mockedGet = vi.mocked(getCharacterSettings)
 const mockedSave = vi.mocked(saveCharacterSettings)
 
 const SAVED_AT_2 = new Date(2026, 9, 6, 15, 30).getTime()
-const response = (settings: CharacterSettings, version: number): CharacterSettingsResponse => ({
+/** (S3f) model 필수. 본체만 저장하는 기존 TC 는 기준값과 같은 'pro' 를 돌려받는다 */
+const response = (
+  settings: CharacterSettings,
+  version: number,
+  model: LlmModelKey | null = 'pro',
+): CharacterSettingsResponse => ({
   settings,
   version,
   updatedAt: SAVED_AT_2,
   isDefault: false,
+  model,
 })
+
+/** (S3f) saveCharacterSettings(settings, model?) — 본체만 저장이면 둘째 인자 undefined(TC-ST-044) */
+const expectSavedWith = (call: number, settings: CharacterSettings, model: LlmModelKey | undefined) => {
+  expect(mockedSave.mock.calls[call]?.[0]).toEqual(settings)
+  expect(mockedSave.mock.calls[call]?.[1]).toBe(model)
+}
 
 const renderReady = async (initial: CharacterSettingsResponse = SAVED_RESPONSE) => {
   mockedGet.mockResolvedValueOnce(ok(initial))
@@ -74,7 +86,7 @@ describe('저장 성공 (R-SET-005 · R-SET-009)', () => {
     fireEvent.change(textbox('샘플 대사'), { target: { value: ' x \n\n y ' } })
     await user.click(button(T.save))
     await waitFor(() => expect(mockedSave).toHaveBeenCalledTimes(1))
-    expect(mockedSave.mock.calls[0]).toEqual([expected])
+    expectSavedWith(0, expected, undefined)
   })
 
   it('TC-ST-011: 저장 성공 → 1회(정규화 값) → D v4 저장됨 · dirty 해제 · 토스트 success · 초안 = 응답 settings', async () => {
@@ -94,7 +106,8 @@ describe('저장 성공 (R-SET-005 · R-SET-009)', () => {
     expect(button(T.save).disabled).toBe(true)
     expect(onAuthFailure).not.toHaveBeenCalled()
     expect(onLeave).not.toHaveBeenCalled()
-    expect(mockedSave.mock.calls).toEqual([[body]])
+    expect(mockedSave).toHaveBeenCalledTimes(1)
+    expectSavedWith(0, body, undefined)
     expect(mockedGet).toHaveBeenCalledTimes(1)
     expect(localStorage.length).toBe(0)
   })

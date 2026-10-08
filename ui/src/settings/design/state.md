@@ -11,8 +11,8 @@
 
 | 상태 | 용도 | 타입 | 초기값 | 소유 |
 |---|---|---|---|---|
-| `state` | 로드·초안·저장·stale | `SettingsState`(§2.1) | `{ phase: 'loading' }` | `useSettingsEditor`(`ui/src/settings/useSettingsEditor.ts`) 안 `useReducer(settingsReducer, INITIAL_SETTINGS_STATE)` |
-| `activeTab` | 보이는 탭 | `SettingsTab = 'world' \| CharacterId` | `'world'`(공통 세계관, 메인 세션 결정) | `useSettingsUi` 안 `useState` |
+| `state` | 로드·초안·(S3f) 모델 선택 초안 `modelDraft`·저장·stale | `SettingsState`(§2.1) | `{ phase: 'loading' }`(ready 진입 시 `modelDraft = response.model`) | `useSettingsEditor`(`ui/src/settings/useSettingsEditor.ts`) 안 `useReducer(settingsReducer, INITIAL_SETTINGS_STATE)` |
+| `activeTab` | 보이는 탭 | `SettingsTab = 'world' \| CharacterId` | `'world'`(「공통」 탭 — v1.3 이전 이름 「공통 세계관」, 메인 세션 결정) | `useSettingsUi` 안 `useState` |
 | `sheet` | 열린 시트 | `SettingsSheet = 'none' \| 'fileMenu' \| 'export' \| 'import' \| 'leave'`(`useSettingsUi.ts` export) | `'none'` | `useSettingsUi` 안 `useState` |
 | `toast` | 알림 줄 E | `ToastState` | `null` | `useToast()`(공용, rooms components.md §1.18) — SettingsScreen |
 | `isActiveRef` | 언마운트 뒤 응답 무시 | `MutableRefObject<boolean>` | `false` → 마운트 layout effect `true`, cleanup `false` | `useSettingsEditor` |
@@ -32,10 +32,12 @@
 
 ## 2. `ui/src/state/settings.ts`
 
+> **(v1.3 S3f) 파일 크기 규칙.** `ui/src/state/settings.ts`는 S3f 전 373줄이다. S3f 추가분(타입 2줄 · T-11 · S-16 · S-17 · T-02·T-05·T-08 한 줄씩)은 약 +17~20줄로 예상된다. prettier 적용 뒤 **400줄을 넘으면** S-15 `checkPatchedSettings`와 지역 함수 `patchCharacter`(약 21줄)를 `ui/src/state/settingsCandidate.ts`(293줄)로 옮긴다. 가져오기 전용 함수라 그 모듈의 책임과 맞는다. 옮기면 `settingsFile.ts`와 단위 테스트의 import 경로만 바뀌고 동작은 같다. 다른 분할은 하지 않는다.
+
 ### 2.1 타입
 
 ```ts
-import type { CharacterId, CharacterSettingFields, CharacterSettings, CharacterSettingsResponse } from '@shared/types'
+import type { CharacterId, CharacterSettingFields, CharacterSettings, CharacterSettingsResponse, LlmModelKey } from '@shared/types'   // LlmModelKey: S3f
 import type { ListFieldKey, SettingsCheckResult, TextFieldKey } from '@shared/settings'
 import type { ApiError } from '@/api'
 
@@ -61,8 +63,9 @@ export type SettingsState =
   | { readonly phase: 'error'; readonly error: ApiError }
   | {
       readonly phase: 'ready'
-      readonly base: CharacterSettingsResponse   // 마지막으로 읽거나 저장한 응답(기준값)
+      readonly base: CharacterSettingsResponse   // 마지막으로 읽거나 저장한 응답(기준값). S3f: base.model = 모델 기준값
       readonly draft: SettingsDraft
+      readonly modelDraft: LlmModelKey | null    // S3f: 모델 선택 초안. SettingsDraft 밖(D-ST-12). null = 미선택 판
       readonly isSaving: boolean
       readonly isStale: boolean                  // 저장 중 인증 실패 뒤. 되돌아가지 않는다(새로 고침만)
     }
@@ -79,6 +82,7 @@ export type SettingsAction =
   | { type: 'saveSucceeded'; response: CharacterSettingsResponse }
   | { type: 'saveFailed' }
   | { type: 'staleEntered' }
+  | { type: 'modelChanged'; value: LlmModelKey }   // S3f. null 로 바꾸는 액션은 없다(미선택으로 돌아가는 길은 reverted 뿐)
 
 export const INITIAL_SETTINGS_STATE: SettingsState = { phase: 'loading' }
 
@@ -112,19 +116,21 @@ export type ReadyState = Extract<SettingsState, { phase: 'ready' }>
 | S-08 | `fieldIssueOf(draft: SettingsDraft, ref: DraftFieldRef): FieldIssue \| null` | spec(`WORLD_FIELD_SPEC` 또는 `CHARACTER_FIELD_SPECS[key]`)으로 그 필드만 검사. 글: trim 후 코드 포인트 0 && required → `required`, `> max` → `tooLong`. 목록: S-02 결과 개수 `> maxItems` → `tooManyLines`, 아니면 첫 `> itemMax` 항목 → `lineTooLong(lineNo = 그 항목의 1부터 번호)` | 같은 판정 순서(형 → 길이·개수)를 따른다. 초안은 늘 문자열이라 형 오류는 없다 |
 | S-09 | `tabHasIssue(draft: SettingsDraft, tab: SettingsTab): boolean` | `'world'`면 world 필드, 캐릭터면 11필드 중 하나라도 S-08이 null이 아니면 true | 탭 `!` |
 | S-10 | `fieldCount(draft: SettingsDraft, ref: DraftFieldRef): { count: number; max: number; unit: 'chars' \| 'lines' }` | 글: `countCodePoints(normalizeText(v))` / `max`. 목록: `linesToList(v).length` / `maxItems` | 목록 필드 라벨 줄 카운터용. 글 필드 카운터는 공용 TextInput/TextArea가 `countChars`로 직접 그린다(같은 셈) |
-| S-11 | `canSaveSettings(state: SettingsState): boolean` | `phase === 'ready' && !isSaving && !isStale && isDraftDirty(draft, base.settings) && precheckDraft(draft).ok` | 메인 세션 결정(저장 활성 조건) |
-| S-12 | `canRevertSettings(state: SettingsState): boolean` | `phase === 'ready' && !isSaving && !isStale && isDraftDirty(…)` | stale에서 비활성(메인 세션 결정) |
+| S-11 | `canSaveSettings(state: SettingsState): boolean` | `phase === 'ready' && !isSaving && !isStale && hasUnsavedChanges(state) && precheckDraft(draft).ok` | 메인 세션 결정(저장 활성 조건). **(v1.3 S3f) `isDraftDirty` → `hasUnsavedChanges`(S-16)** — 모델만 바꿔도 저장 활성. 사전 검사는 본체만 한다 |
+| S-12 | `canRevertSettings(state: SettingsState): boolean` | `phase === 'ready' && !isSaving && !isStale && hasUnsavedChanges(state)` | stale에서 비활성(메인 세션 결정). (v1.3) S-16 사용 |
 | S-13 | `exportTargetOf(state: ReadyState): CharacterSettings` | `isStale ? normalizeDraft(draft) : base.settings` | R-SET-007 · R-SET-011. stale 초안은 상한을 넘었어도 그대로 내보낸다(보관이 목적) |
 | S-14 | `statusOf(state: ReadyState): SettingsStatus` | 아래 표 순서대로 첫 일치 | D 하단 줄 |
 | S-15 | `checkPatchedSettings(base: CharacterSettings, patch: SettingsPatch): SettingsCheckResult` | **재정의(v1.2):** `base`(마지막으로 읽거나 저장한 값) 위에 `patch` 위치만 덮은 새 객체를 만들어 `checkCharacterSettings`를 부른 결과를 그대로 돌려준다. 별도 필드 단위·상한 전용 검사는 없다(형·필수·상한·개수 모두 `checkCharacterSettings`, 문구는 api.md §4.16 표) | 가져오기 후보 검사(SF-05 ⑤) 전용. 정본 api.md §16.2 "후보 검사" |
+| S-16 | `hasUnsavedChanges(state: ReadyState): boolean` | `isDraftDirty(state.draft, state.base.settings) \|\| state.modelDraft !== state.base.model` | **(S3f 신규)** 미저장 변경 하나의 정의. S-11·S-12·S-14·F-ST-18(이탈 확인)이 쓴다. 모델 비교는 `===` 한 번(정규화 없음). ② 내보내기 안내만은 본체 `isDraftDirty`를 쓴다(D-ST-15) |
+| S-17 | `modelToSave(state: ReadyState): LlmModelKey \| undefined` | `state.modelDraft !== null && state.modelDraft !== state.base.model ? state.modelDraft : undefined` | **(S3f 신규)** 저장 둘째 인자(F-ST-09). 같으면 `undefined` → 래퍼가 본문에 `model` 키를 넣지 않는다(서버 저장값 유지). `null`은 보내지 않는다(계약상 400) — §2.3 불변식으로 "다르면 null 아님"이 성립하지만 조건에 `!== null`을 둬 타입을 좁힌다(`as` 금지) |
 `SettingsStatus = { kind: 'saving' } | { kind: 'stale' } | { kind: 'invalid'; message: string } | { kind: 'dirty' } | { kind: 'default' } | { kind: 'saved'; version: number; updatedAt: number }`
 
 | 순서 | 조건 | 결과 | 문구(requirements.md §5.3) · 색 |
 |---|---|---|---|
 | 1 | `isSaving` | `saving` | `저장 중...` muted |
 | 2 | `isStale` | `stale` | `인증 만료` danger |
-| 3 | dirty && 사전 검사 실패 | `invalid`(`issue.message`) | 첫 위반 문구 danger |
-| 4 | dirty | `dirty` | `저장하지 않은 변경 있음` warning |
+| 3 | `hasUnsavedChanges`(S-16) && 사전 검사 실패 | `invalid`(`issue.message`) | 첫 위반 문구 danger |
+| 4 | `hasUnsavedChanges`(S-16) | `dirty` | `저장하지 않은 변경 있음` warning — (v1.3) 모델만 바뀐 상태도 여기 |
 | 5 | `base.isDefault` 또는 `base.updatedAt === null` | `default` | `기본값 사용 중` muted |
 | 6 | 그 밖 | `saved` | `v{n} 저장됨 MM.DD HH:mm` muted |
 
@@ -135,18 +141,21 @@ export type ReadyState = Extract<SettingsState, { phase: 'ready' }>
 | # | 현재 | 액션 | 다음 | 비고 |
 |---|---|---|---|---|
 | T-01 | any | `loadStarted` | `{ phase: 'loading' }` | 다시 시도 |
-| T-02 | loading | `loadSucceeded` | `ready` · `base = response` · `draft = draftFromSettings(response.settings)` · `isSaving false` · `isStale false` | |
+| T-02 | loading | `loadSucceeded` | `ready` · `base = response` · `draft = draftFromSettings(response.settings)` · `modelDraft = response.model`(S3f) · `isSaving false` · `isStale false` | |
 | T-03 | loading | `loadFailed` | `{ phase: 'error', error }` | |
 | T-04 | ready, `!isSaving` | `worldChanged` · `characterFieldChanged` | `draft`의 그 필드만 새 값(나머지 참조 유지) | 저장 중이면 무시(입력은 readOnly) |
-| T-05 | ready, `!isSaving && !isStale` | `reverted` | `draft = draftFromSettings(base.settings)` | stale이면 무시 |
-| T-06 | ready, `!isSaving && !isStale` | `imported` | `patch`에 있는 위치만 초안을 바꾼다: 글 필드는 값 그대로, 목록 필드는 `listToLines`(S-01). 그 밖 위치는 초안 문자열 그대로(미저장 입력 보존) | 저장하지 않는다. stale이면 무시. 빈 patch는 오지 않는다(F-ST-17이 막는다) |
+| T-05 | ready, `!isSaving && !isStale` | `reverted` | `draft = draftFromSettings(base.settings)` · `modelDraft = base.model`(S3f) | stale이면 무시 |
+| T-06 | ready, `!isSaving && !isStale` | `imported` | `patch`에 있는 위치만 초안을 바꾼다: 글 필드는 값 그대로, 목록 필드는 `listToLines`(S-01). 그 밖 위치는 초안 문자열 그대로(미저장 입력 보존). **`modelDraft`는 그대로**(S3f, R-SET-007 개정) | 저장하지 않는다. stale이면 무시. 빈 patch는 오지 않는다(F-ST-17이 막는다) |
 | T-07 | ready, `!isSaving && !isStale` | `saveStarted` | `isSaving = true` | |
-| T-08 | ready, `isSaving` | `saveSucceeded` | `base = response` · `draft = draftFromSettings(response.settings)` · `isSaving false` | 서버 정규화 값으로 초안·기준값을 함께 맞춘다(api.md 「ui 인계 메모」 S3c) |
-| T-09 | ready, `isSaving` | `saveFailed` | `isSaving = false` | 초안 유지 |
-| T-10 | ready | `staleEntered` | `isSaving = false` · `isStale = true` | 초안 유지(R-SET-011) |
+| T-08 | ready, `isSaving` | `saveSucceeded` | `base = response` · `draft = draftFromSettings(response.settings)` · `modelDraft = response.model`(S3f) · `isSaving false` | 서버 정규화 값으로 초안·기준값을 함께 맞춘다(api.md 「ui 인계 메모」 S3c). 모델만 저장해도 같다(D-ST-13) |
+| T-09 | ready, `isSaving` | `saveFailed` | `isSaving = false` | 초안·`modelDraft` 유지 |
+| T-10 | ready | `staleEntered` | `isSaving = false` · `isStale = true` | 초안·`modelDraft` 유지(R-SET-011) |
+| T-11 | ready, `!isSaving` | `modelChanged` | `modelDraft = value`. `value === modelDraft`면 같은 참조 반환 | **(S3f 신규)** stale에서도 반영한다(T-04 편집과 같은 규칙 — 입력은 계속 가능, 저장만 막힘). 저장 중이면 무시(라디오 `disabled`) |
 | — | 그 밖 조합 | 아무 액션 | 같은 참조 반환 | 늦은 응답 방어 |
 
 - 리듀서는 새 객체만 만든다(불변). `ready` 이외에서 편집 액션이 오면 그대로 반환한다.
+- (S3f) 불변식: `modelDraft === base.model || modelDraft !== null`. `modelDraft`를 `null`로 만드는 전이는 T-02·T-05·T-08뿐이고 셋 다 `base.model`과 같은 값을 넣는다. 그래서 "모델이 다르다"면 `modelDraft`는 늘 키다(S-17).
+- (S3f) 상태 전이 요약(s3f-02 §5.2와 같다): `loadSucceeded`·`saveSucceeded` → `response.model` · `modelChanged` → 값 교체 · `reverted` → `base.model` · `imported`·`saveFailed`·`staleEntered` → 유지.
 
 ### 2.4 쓰는 곳
 
@@ -156,10 +165,24 @@ export type ReadyState = Extract<SettingsState, { phase: 'ready' }>
 | S-08 · S-09 · S-10 | FormField 안내 줄 · Tabs `!` · 목록 필드 카운터 |
 | S-13 | ExportSheet |
 | S-15 · `base.settings` | `parseImportFile`(SF-05 ⑤) — 기준값 위 후보 검사. `submitImport`(F-ST-17)가 `base.settings`를 넘긴다 |
+| S-16 (S3f) | S-11 · S-12 · S-14 · `useSettingsUi.requestBack`(F-ST-18 이탈 확인) |
+| S-17 (S3f) | `saveSettings`(F-ST-09) — `saveCharacterSettings` 둘째 인자 |
+| `modelDraft` (S3f) | ReadyBody → ModelChoice `value`(components.md §3.11) |
 
 ### 2.5 한계
 
 - L-1: 서버 값의 목록 항목 안에 줄바꿈이 있으면(가져오기·다른 클라이언트) 초안에서는 줄마다 다른 항목이 된다. S-06이 기준값도 같은 왕복을 거쳐 비교하므로 열자마자 dirty가 되지는 않는다. 그 상태에서 다른 필드를 고쳐 저장하면 그 항목은 줄 단위로 나뉘어 저장된다("한 줄에 하나" 규칙과 같은 결과).
+
+### 2.6 모델 선택과 파일 기능의 경계 (S3f 불변식, R-SET-007 개정)
+
+비유: 모델 선택은 대본이 아니라 극장의 조명 스위치다. 대본 복사본(내보내기)에는 스위치 위치가 적히지 않고, 남의 대본을 옮겨 적어도(가져오기) 스위치는 움직이지 않는다.
+
+| # | 불변식 | 보장 수단 | TC |
+|---|---|---|---|
+| M-1 | 내보내기 파일에 모델 키가 없다 | SF-01 `toExportFile(settings: CharacterSettings, now)` 입력에 모델이 없다. S-13 `exportTargetOf`는 `base.settings` 또는 `normalizeDraft(draft)`만 돌려준다. **코드 변경 없음** | TC-ST-049 · 034 |
+| M-2 | 가져오기로 모델이 바뀌지 않는다 | SF-05~10은 `CharacterSettings` 화이트리스트만 읽고 `SettingsPatch`에 모델 자리가 없다. T-06은 `modelDraft`를 건드리지 않는다. 파일 안 `model` 키는 화이트리스트 밖이라 무시 계수에도 안 잡힌다. **코드 변경 없음** | TC-ST-050 · 051 |
+| M-3 | 사전 검사는 본체만 본다 | S-07 `precheckDraft(draft)` 입력은 `SettingsDraft`. 모델 값은 두 키 중 하나만 들어올 수 있어 검사할 것이 없다 | TC-ST-051 |
+| M-4 | `settingsFile.ts`·`settingsCandidate.ts`는 `LlmModelKey`를 import하지 않는다 | 리뷰 grep(0건) | TC-ST-036 확장 권고 |
 
 ---
 

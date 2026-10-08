@@ -1,5 +1,5 @@
 /**
- * 캐릭터 설정 화면 상태 — 설계 settings/design/state.md §2 · 요구 R-SET-009 · R-SET-002 · R-SET-005 · R-SET-011
+ * 캐릭터 설정 화면 상태 — 설계 settings/design/state.md §2 · 요구 R-SET-009 · R-SET-002 · R-SET-005 · R-SET-011 · R-SET-013
  * 비유: 초안은 연필로 쓴 원고, 기준값은 마지막으로 인쇄해 둔 원고다. 되돌리기는 연필 원고를 지우고 인쇄본을 다시 베껴 쓰는 것이다.
  * 순수 TS(React·DOM 없음). 입력을 바꾸지 않고 새 객체만 만든다. 검사 규칙은 @shared/settings 단일 소스(서버 400 과 같은 문구).
  */
@@ -16,6 +16,7 @@ import type {
   CharacterSettingFields,
   CharacterSettings,
   CharacterSettingsResponse,
+  LlmModelKey,
 } from '@shared/types'
 import type { ApiError } from '@/api'
 
@@ -59,6 +60,8 @@ export type SettingsState =
       /** 마지막으로 읽거나 저장한 응답(기준값) */
       readonly base: CharacterSettingsResponse
       readonly draft: SettingsDraft
+      /** (S3f) 모델 선택 초안. 본체 초안(SettingsDraft) 밖에 둔다(D-ST-12). null = 미선택 판 */
+      readonly modelDraft: LlmModelKey | null
       readonly isSaving: boolean
       /** 저장 중 인증 실패 뒤. 되돌아가지 않는다(새로 고침만) */
       readonly isStale: boolean
@@ -84,6 +87,7 @@ export type SettingsAction =
   | { type: 'saveSucceeded'; response: CharacterSettingsResponse }
   | { type: 'saveFailed' }
   | { type: 'staleEntered' }
+  | { type: 'modelChanged'; value: LlmModelKey }
 
 export const INITIAL_SETTINGS_STATE: SettingsState = { phase: 'loading' }
 
@@ -213,15 +217,21 @@ export const fieldCount = (draft: SettingsDraft, ref: DraftFieldRef): FieldCount
 const isEditable = (state: SettingsState): state is ReadyState =>
   state.phase === 'ready' && !state.isSaving && !state.isStale
 
+/** S-16(S3f): 미저장 변경 = 본체 dirty 또는 모델 선택이 기준값과 다름. 저장·되돌리기·하단 줄·이탈 확인이 쓴다 */
+export const hasUnsavedChanges = (state: ReadyState): boolean =>
+  isDraftDirty(state.draft, state.base.settings) || state.modelDraft !== state.base.model
+
+/** S-17(S3f): 저장 둘째 인자. 기준값과 다를 때만 키, 같으면 undefined(서버 저장값 유지). null 은 보내지 않는다 */
+export const modelToSave = (state: ReadyState): LlmModelKey | undefined =>
+  state.modelDraft !== null && state.modelDraft !== state.base.model ? state.modelDraft : undefined
+
 /** S-12: stale 에서는 비활성(메인 세션 결정) */
 export const canRevertSettings = (state: SettingsState): boolean =>
-  isEditable(state) && isDraftDirty(state.draft, state.base.settings)
+  isEditable(state) && hasUnsavedChanges(state)
 
-/** S-11: dirty && 사전 검사 통과 && !saving && !stale */
+/** S-11: 미저장 변경(S-16) && 본체 사전 검사 통과 && !saving && !stale */
 export const canSaveSettings = (state: SettingsState): boolean =>
-  isEditable(state) &&
-  isDraftDirty(state.draft, state.base.settings) &&
-  precheckDraft(state.draft).ok
+  isEditable(state) && hasUnsavedChanges(state) && precheckDraft(state.draft).ok
 
 /** S-13: 평소 기준값, stale 이면 정규화 초안(상한을 넘었어도 그대로 — 보관이 목적) */
 export const exportTargetOf = (state: ReadyState): CharacterSettings =>
@@ -239,7 +249,7 @@ export type SettingsStatus =
 export const statusOf = (state: ReadyState): SettingsStatus => {
   if (state.isSaving) return { kind: 'saving' }
   if (state.isStale) return { kind: 'stale' }
-  if (isDraftDirty(state.draft, state.base.settings)) {
+  if (hasUnsavedChanges(state)) {
     const check = precheckDraft(state.draft)
     return check.ok ? { kind: 'dirty' } : { kind: 'invalid', message: check.issue.message }
   }
@@ -324,7 +334,9 @@ const reduceReady = (state: ReadyState, action: SettingsAction): SettingsState =
         ? state
         : { ...state, draft: draftWithField(state.draft, action.id, action.key, action.value) }
     case 'reverted':
-      return canEdit ? { ...state, draft: draftFromSettings(state.base.settings) } : state
+      return canEdit
+        ? { ...state, draft: draftFromSettings(state.base.settings), modelDraft: state.base.model }
+        : state
     case 'imported':
       return canEdit ? { ...state, draft: patchDraft(state.draft, action.patch) } : state
     case 'saveStarted':
@@ -335,6 +347,7 @@ const reduceReady = (state: ReadyState, action: SettingsAction): SettingsState =
             ...state,
             base: action.response,
             draft: draftFromSettings(action.response.settings),
+            modelDraft: action.response.model,
             isSaving: false,
           }
         : state
@@ -342,6 +355,10 @@ const reduceReady = (state: ReadyState, action: SettingsAction): SettingsState =
       return state.isSaving ? { ...state, isSaving: false } : state
     case 'staleEntered':
       return { ...state, isSaving: false, isStale: true }
+    case 'modelChanged':
+      return state.isSaving || state.modelDraft === action.value
+        ? state
+        : { ...state, modelDraft: action.value }
     default:
       return state
   }
@@ -355,6 +372,7 @@ const reduceLoading = (state: SettingsState, action: SettingsAction): SettingsSt
       phase: 'ready',
       base: response,
       draft: draftFromSettings(response.settings),
+      modelDraft: response.model,
       isSaving: false,
       isStale: false,
     }
@@ -363,7 +381,7 @@ const reduceLoading = (state: SettingsState, action: SettingsAction): SettingsSt
 }
 
 /**
- * 리듀서 T-01 ~ T-10. 새 객체만 만든다. 맞지 않는 상태·액션 조합은 같은 참조를 돌려준다(늦은 응답 방어).
+ * 리듀서 T-01 ~ T-11. 새 객체만 만든다. 맞지 않는 상태·액션 조합은 같은 참조를 돌려준다(늦은 응답 방어).
  * 저장 중에는 편집을 무시하고, stale 에서는 되돌리기·가져오기·저장 시작을 무시한다.
  */
 export const settingsReducer = (state: SettingsState, action: SettingsAction): SettingsState => {

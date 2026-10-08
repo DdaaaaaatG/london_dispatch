@@ -48,19 +48,32 @@ export const BASE_SETTINGS: CharacterSettings = {
 /** 저장값 기준 시각 2026-10-06 14:20(로컬) */
 export const SAVED_AT = new Date(2026, 9, 6, 14, 20).getTime()
 
+/**
+ * (S3f) CharacterSettingsResponse.model 이 필수다(api.md v0.8 §4.15). 기준 픽스처는 'pro'(design.md §2.3 선택 판 캡션 기준값).
+ * 세 판 렌더(TC-ST-042)용으로 FLASH_RESPONSE · UNSET_RESPONSE 를 둔다.
+ */
 export const SAVED_RESPONSE: CharacterSettingsResponse = {
   settings: BASE_SETTINGS,
   version: 3,
   updatedAt: SAVED_AT,
   isDefault: false,
+  model: 'pro',
 }
 
+/** 시드 상태(isDefault true). 서버 기본 모델이 후보 안이면 model 은 키다(D-ST-14) — TC-ST-048 기준 'pro' */
 export const DEFAULT_RESPONSE: CharacterSettingsResponse = {
   settings: BASE_SETTINGS,
   version: 0,
   updatedAt: null,
   isDefault: true,
+  model: 'pro',
 }
+
+/** (S3f) 지금 쓰는 모델 = Flash */
+export const FLASH_RESPONSE: CharacterSettingsResponse = { ...SAVED_RESPONSE, model: 'flash' }
+
+/** (S3f) 미선택 판 — 서버 기본값이 두 후보 밖(model: null, D-ST-14) */
+export const UNSET_RESPONSE: CharacterSettingsResponse = { ...SAVED_RESPONSE, model: null }
 
 /** 하단 줄 D clean 문구(SAVED_RESPONSE) */
 export const STATUS_SAVED = 'v3 저장됨 10.06 14:20'
@@ -71,7 +84,14 @@ export const T = {
   back: '뒤로',
   fileMenu: '설정 파일 메뉴',
   tabList: '설정 묶음',
-  tabWorld: '공통 세계관',
+  tabWorld: '공통', // (S3f v1.1) 「공통 세계관」 → 「공통」(R-SET-009 개정). 탭 id 'world' 는 그대로
+  modelLegend: 'AI 모델',
+  modelPro: 'Pro',
+  modelProDesc: '더 정교하지만 느리고 비용이 큼',
+  modelFlash: 'Flash',
+  modelFlashDesc: '빠르고 비용이 적음',
+  modelNoteSelected: '저장하면 다음 대답부터 이 모델을 씁니다.',
+  modelNoteUnset: '아직 고르지 않았습니다. 지금은 서버 기본 모델을 씁니다.',
   tabSeb: '세바스찬',
   tabCiel: '시엘',
   issueSuffix: ', 확인할 항목 있음',

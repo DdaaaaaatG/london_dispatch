@@ -1,6 +1,6 @@
 /**
  * useSettingsEditor — 설계 settings/design/functions.md §1 · F-ST-02 ~ F-ST-05 · F-ST-09 · F-ST-10 (함수 50줄 한계 때문에 읽기·저장 훅으로 나눴다)
- * 요구: R-SET-004 · R-SET-005 · R-SET-009 · R-SET-010 · R-SET-011 · R-CHAT-011 · R-SET-001
+ * 요구: R-SET-004 · R-SET-005 · R-SET-009 · R-SET-010 · R-SET-011 · R-CHAT-011 · R-SET-001 · R-SET-013
  * 리듀서(ui/src/state/settings.ts)·설정 읽기·저장·실패 분기·언마운트 뒤 응답 무시를 소유한다. 전이 규칙은 리듀서에만 있다.
  * 요청은 @/api 래퍼만 부른다(Authorization 헤더는 래퍼가 붙인다 — 화면은 토큰을 모른다). 래퍼는 throw 하지 않는다.
  * 콜백·상태는 latestRef 로 읽는다(매 렌더 layout effect 로 갱신) — 요청 함수 identity 가 렌더마다 바뀌지 않는다.
@@ -12,6 +12,7 @@ import type { ToastProps, ToastTone } from '@/components/ui/Toast'
 import {
   INITIAL_SETTINGS_STATE,
   canSaveSettings,
+  modelToSave,
   precheckDraft,
   settingsReducer,
 } from '@/state/settings'
@@ -111,7 +112,10 @@ const useSaveAction = (
   )
 
   const saveInFlightRef = useRef(false)
-  /** 저장 본문 = 사전 검사를 통과한 정규화 값. 같은 틱 연타는 saveInFlightRef 가 막는다 */
+  /**
+   * 저장 본문 = 사전 검사를 통과한 정규화 값. (S3f) 둘째 인자 = 모델이 기준값과 다를 때만 키, 같으면 undefined(S-17).
+   * 같은 틱 연타는 saveInFlightRef 가 막는다
+   */
   return useCallback(async (): Promise<void> => {
     const current = latestRef.current.state
     if (saveInFlightRef.current || current.phase !== 'ready' || !canSaveSettings(current)) return
@@ -119,7 +123,7 @@ const useSaveAction = (
     if (!check.ok) return
     saveInFlightRef.current = true
     dispatch({ type: 'saveStarted' })
-    const result = await saveCharacterSettings(check.value)
+    const result = await saveCharacterSettings(check.value, modelToSave(current))
     saveInFlightRef.current = false
     if (!isActiveRef.current) return
     if (!result.ok) {
