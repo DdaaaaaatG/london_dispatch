@@ -26,7 +26,7 @@ KRW_PER_USD = "1400"                        # S3b 원/달러 환율
 [[d1_databases]]
 binding = "DB"
 database_name = "london-dispatch"
-database_id = "00000000-0000-0000-0000-000000000000"   # 자리표시. S5에서 `wrangler d1 create london-dispatch` 결과로 교체
+database_id = "a1fd3686-6dd4-4586-a045-da5ecb16543b"      # 운영 D1 (2026-10-08 wrangler d1 create, 지인 계정)
 migrations_dir = "migrations"
 
 # 정적 화면 — ui 빌드 산출물을 /embed 로 서빙 (R-API-006)
