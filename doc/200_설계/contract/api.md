@@ -1,6 +1,7 @@
 # API 계약 (api.md)
 
-- 상태: **초안 v0.8.1** · 최종 갱신 2026-10-08 · 소유 contract-designer
+- 상태: **초안 v0.8.2** · 최종 갱신 2026-10-08 · 소유 contract-designer
+- (v0.8.2) 2026-10-08 저녁 등급 개편(🔒 사용자 결정, 갠홈 등급: 방문자·가입만 1 이하 / 일반 회원 2 / 관리자 10). 글쓰기(토큰 발급) 등급 5 → **10**(갠홈 PHP `RB_CHATBOT_LEVEL` = 서버 `TOKEN_MIN_LEVEL`, 양쪽 10) · 열람 등급 **2**(`RB_CHATBOT_VIEW_LEVEL`, 갠홈 PHP만 앎 — 미만·비로그인은 PHP가 임베드 주소를 비워 iframe을 띄우지 않고 패널 자리표시에 가입 안내). §2.3 검증 6단계 운영값 · §2.6 PHP 분기 · §7 행 · §9. 서버 코드·엔드포인트·타입·에러 코드·토큰 형식·`?t=` 불변. 저쪽은 새 완성 파일 1회 덮어쓰기(조각 + 자리표시 3줄).
 - (v0.8.1) 2026-10-08 운영 배포 반영(§7 운영 주소 행 · §8 전달 방식 메모 · §9). 운영 주소 `https://london-dispatch.pora.workers.dev`(임베드 `…/embed`). 갠홈 전달은 완성 `rosebell-chatbot.php` 1개 카톡 덮어쓰기로 바뀌고(1회성 링크 폐기), Cloudflare 접근은 사용자 직접 로그인. 계약 내용(엔드포인트·타입·에러 코드·토큰 형식·PHP 조각 코드) 변경 없음.
 - (v0.8) **S3f 상세 확정**(구현 전) = 설정 화면에서 AI 모델(Pro / Flash) 선택. E15·E16 **확장**: 응답 `model: LlmModelKey | null`(지금 실제로 쓰는 모델의 키, 서버 기본 모델이 두 후보 밖이면 `null`, §4.15) · 본문 `model?`(없으면 저장값 유지, `null`·그 밖 값은 `400` `공통 · AI 모델 값이 올바르지 않습니다.`, `settings` 검사 뒤, §4.16) · shared `LlmModelKey`·`LLM_MODEL_KEYS`·`SETTINGS_MODEL_INVALID_MESSAGE`(§5.8.6) · 내보내기 파일 제외(§16.1) · §1.4 · §8 · §10 · §11.17 · §12.7(예정) · §13.7 · §14.21 · §15.15 · 「ui 인계 메모」 S3f · 「contract-implementer 인계 목록」 S3f. 모델명·단가는 계약에 싣지 않는다(server만 안다). 엔드포인트 16개·에러 코드 15종·토큰 형식·PHP 조각 불변이고 분류는 전부 추가(비파괴). 입력: `requirements.md` R-SET-004·005·007·012(2026-10-08 S3f 개정) · R-SET-013 · R-LLM-009(신규), `doc/200_설계/architecture/s3f-02-전반설계.md` §2·§4·§6·§9·§10, `s3f-03-인계패킷.md` §1.2·§2.
 - (v0.7.2) S5 handoff 4문서 작성·보정(§8 · §9). 계약 내용 변경 없음.
@@ -202,7 +203,7 @@ type TokenPayload = {
 | 3 | **서명**: Web Crypto HMAC-SHA256 계산 후 상수시간 비교(`timingSafeEqual`) | `401 TOKEN_INVALID` |
 | 4 | UTF-8(fatal) → `JSON.parse` → payload 스키마(위 표). 서명 전에는 JSON을 해석하지 않는다 | `401 TOKEN_INVALID` |
 | 5 | **만료**: `nowMs < exp × 1000`일 때만 유효(같으면 만료). 시계 여유 없음 | `401 TOKEN_INVALID` |
-| 6 | **등급**: `level >= TOKEN_MIN_LEVEL`(기본 5, `wrangler.toml [vars]`) | `403 LEVEL_TOO_LOW` |
+| 6 | **등급**: `level >= TOKEN_MIN_LEVEL`(코드 기본 5, `wrangler.toml [vars]`. (v0.8.2) **운영값 10** — 2026-10-08 저녁 사용자 결정, 갠홈 PHP `RB_CHATBOT_LEVEL`과 같은 값) | `403 LEVEL_TOO_LOW` |
 
 - 응답 문구는 실패 단계와 무관하게 코드별 기본 문구 하나다(§3.2). 어느 단계에서 실패했는지 응답에 싣지 않는다.
 - 만료가 등급보다 먼저다. 만료된 저등급 토큰은 `TOKEN_INVALID`다.
@@ -267,6 +268,16 @@ V7  eyJtYl9pZCI6InRlc3RlcjAxIiwibmljayI6Ilx1ZDE0Y1x1YzJhNFx1ZDEzMCIsImNoX25hbWUi
 - `doc/handoff/token-snippet.php.md`는 **이 절(§2.2·§2.3·§2.5)을 따른다.** 붙일 위치는 `theme/victorian/inc/rosebell-chatbot.php`, iframe src는 `$rb_chatbot_embed_url . '?t=' . $token`이다(R-TOKEN-001).
 - PHP 조각이 지킬 것: 로그인 회원이고 `$member['mb_level'] >= LEVEL`일 때만 발급, `level`은 `(int)` 캐스트, `exp = time() + 43200`, `ch_name` 키는 값이 없어도 `''`로 넣는다, 권장 플래그 `JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES`, base64url 무패딩, 비회원·저등급이면 `?t=` 없이 임베드 주소만.
 - 이 절의 형식·payload 필드·`?t=` 이름을 바꾸면 저쪽 PHP 재적용이 필요한 **파괴 변경**이다(§8·§13).
+- (v0.8.2, 2026-10-08 저녁 🔒 사용자 결정) PHP 조각은 보는 사람 등급으로 **세 갈래**를 나눈다. 비로그인이면 등급 0으로 본다(`$is_member` 비어 있음).
+
+| 보는 사람 | PHP 조각 | iframe | 서버가 보는 것 |
+|---|---|---|---|
+| 비로그인 · `mb_level < RB_CHATBOT_VIEW_LEVEL`(2) | `$rb_chatbot_embed_url = ''` + 패널 자리표시 문구를 가입 안내로(`$rb_chatbot_notice_title/body/small`) | 만들지 않는다(테마 JS가 빈 주소면 생략) | 요청 없음 |
+| 2 이상 `RB_CHATBOT_LEVEL`(10) 미만 | 주소만(`?t=` 없음) | 읽기 전용 | 토큰 없는 읽기(§2.1) |
+| 로그인 · `mb_level >= RB_CHATBOT_LEVEL`(10) | 토큰 발급 → `?t=` 부착(조건·형식은 위 bullet 그대로) | 글쓰기 가능 | §2.3 검증, `TOKEN_MIN_LEVEL` 10 |
+
+- 열람 등급(`RB_CHATBOT_VIEW_LEVEL`)은 **갠홈 PHP만** 안다. 토큰 payload·서명·`?t=`·서버 설정에 들어가지 않으므로 이 분기는 토큰 형식 변경이 아니다(파괴 변경 아님). 서버 `/embed`·읽기 엔드포인트는 계속 토큰 없이 열린다(§2.1, R-AUTH-003) — 갠홈 패널의 표시 제한이지 서버 접근 통제가 아니다.
+- `RB_CHATBOT_LEVEL`과 `TOKEN_MIN_LEVEL`은 같은 값(10)이어야 한다. 어긋날 때의 결과는 handoff `token-snippet.php.md` §3. 조각 전문·조립 순서(자리표시 3줄 치환 포함)는 같은 문서 §1·§2가 원문이다.
 
 ### 2.7 설정 엔드포인트 예외·주인 판정 (S3c 확정 — R-AUTH-003 🔒 개정 · R-SET-001 🔒 · R-SET-004 🔒 · R-SET-010)
 
@@ -2039,6 +2050,7 @@ export type PutMemoryBody = {
 | 로컬 개발 | Vite(5173)가 `/embed/`를 서빙하고 `/api`를 Worker(3000)로 프록시. CSP 확인은 `wrangler dev`·운영에서 | index.md §9.4 |
 | 라우트 금지 | routes는 CSP·`X-Frame-Options`를 다루지 않고 `hono/secure-headers`·`hono/cors`·`hono/logger`를 쓰지 않는다 | index.md §9.1 |
 | `?t=` (S2) | 서버는 읽지 않는다. 화면 `ui/src/state/token.ts`가 시작 시 한 번 읽어 메모리에 둔다(§2.4). 파라미터 이름 `t`는 저쪽 PHP와의 계약이다 | R-API-003 · R-CHAT-009 · R-TOKEN-001 |
+| 갠홈 패널 표시 분기 (v0.8.2) | 갠홈 PHP가 등급으로 정한다(§2.6 표): 비로그인·등급 2 미만 → 임베드 주소를 비워 **iframe 없음** + 패널 자리표시에 가입 안내(「회원 전용」, 문구는 handoff 소유) / 2 이상 10 미만 → `/embed`(읽기 전용) / 10 이상 → `/embed?t=…`. 서버·`/embed`·CSP는 이 분기를 모르고 바뀌지 않는다. `/embed` 주소를 직접 여는 사람은 등급과 무관하게 읽기 전용으로 본다 | 2026-10-08 저녁 사용자 결정 🔒 · R-TOKEN-001 · R-HANDOFF-001·002 |
 
 ---
 
@@ -2096,6 +2108,7 @@ export type PutMemoryBody = {
 | v0.8 | 2026-10-08 | S3f 상세 확정(R-SET-004·005·007·012 S3f 개정 · R-SET-013 · R-LLM-009 신규의 contract 몫, 승인 ① 2026-10-08). E15 응답 `model: LlmModelKey \| null`(지금 쓰는 모델 키, 후보 밖 `null`, 응답 키 4 → 5, §4.15), E16 본문 `model?`(없으면 유지, `null`·그 밖 `400` `공통 · AI 모델 값이 올바르지 않습니다.`, 판정 6 안 `settings` 다음)·부수 효과(같은 행 `llm_model`, 다음에 시작하는 생성·화자 선택·요약부터)·로그 `settings_saved{mbId, version, model}`(§4.16), §5.8.6 `LlmModelKey`·`LLM_MODEL_KEYS`·`SETTINGS_MODEL_INVALID_MESSAGE`·타입 2곳, §16.1·§16.4 내보내기 제외, §1.4 · §8 · §10 · §11.17 · §12.7(예정) · §13.7 · §14.21(API-T-094 갱신 · 126 ~ 131 · API-T-UI-033 · 034) · §15.15 · 인계 2종 S3f. handoff 설정값 안내(`cloudflare-setup.md` · `secret-handover.md` · `embed-guide.md`). 모델명·단가 비노출. 엔드포인트 16·에러 코드 15·경로·토큰 형식·PHP 조각 불변 | 추가(응답 필드 1·선택 본문 필드 1·shared export 3·400 문구 1. 기존 요청은 그대로 통과하고 기존 응답 키·status·문구 불변 — 근거 §13.7) | 아니오(PHP 조각·토큰·`?t=`·임베드 주소 불변) |
 | v0.8 구현 | 2026-10-08 | contract 몫 구현 반영: shared `LlmModelKey` · `LLM_MODEL_KEYS` · `SETTINGS_MODEL_INVALID_MESSAGE`, `schemas.ts` `model` 필드 · `settingsIssueMessage` 순서, `routes/settings.ts` 셋째 인자, `ui/api/settings.ts` `saveCharacterSettings(settings, model?)`, 테스트 API-T-126 ~ 131 · UI-033 · 034, §12.7 갱신. 엔드포인트·에러 코드·토큰 형식 변경 없음 | 구현 반영(계약 변경 없음) | 아니오 |
 | v0.8.1 | 2026-10-08 | 운영 배포 반영. §7 운영 주소 행(`https://london-dispatch.pora.workers.dev`, 헬스·`/embed` 200·CSP 확인), §8 전달 방식 메모(완성 `rosebell-chatbot.php` 1개 카톡 덮어쓰기·1회성 링크 폐기·Cloudflare 직접 로그인). handoff 4문서 갱신(`embed-guide.md` 지인 요약·§1·§2 · `token-snippet.php.md` 지인 요약·§1 조립 순서·§3·§6·§7 · `secret-handover.md` 지인 요약·§2 카톡 전달 규칙·§5 API 키 직접 입력·§6·§7·§8 · `cloudflare-setup.md` §0·§1 직접 로그인·§1.1 초대 대안·§3~§8 완료 표시·§9·§10). 엔드포인트·타입·에러 코드·토큰 형식·PHP 조각 코드 불변 | 변경 없음(운영값 기록·전달 절차) | 아니오(첫 적용 — 완성 파일 1회 덮어쓰기) |
+| v0.8.2 | 2026-10-08 | 등급 개편(🔒 사용자 결정, 갠홈 등급 1 이하 / 2 / 10). 글쓰기 등급 5 → 10(PHP `RB_CHATBOT_LEVEL` = 서버 `TOKEN_MIN_LEVEL` 운영값, §2.3 6단계) · PHP 조각 3갈래 분기 신설(`RB_CHATBOT_VIEW_LEVEL` 2 — 미만·비로그인은 주소를 비워 iframe 없음 + 패널 가입 안내, §2.6 · §7). handoff `token-snippet.php.md` §1 조립 순서(자리표시 3줄 치환 추가, 조립 뒤 88줄)·§2 조각 전문(55줄)·§2.1·§3·§6·§7, `embed-guide.md` §1·§4·§5.1·§6(세 등급 확인표), `secret-handover.md` §2, `cloudflare-setup.md` §6·§10. 서버 코드·엔드포인트·타입·에러 코드·토큰 형식(payload·서명·`?t=`)·교차 벡터 불변 | 비파괴(계약 값 변경 — 등급 운영값, 서버 설정만. 토큰 형식 불변) | **예 — 새 완성 파일 1회 덮어쓰기**(조각 + 자리표시 3줄. 토큰 형식 변경이 아니라 등급·열람 분기 때문) |
 
 ---
 
