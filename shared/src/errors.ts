@@ -1,4 +1,5 @@
 /**
+ * (S6) ROOM_LOCKED · ROOM_PASSWORD_WRONG = 17종 (api.md §5.10.2, R-LOCK-004 · R-LOCK-006)
  * 에러 코드 — 단일 소스 doc/200_설계/contract/api.md §3.2 (R-API-002)
  * 코드 1개 = HTTP status 1개. ERROR_MESSAGES 는 기본 문구(서버는 상황별 문구를 쓸 수 있다)
  */
@@ -17,6 +18,8 @@ export const ERROR_CODES = [
   'LLM_BUDGET_EXCEEDED',
   'CONFIG_INVALID',
   'OWNER_ONLY',
+  'ROOM_LOCKED',
+  'ROOM_PASSWORD_WRONG',
   'INTERNAL',
 ] as const
 
@@ -40,6 +43,8 @@ export const ERROR_STATUS: Readonly<Record<ErrorCode, ErrorStatus>> = {
   LLM_BUDGET_EXCEEDED: 429,
   CONFIG_INVALID: 500,
   OWNER_ONLY: 403,
+  ROOM_LOCKED: 403,
+  ROOM_PASSWORD_WRONG: 403,
   INTERNAL: 500,
 }
 
@@ -59,6 +64,8 @@ export const ERROR_MESSAGES: Readonly<Record<ErrorCode, string>> = {
   LLM_BUDGET_EXCEEDED: '이번 달 AI 사용 한도에 닿았습니다. 다음 달에 다시 시도해 주세요.',
   CONFIG_INVALID: '서버 설정이 올바르지 않습니다. 관리자에게 알려 주세요.',
   OWNER_ONLY: '캐릭터 설정은 갠홈 주인만 열 수 있습니다.',
+  ROOM_LOCKED: '이 방은 비밀번호로 잠겨 있습니다.',
+  ROOM_PASSWORD_WRONG: '비밀번호가 맞지 않습니다.',
   INTERNAL: '서버 내부 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.',
 }
 

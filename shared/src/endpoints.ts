@@ -26,6 +26,10 @@ export const PATHS = {
   characterSettings: `${API}/settings/characters`,
   /** GET · PUT 장기기억 (S4, R-MEM-001). GET 도 토큰 필요 */
   roomMemory: `${API}/rooms/:id/memory`,
+  /** POST 방 입장 (S6, R-LOCK-004). 토큰 선택, 관문 없음 */
+  roomEnter: `${API}/rooms/:id/enter`,
+  /** PUT 잠금 설정·변경 · DELETE 잠금 해제 (S6, R-LOCK-002). 토큰 필수 + 관문 */
+  roomPassword: `${API}/rooms/:id/password`,
 } as const
 
 /** :id 자리에 인코딩한 값을 넣는다 */
@@ -60,4 +64,11 @@ export const endpoints = {
   characterSettings: (): string => PATHS.characterSettings,
   /** (S4) GET · PUT 이 같이 쓴다 */
   roomMemory: (roomId: string): string => withId(PATHS.roomMemory, roomId),
+  /** (S6) */
+  roomEnter: (roomId: string): string => withId(PATHS.roomEnter, roomId),
+  /** (S6) PUT · DELETE 가 같이 쓴다 */
+  roomPassword: (roomId: string): string => withId(PATHS.roomPassword, roomId),
 } as const
+
+/** (S6) 입장 증명 요청 헤더 이름. 증명은 이 헤더로만 보낸다 — 쿼리·본문 금지 (api.md §2.8.1, R-LOCK-007) */
+export const ROOM_KEY_HEADER = 'X-Room-Key'

@@ -23,6 +23,8 @@ export type RoomSummary = {
   /** epoch ms. 메시지 추가·수정·삭제·재작성 시 갱신 (R-ROOM-005) */
   updatedAt: number
   messageCount: number
+  /** (S6) 비밀번호 잠금 여부. 비밀번호·해시·입장 증명은 어느 응답에도 없다 (R-LOCK-003 · R-LOCK-007) */
+  locked: boolean
 }
 
 /** 메시지 한 건 (R-MSG-001). 작성자 로그인 id 는 싣지 않는다 */
@@ -61,7 +63,24 @@ export type HealthResponse = {
 /** POST /api/rooms 본문 (R-ROOM-002). trim·1~60자 판정은 서버 (S2) */
 export type CreateRoomBody = {
   title: string
+  /** (S6) 선택. 있으면 코드 포인트 ROOM_PASSWORD_MIN~MAX, trim 없음, 빈 문자열도 위반 (R-LOCK-001) */
+  password?: string | undefined
 }
+
+/** (S6) E4 응답 — 비밀번호를 걸었으면 그 방의 입장 증명, 아니면 null (R-LOCK-001 · R-LOCK-004) */
+export type CreateRoomResponse = RoomSummary & { entryKey: string | null }
+
+/** (S6) E17 POST /api/rooms/:id/enter 본문 — password 키가 없을 때만 "없음"(주인 프리패스·조용한 입장) (R-LOCK-004) */
+export type EnterRoomBody = { password?: string | undefined }
+
+/** (S6) E17 응답 — null = 잠기지 않은 방 */
+export type EnterRoomResponse = { entryKey: string | null }
+
+/** (S6) E18 PUT /api/rooms/:id/password 본문 (R-LOCK-002) */
+export type SetRoomPasswordBody = { password: string }
+
+/** (S6) E18 응답 — 새 증명(옛 증명은 무효). E19 응답은 RoomSummary 그대로 */
+export type SetRoomPasswordResponse = { room: RoomSummary; entryKey: string }
 
 /** PATCH /api/rooms/:id 본문 (R-ROOM-003). 규칙은 CreateRoomBody 와 같다 (S2) */
 export type RenameRoomBody = {

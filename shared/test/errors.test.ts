@@ -17,13 +17,15 @@ const EXPECTED_STATUS = {
   LLM_BUDGET_EXCEEDED: 429,
   CONFIG_INVALID: 500,
   OWNER_ONLY: 403,
+  ROOM_LOCKED: 403,
+  ROOM_PASSWORD_WRONG: 403,
   INTERNAL: 500,
 } as const
 
 describe('API-T-040 error_table_matches_contract', () => {
-  it('코드 집합이 계약 15종과 같다', () => {
+  it('코드 집합이 계약 17종과 같다', () => {
     expect([...ERROR_CODES].sort()).toEqual(Object.keys(EXPECTED_STATUS).sort())
-    expect(ERROR_CODES).toHaveLength(15)
+    expect(ERROR_CODES).toHaveLength(17)
   })
 
   it('모든 코드에 status가 있고 계약 표와 같다', () => {
@@ -65,11 +67,24 @@ describe('API-T-048 errors_include_budget_exceeded', () => {
 })
 
 describe('API-T-049 errors_include_owner_only', () => {
-  it('CONFIG_INVALID 다음·INTERNAL 앞, 403, 계약 문구', () => {
+  it('CONFIG_INVALID 다음, 403, 계약 문구', () => {
     expect(ERROR_CODES.indexOf('OWNER_ONLY')).toBe(ERROR_CODES.indexOf('CONFIG_INVALID') + 1)
-    expect(ERROR_CODES[ERROR_CODES.indexOf('OWNER_ONLY') + 1]).toBe('INTERNAL')
+    expect(ERROR_CODES[ERROR_CODES.indexOf('OWNER_ONLY') + 1]).toBe('ROOM_LOCKED')
     expect(ERROR_STATUS.OWNER_ONLY).toBe(403)
     expect(ERROR_MESSAGES.OWNER_ONLY).toBe('캐릭터 설정은 갠홈 주인만 열 수 있습니다.')
     expect(isErrorCode('OWNER_ONLY')).toBe(true)
+  })
+})
+
+describe('API-T-040b errors_include_room_lock_codes (S6, R-LOCK-004 · R-LOCK-006)', () => {
+  it('OWNER_ONLY 다음 ROOM_LOCKED, ROOM_PASSWORD_WRONG, INTERNAL 앞 · 둘 다 403 · 계약 문구', () => {
+    const i = ERROR_CODES.indexOf('OWNER_ONLY')
+    expect(ERROR_CODES.slice(i + 1)).toEqual(['ROOM_LOCKED', 'ROOM_PASSWORD_WRONG', 'INTERNAL'])
+    expect(ERROR_STATUS.ROOM_LOCKED).toBe(403)
+    expect(ERROR_STATUS.ROOM_PASSWORD_WRONG).toBe(403)
+    expect(ERROR_MESSAGES.ROOM_LOCKED).toBe('이 방은 비밀번호로 잠겨 있습니다.')
+    expect(ERROR_MESSAGES.ROOM_PASSWORD_WRONG).toBe('비밀번호가 맞지 않습니다.')
+    expect(isErrorCode('ROOM_LOCKED')).toBe(true)
+    expect(isErrorCode('ROOM_PASSWORD_WRONG')).toBe(true)
   })
 })

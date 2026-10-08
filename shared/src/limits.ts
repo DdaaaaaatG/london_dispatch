@@ -18,3 +18,11 @@ export const countCodePoints = (s: string): number => [...s].length
 
 /** 판정·저장 전 정규화. 앞뒤 공백·줄바꿈만 지우고 중간은 그대로 둔다 */
 export const normalizeText = (s: string): string => s.trim()
+
+/** (S6) 방 비밀번호 코드 포인트 범위 — 화면 카운터·서버 판정 공용. trim 없음 (R-LOCK-001 · api.md §5.10.4) */
+export const ROOM_PASSWORD_MIN = 4
+export const ROOM_PASSWORD_MAX = 32
+/** (S6) E17 입장 시도 비밀번호 상한 — 해시 비용 상한, 넘으면 400 */
+export const ROOM_ENTER_PASSWORD_MAX = 64
+/** (S6) X-Room-Key 값 길이 상한 — 넘으면 무효(400 아님, 관문 결과 ROOM_LOCKED) */
+export const ROOM_KEY_MAX_LENGTH = 128

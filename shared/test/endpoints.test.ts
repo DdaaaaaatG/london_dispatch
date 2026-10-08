@@ -1,6 +1,6 @@
 /** [계약] api.md §14.2 API-T-042 · [요구] R-API-001, R-API-008 */
 import { describe, expect, it } from 'vitest'
-import { endpoints, PATHS } from '../src/endpoints'
+import { endpoints, PATHS, ROOM_KEY_HEADER } from '../src/endpoints'
 import type {
   ApiErrorBody,
   CreateRoomBody,
@@ -12,7 +12,7 @@ import type {
 } from '../src/types'
 
 describe('API-T-042 endpoints_build_paths_and_queries', () => {
-  it('PATHS 값 11개가 계약과 같다', () => {
+  it('PATHS 값 13개가 계약과 같다', () => {
     expect(PATHS).toEqual({
       embed: '/embed',
       health: '/api/health',
@@ -25,6 +25,8 @@ describe('API-T-042 endpoints_build_paths_and_queries', () => {
       messageRegenerate: '/api/messages/:id/regenerate',
       characterSettings: '/api/settings/characters',
       roomMemory: '/api/rooms/:id/memory',
+      roomEnter: '/api/rooms/:id/enter',
+      roomPassword: '/api/rooms/:id/password',
     })
   })
 
@@ -104,5 +106,18 @@ describe('API-T-124 room_memory_builder_encodes_id', () => {
   it('장기기억 경로는 방 id 를 인코딩한다', () => {
     expect(endpoints.roomMemory('r1')).toBe('/api/rooms/r1/memory')
     expect(endpoints.roomMemory('a b/c')).toBe('/api/rooms/a%20b%2Fc/memory')
+  })
+})
+
+describe('API-T-042b room_lock_builders_and_header (S6, R-LOCK-004 · R-LOCK-007)', () => {
+  it('roomEnter·roomPassword 빌더가 id를 인코딩한다', () => {
+    expect(endpoints.roomEnter('r1')).toBe('/api/rooms/r1/enter')
+    expect(endpoints.roomEnter('a b/c')).toBe('/api/rooms/a%20b%2Fc/enter')
+    expect(endpoints.roomPassword('r1')).toBe('/api/rooms/r1/password')
+    expect(endpoints.roomPassword('a b/c')).toBe('/api/rooms/a%20b%2Fc/password')
+  })
+
+  it('ROOM_KEY_HEADER 는 X-Room-Key', () => {
+    expect(ROOM_KEY_HEADER).toBe('X-Room-Key')
   })
 })

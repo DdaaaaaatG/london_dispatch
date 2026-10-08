@@ -5,6 +5,10 @@ import {
   MEMORY_SUMMARY_MAX,
   MESSAGE_TEXT_MAX,
   normalizeText,
+  ROOM_ENTER_PASSWORD_MAX,
+  ROOM_KEY_MAX_LENGTH,
+  ROOM_PASSWORD_MAX,
+  ROOM_PASSWORD_MIN,
   ROOM_TITLE_MAX,
 } from '../src/limits'
 
@@ -36,5 +40,14 @@ describe('API-T-046 limits_match_requirements_and_count_code_points', () => {
     expect(normalizeText('  a \n b \n')).toBe('a \n b')
     expect(normalizeText('\u3000x\u3000')).toBe('x')
     expect(normalizeText('   ')).toBe('')
+  })
+})
+
+describe('API-T-164 room_password_limits (S6, R-LOCK-001)', () => {
+  it('상수가 계약과 같다', () => {
+    expect(ROOM_PASSWORD_MIN).toBe(4)
+    expect(ROOM_PASSWORD_MAX).toBe(32)
+    expect(ROOM_ENTER_PASSWORD_MAX).toBe(64)
+    expect(ROOM_KEY_MAX_LENGTH).toBe(128)
   })
 })
