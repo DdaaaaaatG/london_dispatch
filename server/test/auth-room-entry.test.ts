@@ -175,7 +175,9 @@ describe('isOwnerRequest · requireRoomEntry', () => {
 
     verdict = null
     expect((await get(app, '/nokey')).status).toBe(500)
-    expect((await get(app, '/messages/abc')).status).toBe(500)
+    const before = calls.length
+    expect((await get(app, '/messages/abc')).status).toBe(200)
+    expect(calls.length).toBe(before)
   })
 })
 

@@ -3,6 +3,7 @@ import {
   LLM_MODEL_KEYS,
   SETTINGS_MODEL_INVALID_MESSAGE,
 } from '@shared/settings'
+import { countCodePoints, ROOM_ENTER_PASSWORD_MAX } from '@shared/limits'
 import type { CharacterId, SpeakTarget } from '@shared/types'
 import { z } from 'zod'
 import { characterSettingsSchema } from '../settings'
@@ -37,8 +38,25 @@ const toMessageId = (raw: string): number => (/^[0-9]+$/.test(raw) ? Number(raw)
 /** 경로 :id — 메시지 id */
 export const messageIdParam = z.object({ id: z.string().transform(toMessageId) })
 
-/** POST /api/rooms · PATCH /api/rooms/:id 본문. 타입만 — trim·1~60자는 서비스 */
+/** PATCH /api/rooms/:id (E5) 본문. 타입만 — trim·1~60자는 서비스. `password` 는 받지 않는다 (api.md §11.18) */
 export const roomTitleBody = z.object({ title: z.string() })
+
+/** POST /api/rooms (E4) 본문. 타입만 — 제목 1~60자·비밀번호 4~32자 판정은 서비스 (api.md §4.6 · §11.18) */
+export const createRoomBody = z.object({ title: z.string(), password: z.string().optional() })
+
+/** POST /api/rooms/:id/enter (E17) 본문. password 는 키 없음만 "없음", 64 코드 포인트 이하 (api.md §4.19) */
+export const enterRoomBody = z.object({
+  password: z
+    .string()
+    .refine(value => countCodePoints(value) <= ROOM_ENTER_PASSWORD_MAX)
+    .optional(),
+})
+
+/** PUT /api/rooms/:id/password (E18) 본문. 타입만 — 4~32자는 서비스 (api.md §4.20) */
+export const setRoomPasswordBody = z.object({ password: z.string() })
+
+/** E17·E18 본문 상한(바이트). 비밀번호 64자 × 6바이트 + 봉투 < 1024 (api.md §4.19) */
+export const ROOM_PASSWORD_BODY_MAX_BYTES = 1024
 
 /** POST /api/rooms/:id/user 본문. ooc 필수 — trim·1~2000자는 서비스 */
 export const userMessageBody = z.object({ text: z.string(), ooc: z.boolean() })

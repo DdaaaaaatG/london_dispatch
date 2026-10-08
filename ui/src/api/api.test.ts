@@ -5,17 +5,22 @@ import type { CreateRoomBody, SpeakBody } from '@shared/types'
 import { request, type ApiError } from './client'
 import {
   appendUser,
+  clearRoomPassword,
   configureClient,
   createRoom,
   deleteMessage,
   deleteRoom,
   editMessage,
+  enterRoom,
   getHealth,
+  getMemory,
   isAuthFailure,
   listMessages,
   listRooms,
+  putMemory,
   regenerate,
   renameRoom,
+  setRoomPassword,
   speak,
 } from './index'
 
@@ -155,8 +160,8 @@ describe('S2 쓰기 래퍼', () => {
         'POST',
         '{"text":"x","ooc":true}',
       ],
-      ['/api/messages/41', () => editMessage(41, { text: 'y' }), 'PATCH', '{"text":"y"}'],
-      ['/api/messages/41', () => deleteMessage(41), 'DELETE', undefined],
+      ['/api/messages/41', () => editMessage(41, { text: 'y' }, 'r1'), 'PATCH', '{"text":"y"}'],
+      ['/api/messages/41', () => deleteMessage(41, 'r1'), 'DELETE', undefined],
     ]
     for (const [path, call, method, body] of calls) {
       const fn = stubFetch(async () => (method === 'DELETE' ? noContent() : json({}, 200)))
@@ -218,7 +223,7 @@ describe('S2 쓰기 래퍼', () => {
     expect(await deleteRoom('r1')).toEqual({ ok: true, value: undefined })
     expect(jsonSpy).not.toHaveBeenCalled()
     stubFetch(async () => noContent())
-    expect(await deleteMessage(41)).toEqual({ ok: true, value: undefined })
+    expect(await deleteMessage(41, 'r1')).toEqual({ ok: true, value: undefined })
     stubFetch(async () => new Response('', { status: 201 }))
     expect(await createRoom({ title: 't' })).toMatchObject({
       ok: false,
@@ -246,8 +251,8 @@ describe('S2 쓰기 래퍼', () => {
       () => renameRoom('r1', { title: 't' }),
       () => deleteRoom('r1'),
       () => appendUser('r1', { text: 'x', ooc: false }),
-      () => editMessage(1, { text: 'x' }),
-      () => deleteMessage(1),
+      () => editMessage(1, { text: 'x' }, 'r1'),
+      () => deleteMessage(1, 'r1'),
     ]
     const broken: Array<[() => unknown, string]> = [
       [() => Promise.reject(new TypeError('offline')), 'NETWORK'],
@@ -285,7 +290,7 @@ describe('S3 생성 래퍼', () => {
     const fn = stubFetch(async () => json(message, 201))
     await speak('r1', { character: 'ciel' })
     await speak('a b', { character: 'ciel', extra: 1 } as SpeakBody)
-    await regenerate(72)
+    await regenerate(72, 'r1')
     const calls = fn.mock.calls.map(([url, init]) => ({
       url: url as string,
       init: init as RequestInit,
@@ -315,7 +320,7 @@ describe('S3 생성 래퍼', () => {
     ] as const
     const calls: Array<() => Promise<unknown>> = [
       () => speak('r1', { character: 'ciel' }),
-      () => regenerate(72),
+      () => regenerate(72, 'r1'),
     ]
     for (const [code, status] of cases) {
       const error = { code, message: ERROR_MESSAGES[code] }
@@ -367,7 +372,7 @@ describe('S3 생성 래퍼', () => {
   it('API-T-UI-021 generate_wrappers_set_no_timeout', async () => {
     const fn = stubFetch(async () => json(message, 201))
     await speak('r1', { character: 'sebastian' })
-    await regenerate(72)
+    await regenerate(72, 'r1')
     for (const [, init] of fn.mock.calls as Array<[string, RequestInit]>) {
       expect('signal' in init).toBe(false)
     }
@@ -379,7 +384,7 @@ describe('S3 생성 래퍼', () => {
   it('API-T-UI-022 budget_exceeded_passes_code_and_drops_retryAfterSec', async () => {
     const calls: Array<() => Promise<unknown>> = [
       () => speak('r1', { character: 'ciel' }),
-      () => regenerate(72),
+      () => regenerate(72, 'r1'),
     ]
     for (const call of calls) {
       stubFetch(async () => budget429(1_356_400))

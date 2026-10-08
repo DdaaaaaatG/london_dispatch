@@ -8,7 +8,7 @@ import type { MemoryResponse, PutMemoryBody } from '@shared/types'
 import { Hono } from 'hono'
 import { bodyLimit } from 'hono/body-limit'
 import { AppError } from '../app-error'
-import { rateLimitWrites, requireToken } from '../auth'
+import { rateLimitWrites, requireRoomEntry, requireToken } from '../auth'
 import type { AppEnv } from '../services'
 import { MEMORY_BODY_MAX_BYTES, putMemoryBody, roomIdParam } from './schemas'
 import { validate } from './validate'
@@ -22,18 +22,25 @@ const memoryBodyLimit = bodyLimit({
 })
 
 export const memoryRoutes = new Hono<AppEnv>()
-  /// [계약] api.md §4.17 · [요구] R-MEM-001 · [에러] TOKEN_* · LEVEL_TOO_LOW · NOT_FOUND · INTERNAL · [부수효과] 없음(레이트리밋 미소모)
-  .get(PATHS.roomMemory, requireToken, validate('param', roomIdParam), async c => {
-    const { id } = c.req.valid('param')
-    const memory: MemoryResponse = await c.get('services').memory.get(id)
-    return c.json(memory, 200)
-  })
-  /// [계약] api.md §4.18 · [요구] R-MEM-001 · R-AUTH-005 · [에러] §4.5 공통 + VALIDATION_ERROR · NOT_FOUND · [부수효과] memory 1행 UPSERT · 레이트리밋 1회 · 방 updatedAt 불변
+  /// [계약] api.md §4.17 · [요구] R-MEM-001 · [에러] TOKEN_* · LEVEL_TOO_LOW · NOT_FOUND · ROOM_LOCKED · INTERNAL · [부수효과] 없음(레이트리밋 미소모)
+  .get(
+    PATHS.roomMemory,
+    requireToken,
+    validate('param', roomIdParam),
+    requireRoomEntry('room'),
+    async c => {
+      const { id } = c.req.valid('param')
+      const memory: MemoryResponse = await c.get('services').memory.get(id)
+      return c.json(memory, 200)
+    },
+  )
+  /// [계약] api.md §4.18 · [요구] R-MEM-001 · R-AUTH-005 · [에러] §4.5 공통 + VALIDATION_ERROR · NOT_FOUND · ROOM_LOCKED · [부수효과] memory 1행 UPSERT · 레이트리밋 1회 · 방 updatedAt 불변
   .put(
     PATHS.roomMemory,
     requireToken,
     rateLimitWrites,
     validate('param', roomIdParam),
+    requireRoomEntry('room'),
     memoryBodyLimit,
     validate('json', putMemoryBody),
     async c => {

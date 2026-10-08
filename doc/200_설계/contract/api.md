@@ -2415,6 +2415,7 @@ export const ROOM_KEY_MAX_LENGTH = 128
 | v0.8.1 | 2026-10-08 | 운영 배포 반영. §7 운영 주소 행(`https://london-dispatch.pora.workers.dev`, 헬스·`/embed` 200·CSP 확인), §8 전달 방식 메모(완성 `rosebell-chatbot.php` 1개 카톡 덮어쓰기·1회성 링크 폐기·Cloudflare 직접 로그인). handoff 4문서 갱신(`embed-guide.md` 지인 요약·§1·§2 · `token-snippet.php.md` 지인 요약·§1 조립 순서·§3·§6·§7 · `secret-handover.md` 지인 요약·§2 카톡 전달 규칙·§5 API 키 직접 입력·§6·§7·§8 · `cloudflare-setup.md` §0·§1 직접 로그인·§1.1 초대 대안·§3~§8 완료 표시·§9·§10). 엔드포인트·타입·에러 코드·토큰 형식·PHP 조각 코드 불변 | 변경 없음(운영값 기록·전달 절차) | 아니오(첫 적용 — 완성 파일 1회 덮어쓰기) |
 | v0.8.2 | 2026-10-08 | 등급 개편(🔒 사용자 결정, 갠홈 등급 1 이하 / 2 / 10). 글쓰기 등급 5 → 10(PHP `RB_CHATBOT_LEVEL` = 서버 `TOKEN_MIN_LEVEL` 운영값, §2.3 6단계) · PHP 조각 3갈래 분기 신설(`RB_CHATBOT_VIEW_LEVEL` 2 — 미만·비로그인은 주소를 비워 iframe 없음 + 패널 가입 안내, §2.6 · §7). handoff `token-snippet.php.md` §1 조립 순서(자리표시 3줄 치환 추가, 조립 뒤 88줄)·§2 조각 전문(55줄)·§2.1·§3·§6·§7, `embed-guide.md` §1·§4·§5.1·§6(세 등급 확인표), `secret-handover.md` §2, `cloudflare-setup.md` §6·§10. 서버 코드·엔드포인트·타입·에러 코드·토큰 형식(payload·서명·`?t=`)·교차 벡터 불변 | 비파괴(계약 값 변경 — 등급 운영값, 서버 설정만. 토큰 형식 불변) | **예 — 새 완성 파일 1회 덮어쓰기**(조각 + 자리표시 3줄. 토큰 형식 변경이 아니라 등급·열람 분기 때문) |
 | v0.9 | 2026-10-08 | S6 상세 확정(방 비밀번호 잠금, 승인 ① 2026-10-08 저녁 — R-LOCK-001~009 contract 몫 · 개정 L1 R-API-001 16→19 · L2 R-API-002 15→17 · L3 R-AUTH-003 · L4~L6 R-ROOM-001~004 · L7 R-MSG-001~006·R-MEM-001 · L12 R-CHAT-010). §2.8 방 입장 증명(`e1.` 불투명 문자열·헤더 `X-Room-Key` 전용·만료 없음·무효 조건 3·`ld:roomKeys`·토큰 보관 불변)·관문 적용 표·주인 프리패스·E17 `optionalToken`, §2.1 행, §3.1·§3.2 `ROOM_LOCKED`·`ROOM_PASSWORD_WRONG`(403, `isAuthFailure` 제외), §4.0 E17~E19, §4.2 `locked`, §4.3 E7 관문, §4.5 공통 관문·에러 행·권한 보충, §4.6 E4 `password?`·`CreateRoomResponse`, §4.19 E17(판정 7단계)·§4.20 E18·§4.21 E19, §5.10 shared(타입 6·코드 2·경로 2·헤더 상수·길이 상수 4), §6.1 S6 행·§6.2 입장 시도 상한(방 단위·해시 앞·주인 미계수, `ROOM_ENTER_LIMIT_PER_MIN` 기본 5), §8, §10, §11.18, §12.8(틀), §13.8, §14.22, §15.16, 인계 2종 S6. handoff 두 줄(`secret-handover.md` §6 · `cloudflare-setup.md` §6) | 추가(엔드포인트 3·응답 필드 2·선택 본문 필드 1·선택 헤더 1·에러 코드 2·경로 2) + E5~E14 의미 추가(잠긴 방만 403 — 기존 방은 모두 잠기지 않음, R-LOCK-009). HTTP 파괴 0. ui/api 래퍼 3개(`editMessage`·`deleteMessage`·`regenerate`)에 필수 인자 `roomId` 추가 = ui 내부 호출부 수정(§13.8) | **아니오**(PHP 조각·토큰·`?t=`·임베드 주소 불변) |
+| v0.9 구현 | 2026-10-08 | S6 8단계 contract 몫 구현 반영: routes `createRoomBody`·`enterRoomBody`·`setRoomPasswordBody`·`ROOM_PASSWORD_BODY_MAX_BYTES`, E17·E18·E19 라우트, E4 `CreateRoomResponse`, 관문 한 줄(E5~E14), ui/api `getRoomKey`·`roomId` 옵션·`enterRoom`·`setRoomPassword`·`clearRoomPassword`·메시지 id 래퍼 마지막 인자 `roomId`. §12.8 실물 대조 완료. 미해결: server `requireRoomEntry('message')` 비숫자 id 500(§12.8 결함 1건) | 변경 없음(구현 반영). 메시지 id 래퍼 시그니처 변경은 v0.9 파괴로 이미 분류됨 | 아니오 |
 
 ---
 
@@ -3835,21 +3836,25 @@ ui/api(`ui/src/api/`):
 
 실행 증거(2026-10-08): `npx tsc --noEmit -p shared` exit 0 · `-p server` exit 0 · `-p ui`의 `ui/src/api` 오류 0건(화면 쪽 픽스처·상태는 ui 단계 몫) · `vitest run --project shared` 145/145 · `--project server` 24파일 439/439(routes-settings에 API-T-126 ~ 130 추가, 094 갱신) · `--project ui ui/src/api` 34/34(API-T-UI-033 · 034 추가).
 
-### 12.8 4자 대조표 (S6 — 틀, 구현 후 contract-implementer가 실물 파일:줄로 채운다)
+### 12.8 4자 대조표 (S6 — 구현 완료 2026-10-08, contract-implementer 실물 기준)
 
 | 계약 항목 | api.md | shared | routes | ui/api | 판정 |
 |---|---|---|---|---|---|
-| `RoomSummary.locked: boolean`(E3·E4·E5·E18·E19) | §4.2 · §5.10.1 | `types.ts` — | `rooms.ts` 응답 타입 대입 — | `listRooms` 등 반환 타입 — | (구현 후) |
-| E4 본문 `password?` · 응답 `CreateRoomResponse` | §4.6 · §5.10.1 | `CreateRoomBody` · `CreateRoomResponse` — | `schemas.ts` `createRoomBody` — · `roomTitleBody` 불변(E5) — | `createRoom` 반환 — | (구현 후) |
-| E17 `POST /api/rooms/:id/enter` · `EnterRoomBody` · `EnterRoomResponse` · 토큰 선택 | §4.19 · §2.8.5 | `PATHS.roomEnter` · 타입 2 — | `rooms.ts` `optionalToken` · `enterRoomBody`(64) · 본문 1KiB — | `enterRoom(roomId, password?)` `auth: true` · `roomId` 없음 — | (구현 후) |
-| E18 `PUT /api/rooms/:id/password` · `SetRoomPasswordBody` · `SetRoomPasswordResponse` | §4.20 | `PATHS.roomPassword` · 타입 2 — | `rooms.ts` ★room · `setRoomPasswordBody` · 본문 1KiB — | `setRoomPassword` — | (구현 후) |
-| E19 `DELETE /api/rooms/:id/password` → `200 RoomSummary` | §4.21 | `PATHS.roomPassword`(공용) — | `rooms.ts` ★room — | `clearRoomPassword` `Result<RoomSummary>` — | (구현 후) |
-| 헤더 `X-Room-Key`(헤더 전용, 쿼리·본문 금지) | §2.8.1 | `endpoints.ts` `ROOM_KEY_HEADER` — | server `requireRoomEntry`가 import(리터럴 0) — | `client.ts` `getRoomKey` · `RequestOptions.roomId` — | (구현 후) |
-| 관문 적용 경로(E5·E6·E8·E9·E13·E14·E18·E19 room · E7 room(토큰 안 봄) · E10·E11·E12 message) · 관문 없음(E3·E4·E17) | §2.8.3 | — | `rooms.ts`·`messages.ts`·`memory.ts` 줄 — | 래퍼별 `roomId` 전달(메시지 id 래퍼 셋째·둘째 인자) — | (구현 후) |
-| `ROOM_LOCKED` 403 · `ROOM_PASSWORD_WRONG` 403 · `isAuthFailure` 3코드 불변 | §3.2 | `errors.ts` 3곳 — | server `assertEntry`·`enter` throw(routes 변경 없음) | `AUTH_FAILURE_CODES` 불변 — | (구현 후) |
-| E17 `429 RATE_LIMITED` 상황 문구 + `retryAfterSec` | §4.19 · §6.2 | — | server `hitEnterLimit` | `toRetryAfter` 불변 — | (구현 후) |
-| 길이 상수 4 | §5.10.4 | `limits.ts` — | `enterRoomBody` refine(64) — | 화면 카운터(ui 몫) | (구현 후) |
-| 엔드포인트 19 · 에러 코드 17 · `PATHS` 13 · 토큰 형식 불변 | §4.0 · §3.2 · §2.3 | `ERROR_CODES` 17 · `PATHS` 13 — | `routes/index.ts` 변경 0 — | — | (구현 후) |
+| `RoomSummary.locked: boolean`(E3·E4·E5·E18·E19) | §4.2 · §5.10.1 | `types.ts:27` | `rooms.ts:44-47`(listRooms 반환) · `rooms.ts:56-66`(E5) · `rooms.ts:98-114`(E18 `room`) · `rooms.ts:116-130`(E19) | `rooms.ts:13`(`listRooms`) · `rooms.ts:28`(`renameRoom`) · `rooms.ts:61`(`clearRoomPassword`) | ✅ |
+| E4 본문 `password?` · 응답 `CreateRoomResponse` | §4.6 · §5.10.1 | `types.ts:64-71` | `schemas.ts:45`(`createRoomBody`) · `schemas.ts:42`(`roomTitleBody` E5 전용 불변) · `rooms.ts:49-53` | `rooms.ts:17-25`(`createRoom` → `Result<CreateRoomResponse>`, `password` 있을 때만 본문에) | ✅ |
+| E17 `POST /api/rooms/:id/enter` · `EnterRoomBody` · `EnterRoomResponse` · 토큰 선택 | §4.19 · §2.8.5 | `endpoints.ts:30,68` · `types.ts:74,77` | `rooms.ts:83-96`(`optionalToken` → param → `passwordBodyLimit` → `enterRoomBody` → `isOwnerRequest`) · `schemas.ts:48-53`(64 코드 포인트) · `schemas.ts:59`(1024B) · `rooms.ts:34-39` | `rooms.ts:41-46`(`enterRoom(roomId, password?)` `auth: true`, `roomId` 옵션 없음, 본문 `{}`/`{password}`) | ✅ |
+| E18 `PUT /api/rooms/:id/password` · `SetRoomPasswordBody` · `SetRoomPasswordResponse` | §4.20 | `endpoints.ts:32,70` · `types.ts:80,83` | `rooms.ts:98-114`(`requireToken` → `rateLimitWrites` → param → ★room → 본문 상한 → `setRoomPasswordBody`) · `schemas.ts:56` | `rooms.ts:49-60`(`setRoomPassword`, `auth: true`, `roomId`) | ✅ |
+| E19 `DELETE /api/rooms/:id/password` → `200 RoomSummary` | §4.21 | `endpoints.ts:32`(공용) | `rooms.ts:116-130`(★room, `c.json(room, 200)`) | `rooms.ts:61-62`(`clearRoomPassword` → `Result<RoomSummary>`, 204 분기 아님) | ✅ |
+| 헤더 `X-Room-Key`(헤더 전용, 쿼리·본문 금지) | §2.8.1 | `endpoints.ts:74`(`ROOM_KEY_HEADER`) | server `requireRoomEntry`가 import(routes 리터럴 0) | `client.ts:7,25,66-67,70-76`(`getRoomKey` · `RequestOptions.roomId` · `buildHeaders`, 비어 있지 않을 때만, `auth`와 독립) | ✅ |
+| 관문 적용 경로: E5·E6·E8·E9·E13·E14·E18·E19 room · E7 room(토큰 안 봄) · E10·E11·E12 message · 관문 없음 E3·E4·E17 | §2.8.3 | — | `rooms.ts:60,75,104,122` · `messages.ts:30`(E7) · `:47`(E8) · `:64`(E10) · `:79`(E11) · `:92`(E9) · `:109`(E12) · `memory.ts:30`(E13) · `:43`(E14) | `messages.ts`: `listMessages`/`appendUser`/`speak`는 `roomId` 옵션, `editMessage(id, body, roomId)` · `deleteMessage(id, roomId)` · `regenerate(id, roomId)` 마지막 인자 필수 · `memory.ts:7,15`(`getMemory`/`putMemory`) | ⚠ 아래 결함 1건 |
+| `ROOM_LOCKED` 403 · `ROOM_PASSWORD_WRONG` 403 · `isAuthFailure` 3코드 불변 | §3.2 | `errors.ts:21-22,46-47,67-68` | server `assertEntry`·`enter` throw(routes는 변환 안 함) | `client.ts:54-58`(`AUTH_FAILURE_CODES` 불변) | ✅ |
+| E17 `429 RATE_LIMITED` 상황 문구 + `retryAfterSec` | §4.19 · §6.2 | — | server `hitEnterLimit` | `client.ts` `toRetryAfter` 불변 | ✅ |
+| 길이 상수 4 | §5.10.4 | `limits.ts:23,24,26,28` | `schemas.ts:48-53` refine(64) | 화면 카운터(ui 몫) | ✅ |
+| 엔드포인트 19 · 에러 코드 17 · `PATHS` 13 · 토큰 형식 불변 | §4.0 · §3.2 · §2.3 | `ERROR_CODES` 17 · `PATHS` 13 | `routes/index.ts` 변경 0 | — | ✅ |
+
+- 증거(2026-10-08): `tsc --noEmit -p shared` · `-p server` exit 0 · 테스트 `server/test/routes/room-lock.test.ts`(API-T-140~163) · `ui/src/api/room-lock.test.ts`(API-T-UI-035~040).
+- **결함 1건(server 소관)**: `server/src/auth/room-entry.ts` `requireRoomEntry('message')`가 숫자가 아닌 메시지 id(`abc`)에서 `AppError('INTERNAL')` 500을 던진다. §2.8.3 말미는 "NaN이면 관문 통과 → 서비스 404". 영향 테스트: API-T-064 · 082 · 163. 고칠 곳: `Number.isSafeInteger` 실패 시 throw 대신 `await next(); return`.
+- 테스트 위치 메모: 훅 허용 경로 때문에 server 테스트는 `server/test/routes/room-lock.test.ts`(기존 `server/test/routes*.test.ts`는 contract-implementer 수정 불가 — API-T-011·057은 7단계 보정본 유지, 키 집합 `locked`·`entryKey` 포함).
 
 ---
 

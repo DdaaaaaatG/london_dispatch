@@ -3,5 +3,13 @@ export { configureClient, isAuthFailure } from './client'
 export { getHealth } from './health'
 export { appendUser, deleteMessage, editMessage, listMessages, regenerate, speak } from './messages'
 export { getMemory, putMemory } from './memory'
-export { createRoom, deleteRoom, listRooms, renameRoom } from './rooms'
+export {
+  clearRoomPassword,
+  createRoom,
+  deleteRoom,
+  enterRoom,
+  listRooms,
+  renameRoom,
+  setRoomPassword,
+} from './rooms'
 export { getCharacterSettings, saveCharacterSettings } from './settings'
