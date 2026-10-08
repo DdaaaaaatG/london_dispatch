@@ -1,6 +1,7 @@
 # API 계약 (api.md)
 
-- 상태: **초안 v0.8** · 최종 갱신 2026-10-08 · 소유 contract-designer
+- 상태: **초안 v0.8.1** · 최종 갱신 2026-10-08 · 소유 contract-designer
+- (v0.8.1) 2026-10-08 운영 배포 반영(§7 운영 주소 행 · §8 전달 방식 메모 · §9). 운영 주소 `https://london-dispatch.pora.workers.dev`(임베드 `…/embed`). 갠홈 전달은 완성 `rosebell-chatbot.php` 1개 카톡 덮어쓰기로 바뀌고(1회성 링크 폐기), Cloudflare 접근은 사용자 직접 로그인. 계약 내용(엔드포인트·타입·에러 코드·토큰 형식·PHP 조각 코드) 변경 없음.
 - (v0.8) **S3f 상세 확정**(구현 전) = 설정 화면에서 AI 모델(Pro / Flash) 선택. E15·E16 **확장**: 응답 `model: LlmModelKey | null`(지금 실제로 쓰는 모델의 키, 서버 기본 모델이 두 후보 밖이면 `null`, §4.15) · 본문 `model?`(없으면 저장값 유지, `null`·그 밖 값은 `400` `공통 · AI 모델 값이 올바르지 않습니다.`, `settings` 검사 뒤, §4.16) · shared `LlmModelKey`·`LLM_MODEL_KEYS`·`SETTINGS_MODEL_INVALID_MESSAGE`(§5.8.6) · 내보내기 파일 제외(§16.1) · §1.4 · §8 · §10 · §11.17 · §12.7(예정) · §13.7 · §14.21 · §15.15 · 「ui 인계 메모」 S3f · 「contract-implementer 인계 목록」 S3f. 모델명·단가는 계약에 싣지 않는다(server만 안다). 엔드포인트 16개·에러 코드 15종·토큰 형식·PHP 조각 불변이고 분류는 전부 추가(비파괴). 입력: `requirements.md` R-SET-004·005·007·012(2026-10-08 S3f 개정) · R-SET-013 · R-LLM-009(신규), `doc/200_설계/architecture/s3f-02-전반설계.md` §2·§4·§6·§9·§10, `s3f-03-인계패킷.md` §1.2·§2.
 - (v0.7.2) S5 handoff 4문서 작성·보정(§8 · §9). 계약 내용 변경 없음.
 - (v0.7.1) R-MEM-001 🔒 개정(2026-10-07 사용자 지정) 반영: E14 PUT에서 trim 결과가 빈 요약(`''`)이면 서버가 `sourceUntilId`를 0으로 되돌린다(요약 삭제 = 처음부터 재요약). 비어 있지 않은 편집은 기존대로 유지. §4.18 의미·성공·부수 효과·예시·경합, §4.17 설명 1구절, §5.9.1 주석, §10, §11.16 래퍼 주석, §14.19 API-T-125, §15.14(server 변경 요구 1건·확인 필요 3 해소), 「ui 인계 메모」 S4, 인계 목록 S4. §4.13 영향 없음. 엔드포인트·타입 모양·에러 코드 불변.
@@ -2031,6 +2032,7 @@ export type PutMemoryBody = {
 | 기본 보안 헤더 (v0.6.1) | `/api/*`에만 hono 4 `secureHeaders()` 기본값을 건다: `X-Content-Type-Options: nosniff` · `Referrer-Policy: no-referrer` · `Strict-Transport-Security` · `Cross-Origin-Opener-Policy: same-origin` · `Cross-Origin-Resource-Policy: same-origin` 등. 기본값에 든 `X-Frame-Options: SAMEORIGIN`은 진입점이 마지막에 지운다(아래 `X-Frame-Options` 행 그대로). `/embed` 정적 자산 응답에는 걸지 않는다. 화면은 같은 출처에서 `/api`를 부르므로 `same-origin` 계열 헤더의 영향이 없다. 라우트는 여전히 헤더를 다루지 않는다 | verify-S3c SEC-003 · `server/src/app.ts` |
 | `X-Frame-Options` | 보내지 않는다(받은 응답에 있으면 제거) | R-API-006 |
 | 허용 출처 | `ALLOWED_FRAME_ANCESTORS` 기본 `http://london-gossip.my https://london-gossip.my`(단일 소스 `server/src/env.ts`) | R-ENV-002, 확정사항 §9-7 |
+| 운영 주소 (v0.8.1) | `https://london-dispatch.pora.workers.dev` — 임베드 `…/embed`(갠홈 `$rb_chatbot_embed_url` 값), 헬스 `…/api/health`. 2026-10-08 배포 후 `/api/health` 200 · `/embed` 200 · `/embed` 응답 `frame-ancestors http://london-gossip.my https://london-gossip.my` 확인. 비밀값 아님 | R-HANDOFF-001 · R-API-006 · 확정사항 §6 |
 | CORS | 없음. 화면이 서버와 같은 출처에서 내려온다 | 확정사항 §6 |
 | 화면 빌드 | Vite `base: '/embed/'` | index.md §9.4 |
 | 아바타 | `ui/public/img/{id}.png` → `/embed/img/{id}.png`(`CHARACTERS.*.avatar`) | R-LLM-002 |
@@ -2059,6 +2061,7 @@ export type PutMemoryBody = {
 - (v0.6.1, S5 TODO 추가) 운영 Secrets 목록(`wrangler secret put`)에 `TOKEN_SECRET`·`LLM_API_KEY`와 함께 `OWNER_MB_IDS`를 넣는다. 값은 지인(갠홈 주인) 회원 ID만이며, 비우면 설정 화면(E15·E16)은 전원 `403 OWNER_ONLY`다. 실제 회원 ID는 handoff·이 문서에 쓰지 않는다.
 - (v0.7, S4) **handoff 변경 없음**(토큰·`?t=`·임베드 주소 불변). S5 TODO 1건: 위 AI 비용 상한 안내 단락에 "장기기억 자동 요약 호출(대화가 길어지면 캐릭터 발화 뒤 가끔 1회)도 같은 월 AI 비용에 포함된다"를 한 줄 더한다(R-LLM-007 · R-MEM-002).
 - (v0.8, S3f) handoff 설정값 안내를 고쳤다(쉬운 말, 실값 없음): `cloudflare-setup.md` §6 `LLM_MODEL`(주인이 고르기 전 기본 모델 = Pro)·`LLM_PRICE_*`(단가표에 없는 모델용 예비 단가) 뜻, §0·§7·§10 마이그레이션 0004와 적용 순서 · `secret-handover.md` §5 모델·단가 설명 · `embed-guide.md` §7 운영 메모 1줄(주인이 Pro·Flash를 고름, 비용 차이, 테마 파일 변경 없음). **PHP 조각·토큰 형식·`?t=`·임베드 주소 변경 없음 → 저쪽 재적용 없음.**
+- (v0.8.1, 2026-10-08 배포 반영) 전달 방식 변경(사용자 결정): 갠홈 패치(head.php·css·js·inc)는 이미 설치돼 있어 지인이 손대는 파일은 `theme/victorian/inc/rosebell-chatbot.php` 하나뿐이다. 우리가 운영 주소(§7)와 SECRET 채운 토큰 조각을 넣은 **완성 파일 1개**를 저장소 밖에서 조립해 카톡 파일로 보내고 지인은 같은 자리에 덮어쓰기만 한다(1회성 비밀 링크 폐기, 조립 규칙 `token-snippet.php.md` §1, 전달 규칙 `secret-handover.md` §2). Cloudflare 접근은 사용자 직접 로그인이 기본이고 구성원 초대는 대안(`cloudflare-setup.md` §1·§1.1). 토큰 형식·PHP 조각 코드·`?t=` 불변이고, 임베드 주소는 빈 값에서 처음 채우는 것이라 재적용 대상이 아니다(첫 적용).
 
 ---
 
@@ -2092,6 +2095,7 @@ export type PutMemoryBody = {
 | v0.7.2 보정 | 2026-10-07 | 사용자 결정(지인은 비개발자): handoff 4종을 "지인 최소·나머지 우리" 기준으로 재정렬. SECRET은 우리가 생성·Cloudflare 입력하고 지인에게는 SECRET을 채운 PHP 덩어리를 1회성 비밀 링크로 전달(지인 직접 생성은 대안 강등, secret-handover §2·§7). Cloudflare는 구성원 초대가 기본·API 토큰은 대안, 플랜 Free로 우리가 시작, D1·Secrets·`[vars]`·마이그레이션·배포는 우리 몫(cloudflare-setup §0~§9). embed-guide 지인 할 일 = 주소 한 줄 교체·덩어리 붙이기·확인표, 캐시는 질문 대신 안내(§5.3). token-snippet 머리에 지인용 요약 3줄, §7 `npm run token:test -w server` 실물 사용법(sign·verify·vectors). §8 cloudflare-setup 행 문구 정정. 토큰 형식·PHP 조각 코드·교차 벡터 불변 | 변경 없음(전달 절차·문서만) | 아니오 |
 | v0.8 | 2026-10-08 | S3f 상세 확정(R-SET-004·005·007·012 S3f 개정 · R-SET-013 · R-LLM-009 신규의 contract 몫, 승인 ① 2026-10-08). E15 응답 `model: LlmModelKey \| null`(지금 쓰는 모델 키, 후보 밖 `null`, 응답 키 4 → 5, §4.15), E16 본문 `model?`(없으면 유지, `null`·그 밖 `400` `공통 · AI 모델 값이 올바르지 않습니다.`, 판정 6 안 `settings` 다음)·부수 효과(같은 행 `llm_model`, 다음에 시작하는 생성·화자 선택·요약부터)·로그 `settings_saved{mbId, version, model}`(§4.16), §5.8.6 `LlmModelKey`·`LLM_MODEL_KEYS`·`SETTINGS_MODEL_INVALID_MESSAGE`·타입 2곳, §16.1·§16.4 내보내기 제외, §1.4 · §8 · §10 · §11.17 · §12.7(예정) · §13.7 · §14.21(API-T-094 갱신 · 126 ~ 131 · API-T-UI-033 · 034) · §15.15 · 인계 2종 S3f. handoff 설정값 안내(`cloudflare-setup.md` · `secret-handover.md` · `embed-guide.md`). 모델명·단가 비노출. 엔드포인트 16·에러 코드 15·경로·토큰 형식·PHP 조각 불변 | 추가(응답 필드 1·선택 본문 필드 1·shared export 3·400 문구 1. 기존 요청은 그대로 통과하고 기존 응답 키·status·문구 불변 — 근거 §13.7) | 아니오(PHP 조각·토큰·`?t=`·임베드 주소 불변) |
 | v0.8 구현 | 2026-10-08 | contract 몫 구현 반영: shared `LlmModelKey` · `LLM_MODEL_KEYS` · `SETTINGS_MODEL_INVALID_MESSAGE`, `schemas.ts` `model` 필드 · `settingsIssueMessage` 순서, `routes/settings.ts` 셋째 인자, `ui/api/settings.ts` `saveCharacterSettings(settings, model?)`, 테스트 API-T-126 ~ 131 · UI-033 · 034, §12.7 갱신. 엔드포인트·에러 코드·토큰 형식 변경 없음 | 구현 반영(계약 변경 없음) | 아니오 |
+| v0.8.1 | 2026-10-08 | 운영 배포 반영. §7 운영 주소 행(`https://london-dispatch.pora.workers.dev`, 헬스·`/embed` 200·CSP 확인), §8 전달 방식 메모(완성 `rosebell-chatbot.php` 1개 카톡 덮어쓰기·1회성 링크 폐기·Cloudflare 직접 로그인). handoff 4문서 갱신(`embed-guide.md` 지인 요약·§1·§2 · `token-snippet.php.md` 지인 요약·§1 조립 순서·§3·§6·§7 · `secret-handover.md` 지인 요약·§2 카톡 전달 규칙·§5 API 키 직접 입력·§6·§7·§8 · `cloudflare-setup.md` §0·§1 직접 로그인·§1.1 초대 대안·§3~§8 완료 표시·§9·§10). 엔드포인트·타입·에러 코드·토큰 형식·PHP 조각 코드 불변 | 변경 없음(운영값 기록·전달 절차) | 아니오(첫 적용 — 완성 파일 1회 덮어쓰기) |
 
 ---
 
