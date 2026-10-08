@@ -36,7 +36,7 @@
 | TC-CH-164 | 재입장 뒤 `locked` 복귀(D-48) | `locked: true` 방 · E7 `ROOM_LOCKED` → `onRoomRenamed`에 `locked: true`는 원래 true라 0회 / 토큰 있음 · `enterRoom('r1')` 200 `entryKey: null` → `ld:roomKeys`에 r1 없음 · `onRoomRenamed` 인자 `{ …, locked: false }` 1회 · `listMessages` 재호출 / 200 문자열이면 `locked: false` 호출 0회 |
 | TC-CH-165 | 조용한 재입장 상한(D-55) | 토큰 있음 · `enterRoom` 항상 200 `e1.x` · `listMessages` 항상 `ROOM_LOCKED` → `enterRoom` 정확히 2회 → 3번째 `ROOM_LOCKED`에서 `enterRoom` 호출 없이 시트(`role=dialog` 이름 `비밀번호`, 같은 커밋에 열려 입력 포커스 — 카운터는 껍데기 상태라 2회째 재입장 렌더에서 `canWrite`가 false로 재계산됨) / (c) 시트 경로는 세지 않는다: 조용한 시도가 `ROOM_LOCKED` → 시트 → 비밀번호 입장 200으로 재입장한 경우는 카운터가 늘지 않아(판별 = gate 플래그 `quietAttemptRef`, `entry.sheet` 아님), 그 뒤 `ROOM_LOCKED`에서도 조용한 시도가 횟수대로 다시 일어난다 / 대조: 2번째 재입장 뒤 `listMessages` 200이면 카운터 0 → 다음 `ROOM_LOCKED`에서 다시 조용한 시도 1회 |
 
-- 번호(재배정 확정): 자동 흐름은 **TC-FLOW-CH-22**, TC-CH-163은 수동(**MC-CH-23·24**, `test/manual-checklist.md`). 이전 메모 — TC-FLOW-163(자동)과 TC-CH-163(수동)은 ui-test-designer가 겹치지 않게 다시 매길 수 있다(예약 범위 140~165).
+- 번호(재배정 확정): 자동 흐름은 **TC-FLOW-CH-22**, TC-CH-163은 수동(**MC-CH-23·24**, `test/manual-checklist.md`). 이전 메모 — TC-FLOW-163(자동)과 TC-CH-163(수동)은 ui-test-designer가 겹치지 않게 다시 매길 수 있다(예약 범위 140~169 — 시나리오 보정으로 TC-CH-166(‹ 클릭 F-CH-66) · 167(토큰 있음 시트 입장 성공·취소) · 168(바꾸기 판 실패 mode 유지 F-CH-80 ④) · 169(잠긴 뒤 늦은 응답 폐기 F-CH-64 `isActive`) 신설, 상세는 `test/scenarios.md`).
 
 ## 2. 기존 TC 영향
 
