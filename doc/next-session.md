@@ -1,8 +1,16 @@
-# 다음 세션 인계 (2026-10-08 갱신 · S3f 완료 반영)
+# 다음 세션 인계 (2026-10-08 저녁 갱신 · S5 2차 배포 완료 반영)
 
 - 결정은 `doc/000_프로젝트_확정사항.md`가 단일 소스다. 이 문서는 **지금 상태 · 남은 일 · 결정 대기 · 꼭 지킬 것**만 담는다. 항목을 끝내면 지우고, 새 일은 해당 절에 짧게 추가한다.
 
-## 0-0. 2026-10-08 상태 — S3f 완료(verify PASS, **미커밋**) · S5 2차 대기
+## 0-00. 2026-10-08 저녁 — **S5 2차(운영 배포) 완료** · 지인 파일 전달 대기
+
+- **배포 완료 19:30 KST.** 운영 주소 `https://london-dispatch.pora.workers.dev`(임베드 `/embed`). 기록 `doc/300_검증/deploy-20261008-1930.md`. D1 `london-dispatch`(APAC) 생성 + 0001~0004 적용 · Secrets 3개(`TOKEN_SECRET` 44자 영숫자 우리 생성 · `LLM_API_KEY` 지인 키를 **사용자가 별도 터미널에서 직접 입력**(세션 미열람) · `OWNER_MB_IDS`) · `wrangler.toml` database_id 기입(커밋 `9836fcc`). 헬스 전부 정상, 주인 토큰으로 `/api/settings/characters` 200 확인(= Cloudflare TOKEN_SECRET과 PHP 파일 SECRET 일치).
+- **사용자 결정(2026-10-08 저녁)**: ① Cloudflare는 구성원 초대 대신 **사용자가 지인 계정(pora__)으로 직접 `wrangler login`**(이 PC에 자격 저장됨, 재로그인 불필요). ② 지인 Gemini 키는 **선불 결제(Pro 가능)** → 기본 모델 Pro 유지. ③ 갠홈 패치(head.php·css·js)는 **이미 설치돼 있음**(main.php 확인) → 지인에게는 **완성 `rosebell-chatbot.php` 1개**(주소+토큰 조각+SECRET, 75줄)만 카톡으로, 같은 자리 덮어쓰기. 1회성 링크·head.php 교체 안내 폐기.
+- **저장소 밖 로컬 파일(`D:\pr\dispatch\`, git 무관)**: `london-dispatch-TOKEN_SECRET.txt`(운영 SECRET 원본 — Cloudflare는 값을 다시 안 보여 주므로 이것이 유일한 사본) · `rosebell-chatbot.php`(지인 전달용 완성본) · `owner-token.txt`·`owner-url.txt`(주인 blbl 12h 테스트 토큰, 2026-10-09 07:30 KST 만료). 지인 확인 끝나면 php·토큰 파일은 지운다. SECRET 파일은 보관(재발급 시 양쪽 동시 교체 필요).
+- **다음 할 일**: ① 사용자가 운영 화면(owner-url)에서 캐릭터 버튼 눌러 Pro 응답 실물 확인(지인 키 검증) ② 완성 php 카톡 전달 → 지인 덮어쓰기 → 갠홈에서 확인표(embed-guide §6) ③ contract-designer handoff 갱신 결과 커밋·푸시 ④ 로컬 키(`.dev.vars`)는 사용자 본인 키 — 운영과 다름(정상).
+- 로컬 키 = 사용자 키(Pro·Flash 둘 다 200 확인). 아래 §0-0의 "운영 키 전달" 항목은 끝났다.
+
+## 0-0. 2026-10-08 상태 — S3f 완료(verify PASS, 커밋됨 `36e6e7c`~`ba619af`) · (기록)
 
 - **디자인 보강(갠홈 estate 톤) 완료 2026-10-08 오후** — 사용자 "갠홈 디자인에 맞춰야" → 참조 `doc/300_검증/screenshots/20261008-design-ref/`(갠홈 홈·로그인·패널 캡처·테마 CSS) → 승인 5항목(팔레트·선형 버튼·말풍선·상단 바·입력) → ui-manager 보강: CSS 8개+토큰(`global.css`)·아바타 PNG 투명화, 정본 `ui/src/chat/design/style.md` v2.2.1, CR rooms-002·chat-004·settings-002, 캡처 `doc/300_검증/screenshots/20261008-estate/`. `ui_design_concept.md` §1·§3·§4 동기화(메인). 가드 `validate-doc-write.py` SCREENS에 settings 추가(사용자 승인). 결정: 아바타 원 자리 유지 → **지인이 그릴 인장 이미지**로 교체 예정(`ui/public/img/{sebastian,ciel}.png` 같은 경로 덮어쓰기, 요구 후보 — 설정 화면 업로드는 미정). 유저 가운데 말풍선(선 없음) 실물 확인은 유저 발화 있는 방에서 수동 TC 보류.
 - **S3f(설정 화면 AI 모델 Pro/Flash 선택, 🔒) 완료 2026-10-08**(승인 ① 02:00 · ② 02:20). 증거: vitest **1368/1368**(shared 145·server 439·ui 784) · typecheck·lint·build 0 · verify PASS `doc/300_검증/verify-S3f-20261008-1217.md`(C/H/M 0, LOW 5) · 캡처 `doc/300_검증/screenshots/20261008-1210/`(공통 탭 Pro·Flash dirty·미선택 3장) · 종단 curl E15/E16(pro v0 → flash v1 → 생략 유지 v2 → `turbo` 400 문구 → pro v3 · 무토큰 401 · 로그 `settings_saved{model}`). 산출: 0004 `llm_model` · `server/src/llm/models.ts`(상수표 Pro `gemini-3.1-pro-preview`/Flash `gemini-3.8-flash`, 단가표 $2/$12·$0.75/$3.75) · 비동기 `llm` 공장 · api.md **v0.8** · 공통 탭 `ModelChoice` · 매뉴얼 5.7 · CR-001. env `LLM_MODEL` 기본값 Pro(3곳). **커밋 안 됨 — 사용자 확인 후 `/sync`**(server·contract·ui·docs 분할 권고).
