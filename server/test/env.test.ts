@@ -2,7 +2,14 @@
 import { describe, expect, it } from 'vitest'
 import devVarsExample from '../.dev.vars.example?raw'
 import wranglerToml from '../wrangler.toml?raw'
-import { ConfigError, ENV_KEYS, parseEnv, requireLlmApiKey, type Config } from '../src/env'
+import {
+  ConfigError,
+  ENV_KEYS,
+  parseEnv,
+  requireLlmApiKey,
+  ROOM_ENTER_LIMIT_PER_MIN_DEFAULT,
+  type Config,
+} from '../src/env'
 
 const SENTINEL = 'SENTINEL_SECRET_9f2c_0123456789abcdefgh'
 const fakeDb = { prepare: () => ({}) }
@@ -38,6 +45,7 @@ describe('parseEnv', () => {
       llmPriceOutputUsdPerM: 2.5,
       krwPerUsd: 1400,
       ownerMbIds: [],
+      roomEnterLimitPerMin: 5,
     })
     expect(c.llmApiKey).toBeUndefined()
   })
@@ -292,5 +300,29 @@ describe('S3f LLM_MODEL 기본값 (env.md §12)', () => {
     // 기본값 세 곳(스키마·wrangler.toml·.dev.vars.example)이 같다
     expect(wranglerToml).toMatch(/^LLM_MODEL = "gemini-3\.1-pro-preview"/m)
     expect(devVarsExample).toMatch(/^# LLM_MODEL=gemini-3\.1-pro-preview\b/m)
+  })
+})
+
+// ---- S6 (SRV-T-400) — doc/200_설계/server/env.md §13.4 ----
+describe('S6 ROOM_ENTER_LIMIT_PER_MIN', () => {
+  it('SRV-T-400 parseEnv_reads_room_enter_limit', () => {
+    expect(parseEnv(base).roomEnterLimitPerMin).toBe(ROOM_ENTER_LIMIT_PER_MIN_DEFAULT)
+    expect(ROOM_ENTER_LIMIT_PER_MIN_DEFAULT).toBe(5)
+    expect(parseEnv({ ...base, ROOM_ENTER_LIMIT_PER_MIN: '10' }).roomEnterLimitPerMin).toBe(10)
+    expect(parseEnv({ ...base, ROOM_ENTER_LIMIT_PER_MIN: '' }).roomEnterLimitPerMin).toBe(5)
+    for (const bad of ['0', '61', '5.5', 'abc']) {
+      expect(keysOf({ ...base, ROOM_ENTER_LIMIT_PER_MIN: bad })).toEqual([
+        'ROOM_ENTER_LIMIT_PER_MIN',
+      ])
+      try {
+        parseEnv({ ...base, ROOM_ENTER_LIMIT_PER_MIN: bad })
+      } catch (e) {
+        expect((e as Error).message).not.toContain(bad)
+      }
+    }
+    expect(ENV_KEYS).toHaveLength(18)
+    expect(ENV_KEYS).toContain('ROOM_ENTER_LIMIT_PER_MIN')
+    expect(wranglerToml).toContain('ROOM_ENTER_LIMIT_PER_MIN = "5"')
+    expect(devVarsExample).toContain('# ROOM_ENTER_LIMIT_PER_MIN=5')
   })
 })

@@ -121,6 +121,7 @@ describe('GET /api/rooms', () => {
       expect(Object.keys(room).sort()).toEqual([
         'createdAt',
         'id',
+        'locked',
         'messageCount',
         'title',
         'updatedAt',

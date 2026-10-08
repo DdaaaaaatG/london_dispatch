@@ -15,6 +15,7 @@ LLM_MODEL = "gemini-3.1-pro-preview"        # S3f 주인이 설정 화면에서 
 LLM_TIMEOUT_MS = "60000"
 ALLOWED_FRAME_ANCESTORS = "http://london-gossip.my https://london-gossip.my"
 RATE_LIMIT_PER_MIN = "20"
+ROOM_ENTER_LIMIT_PER_MIN = "5"          # 잠긴 방 비밀번호 입장 시도, 방마다 분당 상한(1~60). 주인·비밀번호 없는 요청은 세지 않는다
 CONTEXT_MESSAGES = "40"
 MEMORY_SUMMARY_THRESHOLD = "60"
 LLM_MONTHLY_BUDGET_KRW = "100000"           # S3b 월 AI 비용 상한(원, 추정) — R-LLM-007

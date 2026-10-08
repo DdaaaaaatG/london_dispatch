@@ -226,7 +226,9 @@ describe('POST /api/rooms', () => {
     const room = await res.json<RoomSummary>()
     expect(Object.keys(room).sort()).toEqual([
       'createdAt',
+      'entryKey',
       'id',
+      'locked',
       'messageCount',
       'title',
       'updatedAt',
@@ -237,7 +239,9 @@ describe('POST /api/rooms', () => {
     expect(room.updatedAt).toBe(NOW)
     expect(room.messageCount).toBe(0)
     const list = await (await read('/api/rooms')).json<RoomSummary[]>()
-    expect(list[0]).toEqual(room)
+    const { entryKey, ...summary } = room as RoomSummary & { entryKey: string | null }
+    expect(entryKey).toBeNull()
+    expect(list[0]).toEqual(summary)
   })
 
   it('API-T-058 create_room_rejects_bad_title_or_body', async () => {

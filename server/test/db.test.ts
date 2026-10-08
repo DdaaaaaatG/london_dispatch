@@ -24,6 +24,7 @@ describe('schema', () => {
       ['created_at', 'INTEGER', 1, 0],
       ['updated_at', 'INTEGER', 1, 0],
       ['speaking_until', 'INTEGER', 0, 0],
+      ['pass_hash', 'TEXT', 0, 0],
     ])
     expect(await columns('messages')).toEqual([
       ['id', 'INTEGER', 0, 1],
@@ -283,6 +284,7 @@ describe('rooms repo S2', () => {
       createdAt: 5,
       updatedAt: 100,
       messageCount: 2,
+      locked: false,
     })
     expect(await db.rooms.updateTitle('nope', 'x')).toBeNull()
     expect((await roomRow('r2'))?.title).toBe('다른 방')
@@ -760,5 +762,104 @@ describe('character_settings.llm_model (S3f, db.md §14)', () => {
     expect(await db.characterSettings.getModel()).toBe('flash')
     await env.DB.prepare("UPDATE character_settings SET llm_model = 'turbo' WHERE id = 1").run()
     expect(await db.characterSettings.getModel()).toBe('turbo')
+  })
+})
+
+// ---- S6 (SRV-T-395~399) — doc/200_설계/server/db.md §15.7 ----
+const HASH_A =
+  'pbkdf2-sha256$1000$AAAAAAAAAAAAAAAAAAAAAA$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA'
+const HASH_B =
+  'pbkdf2-sha256$1000$BBBBBBBBBBBBBBBBBBBBBB$BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB'
+
+const setHash = (id: string, value: string | null) =>
+  env.DB.prepare('UPDATE rooms SET pass_hash = ?1 WHERE id = ?2').bind(value, id).run()
+
+describe('S6 rooms.pass_hash', () => {
+  it('SRV-T-395 migration_0005_adds_pass_hash_with_check', async () => {
+    const col = (await columns('rooms')).find(c => c[0] === 'pass_hash')
+    expect(col).toEqual(['pass_hash', 'TEXT', 0, 0])
+    await insertRoom('r', 'R', 1, 1)
+    expect(await roomRow('r')).toBeDefined()
+    expect(
+      (
+        await env.DB.prepare("SELECT pass_hash FROM rooms WHERE id = 'r'").first<{
+          pass_hash: string | null
+        }>()
+      )?.pass_hash,
+    ).toBeNull()
+    await expect(setHash('r', 'x'.repeat(19))).rejects.toThrow()
+    await expect(setHash('r', 'x'.repeat(201))).rejects.toThrow()
+    await setHash('r', 'x'.repeat(20))
+    await setHash('r', 'x'.repeat(200))
+    await setHash('r', null)
+  })
+
+  it('SRV-T-396 locked_projection_without_hash_field', async () => {
+    const db = createDb(env.DB)
+    await insertRoom('open', 'O', 1, 100)
+    await insertRoom('shut', 'S', 1, 50)
+    await setHash('shut', HASH_A)
+    const list = await db.rooms.listSummaries()
+    expect(list.map(r => [r.id, r.locked])).toEqual([
+      ['open', false],
+      ['shut', true],
+    ])
+    for (const r of list) {
+      expect(Object.keys(r).sort()).toEqual(
+        ['createdAt', 'id', 'locked', 'messageCount', 'title', 'updatedAt'].sort(),
+      )
+    }
+    expect((await db.rooms.updateTitle('shut', 'S2'))?.locked).toBe(true)
+    expect((await db.rooms.updateTitle('open', 'O2'))?.locked).toBe(false)
+  })
+
+  it('SRV-T-397 entry_state_lookups', async () => {
+    const db = createDb(env.DB)
+    await insertRoom('open', 'O', 1, 1)
+    await insertRoom('shut', 'S', 1, 1)
+    await setHash('shut', HASH_A)
+    const [openMsg] = await insertLines('open', 1)
+    const [shutMsg] = await insertLines('shut', 1)
+    expect(await db.rooms.getEntryState('nope')).toBeNull()
+    expect(await db.rooms.getEntryState('open')).toEqual({ roomId: 'open', passHash: null })
+    expect(await db.rooms.getEntryState('shut')).toEqual({ roomId: 'shut', passHash: HASH_A })
+    expect(await db.rooms.getEntryStateByMessage(999_999)).toBeNull()
+    expect(await db.rooms.getEntryStateByMessage(openMsg!)).toEqual({
+      roomId: 'open',
+      passHash: null,
+    })
+    expect(await db.rooms.getEntryStateByMessage(shutMsg!)).toEqual({
+      roomId: 'shut',
+      passHash: HASH_A,
+    })
+  })
+
+  it('SRV-T-398 setPassHash_batch', async () => {
+    const db = createDb(env.DB)
+    expect(await db.rooms.setPassHash('nope', HASH_A)).toBeNull()
+    expect(
+      (await env.DB.prepare('SELECT COUNT(*) AS n FROM rooms').first<{ n: number }>())?.n,
+    ).toBe(0)
+    await insertRoom('r', 'R', 5, 100)
+    await insertLines('r', 2)
+    const steps: [string | null, boolean, boolean][] = [
+      [HASH_A, false, true],
+      [HASH_B, true, true],
+      [null, true, false],
+      [null, false, false],
+    ]
+    for (const [next, wasLocked, locked] of steps) {
+      const result = await db.rooms.setPassHash('r', next)
+      expect(result?.wasLocked).toBe(wasLocked)
+      expect(result?.room).toMatchObject({ locked, updatedAt: 100, messageCount: 2 })
+    }
+  })
+
+  it('SRV-T-399 insert_fourth_binding', async () => {
+    const db = createDb(env.DB)
+    await db.rooms.insert({ id: 'a', title: 'A', nowMs: 1, passHash: HASH_A })
+    await db.rooms.insert({ id: 'b', title: 'B', nowMs: 1 })
+    expect((await db.rooms.getEntryState('a'))?.passHash).toBe(HASH_A)
+    expect((await db.rooms.getEntryState('b'))?.passHash).toBeNull()
   })
 })

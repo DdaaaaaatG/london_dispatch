@@ -1,12 +1,12 @@
 /**
  * [목적] Workers env 바인딩을 유일하게 읽어 검증·정규화한다 (R-ENV-001·002·003). 설계 env.md
- * [공개 API] parseEnv(raw) -> Config, requireLlmApiKey(config), ENV_KEYS, ConfigError, LLM_PROVIDERS, 타입 Env·Config
+ * [공개 API] parseEnv(raw) -> Config, requireLlmApiKey(config), ENV_KEYS, ROOM_ENTER_LIMIT_PER_MIN_DEFAULT(S6), ConfigError, LLM_PROVIDERS, 타입 Env·Config
  * [비동기] 없음(동기 순수 함수). 요청마다 1회 호출, 요청 간 캐시 없음
  * [에러] ConfigError{ code: CONFIG_INVALID, keys } — 키 이름만 담고 값·zod 메시지·cause 는 싣지 않는다
  * [설정] TOKEN_SECRET(32자 이상, SEC-001), LLM_API_KEY, TOKEN_MIN_LEVEL, LLM_PROVIDER, LLM_MODEL, LLM_TIMEOUT_MS,
  *        ALLOWED_FRAME_ANCESTORS, RATE_LIMIT_PER_MIN, CONTEXT_MESSAGES, MEMORY_SUMMARY_THRESHOLD,
- *        LLM_MONTHLY_BUDGET_KRW, LLM_PRICE_INPUT_USD_PER_M, LLM_PRICE_OUTPUT_USD_PER_M, KRW_PER_USD, OWNER_MB_IDS(S3c), DB, ASSETS
- * [테스트] server/test/env.test.ts (SRV-T-001~011, 231·232, 234·235)
+ *        LLM_MONTHLY_BUDGET_KRW, LLM_PRICE_INPUT_USD_PER_M, LLM_PRICE_OUTPUT_USD_PER_M, KRW_PER_USD, OWNER_MB_IDS(S3c), ROOM_ENTER_LIMIT_PER_MIN(S6), DB, ASSETS
+ * [테스트] server/test/env.test.ts (SRV-T-001~011, 231·232, 234·235, 400)
  */
 import type { D1Database, Fetcher } from '@cloudflare/workers-types'
 import { z } from 'zod'
@@ -20,6 +20,9 @@ export type Env = {
 
 export const LLM_PROVIDERS = ['google', 'fake'] as const
 export type LlmProviderName = (typeof LLM_PROVIDERS)[number]
+
+/** S6. 스키마 기본값과 auth 폴백이 같은 값을 쓰도록 내보낸다(바인딩을 읽지 않는 상수) */
+export const ROOM_ENTER_LIMIT_PER_MIN_DEFAULT = 5
 
 /** parseEnv 결과. 비밀값을 담으므로 통째로 로그·응답에 넣지 않는다 */
 export type Config = {
@@ -43,9 +46,11 @@ export type Config = {
   readonly krwPerUsd: number
   /** S3c. 갠홈 주인 회원 ID 목록(중복 제거, 입력 순서 유지). 빈 배열 = 주인 없음(설정 엔드포인트 전원 403) */
   readonly ownerMbIds: readonly string[]
+  /** S6. 방 단위 비밀번호 입장 시도 분당 상한(1~60) */
+  readonly roomEnterLimitPerMin: number
 }
 
-/** 바인딩 키 이름 전체(설정 15 + 리소스 2) */
+/** 바인딩 키 이름 전체(설정 16 + 리소스 2) */
 export const ENV_KEYS: readonly string[] = [
   'TOKEN_SECRET',
   'LLM_API_KEY',
@@ -62,6 +67,7 @@ export const ENV_KEYS: readonly string[] = [
   'LLM_PRICE_OUTPUT_USD_PER_M',
   'KRW_PER_USD',
   'OWNER_MB_IDS',
+  'ROOM_ENTER_LIMIT_PER_MIN',
   'DB',
   'ASSETS',
 ]
@@ -170,6 +176,7 @@ const schema = z.object({
   LLM_PRICE_OUTPUT_USD_PER_M: decimalVar(0, 100, 2.5),
   KRW_PER_USD: decimalVar(100, 10_000, 1400),
   OWNER_MB_IDS: ownerMbIds,
+  ROOM_ENTER_LIMIT_PER_MIN: intVar(1, 60, ROOM_ENTER_LIMIT_PER_MIN_DEFAULT),
   DB: resource('prepare'),
   ASSETS: resource('fetch'),
 })
@@ -201,6 +208,7 @@ export const parseEnv = (raw: unknown): Config => {
     llmPriceOutputUsdPerM: v.LLM_PRICE_OUTPUT_USD_PER_M,
     krwPerUsd: v.KRW_PER_USD,
     ownerMbIds: v.OWNER_MB_IDS,
+    roomEnterLimitPerMin: v.ROOM_ENTER_LIMIT_PER_MIN,
   }
 }
 

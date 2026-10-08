@@ -1,5 +1,9 @@
 // 테스트 공용 도우미: D1 초기화·시드 삽입
 import { env } from 'cloudflare:test'
+import { createAuthService } from '../src/auth'
+import { createDb } from '../src/db'
+import type { Logger } from '../src/logger'
+import { createRoomsService, deriveEntrySecret, type RoomsDeps } from '../src/rooms'
 
 /** 모든 테이블을 비운다(자식 먼저) */
 export const resetDb = async (): Promise<void> => {
@@ -69,3 +73,52 @@ export const usageRow = async (
   env.DB.prepare('SELECT calls, est_krw, updated_at FROM llm_usage WHERE month = ?1')
     .bind(month)
     .first<{ calls: number; est_krw: number; updated_at: number }>()
+
+// ---- S6: rooms 서비스 조립 도우미 (rooms.md §12.10) ----
+/** 32자 이상 시험용 SECRET (실값 아님) */
+export const TEST_SECRET = 'test-secret-0123456789-abcdefghijklmnop'
+
+export type CollectedLog = { level: string; event: string; [k: string]: unknown }
+
+/** 로그를 모아 두는 로거. 테스트가 필드를 단언한다 */
+export const collectLogger = () => {
+  const logs: CollectedLog[] = []
+  const push = (level: string) => (event: string, fields?: Record<string, unknown>) =>
+    void logs.push({ level, event, ...fields })
+  return {
+    logs,
+    logger: { info: push('info'), warn: push('warn'), error: push('error') } as Logger,
+  }
+}
+
+/** 실제 D1 + 실제 auth 계수기(hitEnterLimit)로 RoomsDeps 를 만든다. now 는 가변 시계 */
+export const makeRoomsDeps = (opts: { now?: () => number; limit?: number } = {}) => {
+  const now = opts.now ?? ((): number => 1_800_000_000_000)
+  const { logs, logger } = collectLogger()
+  const db = createDb(env.DB)
+  const auth = createAuthService({
+    db,
+    logger,
+    now,
+    config: {
+      tokenSecret: TEST_SECRET,
+      tokenMinLevel: 5,
+      rateLimitPerMin: 20,
+      roomEnterLimitPerMin: opts.limit ?? 5,
+    },
+  })
+  const deps: RoomsDeps = {
+    db,
+    now,
+    logger,
+    entrySecret: () => deriveEntrySecret(TEST_SECRET),
+    hitEnterLimit: auth.hitEnterLimit,
+  }
+  return { deps, db, logs, logger }
+}
+
+/** makeRoomsDeps 로 만든 rooms 서비스 */
+export const makeRooms = (opts: { now?: () => number; limit?: number } = {}) => {
+  const made = makeRoomsDeps(opts)
+  return { ...made, rooms: createRoomsService(made.deps) }
+}

@@ -1,13 +1,14 @@
 /**
  * [목적] routes(contract)가 쓰기 라우트에 붙이는 Hono 미들웨어. 라우트 단위 적용, 전역 등록 금지 (R-AUTH-003·005, R-API-003). 설계 auth.md §2.4·§9.1
- * [공개 API] readBearer(header), requireToken, rateLimitWrites, requireOwner(S3c), getPrincipal(c)
+ * [공개 API] readBearer(header), requireToken, optionalToken(S6), rateLimitWrites, requireOwner(S3c), getPrincipal(c)
  * [비동기] requireToken → services.auth.authenticate, rateLimitWrites → services.auth.hitRateLimit
- * [에러] AppError TOKEN_REQUIRED(401)·TOKEN_INVALID(401)·LEVEL_TOO_LOW(403)·RATE_LIMITED(429), OWNER_ONLY(403, S3c)
+ * [에러] AppError TOKEN_REQUIRED(401)·TOKEN_INVALID(401)·LEVEL_TOO_LOW(403)·RATE_LIMITED(429), OWNER_ONLY(403, S3c). optionalToken 은 앞 세 코드를 삼키고 그 밖은 전파
  * [설정] 없음. 설정은 services.auth 가 값으로 갖고 있다
- * [테스트] server/test/auth.test.ts (SRV-T-109·116~119), server/test/auth-owner.test.ts (SRV-T-237·238)
+ * [테스트] server/test/auth.test.ts (SRV-T-109·116~119), server/test/auth-owner.test.ts (SRV-T-237·238), server/test/auth-room-entry.test.ts (SRV-T-390)
  */
 import type { Context, MiddlewareHandler } from 'hono'
 import { AppError } from '../app-error'
+import type { ErrorCode } from '@shared/errors'
 import type { AppEnv } from '../services'
 import type { Principal } from './token'
 
@@ -32,6 +33,26 @@ export const requireToken: MiddlewareHandler<AppEnv> = async (c, next) => {
   const raw = readBearer(c.req.header('Authorization'))
   if (raw === null) throw new AppError('TOKEN_REQUIRED')
   c.set('principal', await c.get('services').auth.authenticate(raw))
+  await next()
+}
+
+/** S6. optionalToken 이 삼키는 인증 실패 코드 3종. 그 밖(INTERNAL·D1 장애 등)은 전파한다 */
+const SWALLOWED_CODES: ReadonlySet<ErrorCode> = new Set<ErrorCode>([
+  'TOKEN_REQUIRED',
+  'TOKEN_INVALID',
+  'LEVEL_TOO_LOW',
+])
+
+/** S6(E17 전용). Bearer 가 있으면 authenticate 해 principal 을 넣고, 인증 실패 3코드는 삼켜 익명으로 next(). next() 는 try 밖 — 뒤 단계 에러는 삼키지 않는다 */
+export const optionalToken: MiddlewareHandler<AppEnv> = async (c, next) => {
+  const raw = readBearer(c.req.header('Authorization'))
+  if (raw !== null) {
+    try {
+      c.set('principal', await c.get('services').auth.authenticate(raw))
+    } catch (e) {
+      if (!(e instanceof AppError && SWALLOWED_CODES.has(e.code))) throw e
+    }
+  }
   await next()
 }
 

@@ -1,6 +1,6 @@
 /**
  * [목적] db 모듈의 도메인 타입과 행 타입, 유니온 좁히기. 설계 db.md §2.1·§3.2
- * [공개 API] Speaker, MessageKind, RoomSummary, Message (@shared/types 재노출), NewMessage(S2), RoomSummaryRow, MessageRow, RateLimitRow(S2), toSpeaker, toKind
+ * [공개 API] Speaker, MessageKind, RoomSummary, Message (@shared/types 재노출), NewMessage(S2), RoomSummaryRow, MessageRow, RateLimitRow(S2), RoomEntryRow(S6), toSpeaker, toKind
  * [비동기] 없음
  * [에러] 좁히기 실패 → AppError INTERNAL(500)
  * [설정] 없음
@@ -31,7 +31,12 @@ export type RoomSummaryRow = {
   created_at: number
   updated_at: number
   message_count: number
+  /** S6. (pass_hash IS NOT NULL) — 0 | 1 */
+  locked: number
 }
+
+/** S6. 입장·관문 조회 행(pass_hash 는 rooms 모듈 전용 — RoomSummary 에 없다) */
+export type RoomEntryRow = { room_id: string; pass_hash: string | null }
 
 /** messages 조회 행(author_mb_id 는 조회하지 않는다) */
 export type MessageRow = {

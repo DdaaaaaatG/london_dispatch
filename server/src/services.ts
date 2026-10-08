@@ -3,8 +3,8 @@
  * [공개 API] createServices(deps) -> Services { auth, rooms, messages, settings(S3c), memory(S4), getHealth }, APP_VERSION, 타입 AppEnv·Services·ServiceDeps·HealthStatus
  * [비동기] 없음(팩토리 클로저 생성뿐). getHealth 는 DB·외부 호출 없는 동기 함수
  * [에러] 없음
- * [설정] deps.config(parseEnv 결과)에서 auth 팩토리에 tokenSecret·tokenMinLevel·rateLimitPerMin·ownerMbIds(S3c) 만 골라 넘긴다. Config 를 Services·Variables 에 싣지 않는다
- * [테스트] server/test/app.test.ts (SRV-T-087·161·327)
+ * [설정] deps.config(parseEnv 결과)에서 auth 팩토리에 tokenSecret·tokenMinLevel·rateLimitPerMin·ownerMbIds(S3c)·roomEnterLimitPerMin(S6) 만 골라 넘긴다. S6: tokenSecret 은 deriveEntrySecret(입장 증명 키 파생)에도 값으로만 지나간다. Config 를 Services·Variables 에 싣지 않는다
+ * [테스트] server/test/app.test.ts (SRV-T-087·161·327·401)
  */
 import type { HealthResponse } from '@shared/types'
 import pkg from '../package.json'
@@ -22,7 +22,7 @@ import {
 } from './llm'
 import { createMemoryService, type MemoryService } from './memory'
 import { createMessagesService, type MessagesService } from './messages'
-import { createRoomsService, type RoomsService } from './rooms'
+import { createRoomsService, deriveEntrySecret, type RoomsService } from './rooms'
 import { createSettingsService, type SettingsService } from './settings'
 
 /** 계약 타입 HealthResponse 와 같다 */
@@ -112,19 +112,31 @@ export const createServices = (deps: ServiceDeps): Services => {
     summaryThreshold: deps.config.memorySummaryThreshold,
     llm,
   })
+  const auth = createAuthService({
+    db: deps.db,
+    logger: deps.logger,
+    now: deps.now,
+    config: {
+      tokenSecret: deps.config.tokenSecret,
+      tokenMinLevel: deps.config.tokenMinLevel,
+      rateLimitPerMin: deps.config.rateLimitPerMin,
+      ownerMbIds: deps.config.ownerMbIds,
+      roomEnterLimitPerMin: deps.config.roomEnterLimitPerMin,
+    },
+  })
+  // S6: 입장 증명 파생 키. 처음 필요할 때 1회 파생해 이 컨테이너(= 요청 1건) 동안 재사용. 모듈 전역 캐시 아님(지역 클로저 메모)
+  let entrySecretMemo: Promise<CryptoKey> | undefined
+  const entrySecret = (): Promise<CryptoKey> =>
+    (entrySecretMemo ??= deriveEntrySecret(deps.config.tokenSecret))
   return {
-    auth: createAuthService({
+    auth,
+    rooms: createRoomsService({
       db: deps.db,
-      logger: deps.logger,
       now: deps.now,
-      config: {
-        tokenSecret: deps.config.tokenSecret,
-        tokenMinLevel: deps.config.tokenMinLevel,
-        rateLimitPerMin: deps.config.rateLimitPerMin,
-        ownerMbIds: deps.config.ownerMbIds,
-      },
+      logger: deps.logger,
+      entrySecret,
+      hitEnterLimit: auth.hitEnterLimit,
     }),
-    rooms: createRoomsService({ db: deps.db, now: deps.now }),
     messages: createMessagesService({
       db: deps.db,
       now: deps.now,

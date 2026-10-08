@@ -1,13 +1,14 @@
 /**
  * [목적] SQL 문자열 상수(S1 조회 + S2 쓰기·레이트리밋). 문자열 연결·보간 금지, 값은 전부 bind (R-DB-003). 설계 db.md §3.1·§3.2
- * [공개 API] S4 SQL_MEMORY_STATE_BY_ROOM·PUT_SUMMARY·ADVANCE, SQL_MESSAGES_COUNT_AFTER·LIST_AFTER / S3c SQL_CHARACTER_SETTINGS_GET·UPSERT / S3f SQL_CHARACTER_SETTINGS_MODEL_GET / S3b SQL_LLM_USAGE_ADD·BY_MONTH / S3 SQL_ROOMS_ACQUIRE_SPEAK_LOCK·RELEASE_SPEAK_LOCK, SQL_MESSAGES_BY_ID, SQL_MEMORY_SUMMARY_BY_ROOM / S1 SQL_ROOMS_LIST_SUMMARIES·EXISTS·TOUCH, SQL_MESSAGES_PAGE_LATEST·BEFORE / S2 SQL_ROOMS_INSERT·UPDATE_TITLE·SUMMARY_BY_ID·DELETE·TOUCH_BY_MESSAGE, SQL_MEMORY_DELETE_BY_ROOM, SQL_MESSAGES_DELETE_BY_ROOM·INSERT_IF_ROOM·UPDATE_TEXT·DELETE, SQL_RATE_LIMITS_HIT·PURGE_BEFORE
+ * [공개 API] S6 SQL_ROOMS_ENTRY_STATE·ENTRY_STATE_BY_MESSAGE·WAS_LOCKED·SET_PASS_HASH(+ LIST_SUMMARIES·SUMMARY_BY_ID 의 locked, INSERT 의 pass_hash) / S4 SQL_MEMORY_STATE_BY_ROOM·PUT_SUMMARY·ADVANCE, SQL_MESSAGES_COUNT_AFTER·LIST_AFTER / S3c SQL_CHARACTER_SETTINGS_GET·UPSERT / S3f SQL_CHARACTER_SETTINGS_MODEL_GET / S3b SQL_LLM_USAGE_ADD·BY_MONTH / S3 SQL_ROOMS_ACQUIRE_SPEAK_LOCK·RELEASE_SPEAK_LOCK, SQL_MESSAGES_BY_ID, SQL_MEMORY_SUMMARY_BY_ROOM / S1 SQL_ROOMS_LIST_SUMMARIES·EXISTS·TOUCH, SQL_MESSAGES_PAGE_LATEST·BEFORE / S2 SQL_ROOMS_INSERT·UPDATE_TITLE·SUMMARY_BY_ID·DELETE·TOUCH_BY_MESSAGE, SQL_MEMORY_DELETE_BY_ROOM, SQL_MESSAGES_DELETE_BY_ROOM·INSERT_IF_ROOM·UPDATE_TEXT·DELETE, SQL_RATE_LIMITS_HIT·PURGE_BEFORE
  * [비동기] 없음
  * [에러] 없음
  * [설정] 없음
  * [테스트] server/test/db.test.ts (SRV-T-024~029, 121~128, 187~190, 322~325)
  */
 export const SQL_ROOMS_LIST_SUMMARIES = `SELECT r.id, r.title, r.created_at, r.updated_at,
-       (SELECT COUNT(*) FROM messages m WHERE m.room_id = r.id) AS message_count
+       (SELECT COUNT(*) FROM messages m WHERE m.room_id = r.id) AS message_count,
+       (r.pass_hash IS NOT NULL) AS locked
 FROM rooms r
 ORDER BY r.updated_at DESC, r.id ASC`
 
@@ -27,16 +28,29 @@ WHERE room_id = ?1 AND id < ?2
 ORDER BY id DESC
 LIMIT ?3`
 
+// ---- S6 (db.md §15.2) ----
+export const SQL_ROOMS_ENTRY_STATE = 'SELECT id AS room_id, pass_hash FROM rooms WHERE id = ?1'
+
+export const SQL_ROOMS_ENTRY_STATE_BY_MESSAGE = `SELECT m.room_id AS room_id, r.pass_hash AS pass_hash
+FROM messages m JOIN rooms r ON r.id = m.room_id
+WHERE m.id = ?1`
+
+export const SQL_ROOMS_WAS_LOCKED =
+  'SELECT (pass_hash IS NOT NULL) AS was_locked FROM rooms WHERE id = ?1'
+
+export const SQL_ROOMS_SET_PASS_HASH = 'UPDATE rooms SET pass_hash = ?1 WHERE id = ?2'
+
 // ---- S2 ----
 const MESSAGE_COLUMNS = 'id, room_id, speaker, kind, text, author_name, created_at'
 
 export const SQL_ROOMS_INSERT =
-  'INSERT INTO rooms (id, title, created_at, updated_at) VALUES (?1, ?2, ?3, ?3)'
+  'INSERT INTO rooms (id, title, created_at, updated_at, pass_hash) VALUES (?1, ?2, ?3, ?3, ?4)'
 
 export const SQL_ROOMS_UPDATE_TITLE = 'UPDATE rooms SET title = ?1 WHERE id = ?2'
 
 export const SQL_ROOMS_SUMMARY_BY_ID = `SELECT r.id, r.title, r.created_at, r.updated_at,
-       (SELECT COUNT(*) FROM messages m WHERE m.room_id = r.id) AS message_count
+       (SELECT COUNT(*) FROM messages m WHERE m.room_id = r.id) AS message_count,
+       (r.pass_hash IS NOT NULL) AS locked
 FROM rooms r
 WHERE r.id = ?1`
 

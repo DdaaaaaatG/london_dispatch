@@ -7,6 +7,7 @@
 # --- 토큰 (갠홈 등급 연동) ---
 # 갠홈 rosebell-chatbot.php 의 토큰 조각과 같은 값. 운영·로컬 모두 32자 이상(짧으면 모든 요청이 500 CONFIG_INVALID). 비워도 같다
 TOKEN_SECRET=
+# 같은 값으로 방 입장 증명(비밀번호를 맞힌 브라우저의 기억)도 만든다. 바꾸면 잠긴 방은 모두 비밀번호를 다시 묻는다
 
 # --- AI 제공사 (Google Gemini) ---
 # Gemini API 키. 로그·응답·화면에 절대 찍지 않는다. 비워 두면 읽기 화면은 동작하고 speak 만 실패한다.
@@ -28,6 +29,7 @@ OWNER_MB_IDS=
 # LLM_TIMEOUT_MS=60000                   제공사 호출 타임아웃(ms, 1000~60000)
 # ALLOWED_FRAME_ANCESTORS=http://london-gossip.my https://london-gossip.my   iframe 허용 출처(공백 구분). 확정사항 §9-7
 # RATE_LIMIT_PER_MIN=20                  토큰(mb_id) 단위 쓰기 요청 분당 상한. 확정사항 §9-6
+# ROOM_ENTER_LIMIT_PER_MIN=5              잠긴 방 비밀번호 입장 시도, 방마다 분당 상한(1~60). 주인·비밀번호 없는 요청은 세지 않는다
 # CONTEXT_MESSAGES=40                    speak 에 넣는 최근 메시지 수(1~100)
 # MEMORY_SUMMARY_THRESHOLD=60            이 수를 넘으면 오래된 구간을 요약한다(CONTEXT_MESSAGES 보다 커야 함)
 # LLM_MONTHLY_BUDGET_KRW=100000          월 AI 비용 상한(원, 추정). 닿으면 다음 달 1일 0시(KST)까지 캐릭터 버튼 429. R-LLM-007

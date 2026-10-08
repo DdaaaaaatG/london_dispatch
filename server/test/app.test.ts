@@ -318,7 +318,7 @@ describe('S2 앱 계층', () => {
     expect(services.getHealth()).toEqual({ ok: true, version: APP_VERSION })
     expect(JSON.stringify(services)).not.toContain('SENTINEL_SECRET_VALUE')
     expect(Object.keys(services.auth).sort()).toEqual(
-      ['assertOwner', 'authenticate', 'hitRateLimit', 'isOwner'].sort(),
+      ['assertOwner', 'authenticate', 'hitEnterLimit', 'hitRateLimit', 'isOwner'].sort(),
     )
     expect(Object.keys(services.auth).join()).not.toContain('tokenSecret')
   })
@@ -568,5 +568,36 @@ describe('S3f 모델 해석 배선 (index.md §14.5)', () => {
     const invalid = logs.filter(l => l.event === 'llm_model_invalid')
     expect(invalid).toHaveLength(1)
     expect(lines.join('\n')).not.toContain('turbo')
+  })
+})
+
+// ---- S6 (SRV-T-401) — doc/200_설계/server/index.md §15.4 ----
+describe('S6 컨테이너 배선', () => {
+  it('SRV-T-401 createServices_wires_entry_secret_and_enter_limit', async () => {
+    const { deriveEntrySecret, issueEntryKey } = await import('../src/rooms/entry-key')
+    const secret = 'test-secret-0123456789-abcdefghijklmnop'
+    const build = () =>
+      createServices({
+        db: createDb(env.DB),
+        logger: createLogger(() => {}),
+        now: () => NOW,
+        config: parseEnv(baseEnv({ ROOM_ENTER_LIMIT_PER_MIN: '2' })),
+      })
+    const first = build()
+    const room = await first.rooms.createRoom({ title: '밀실', password: 'abcd' })
+    const hash = (
+      await env.DB.prepare('SELECT pass_hash FROM rooms WHERE id = ?1')
+        .bind(room.id)
+        .first<{ pass_hash: string }>()
+    )?.pass_hash
+    const expected = await issueEntryKey(await deriveEntrySecret(secret), room.id, hash ?? '')
+    expect(room.entryKey).toBe(expected)
+    const target = { kind: 'room', roomId: room.id } as const
+    await first.rooms.assertEntry(target, { entryKey: expected, isOwner: false })
+    await build().rooms.assertEntry(target, { entryKey: expected, isOwner: false })
+    const wrong = () => build().rooms.enter(room.id, { password: 'nope', isOwner: false })
+    await expect(wrong()).rejects.toMatchObject({ code: 'ROOM_PASSWORD_WRONG' })
+    await expect(wrong()).rejects.toMatchObject({ code: 'ROOM_PASSWORD_WRONG' })
+    await expect(wrong()).rejects.toMatchObject({ code: 'RATE_LIMITED' })
   })
 })

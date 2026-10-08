@@ -5,14 +5,21 @@ import { AppError } from '../src/app-error'
 import { createDb, type Db } from '../src/db'
 import { createMessagesService } from '../src/messages'
 import { createRoomsService } from '../src/rooms'
-import { IDLE_GENERATE_DEPS, insertLines, insertRoom, resetDb } from './helpers'
+import {
+  IDLE_GENERATE_DEPS,
+  insertLines,
+  insertRoom,
+  makeRooms,
+  makeRoomsDeps,
+  resetDb,
+} from './helpers'
 
 const NOW = 1_800_000_000_000
 
 beforeEach(resetDb)
 
 describe('listRooms', () => {
-  const service = () => createRoomsService({ db: createDb(env.DB), now: () => NOW })
+  const service = () => makeRooms({ now: () => NOW }).rooms
 
   it('SRV-T-040 listRooms_returns_empty_array_when_no_rooms', async () => {
     expect(await service().listRooms()).toEqual([])
@@ -37,6 +44,7 @@ describe('listRooms', () => {
       expect(Object.keys(r).sort()).toEqual([
         'createdAt',
         'id',
+        'locked',
         'messageCount',
         'title',
         'updatedAt',
@@ -49,7 +57,9 @@ describe('listRooms', () => {
   it('SRV-T-043 listRooms_propagates_db_failure', async () => {
     const failure = new Error('D1 down')
     const db = { rooms: { listSummaries: () => Promise.reject(failure) } } as unknown as Db
-    await expect(createRoomsService({ db, now: () => NOW }).listRooms()).rejects.toBe(failure)
+    await expect(
+      createRoomsService({ ...makeRoomsDeps({ now: () => NOW }).deps, db }).listRooms(),
+    ).rejects.toBe(failure)
   })
 })
 
@@ -79,19 +89,22 @@ const trapDb = () => {
 }
 
 describe('createRoom · renameRoom · deleteRoom', () => {
-  const service = () => createRoomsService({ db: createDb(env.DB), now: () => NOW })
+  const service = () => makeRooms({ now: () => NOW }).rooms
 
   it('SRV-T-130 createRoom_trims_title_and_returns_summary', async () => {
     const room = await service().createRoom({ title: '  안개 낀 런던  ' })
     expect(room.title).toBe('안개 낀 런던')
     expect(room.id).toMatch(UUID_V4)
     expect([room.createdAt, room.updatedAt, room.messageCount]).toEqual([NOW, NOW, 0])
-    expect((await service().listRooms())[0]).toEqual(room)
+    const { entryKey, ...summary } = room
+    expect(entryKey).toBeNull()
+    expect(room.locked).toBe(false)
+    expect((await service().listRooms())[0]).toEqual(summary)
   })
 
   it('SRV-T-131 createRoom_rejects_title_out_of_range_before_db', async () => {
     const { calls, db } = trapDb()
-    const guarded = createRoomsService({ db, now: () => NOW })
+    const guarded = createRoomsService({ ...makeRoomsDeps({ now: () => NOW }).deps, db })
     for (const title of ['', '   ', 'a'.repeat(61), '😀'.repeat(61)]) {
       expect(await codeOf(guarded.createRoom({ title }))).toBe('VALIDATION_ERROR')
     }
@@ -105,16 +118,16 @@ describe('createRoom · renameRoom · deleteRoom', () => {
   it('SRV-T-132 renameRoom_updates_title_and_keeps_updatedAt', async () => {
     await insertRoom('a', '옛 제목', 5, 100)
     await insertLines('a', 2)
-    const renamed = await createRoomsService({ db: createDb(env.DB), now: () => 999 }).renameRoom(
-      'a',
-      { title: ' 새 제목 ' },
-    )
+    const renamed = await makeRooms({ now: () => 999 }).rooms.renameRoom('a', {
+      title: ' 새 제목 ',
+    })
     expect(renamed).toEqual({
       id: 'a',
       title: '새 제목',
       createdAt: 5,
       updatedAt: 100,
       messageCount: 2,
+      locked: false,
     })
     const row = await env.DB.prepare('SELECT title FROM rooms WHERE id = ?1')
       .bind('a')
@@ -124,7 +137,7 @@ describe('createRoom · renameRoom · deleteRoom', () => {
 
   it('SRV-T-133 renameRoom_throws_for_invalid_title_or_unknown_room', async () => {
     const { calls, db } = trapDb()
-    const guarded = createRoomsService({ db, now: () => NOW })
+    const guarded = createRoomsService({ ...makeRoomsDeps({ now: () => NOW }).deps, db })
     expect(await codeOf(guarded.renameRoom('a', { title: 'a'.repeat(61) }))).toBe(
       'VALIDATION_ERROR',
     )
