@@ -7,7 +7,8 @@
 - **배포 완료 19:30 KST.** 운영 주소 `https://london-dispatch.pora.workers.dev`(임베드 `/embed`). 기록 `doc/300_검증/deploy-20261008-1930.md`. D1 `london-dispatch`(APAC) 생성 + 0001~0004 적용 · Secrets 3개(`TOKEN_SECRET` 44자 영숫자 우리 생성 · `LLM_API_KEY` 지인 키를 **사용자가 별도 터미널에서 직접 입력**(세션 미열람) · `OWNER_MB_IDS`) · `wrangler.toml` database_id 기입(커밋 `9836fcc`). 헬스 전부 정상, 주인 토큰으로 `/api/settings/characters` 200 확인(= Cloudflare TOKEN_SECRET과 PHP 파일 SECRET 일치).
 - **사용자 결정(2026-10-08 저녁)**: ① Cloudflare는 구성원 초대 대신 **사용자가 지인 계정(pora__)으로 직접 `wrangler login`**(이 PC에 자격 저장됨, 재로그인 불필요). ② 지인 Gemini 키는 **선불 결제(Pro 가능)** → 기본 모델 Pro 유지. ③ 갠홈 패치(head.php·css·js)는 **이미 설치돼 있음**(main.php 확인) → 지인에게는 **완성 `rosebell-chatbot.php` 1개**(주소+토큰 조각+SECRET, 75줄)만 카톡으로, 같은 자리 덮어쓰기. 1회성 링크·head.php 교체 안내 폐기.
 - **저장소 밖 로컬 파일(`D:\pr\dispatch\`, git 무관)**: `london-dispatch-TOKEN_SECRET.txt`(운영 SECRET 원본 — Cloudflare는 값을 다시 안 보여 주므로 이것이 유일한 사본) · `rosebell-chatbot.php`(지인 전달용 완성본) · `owner-token.txt`·`owner-url.txt`(주인 blbl 12h 테스트 토큰, 2026-10-09 07:30 KST 만료). 지인 확인 끝나면 php·토큰 파일은 지운다. SECRET 파일은 보관(재발급 시 양쪽 동시 교체 필요).
-- **다음 할 일**: ① 사용자가 운영 화면(owner-url)에서 캐릭터 버튼 눌러 Pro 응답 실물 확인(지인 키 검증) ② 완성 php 카톡 전달 → 지인 덮어쓰기 → 갠홈에서 확인표(embed-guide §6) ③ contract-designer handoff 갱신 결과 커밋·푸시 ④ 로컬 키(`.dev.vars`)는 사용자 본인 키 — 운영과 다름(정상).
+- **운영 첫 장애·해결(19:40~20:05)**: HKG 실행 시 Gemini 400 FAILED_PRECONDITION(홍콩 미지원) → `[placement] region = "gcp:asia-northeast1"` 고정(커밋 `505e0a5`, Smart Placement는 효과 없어 폐기). HKG 유입 speak 201 확인. 상세 deploy-20261008-1930.md 후속 절. **지인 Pro 키 정상 확인됨**(세바스찬·시엘 실응답).
+- **다음 할 일**: ① 사용자가 운영 화면(owner-url)에서 캐릭터 버튼 재시도(지역 고정 뒤 실패 0 확인) ② 완성 php 카톡 전달 → 지인 덮어쓰기 → 갠홈에서 확인표(embed-guide §6) ③ contract-designer handoff 갱신 결과 커밋·푸시 ④ 로컬 키(`.dev.vars`)는 사용자 본인 키 — 운영과 다름(정상).
 - 로컬 키 = 사용자 키(Pro·Flash 둘 다 200 확인). 아래 §0-0의 "운영 키 전달" 항목은 끝났다.
 
 ## 0-0. 2026-10-08 상태 — S3f 완료(verify PASS, 커밋됨 `36e6e7c`~`ba619af`) · (기록)
