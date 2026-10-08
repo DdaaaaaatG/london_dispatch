@@ -144,6 +144,7 @@ npx wrangler --config server/wrangler.toml secret put OWNER_MB_IDS
 | `KRW_PER_USD` | `1400` | 원/달러 환율. 자동 갱신 없음 |
 | `LLM_MONTHLY_BUDGET_KRW` | `100000` | 월 AI 비용 상한(추정, 원) |
 | `ALLOWED_FRAME_ANCESTORS` | `http://london-gossip.my https://london-gossip.my` | 대화창을 넣을 사이트 주소. 다른 주소가 있으면 더한다([embed-guide.md](embed-guide.md) §5.1). 2026-10-08 운영 응답 CSP에서 이 값 확인 |
+| `ROOM_ENTER_LIMIT_PER_MIN` | `5` (기본값 — 방 비밀번호 잠금 배포 때 생긴다, 2026-10-08 사용자 결정) | **방 비밀번호 입력 횟수 제한.** 잠긴 방 하나에 1분 동안 비밀번호를 5번까지 받고, 넘으면 1분 기다리게 한다(남의 방 비밀번호를 마구 넣어 보는 것을 막는다). 1~60. 주인은 비밀번호 없이 들어가므로 영향 없음. 갠홈 파일은 바꿀 것이 없다 |
 | 그 밖(`LLM_PROVIDER`·`LLM_TIMEOUT_MS`·`RATE_LIMIT_PER_MIN`·`CONTEXT_MESSAGES`·`MEMORY_SUMMARY_THRESHOLD`) | 기본값 | 바꿀 일이 생기면 사용자에게 묻는다 |
 
 ---
